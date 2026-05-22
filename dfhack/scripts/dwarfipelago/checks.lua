@@ -7,32 +7,20 @@ local M = {}
 -- ── Wealth milestones ─────────────────────────────────────────────────────────
 
 -- Returns current total fortress wealth (items + buildings + stocks).
-local function get_fortress_wealth()
-    local world = df.global.world
-    if world and world.status and world.status.ent_refs then
-        -- Total stored wealth is tracked in the fortress entity
-        local fortress = dfhack.getAdventurer and dfhack.getAdventurer()
-        -- For fortress mode, wealth is in world.status
-        local wealth = 0
-        if world.status.ent_refs then
-            -- Sum item values; DFHack exposes a simpler path:
-            -- df.global.ui.tasks.wealth (pre-2022) or world.status totals
-            -- TODO: confirm the correct global path for the target DF version
-            wealth = tonumber(tostring(world.status.ent_refs)) or 0
-        end
-        return wealth
-    end
-    return 0
-end
-
--- Stub: replace with confirmed df.global path once tested with DFHack console.
+-- DF 50+ (Steam / 2022+) renamed df.global.ui → df.global.plotinfo.
+-- We try plotinfo first so both versions are supported.
 local function fortress_wealth()
-    -- In DFHack Lua: df.global.ui.tasks.wealth_total_exported may be relevant.
-    -- For now, use the most common path observed in DFHack scripts:
     local ok, result = pcall(function()
+        return df.global.plotinfo.tasks.wealth
+    end)
+    if ok and type(result) == "number" then return result end
+
+    -- Fallback for Classic DF (pre-50).
+    ok, result = pcall(function()
         return df.global.ui.tasks.wealth
     end)
-    if ok and result then return result end
+    if ok and type(result) == "number" then return result end
+
     return 0
 end
 

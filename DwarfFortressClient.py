@@ -32,20 +32,103 @@ except ImportError:
 DFHACK_HOST = "127.0.0.1"
 DFHACK_PORT = 5000
 
-# DFHack protobuf wire protocol constants
-DFHACK_MAGIC_REQUEST  = b"DFHack?\n"
-DFHACK_MAGIC_REPLY    = b"DFHack!\n"
-DFHACK_METHOD_BIND    = 0   # BindMethod
-DFHACK_METHOD_RUN_CMD = 1   # RunCommand
+DFHACK_MAGIC_REQUEST = b"DFHack?\n"
+DFHACK_MAGIC_REPLY   = b"DFHack!\n"
 
+# DFHack RPC reply / special IDs (carried in the message header's id field).
+# See https://docs.dfhack.org/en/stable/docs/dev/Remote.html
+RPC_METHOD_BIND  =  0   # BindMethod — always id 0
+RPC_REPLY_RESULT = -1   # successful result
+RPC_REPLY_ERROR  = -2   # error result (protobuf CoreErrorInfo body)
+RPC_REPLY_FAIL   = -3   # call failed (non-protobuf)
+RPC_REPLY_TEXT   = -5   # TextNotification (console output mid-call)
+RPC_HEADER_SIZE  =  8   # two little-endian int32s: id + body_size
+
+# ── Minimal protobuf wire encoding / decoding ─────────────────────────────────
+# We only need CoreBindRequest/Reply and CoreRunCommandRequest, so we hand-roll
+# the tiny subset rather than pulling in generated proto classes.
+
+def _pb_varint(value: int) -> bytes:
+    """Encode a non-negative integer as a protobuf varint."""
+    out = bytearray()
+    while True:
+        towrite = value & 0x7F
+        value >>= 7
+        if value:
+            out.append(towrite | 0x80)
+        else:
+            out.append(towrite)
+            break
+    return bytes(out)
+
+
+def _pb_string(field: int, value: str) -> bytes:
+    """Encode a protobuf string field (wire type 2 = length-delimited)."""
+    enc = value.encode("utf-8")
+    return _pb_varint((field << 3) | 2) + _pb_varint(len(enc)) + enc
+
+
+def _pb_decode_varint(data: bytes, pos: int) -> tuple[int, int]:
+    result, shift = 0, 0
+    while pos < len(data):
+        b = data[pos]; pos += 1
+        result |= (b & 0x7F) << shift
+        shift += 7
+        if not (b & 0x80):
+            break
+    return result, pos
+
+
+def _pb_decode(data: bytes) -> dict[int, list]:
+    """
+    Shallow-decode a protobuf message.
+    Returns {field_number: [value, ...]} where value is int (varint)
+    or bytes (length-delimited / nested message).
+    """
+    fields: dict[int, list] = {}
+    pos = 0
+    while pos < len(data):
+        tag, pos = _pb_decode_varint(data, pos)
+        field_num, wire_type = tag >> 3, tag & 0x07
+        if wire_type == 0:          # varint
+            val, pos = _pb_decode_varint(data, pos)
+        elif wire_type == 2:        # length-delimited
+            length, pos = _pb_decode_varint(data, pos)
+            val = data[pos:pos + length]
+            pos += length
+        else:
+            break                   # unsupported wire type; stop parsing
+        fields.setdefault(field_num, []).append(val)
+    return fields
+
+
+def _extract_text_notification(body: bytes) -> str:
+    """
+    Extract plain text from a CoreTextNotification protobuf body.
+
+    Proto structure:
+      CoreTextNotification { fragments(1): CoreTextFragment {
+          fragments(1): Tile { str(1): string, fg(2), bg(3) } } }
+    """
+    parts = []
+    for frag_bytes in _pb_decode(body).get(1, []):          # CoreTextFragment
+        for tile_bytes in _pb_decode(frag_bytes).get(1, []):  # Tile
+            for s in _pb_decode(tile_bytes).get(1, []):        # str field
+                if isinstance(s, bytes):
+                    parts.append(s.decode("utf-8", errors="replace"))
+    return "".join(parts)
+
+
+# ── DFHack connection ─────────────────────────────────────────────────────────
 
 class DFHackConnection:
     """
     Minimal DFHack remote API client.
 
     Implements only what Dwarfipelago needs:
-    - RunCommand: execute a DFHack Lua script / console command
-    - Read the pending-checks queue written by the Lua mod
+    - run_command: execute a DFHack console command (including inline Lua)
+    - pop_pending_checks: atomically read and clear the check queue
+    - deliver_item: call the Lua item handler for a received AP item
     """
 
     def __init__(self, host: str = DFHACK_HOST, port: int = DFHACK_PORT):
@@ -56,7 +139,6 @@ class DFHackConnection:
     def connect(self) -> bool:
         try:
             sock = socket.create_connection((self.host, self.port), timeout=5)
-            # Exchange magic bytes
             sock.sendall(DFHACK_MAGIC_REQUEST)
             reply = sock.recv(8)
             if reply != DFHACK_MAGIC_REPLY:
@@ -74,48 +156,130 @@ class DFHackConnection:
         if self._sock:
             self._sock.close()
             self._sock = None
+        # Clear the cached method ID so BindMethod is re-issued on the next connection.
+        self.__dict__.pop("_run_cmd_id", None)
 
     def is_connected(self) -> bool:
         return self._sock is not None
 
-    def run_command(self, command: str) -> Optional[str]:
-        """
-        Execute a DFHack console command (including Lua scripts) via RunCommand RPC.
-        Returns the text output, or None on failure.
+    # ── Wire-level helpers ────────────────────────────────────────────────────
 
-        Note: Full protobuf encoding is TODO — this is a placeholder that logs
-        the intended call. Wire protocol details:
-        https://docs.dfhack.org/en/stable/docs/dev/Remote.html
+    def _recv_exactly(self, n: int) -> bytes:
+        """Block until exactly n bytes have been received from the socket."""
+        buf = bytearray()
+        while len(buf) < n:
+            chunk = self._sock.recv(n - len(buf))
+            if not chunk:
+                raise ConnectionError("DFHack closed the connection mid-message")
+            buf.extend(chunk)
+        return bytes(buf)
+
+    def _send_rpc(self, method_id: int, body: bytes) -> None:
+        self._sock.sendall(struct.pack("<ii", method_id, len(body)) + body)
+
+    def _recv_rpc(self) -> tuple[int, bytes]:
+        method_id, size = struct.unpack("<ii", self._recv_exactly(RPC_HEADER_SIZE))
+        body = self._recv_exactly(size) if size > 0 else b""
+        return method_id, body
+
+    def _bind_method(self, method: str, input_msg: str = "", output_msg: str = "") -> int:
+        """
+        Call BindMethod (always RPC id 0) to obtain the assigned integer ID
+        for a named method. Returns -1 on failure.
+
+        Sends:   CoreBindRequest  { method(1), input_msg(2), output_msg(3) }
+        Expects: CoreBindReply    { assigned_id(1) }
+        """
+        body = _pb_string(1, method) + _pb_string(2, input_msg) + _pb_string(3, output_msg)
+        self._send_rpc(RPC_METHOD_BIND, body)
+        reply_id, data = self._recv_rpc()
+        if reply_id == RPC_REPLY_RESULT:
+            ids = _pb_decode(data).get(1, [-1])
+            return ids[0] if ids else -1
+        logger.error(f"BindMethod failed for {method!r}: reply_id={reply_id}")
+        return -1
+
+    # ── Public API ────────────────────────────────────────────────────────────
+
+    def run_command(self, command: str, *args: str) -> Optional[str]:
+        """
+        Execute a DFHack console command via the Core.RunCommand RPC.
+
+        `command` is the DFHack command name (e.g. "lua"); any additional
+        positional arguments are passed as RunCommand arguments.
+
+        Returns the concatenated console output (from TextNotification packets),
+        or None on failure.
+
+        Example:
+            conn.run_command("lua", 'print(df.global.plotinfo.tasks.wealth)')
         """
         if not self._sock:
             return None
-        # TODO: encode RunCommand protobuf message and send over self._sock
-        # For now, log the intended command for development reference.
-        logger.debug(f"[DFHack] run_command: {command}")
-        return None
+        try:
+            if not hasattr(self, "_run_cmd_id"):
+                self._run_cmd_id = self._bind_method(
+                    "Core.RunCommand",
+                    "CoreRunCommandRequest",
+                    "EmptyMessage",
+                )
+                if self._run_cmd_id < 0:
+                    logger.error("Failed to bind Core.RunCommand")
+                    return None
+
+            # Encode CoreRunCommandRequest { command(1), arguments(2 repeated) }
+            body = _pb_string(1, command)
+            for arg in args:
+                body += _pb_string(2, arg)
+            self._send_rpc(self._run_cmd_id, body)
+
+            # Drain TextNotification packets until we receive a Result or Error.
+            output_parts: list[str] = []
+            while True:
+                reply_id, data = self._recv_rpc()
+                if reply_id == RPC_REPLY_TEXT:
+                    output_parts.append(_extract_text_notification(data))
+                elif reply_id == RPC_REPLY_RESULT:
+                    break
+                elif reply_id in (RPC_REPLY_ERROR, RPC_REPLY_FAIL):
+                    logger.warning(f"DFHack RunCommand failed (id={reply_id}): {data!r}")
+                    return None
+
+            return "".join(output_parts)
+
+        except Exception as e:
+            logger.warning(f"DFHack run_command error: {e}")
+            self.disconnect()
+            return None
 
     def pop_pending_checks(self) -> list[int]:
         """
-        Read and clear the pending-checks queue written by the Lua mod.
-        The Lua mod writes to dfhack.persistent site data key "dwarfipelago/pending_checks".
-        We read it via a RunCommand that prints the JSON, then clears the queue.
-        Returns a list of AP location IDs.
+        Atomically read and clear the pending-checks queue written by the Lua mod.
+        The mod stores the queue as a JSON array in site data under
+        "dwarfipelago/pending_checks". Returns a list of AP location IDs.
         """
-        # TODO: implement once RunCommand wire protocol is complete.
-        # Command to run in DFHack:
-        #   local q = dfhack.persistent.getSiteData("dwarfipelago/pending_checks") or "[]"
-        #   dfhack.persistent.setSiteData("dwarfipelago/pending_checks", "[]")
-        #   print(q)
-        return []
+        lua = (
+            "(function()"
+            " local q = dfhack.persistent.getSiteData"
+            '("dwarfipelago/pending_checks") or "[]";'
+            ' dfhack.persistent.setSiteData("dwarfipelago/pending_checks", "[]");'
+            " print(q)"
+            " end)()"
+        )
+        output = self.run_command("lua", lua)
+        if not output:
+            return []
+        try:
+            ids = json.loads(output.strip())
+            return [int(x) for x in ids] if isinstance(ids, list) else []
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Failed to parse pending checks — {e!r} — raw: {output!r}")
+            return []
 
     def deliver_item(self, item_name: str):
-        """
-        Deliver a received AP item to the fortress by calling the Lua item handler.
-        """
-        # Escape the item name for safe embedding in Lua string
+        """Deliver a received AP item to the fortress by calling the Lua item handler."""
         safe_name = item_name.replace("\\", "\\\\").replace('"', '\\"')
-        cmd = f'require("dwarfipelago.items").receive("{safe_name}")'
-        self.run_command(f'lua {cmd}')
+        self.run_command("lua", f'require("dwarfipelago.items").receive("{safe_name}")')
         logger.info(f"Delivered item to fortress: {item_name}")
 
 
@@ -186,14 +350,20 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
         # We apply items in order starting from self._received_index.
         for i in range(self._received_index, len(self.items_received)):
             network_item = self.items_received[i]
-            item_name = self.item_names.lookup_in_game(network_item.item) if hasattr(self, 'item_names') else str(network_item.item)
+            item_name = (
+                self.item_names.lookup_in_game(network_item.item)
+                if hasattr(self, "item_names")
+                else str(network_item.item)
+            )
             await asyncio.get_event_loop().run_in_executor(
                 None, self.dfhack.deliver_item, item_name
             )
             self._received_index = i + 1
-            # Persist index in case we restart mid-session
+            # Persist the index so we don't re-deliver on restart.
             self.dfhack.run_command(
-                f'dfhack.persistent.setSiteData("dwarfipelago/received_index", "{self._received_index}")'
+                "lua",
+                f'dfhack.persistent.setSiteData("dwarfipelago/received_index",'
+                f' "{self._received_index}")',
             )
 
     # ── CommonClient overrides ────────────────────────────────────────────────
@@ -218,11 +388,11 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
 
 def main():
     parser = argparse.ArgumentParser(description="Dwarfipelago — Dwarf Fortress AP client")
-    parser.add_argument("--server",   default="archipelago.gg:38281", help="AP server address")
-    parser.add_argument("--name",     default=None,                   help="Slot name")
-    parser.add_argument("--password", default=None,                   help="Room password")
-    parser.add_argument("--dfhack-host", default=DFHACK_HOST,         help="DFHack host")
-    parser.add_argument("--dfhack-port", default=DFHACK_PORT, type=int, help="DFHack port")
+    parser.add_argument("--server",      default="archipelago.gg:38281", help="AP server address")
+    parser.add_argument("--name",        default=None,                   help="Slot name")
+    parser.add_argument("--password",    default=None,                   help="Room password")
+    parser.add_argument("--dfhack-host", default=DFHACK_HOST,            help="DFHack host")
+    parser.add_argument("--dfhack-port", default=DFHACK_PORT, type=int,  help="DFHack port")
     args = parser.parse_args()
 
     if not HAS_COMMON_CLIENT:
