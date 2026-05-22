@@ -51,6 +51,7 @@ Complete economic and production milestones in your fortress to send items to ot
 
 - **Slay a Megabeast** — kill a dragon, titan, or other megabeast
 - **Legendary Wealth** — reach a configurable fortress wealth target
+- **Population Boom** — grow your fortress to a configurable population (default: 300 dwarves)
 
 ## Locations (Checks)
 
