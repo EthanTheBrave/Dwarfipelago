@@ -7,6 +7,7 @@ class DwarfFortressGoal(Choice):
     display_name = "Goal"
     option_slay_megabeast = 0
     option_legendary_wealth = 1
+    option_population_boom = 2
     default = 0
 
 
@@ -16,6 +17,14 @@ class WealthGoalAmount(Range):
     range_start = 10000
     range_end = 1000000
     default = 100000
+
+
+class PopulationGoalAmount(Range):
+    """Target fortress population when goal is 'Population Boom'."""
+    display_name = "Population Goal Amount"
+    range_start = 20
+    range_end = 500
+    default = 300
 
 
 class TrapItemWeight(Range):
@@ -30,4 +39,5 @@ class TrapItemWeight(Range):
 class DwarfFortressOptions(PerGameCommonOptions):
     goal: DwarfFortressGoal
     wealth_goal_amount: WealthGoalAmount
+    population_goal_amount: PopulationGoalAmount
     trap_item_weight: TrapItemWeight
