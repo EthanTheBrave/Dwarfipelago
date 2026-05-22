@@ -1,0 +1,13 @@
+# Archipelago client dependencies
+websockets>=10.0
+colorama
+
+# DFHack remote API (protobuf-based)
+# Option A: pure Python protobuf (lightweight, no compiled deps)
+protobuf>=4.0.0
+
+# For async event loop
+# asyncio is stdlib in Python 3.10+
+
+# Optional: structured logging
+# loguru
