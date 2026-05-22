@@ -96,29 +96,82 @@ end
 -- ── Item handlers: traps ──────────────────────────────────────────────────────
 
 local function recv_goblin_ambush()
-    -- Spawn a small goblin squad near the fortress entrance.
-    -- TODO: use modtools/create-unit with goblin race, set to hostile.
-    -- For now, use migrants-now as a placeholder and flag for future impl.
     announce("Trap: Goblin Ambush incoming!")
-    dfhack.printerr("[Dwarfipelago] TRAP goblin_ambush: unit spawning not yet implemented")
+    -- Spawn 3 hostile goblins via modtools/create-unit.
+    -- -setUnitToFort places them near the fortress entrance.
+    local ok, err = pcall(function()
+        for _ = 1, 3 do
+            dfhack.run_script("modtools/create-unit",
+                "-race", "GOBLIN",
+                "-caste", "GOBLIN",
+                "-setUnitToFort"
+            )
+        end
+    end)
+    if not ok then
+        dfhack.printerr("[Dwarfipelago] goblin_ambush spawn failed: " .. tostring(err))
+    end
 end
 
 local function recv_cave_bear()
-    -- Spawn a hostile cave bear.
     announce("Trap: A Cave Bear has found its way in!")
-    dfhack.printerr("[Dwarfipelago] TRAP cave_bear: unit spawning not yet implemented")
+    local ok, err = pcall(function()
+        dfhack.run_script("modtools/create-unit",
+            "-race", "CAVE_BEAR",
+            "-caste", "CAVE_BEAR",
+            "-setUnitToFort"
+        )
+    end)
+    if not ok then
+        dfhack.printerr("[Dwarfipelago] cave_bear spawn failed: " .. tostring(err))
+    end
 end
 
 local function recv_vermin_infestation()
-    -- Spawn many vermin (rats) throughout the fortress.
     announce("Trap: Vermin Infestation! Rats everywhere!")
-    dfhack.printerr("[Dwarfipelago] TRAP vermin_infestation: not yet implemented")
+    -- Spawn 10 rats scattered through the fortress.
+    local spawned = 0
+    for _ = 1, 10 do
+        local ok = pcall(function()
+            dfhack.run_script("modtools/create-unit",
+                "-race", "RAT",
+                "-caste", "RAT",
+                "-setUnitToFort"
+            )
+        end)
+        if ok then spawned = spawned + 1 end
+    end
+    if spawned == 0 then
+        dfhack.printerr("[Dwarfipelago] vermin_infestation: could not spawn any vermin")
+    end
 end
 
 local function recv_tantrum_trigger()
-    -- Make a random happy dwarf very unhappy (lower needs drastically).
-    announce("Trap: A dwarf has had enough!")
-    dfhack.printerr("[Dwarfipelago] TRAP tantrum_trigger: not yet implemented")
+    -- Push the most-stressed living citizen past the tantrum threshold.
+    -- The tantrum threshold in DF is ~200,000 stress; 500,000 is well past it.
+    local target = nil
+    local highest_stress = -math.huge
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(unit)
+            and dfhack.units.isAlive(unit)
+            and unit.status.current_soul
+        then
+            local stress = unit.status.current_soul.personality.stress
+            if stress > highest_stress then
+                highest_stress = stress
+                target = unit
+            end
+        end
+    end
+    if target and target.status.current_soul then
+        target.status.current_soul.personality.stress = 500000
+        local name = dfhack.TranslateName(dfhack.units.getVisibleName(target))
+        announce("Trap: " .. (name ~= "" and name or "A dwarf") .. " has had enough!")
+    else
+        -- No eligible dwarf found (e.g. very early embark with no stress data).
+        announce("Trap: Something sinister stirs in the fortress...")
+        dfhack.printerr("[Dwarfipelago] tantrum_trigger: no eligible citizen found")
+    end
 end
 
 local function recv_lost_caravan()
