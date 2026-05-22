@@ -69,6 +69,3 @@ Completing these milestones sends items to other players:
 | Resources | Food bundles, wood bundles, iron ore, coal |
 | Traps | Goblin ambush, cave bear incursion, vermin infestation, tantrum trigger |
 
-## Development
-
-See the plan at `.claude/plans/i-want-to-make-dreamy-harbor.md` and memory references in `.claude/projects/`.
