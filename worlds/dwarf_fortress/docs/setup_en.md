@@ -42,7 +42,7 @@ game: Dwarf Fortress
 description: My DF world
 
 Dwarf Fortress:
-  goal: slay_megabeast        # slay_megabeast | legendary_wealth | legendary_skill
+  goal: slay_megabeast        # slay_megabeast | legendary_wealth
   wealth_goal_amount: 100000  # only used when goal is legendary_wealth
   trap_item_weight: 20        # 0–100, percentage of filler that are traps
 ```

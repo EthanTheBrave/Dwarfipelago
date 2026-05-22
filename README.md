@@ -51,7 +51,6 @@ Complete economic and production milestones in your fortress to send items to ot
 
 - **Slay a Megabeast** — kill a dragon, titan, or other megabeast
 - **Legendary Wealth** — reach a configurable fortress wealth target
-- **Legendary Skill** — any dwarf reaches Legendary skill level
 
 ## Locations (Checks)
 

@@ -7,7 +7,6 @@ class DwarfFortressGoal(Choice):
     display_name = "Goal"
     option_slay_megabeast = 0
     option_legendary_wealth = 1
-    option_legendary_skill = 2
     default = 0
 
 
