@@ -4,7 +4,11 @@ Archipelago launcher integration for Dwarf Fortress.
 When this module is imported by the AP launcher it registers two buttons:
 
   • "Dwarf Fortress"        (Type.GAME)   — launches dfhack.exe / the DF executable
-  • "Dwarf Fortress Client" (Type.CLIENT) — launches DwarfFortressClient.py
+  • "Dwarf Fortress Client" (Type.CLIENT) — launches the AP client (bundled in this package)
+
+The client code lives in DwarfFortressClient.py inside this package, so no
+separate file needs to be copied into the Archipelago root — it is fully
+contained in the .apworld.
 
 The game executable path is read from host.yaml (dwarf_fortress_options.game_path).
 If it is not set, common Steam install locations are tried as a fallback.
@@ -86,24 +90,17 @@ def launch_game(*args) -> None:
 
 
 def launch_client(*args) -> None:
-    """Launch DwarfFortressClient.py via the AP subprocess helper."""
-    try:
-        import DwarfFortressClient
-    except ModuleNotFoundError:
-        _show_error(
-            "DwarfFortressClient not found",
-            "DwarfFortressClient.py was not found in your Archipelago installation.\n\n"
-            "Copy DwarfFortressClient.py from the Dwarfipelago repo into the root of "
-            "your Archipelago installation and try again.",
-        )
-        return
-
+    """Launch the bundled AP client via the AP subprocess helper."""
+    from .DwarfFortressClient import main
     if _HAS_LAUNCHER:
-        launch_subprocess(DwarfFortressClient.main, name="Dwarf Fortress Client")
+        launch_subprocess(main, name="Dwarf Fortress Client")
     else:
-        # Fallback: run as a subprocess of the current Python interpreter.
-        script = os.path.join(os.path.dirname(sys.argv[0]), "DwarfFortressClient.py")
-        subprocess.Popen([sys.executable, script])
+        # Fallback: spawn a fresh interpreter running this module's main().
+        import __main__
+        subprocess.Popen(
+            [sys.executable, "-c",
+             "from worlds.dwarf_fortress.DwarfFortressClient import main; main()"]
+        )
 
 
 # ── Error helpers ─────────────────────────────────────────────────────────────
