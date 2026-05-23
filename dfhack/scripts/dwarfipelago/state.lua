@@ -4,9 +4,10 @@
 
 local M = {}
 
-local KEY_CHECKED   = "dwarfipelago/checked_locations"
-local KEY_RECEIVED  = "dwarfipelago/received_items"
-local KEY_ENABLED   = "dwarfipelago/enabled"
+local KEY_CHECKED        = "dwarfipelago/checked_locations"
+local KEY_RECEIVED       = "dwarfipelago/received_items"
+local KEY_ENABLED        = "dwarfipelago/enabled"
+local KEY_GOAL_COMPLETE  = "dwarfipelago/goal_complete"
 
 -- ── Internal helpers ──────────────────────────────────────────────────────────
 
@@ -71,11 +72,26 @@ function M.set_enabled(value)
     write_table(KEY_ENABLED, { enabled = value })
 end
 
+-- ── Goal completion ───────────────────────────────────────────────────────────
+
+function M.is_goal_complete()
+    return dfhack.persistent.getSiteData(KEY_GOAL_COMPLETE) == "1"
+end
+
+-- Mark the goal as complete and announce it in-game.
+-- Returns true if this is the first time (i.e. was not already complete).
+function M.mark_goal_complete()
+    if M.is_goal_complete() then return false end
+    dfhack.persistent.setSiteData(KEY_GOAL_COMPLETE, "1")
+    return true
+end
+
 -- ── Debug helpers ─────────────────────────────────────────────────────────────
 
 function M.dump()
     print("[Dwarfipelago] Checked locations:", dfhack.json.encode(M.get_checked_locations()))
     print("[Dwarfipelago] Received item index:", M.get_received_item_index())
+    print("[Dwarfipelago] Goal complete:", M.is_goal_complete())
     print("[Dwarfipelago] Enabled:", M.is_enabled())
 end
 
@@ -83,6 +99,7 @@ function M.reset()
     dfhack.persistent.setSiteData(KEY_CHECKED, "")
     dfhack.persistent.setSiteData(KEY_RECEIVED, "")
     dfhack.persistent.setSiteData(KEY_ENABLED, "")
+    dfhack.persistent.setSiteData(KEY_GOAL_COMPLETE, "")
     print("[Dwarfipelago] State reset.")
 end
 
