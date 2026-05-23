@@ -6,10 +6,9 @@ Complete economic and production milestones in your fortress to send items to ot
 
 ## Requirements
 
-- Dwarf Fortress (Steam/itch.io 2022+ or Classic)
-- [DFHack](https://github.com/DFHack/dfhack) (bundled with the Steam version; install separately for Classic)
-- Python 3.10+
-- An [Archipelago](https://archipelago.gg/) installation (for the AP world)
+- Dwarf Fortress (Steam 2022+ or Classic)
+- [DFHack](https://github.com/DFHack/dfhack) — bundled with the Steam version; install separately for Classic
+- [Archipelago](https://archipelago.gg/) 0.4.0+
 
 ## Components
 
@@ -17,7 +16,7 @@ Complete economic and production milestones in your fortress to send items to ot
 |-----------|------|-------------|
 | AP World | `worlds/dwarf_fortress/` | Archipelago world definition — install into your AP `worlds/` folder or package as `.apworld` |
 | DFHack Mod | `dfhack/scripts/dwarfipelago/` | Lua scripts — copy into your DF `dfhack/scripts/` folder |
-| AP Client | `DwarfFortressClient.py` | Run alongside DF to bridge the game and AP server |
+| AP Client | `DwarfFortressClient.py` | Copy into your Archipelago root; launched from the AP launcher |
 
 ## Quick Setup
 
@@ -27,39 +26,43 @@ Complete economic and production milestones in your fortress to send items to ot
 
 2. **Install the DFHack mod**
    - Copy `dfhack/scripts/dwarfipelago/` into your DF installation's `dfhack/scripts/` folder
+   - Steam (Windows): `C:\Program Files (x86)\Steam\steamapps\common\Dwarf Fortress\dfhack\scripts\`
 
-3. **Install Python dependencies**
-   ```
-   pip install -r requirements.txt
-   ```
+3. **Install the AP Client**
+   - Copy `DwarfFortressClient.py` into the root of your Archipelago installation (same folder as `ArchipelagoLauncher.exe`)
 
-4. **Generate your Archipelago session** with a `DwarfFortress.yaml` options file (see `worlds/dwarf_fortress/docs/setup_en.md`)
-
-5. **Start Dwarf Fortress** with DFHack active, then load a fortress
-
-6. **Run the client**
-   ```
-   python DwarfFortressClient.py --server archipelago.gg:PORT --name YourSlotName
+4. **Configure the game path** in your Archipelago `host.yaml`:
+   ```yaml
+   dwarf_fortress_options:
+     game_path: C:\Program Files (x86)\Steam\steamapps\common\Dwarf Fortress\dfhack.exe
    ```
 
-7. **In the DFHack console**, enable the mod:
-   ```
-   dwarfipelago/main start
-   ```
+5. **Generate your Archipelago session** with a `DwarfFortress.yaml` options file (see `worlds/dwarf_fortress/docs/setup_en.md`)
 
-## Win Conditions (configurable in options)
+6. **In the Archipelago launcher:**
+   - Click **Dwarf Fortress** to launch the game
+   - Load or embark on a fortress
+   - Click **Dwarf Fortress Client** and connect to your server
+   - The mod starts automatically once your fortress is loaded — no DFHack console commands needed
 
-- **Slay a Megabeast** — kill a dragon, titan, or other megabeast
-- **Legendary Wealth** — reach a configurable fortress wealth target
-- **Population Boom** — grow your fortress to a configurable population (default: 300 dwarves)
+## Win Conditions
+
+Configurable per-slot in your options YAML:
+
+| Goal | Description |
+|------|-------------|
+| `slay_megabeast` | Kill a dragon, titan, or other megabeast *(default)* |
+| `legendary_wealth` | Reach a configurable fortress wealth target (default: 100,000☼) |
+| `population_boom` | Grow your fortress to a configurable population (default: 300 dwarves) |
 
 ## Locations (Checks)
 
 Completing these milestones sends items to other players:
 
-- **Wealth milestones**: Humble Beginnings → Growing Stronghold → Prosperous Fortress → Rich Citadel → Legendary Vault
-- **First production**: first weapon, armor, meal, brew, metal bar, gem cut, and more (~18 milestones)
-- **Trade events**: first caravan trade, first export, meeting the outpost liaison
+- **Wealth milestones** — Humble Beginnings → Growing Stronghold → Prosperous Fortress → Rich Citadel → Legendary Vault
+- **First production** — first weapon forged, armor crafted, meal prepared, brew completed, metal bar smelted, gem cut, and more (18 milestones)
+- **Trade & diplomacy** — first caravan trade, first export, dwarven/elven/human caravan visits, outpost liaison meeting
+- **Fortress status** — noble appointments and civilisation recognition milestones
 
 ## Items Received
 
@@ -69,6 +72,23 @@ Completing these milestones sends items to other players:
 | Resources | Food bundles, wood bundles, iron ore, coal |
 | Traps | Goblin ambush, cave bear incursion, vermin infestation, tantrum trigger |
 
+## DeathLink
+
+Dwarfipelago supports Archipelago's DeathLink system with a configurable threshold:
+
+- Every **N dwarf deaths** (default: 5) in your fortress sends one DeathLink to all connected DeathLink players
+- Receiving a DeathLink kills **N random dwarves** in your fortress
+- Set `deathlink_threshold: 1` in your options for classic one-death-equals-one-death behaviour
+
+## Troubleshooting
+
+- **"Dwarf Fortress not found"** — set `game_path` in `host.yaml` (see Step 4 above)
+- **Client can't connect to DFHack** — ensure DFHack is running and its remote API is active on `127.0.0.1:5000`
+- **Mod doesn't start automatically** — load a fortress first and wait ~5 seconds; you can also run `dwarfipelago/main start` manually in the DFHack console
+- **Items not arriving** — check the client log window; items are delivered via DFHack script calls when the client is connected
+
+For full setup details see [`worlds/dwarf_fortress/docs/setup_en.md`](worlds/dwarf_fortress/docs/setup_en.md).
+
 ---
 
 ## Project Board
@@ -77,10 +97,14 @@ A running list of ideas, planned features, and things that still need doing. No 
 
 ### To Do
 
-- [ ] Implement DFHack protobuf wire encoding for `RunCommand` to deliver items in-game
-- [ ] Wire up caravan detection in `checks.lua` (dwarven / elven / human caravan visit checks)
-- [ ] Implement trap item spawning in `items.lua` (goblin ambush, cave bear, vermin, tantrum)
-- [ ] Add `fill_slot_data` population goal amount to client sync so Lua reads the correct target
+- [x] Implement DFHack protobuf wire encoding for `RunCommand` to deliver items in-game
+- [x] Implement trap item spawning in `items.lua` (goblin ambush, cave bear, vermin, tantrum)
+- [x] Add `fill_slot_data` population goal amount to client sync so Lua reads the correct target
+- [x] Goal completion detection and AP victory signaling (`ClientStatus.CLIENT_GOAL`)
+- [x] Fortress status checks — noble appointments and civilisation recognition milestones
+- [x] Batch DeathLink — configurable threshold (N deaths out / N deaths in), feedback-loop prevention
+- [x] Archipelago Launcher integration — Dwarf Fortress and Dwarf Fortress Client buttons; mod auto-starts when a world is loaded
+- [ ] Wire up caravan detection in `checks.lua` (dwarven / elven / human caravan visit checks are defined but not yet triggered in-game)
 - [ ] Validate `df.job_type` enum values against a live DFHack console for all production checks
 - [ ] Validate `createitem` material strings against DF raws (gem types, metal bar identifiers)
 - [ ] Write end-to-end test instructions in `docs/`
@@ -94,6 +118,6 @@ A running list of ideas, planned features, and things that still need doing. No 
 - [ ] **Custom AP items** — define unique DF-flavored items as raw reactions for cleaner in-game delivery
 - [ ] **Overlay UI** — DFHack overlay panel showing current AP connection status and recent items
 - [ ] **Multi-fortress support** — allow switching between saves without resetting AP state
-- [ ] **Archipelago Launcher integration** — register the client so it appears in the AP launcher UI
-- [ ] **DeathLink tuning** — option to target specific skill types when applying received DeathLink deaths
+- [ ] **DeathLink targeting** — option to target specific skill types when applying received DeathLink deaths
 
+---
