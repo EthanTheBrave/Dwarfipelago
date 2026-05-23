@@ -70,9 +70,22 @@ Completing these milestones sends items to other players:
 
 | Type | Examples |
 |------|---------|
+| Workshop blueprints | 26 blueprints that unlock workshops, furnaces, and farm plots — **progression items** (see Progression section below) |
 | Trade goods | Cut gems, gold/silver/steel bars, masterwork crafts |
 | Resources | Food bundles, wood bundles, iron ore, coal |
 | Traps | Goblin ambush, cave bear incursion, vermin infestation, tantrum trigger |
+
+## Progression
+
+Workshop blueprints are the core Archipelago mechanic. Other players find your blueprints at their locations and send them to you, unlocking the matching structure in your fortress. Until you receive a blueprint, attempting to build that structure will be cancelled with a notification.
+
+**Gated workshops:** Craftsdwarf's, Forge, Magma Forge, Kitchen, Jeweler's, Clothier's, Tanner's, Mechanic's, Siege, Soap Maker's, Ashery, Bowyer's, Screw Press, Fishery, Loom, Dyer's, Butcher's, Farmer's
+
+**Gated furnaces:** Smelter, Magma Smelter, Wood Furnace, Glass Furnace, Kiln, Magma Kiln, Magma Glass Furnace
+
+**Gated buildings:** Farm Plot
+
+**Always available:** Carpenter's Workshop, Mason's Workshop, Still (dwarves need ale to survive)
 
 ## DeathLink
 
