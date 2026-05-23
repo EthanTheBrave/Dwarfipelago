@@ -22,7 +22,10 @@ Complete economic and production milestones in your fortress to send items to ot
 
 1. **Install the AP World**
    - Copy `worlds/dwarf_fortress/` into your Archipelago `worlds/` directory
-   - Or package it: `zip -r dwarf_fortress.apworld worlds/dwarf_fortress/`
+   - Or package it as an `.apworld` (run from inside the `worlds/` directory):
+     ```
+     cd worlds && zip -r ../dwarf_fortress.apworld dwarf_fortress/
+     ```
 
 2. **Install the DFHack mod**
    - Copy `dfhack/scripts/dwarfipelago/` into your DF installation's `dfhack/scripts/` folder
