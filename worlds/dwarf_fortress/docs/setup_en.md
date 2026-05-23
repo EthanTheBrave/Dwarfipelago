@@ -14,10 +14,14 @@ Copy the `dwarf_fortress` folder into your Archipelago `worlds/` directory, then
 
 Alternatively, package and install as an `.apworld`:
 ```
-cd path/to/Dwarfipelago
-zip -r dwarf_fortress.apworld worlds/dwarf_fortress/
+cd path/to/Dwarfipelago/worlds
+zip -r ../dwarf_fortress.apworld dwarf_fortress/
 ```
 Then drag the `.apworld` file onto the Archipelago launcher.
+
+> **Important:** The zip command must be run from inside the `worlds/` directory so that
+> `dwarf_fortress/__init__.py` sits at the top level of the archive — not nested under
+> `worlds/dwarf_fortress/`. AP will silently fail to load a world with the wrong zip structure.
 
 ### 2. Install the DFHack Mod
 
