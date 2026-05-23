@@ -106,11 +106,11 @@ A running list of ideas, planned features, and things that still need doing. No 
 - [x] Fortress status checks — noble appointments and civilisation recognition milestones
 - [x] Batch DeathLink — configurable threshold (N deaths out / N deaths in), feedback-loop prevention
 - [x] Archipelago Launcher integration — Dwarf Fortress and Dwarf Fortress Client buttons; mod auto-starts when a world is loaded
+- [x] Package as a proper `.apworld` file with correct zip structure and manifest
 - [ ] Wire up caravan detection in `checks.lua` (dwarven / elven / human caravan visit checks are defined but not yet triggered in-game)
 - [ ] Validate `df.job_type` enum values against a live DFHack console for all production checks
 - [ ] Validate `createitem` material strings against DF raws (gem types, metal bar identifiers)
 - [ ] Write end-to-end test instructions in `docs/`
-- [ ] Package and test as a proper `.apworld` file
 
 ### Ideas / Future Features
 
