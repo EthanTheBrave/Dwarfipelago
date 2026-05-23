@@ -301,8 +301,10 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
         if HAS_COMMON_CLIENT:
             super().__init__(server_address, password)
         self.dfhack = DFHackConnection()
-        self._poll_interval = 5.0  # seconds between fortress state polls
-        self._received_index = 0   # last applied item index
+        self._poll_interval = 5.0   # seconds between fortress state polls
+        self._received_index = 0    # last applied item index
+        self._slot_data_synced = False
+        self._goal_complete = False
 
     # ── DFHack polling ────────────────────────────────────────────────────────
 
@@ -321,11 +323,14 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
                     continue
 
             try:
+                self._sync_slot_data()
                 await self._process_new_checks()
                 await self._apply_pending_items()
+                await self._check_goal_complete()
             except Exception as e:
                 logger.warning(f"DFHack poll error: {e}")
                 self.dfhack.disconnect()
+                self._slot_data_synced = False  # re-sync on next connection
 
             await asyncio.sleep(self._poll_interval)
 
@@ -365,6 +370,47 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
                 f'dfhack.persistent.setSiteData("dwarfipelago/received_index",'
                 f' "{self._received_index}")',
             )
+
+    def _sync_slot_data(self):
+        """
+        Write AP slot data (goal type + targets) to DFHack persistent storage
+        so the Lua mod can read the goal settings without an RPC round-trip.
+        Runs once per DFHack connection; resets when DFHack disconnects.
+        """
+        if self._slot_data_synced:
+            return
+        slot_data = getattr(self, "slot_data", {})
+        if not slot_data:
+            return  # not yet connected to AP, or no slot data
+        goal            = slot_data.get("goal", 0)
+        wealth_goal     = slot_data.get("wealth_goal_amount", 100000)
+        pop_goal        = slot_data.get("population_goal_amount", 300) if HAS_COMMON_CLIENT else 300
+        def write():
+            self.dfhack.run_command("lua", f'dfhack.persistent.setSiteData("dwarfipelago/goal", "{goal}")')
+            self.dfhack.run_command("lua", f'dfhack.persistent.setSiteData("dwarfipelago/wealth_goal", "{wealth_goal}")')
+            self.dfhack.run_command("lua", f'dfhack.persistent.setSiteData("dwarfipelago/pop_goal", "{pop_goal}")')
+        write()
+        self._slot_data_synced = True
+        logger.info(f"Synced slot data → goal={goal}, wealth_goal={wealth_goal}, pop_goal={pop_goal}")
+
+    async def _check_goal_complete(self):
+        """
+        Poll the goal-complete flag written by the Lua mod and send
+        ClientStatus.CLIENT_GOAL to the AP server the first time it's set.
+        """
+        if not HAS_COMMON_CLIENT or self._goal_complete:
+            return
+        output = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: self.dfhack.run_command(
+                "lua",
+                'print(dfhack.persistent.getSiteData("dwarfipelago/goal_complete") or "")',
+            ),
+        )
+        if output and output.strip() == "1":
+            self._goal_complete = True
+            await self.send_msgs([{"cmd": "StatusUpdate", "status": ClientStatus.CLIENT_GOAL}])
+            logger.info("Goal complete — sent ClientStatus.CLIENT_GOAL to AP server")
 
     # ── CommonClient overrides ────────────────────────────────────────────────
 

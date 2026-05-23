@@ -140,4 +140,8 @@ function M.job_to_production_flag(job)
     return nil
 end
 
+-- Expose wealth accessor so main.lua can use it for the goal check
+-- without duplicating the DF50 / Classic fallback logic.
+M.fortress_wealth = fortress_wealth
+
 return M
