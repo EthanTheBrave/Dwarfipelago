@@ -559,13 +559,21 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main():
+    try:
+        import colorama
+        colorama.init()
+    except ImportError:
+        pass
+
     parser = argparse.ArgumentParser(description="Dwarfipelago — Dwarf Fortress AP client")
-    parser.add_argument("--server",      default="archipelago.gg:38281", help="AP server address")
+    parser.add_argument("--connect",      default="archipelago.gg:38281", help="AP server address (host:port)")
     parser.add_argument("--name",        default=None,                   help="Slot name")
     parser.add_argument("--password",    default=None,                   help="Room password")
     parser.add_argument("--dfhack-host", default=DFHACK_HOST,            help="DFHack host")
     parser.add_argument("--dfhack-port", default=DFHACK_PORT, type=int,  help="DFHack port")
-    args = parser.parse_args()
+    # parse_known_args tolerates extra flags that the AP launcher may inject
+    # (e.g. multiprocessing internal arguments) without exiting with an error.
+    args, _unknown = parser.parse_known_args()
 
     if not HAS_COMMON_CLIENT:
         logger.warning(
@@ -575,18 +583,33 @@ def main():
         )
 
     async def run():
-        ctx = DwarfFortressContext(args.server, args.password)
+        ctx = DwarfFortressContext(args.connect, args.password)
         ctx.dfhack.host = args.dfhack_host
         ctx.dfhack.port = args.dfhack_port
 
         if args.name:
             ctx.auth = args.name
 
-        tasks = [ctx.dfhack_poll_loop()]
-        if HAS_COMMON_CLIENT:
-            tasks.append(server_loop(ctx))
+        # Start DFHack polling and (when inside AP) the server connection as
+        # concurrent asyncio tasks so neither blocks the other.
+        ctx.dfhack_task = asyncio.create_task(ctx.dfhack_poll_loop(), name="DFHack poll")
 
-        await asyncio.gather(*tasks)
+        if HAS_COMMON_CLIENT:
+            ctx.server_task = asyncio.create_task(server_loop(ctx), name="server loop")
+            # Show the AP client GUI window (kivy-based console).
+            # run_gui() schedules the UI as an asyncio task and returns immediately.
+            ctx.run_gui()
+            # Block until the user closes the window or the client disconnects.
+            await ctx.exit_event.wait()
+            ctx.dfhack_task.cancel()
+            await ctx.shutdown()
+        else:
+            # Standalone mode (no AP installation): run the DFHack poll loop
+            # directly until interrupted.
+            try:
+                await ctx.dfhack_task
+            except asyncio.CancelledError:
+                pass
 
     asyncio.run(run())
 
