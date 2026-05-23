@@ -18,8 +18,9 @@ from . import rules
 # world generation.
 try:
     from . import client as _  # noqa: F401
-except Exception:
-    pass
+except Exception as _client_err:
+    import logging as _logging
+    _logging.warning(f"[Dwarfipelago] Failed to register launcher components: {_client_err}")
 
 
 class DwarfFortressWebWorld(WebWorld):

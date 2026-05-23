@@ -131,7 +131,7 @@ if _HAS_LAUNCHER:
         Component(
             "Dwarf Fortress",
             func=launch_game,
-            component_type=Type.GAME,
+            component_type=Type.MISC,
             game_name="Dwarf Fortress",
         ),
         Component(
