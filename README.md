@@ -51,9 +51,9 @@ Configurable per-slot in your options YAML:
 
 | Goal | Description |
 |------|-------------|
-| `slay_megabeast` | Kill a dragon, titan, or other megabeast *(default)* |
+| `population_boom` | Grow your fortress to a configurable population (default: 300 dwarves) *(default)* |
 | `legendary_wealth` | Reach a configurable fortress wealth target (default: 100,000☼) |
-| `population_boom` | Grow your fortress to a configurable population (default: 300 dwarves) |
+| `slay_megabeast` | Kill a dragon, titan, or other megabeast |
 
 ## Locations (Checks)
 
