@@ -83,7 +83,49 @@ M.checks = {
         -- civ uses a separate code for the female ruler.
         return has_noble_role("KING") or has_noble_role("QUEEN")
     end },
+
+    -- Fortress title milestones (population + created OR exported wealth)
+    { id = 37370400, name = "Hamlet Established",     fn = has_fortress_title(20,   5000,    500) },
+    { id = 37370401, name = "Village Established",    fn = has_fortress_title(50,  25000,   2500) },
+    { id = 37370402, name = "Town Established",       fn = has_fortress_title(80, 100000,  10000) },
+    { id = 37370403, name = "City Established",       fn = has_fortress_title(110, 200000, 20000) },
+    { id = 37370404, name = "Metropolis Established", fn = has_fortress_title(140, 300000, 30000) },
 }
+
+-- ── Fortress title helpers ────────────────────────────────────────────────────
+-- Titles require population AND (created wealth OR exported wealth).
+-- https://dwarffortresswiki.org/index.php/Fortress
+
+local function citizen_count()
+    local count = 0
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+local function exported_wealth()
+    local ok, result = pcall(function()
+        return df.global.plotinfo.tasks.wealth_exported
+    end)
+    if ok and type(result) == "number" then return result end
+
+    ok, result = pcall(function()
+        return df.global.ui.tasks.wealth_exported
+    end)
+    if ok and type(result) == "number" then return result end
+
+    return 0
+end
+
+local function has_fortress_title(pop_req, created_req, exported_req)
+    return function()
+        if citizen_count() < pop_req then return false end
+        return fortress_wealth() >= created_req or exported_wealth() >= exported_req
+    end
+end
 
 -- ── Production flag helpers ───────────────────────────────────────────────────
 -- Flags are set by the eventful job hook in main.lua and stored in site data.

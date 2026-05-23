@@ -22,7 +22,7 @@ local applying_recv_deathlink = false
 
 -- ── Goal settings helpers ─────────────────────────────────────────────────────
 -- The Python client writes these to persistent storage after connecting.
--- goal: 0 = slay_megabeast, 1 = legendary_wealth, 2 = population_boom
+-- goal: 0 = slay_megabeast, 1 = legendary_wealth, 2 = population_boom, 3 = mountainhome
 
 local function goal_setting(key, default)
     return tonumber(dfhack.persistent.getSiteData("dwarfipelago/" .. key)) or default
@@ -61,6 +61,20 @@ local function check_goal_by_poll()
                     ("[AP] Goal reached: Population Boom! (%d dwarves). Victory!"):format(count),
                     COLOR_CYAN, true)
                 print("[Dwarfipelago] Goal complete: Population Boom!")
+            end
+        end
+    elseif goal == 3 then  -- mountainhome
+        -- Mountainhome is achieved when the monarch (king/queen) takes residence.
+        local ok_k, has_king  = pcall(dfhack.units.getUnitsByNobleRole, "KING")
+        local ok_q, has_queen = pcall(dfhack.units.getUnitsByNobleRole, "QUEEN")
+        local has_monarch = (ok_k and has_king and #has_king > 0)
+                         or (ok_q and has_queen and #has_queen > 0)
+        if has_monarch then
+            if state.mark_goal_complete() then
+                dfhack.gui.showAnnouncement(
+                    "[AP] Goal reached: Mountainhome! The monarch has arrived. Victory!",
+                    COLOR_CYAN, true)
+                print("[Dwarfipelago] Goal complete: Mountainhome!")
             end
         end
     end
