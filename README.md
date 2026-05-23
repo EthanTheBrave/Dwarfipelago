@@ -16,7 +16,7 @@ Complete economic and production milestones in your fortress to send items to ot
 |-----------|------|-------------|
 | AP World | `worlds/dwarf_fortress/` | Archipelago world definition — install into your AP `worlds/` folder or package as `.apworld` |
 | DFHack Mod | `dfhack/scripts/dwarfipelago/` | Lua scripts — copy into your DF `dfhack/scripts/` folder |
-| AP Client | `DwarfFortressClient.py` | Copy into your Archipelago root; launched from the AP launcher |
+| AP Client | `worlds/dwarf_fortress/DwarfFortressClient.py` | Bundled inside the AP world package — launched automatically by the AP launcher |
 
 ## Quick Setup
 
@@ -28,22 +28,21 @@ Complete economic and production milestones in your fortress to send items to ot
    - Copy `dfhack/scripts/dwarfipelago/` into your DF installation's `dfhack/scripts/` folder
    - Steam (Windows): `C:\Program Files (x86)\Steam\steamapps\common\Dwarf Fortress\dfhack\scripts\`
 
-3. **Install the AP Client**
-   - Copy `DwarfFortressClient.py` into the root of your Archipelago installation (same folder as `ArchipelagoLauncher.exe`)
-
-4. **Configure the game path** in your Archipelago `host.yaml`:
+3. **Configure the game path** in your Archipelago `host.yaml`:
    ```yaml
    dwarf_fortress_options:
      game_path: C:\Program Files (x86)\Steam\steamapps\common\Dwarf Fortress\dfhack.exe
    ```
 
-5. **Generate your Archipelago session** with a `DwarfFortress.yaml` options file (see `worlds/dwarf_fortress/docs/setup_en.md`)
+4. **Generate your Archipelago session** with a `DwarfFortress.yaml` options file (see `worlds/dwarf_fortress/docs/setup_en.md`)
 
-6. **In the Archipelago launcher:**
+5. **In the Archipelago launcher:**
    - Click **Dwarf Fortress** to launch the game
    - Load or embark on a fortress
    - Click **Dwarf Fortress Client** and connect to your server
    - The mod starts automatically once your fortress is loaded — no DFHack console commands needed
+
+   > The AP client is bundled inside the world package — no separate file to copy into your Archipelago root.
 
 ## Win Conditions
 
