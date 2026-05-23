@@ -158,6 +158,8 @@ local function poll_checks()
 
     apply_pending_recv_deathlinks()
     check_goal_by_poll()
+    detect_caravans()
+    detect_trade_export()
 
     for _, check in ipairs(checks.checks) do
         if not state.is_location_checked(check.id) then
@@ -190,10 +192,76 @@ local function on_job_completed(job)
     end
 end
 
--- ── Caravan arrival hook ─────────────────────────────────────────────────────
--- eventful.onCaravanArrival is not a standard event; we detect caravans
--- via the unit list on each poll cycle instead.
--- TODO: implement caravan detection in poll_checks using df.global.world.caravans
+-- ── Caravan & trade detection ────────────────────────────────────────────────
+-- Scans the active unit list for merchant and diplomat units each poll tick,
+-- then maps them to their civilisation's race to set the appropriate trade
+-- flags in checks.lua. Also tracks exported wealth to detect completed trades.
+
+local CARAVAN_RACES = {
+    DWARF = "dwarven_caravan",
+    ELF   = "elven_caravan",
+    HUMAN = "human_caravan",
+}
+
+local function detect_caravans()
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isAlive(unit) then
+            -- Merchant units mark a caravan visit for that race.
+            if unit.flags1.merchant then
+                local creature = df.creature_raw.find(unit.race)
+                if creature then
+                    local flag = CARAVAN_RACES[creature.creature_id]
+                    if flag and not checks.trade_flag(flag) then
+                        checks.set_trade_flag(flag)
+                        print(("[Dwarfipelago] Caravan detected: %s"):format(creature.creature_id))
+                    end
+                end
+            end
+
+            -- Diplomat / outpost liaison detection.
+            if unit.flags1.diplomat and not checks.trade_flag("liaison_met") then
+                checks.set_trade_flag("liaison_met")
+                print("[Dwarfipelago] Outpost liaison detected")
+            end
+        end
+    end
+end
+
+-- Detect first trade / first export by checking the fortress exported-wealth
+-- counter. DF increments this when goods are sold to a caravan, so a value
+-- above zero means at least one trade has been completed.
+local function detect_trade_export()
+    if checks.trade_flag("trade_completed") and checks.trade_flag("first_export") then
+        return  -- both already fired
+    end
+
+    -- DF50+ uses plotinfo; Classic uses ui.
+    local exported = 0
+    local ok, result = pcall(function()
+        return df.global.plotinfo.tasks.wealth_exported
+    end)
+    if ok and type(result) == "number" then
+        exported = result
+    else
+        ok, result = pcall(function()
+            return df.global.ui.tasks.wealth_exported
+        end)
+        if ok and type(result) == "number" then
+            exported = result
+        end
+    end
+
+    if exported > 0 then
+        if not checks.trade_flag("trade_completed") then
+            checks.set_trade_flag("trade_completed")
+            print("[Dwarfipelago] First trade detected (exported wealth > 0)")
+        end
+        if not checks.trade_flag("first_export") then
+            checks.set_trade_flag("first_export")
+            print("[Dwarfipelago] First export detected (exported wealth > 0)")
+        end
+    end
+end
 
 -- ── Start / stop ──────────────────────────────────────────────────────────────
 
