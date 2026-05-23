@@ -8,6 +8,9 @@ local KEY_CHECKED        = "dwarfipelago/checked_locations"
 local KEY_RECEIVED       = "dwarfipelago/received_items"
 local KEY_ENABLED        = "dwarfipelago/enabled"
 local KEY_GOAL_COMPLETE  = "dwarfipelago/goal_complete"
+local KEY_DEATH_COUNT    = "dwarfipelago/death_count"    -- cumulative citizen deaths
+local KEY_DL_SENT        = "dwarfipelago/deathlinks_sent" -- deathlinks dispatched to AP
+local KEY_DL_RECV        = "dwarfipelago/pending_recv"   -- incoming deathlinks to apply
 
 -- ── Internal helpers ──────────────────────────────────────────────────────────
 
@@ -72,6 +75,44 @@ function M.set_enabled(value)
     write_table(KEY_ENABLED, { enabled = value })
 end
 
+-- ── DeathLink: death counting ─────────────────────────────────────────────────
+
+-- Increment the citizen death counter and return the new total.
+function M.increment_death_count()
+    local n = (tonumber(dfhack.persistent.getSiteData(KEY_DEATH_COUNT)) or 0) + 1
+    dfhack.persistent.setSiteData(KEY_DEATH_COUNT, tostring(n))
+    return n
+end
+
+function M.get_death_count()
+    return tonumber(dfhack.persistent.getSiteData(KEY_DEATH_COUNT)) or 0
+end
+
+-- ── DeathLink: outgoing (sent to AP) ─────────────────────────────────────────
+
+function M.get_deathlinks_sent()
+    return tonumber(dfhack.persistent.getSiteData(KEY_DL_SENT)) or 0
+end
+
+function M.set_deathlinks_sent(n)
+    dfhack.persistent.setSiteData(KEY_DL_SENT, tostring(n))
+end
+
+-- ── DeathLink: incoming (received from AP, kills to apply) ───────────────────
+
+function M.get_pending_recv()
+    return tonumber(dfhack.persistent.getSiteData(KEY_DL_RECV)) or 0
+end
+
+function M.increment_pending_recv()
+    local n = M.get_pending_recv() + 1
+    dfhack.persistent.setSiteData(KEY_DL_RECV, tostring(n))
+end
+
+function M.clear_pending_recv()
+    dfhack.persistent.setSiteData(KEY_DL_RECV, "0")
+end
+
 -- ── Goal completion ───────────────────────────────────────────────────────────
 
 function M.is_goal_complete()
@@ -92,6 +133,9 @@ function M.dump()
     print("[Dwarfipelago] Checked locations:", dfhack.json.encode(M.get_checked_locations()))
     print("[Dwarfipelago] Received item index:", M.get_received_item_index())
     print("[Dwarfipelago] Goal complete:", M.is_goal_complete())
+    print("[Dwarfipelago] Citizen deaths:", M.get_death_count())
+    print("[Dwarfipelago] DeathLinks sent:", M.get_deathlinks_sent())
+    print("[Dwarfipelago] Pending recv DeathLinks:", M.get_pending_recv())
     print("[Dwarfipelago] Enabled:", M.is_enabled())
 end
 
@@ -100,6 +144,9 @@ function M.reset()
     dfhack.persistent.setSiteData(KEY_RECEIVED, "")
     dfhack.persistent.setSiteData(KEY_ENABLED, "")
     dfhack.persistent.setSiteData(KEY_GOAL_COMPLETE, "")
+    dfhack.persistent.setSiteData(KEY_DEATH_COUNT, "")
+    dfhack.persistent.setSiteData(KEY_DL_SENT, "")
+    dfhack.persistent.setSiteData(KEY_DL_RECV, "")
     print("[Dwarfipelago] State reset.")
 end
 

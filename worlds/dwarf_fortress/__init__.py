@@ -110,6 +110,8 @@ class DwarfFortressWorld(World):
         return {
             "goal": self.options.goal.value,
             "wealth_goal_amount": self.options.wealth_goal_amount.value,
+            "population_goal_amount": self.options.population_goal_amount.value,
+            "deathlink_threshold": self.options.deathlink_threshold.value,
         }
 
     # ── Completion condition ──────────────────────────────────────────────────
