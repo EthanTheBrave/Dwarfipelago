@@ -16,6 +16,10 @@ local repeatUtil = require("repeat-util")
 local SCRIPT_NAME = "dwarfipelago"
 local POLL_TICKS  = 100  -- poll wealth/trade/goal checks every N ticks
 
+-- Set to true while we are applying a received DeathLink so that the death
+-- hook does not count those kills toward our own outgoing DeathLink threshold.
+local applying_recv_deathlink = false
+
 -- ── Goal settings helpers ─────────────────────────────────────────────────────
 -- The Python client writes these to persistent storage after connecting.
 -- goal: 0 = slay_megabeast, 1 = legendary_wealth, 2 = population_boom
@@ -67,23 +71,83 @@ end
 
 local function on_unit_death(uid)
     if not state.is_enabled() then return end
-    if state.is_goal_complete() then return end
-    if goal_setting("goal", -1) ~= 0 then return end  -- not a slay_megabeast game
 
     local unit = df.unit.find(uid)
     if not unit then return end
 
-    local ok, is_mega = pcall(dfhack.units.isMegabeast, unit)
-    if ok and is_mega then
-        if state.mark_goal_complete() then
-            local name = dfhack.TranslateName(dfhack.units.getVisibleName(unit))
-            dfhack.gui.showAnnouncement(
-                ("[AP] Goal reached: %s has been slain! Victory!"):format(
-                    name ~= "" and name or "The megabeast"),
-                COLOR_CYAN, true)
-            print("[Dwarfipelago] Goal complete: Megabeast slain!")
+    -- ── Goal: megabeast kill ──────────────────────────────────────────────────
+    if not state.is_goal_complete() and goal_setting("goal", -1) == 0 then
+        local ok, is_mega = pcall(dfhack.units.isMegabeast, unit)
+        if ok and is_mega then
+            if state.mark_goal_complete() then
+                local name = dfhack.TranslateName(dfhack.units.getVisibleName(unit))
+                dfhack.gui.showAnnouncement(
+                    ("[AP] Goal reached: %s has been slain! Victory!"):format(
+                        name ~= "" and name or "The megabeast"),
+                    COLOR_CYAN, true)
+                print("[Dwarfipelago] Goal complete: Megabeast slain!")
+            end
         end
     end
+
+    -- ── DeathLink: count citizen deaths ──────────────────────────────────────
+    -- Skip deaths we inflicted ourselves when applying a received DeathLink,
+    -- so those don't feed back into our outgoing threshold.
+    if applying_recv_deathlink then return end
+    if dfhack.units.isCitizen(unit) then
+        local count = state.increment_death_count()
+        -- Python polls death_count vs deathlinks_sent and fires the Bounce packets.
+        print(("[Dwarfipelago] Citizen death #%d counted for DeathLink"):format(count))
+    end
+end
+
+-- ── DeathLink: apply received kills ──────────────────────────────────────────
+-- Called from the poll loop. Reads pending_recv, kills threshold-many random
+-- citizens per pending DeathLink, then clears the counter.
+
+local function apply_pending_recv_deathlinks()
+    if not state.is_enabled() then return end
+    local pending = state.get_pending_recv()
+    if pending <= 0 then return end
+
+    state.clear_pending_recv()
+
+    local threshold = goal_setting("deathlink_threshold", 5)
+    local to_kill   = pending * threshold
+
+    -- Collect living citizens into a list, then shuffle it.
+    local candidates = {}
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+            table.insert(candidates, unit)
+        end
+    end
+
+    -- Fisher-Yates shuffle for variety.
+    for i = #candidates, 2, -1 do
+        local j = math.random(i)
+        candidates[i], candidates[j] = candidates[j], candidates[i]
+    end
+
+    applying_recv_deathlink = true
+    local killed = 0
+    for i = 1, math.min(to_kill, #candidates) do
+        local unit = candidates[i]
+        local ok, err = pcall(function()
+            dfhack.run_script("modtools/kill-unit", "--unit", tostring(unit.id))
+        end)
+        if ok then
+            killed = killed + 1
+        else
+            dfhack.printerr("[Dwarfipelago] kill-unit failed: " .. tostring(err))
+        end
+    end
+    applying_recv_deathlink = false
+
+    dfhack.gui.showAnnouncement(
+        ("[AP] DeathLink! %d dwarves have met a mysterious fate."):format(killed),
+        COLOR_RED, true)
+    print(("[Dwarfipelago] DeathLink applied: %d/%d dwarves killed"):format(killed, to_kill))
 end
 
 -- ── Poll loop: wealth, trade, and goal milestones ─────────────────────────────
@@ -92,6 +156,7 @@ end
 local function poll_checks()
     if not state.is_enabled() then return end
 
+    apply_pending_recv_deathlinks()
     check_goal_by_poll()
 
     for _, check in ipairs(checks.checks) do
