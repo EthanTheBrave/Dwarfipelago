@@ -4,6 +4,15 @@
 
 local M = {}
 
+-- ── Noble position helper ─────────────────────────────────────────────────────
+-- Uses dfhack.units.getUnitsByNobleRole(code) which is available in DFHack 0.47+
+-- and all DF50 builds. Returns true if at least one living unit holds the role.
+
+local function has_noble_role(code)
+    local ok, units = pcall(dfhack.units.getUnitsByNobleRole, code)
+    return ok and units ~= nil and #units > 0
+end
+
 -- ── Wealth milestones ─────────────────────────────────────────────────────────
 
 -- Returns current total fortress wealth (items + buildings + stocks).
@@ -61,6 +70,19 @@ M.checks = {
     { id = 37370203, name = "Elven Caravan Visit",      fn = function() return M.trade_flag("elven_caravan")      end },
     { id = 37370204, name = "Human Caravan Visit",      fn = function() return M.trade_flag("human_caravan")      end },
     { id = 37370205, name = "Outpost Liaison Meeting",  fn = function() return M.trade_flag("liaison_met")        end },
+
+    -- Fortress status / noble appointments
+    -- Position codes match vanilla DF entity_default.txt. KING covers both king
+    -- and queen (DF stores a single position code with gendered display names).
+    { id = 37370300, name = "Mayor Elected",           fn = function() return has_noble_role("MAYOR")             end },
+    { id = 37370301, name = "Baron Appointed",         fn = function() return has_noble_role("BARON")             end },
+    { id = 37370302, name = "Count Appointed",         fn = function() return has_noble_role("COUNT")             end },
+    { id = 37370303, name = "Duke Appointed",          fn = function() return has_noble_role("DUKE")              end },
+    { id = 37370304, name = "Monarch Takes Residence", fn = function()
+        -- Try KING first (vanilla code); fall back to QUEEN in case a modded
+        -- civ uses a separate code for the female ruler.
+        return has_noble_role("KING") or has_noble_role("QUEEN")
+    end },
 }
 
 -- ── Production flag helpers ───────────────────────────────────────────────────
