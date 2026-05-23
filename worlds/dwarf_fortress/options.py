@@ -35,9 +35,22 @@ class TrapItemWeight(Range):
     default = 20
 
 
+class DeathLinkThreshold(Range):
+    """
+    How many of your dwarves must die to send one DeathLink to other players.
+    Incoming DeathLinks kill this many of your dwarves in return.
+    Set to 1 for classic one-death-equals-one-death behaviour.
+    """
+    display_name = "Death Link Threshold"
+    range_start = 1
+    range_end = 20
+    default = 5
+
+
 @dataclass
 class DwarfFortressOptions(PerGameCommonOptions):
     goal: DwarfFortressGoal
     wealth_goal_amount: WealthGoalAmount
     population_goal_amount: PopulationGoalAmount
     trap_item_weight: TrapItemWeight
+    deathlink_threshold: DeathLinkThreshold

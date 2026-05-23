@@ -54,8 +54,20 @@ TRADE_LOCATIONS: list[LocationData] = [
     LocationData("Outpost Liaison Meeting",        BASE_ID + 205, "Fortress"),
 ]
 
+# ── Fortress Status / Noble Appointments ──────────────────────────────────────
+# IDs match checks.lua (BASE_ID + 300+).
+# These track the civilisation's recognition of the fortress, from a mayor-run
+# settlement up to a capital with a resident monarch.
+STATUS_LOCATIONS: list[LocationData] = [
+    LocationData("Mayor Elected",           BASE_ID + 300, "Fortress"),
+    LocationData("Baron Appointed",         BASE_ID + 301, "Fortress"),
+    LocationData("Count Appointed",         BASE_ID + 302, "Fortress"),
+    LocationData("Duke Appointed",          BASE_ID + 303, "Fortress"),
+    LocationData("Monarch Takes Residence", BASE_ID + 304, "Fortress"),
+]
+
 ALL_LOCATIONS: list[LocationData] = (
-    WEALTH_LOCATIONS + PRODUCTION_LOCATIONS + TRADE_LOCATIONS
+    WEALTH_LOCATIONS + PRODUCTION_LOCATIONS + TRADE_LOCATIONS + STATUS_LOCATIONS
 )
 
 LOCATION_TABLE: dict[str, int] = {loc.name: loc.ap_id for loc in ALL_LOCATIONS}
