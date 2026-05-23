@@ -88,3 +88,36 @@ Dwarfipelago supports Archipelago's DeathLink system with a configurable thresho
 - **Items not arriving** — check the client log window; items are delivered via DFHack script calls when the client is connected
 
 For full setup details see [`worlds/dwarf_fortress/docs/setup_en.md`](worlds/dwarf_fortress/docs/setup_en.md).
+
+---
+
+## Project Board
+
+A running list of ideas, planned features, and things that still need doing. No particular order — just a place to capture thoughts before they disappear.
+
+### To Do
+
+- [x] Implement DFHack protobuf wire encoding for `RunCommand` to deliver items in-game
+- [x] Implement trap item spawning in `items.lua` (goblin ambush, cave bear, vermin, tantrum)
+- [x] Add `fill_slot_data` population goal amount to client sync so Lua reads the correct target
+- [x] Goal completion detection and AP victory signaling (`ClientStatus.CLIENT_GOAL`)
+- [x] Fortress status checks — noble appointments and civilisation recognition milestones
+- [x] Batch DeathLink — configurable threshold (N deaths out / N deaths in), feedback-loop prevention
+- [x] Archipelago Launcher integration — Dwarf Fortress and Dwarf Fortress Client buttons; mod auto-starts when a world is loaded
+- [ ] Wire up caravan detection in `checks.lua` (dwarven / elven / human caravan visit checks are defined but not yet triggered in-game)
+- [ ] Validate `df.job_type` enum values against a live DFHack console for all production checks
+- [ ] Validate `createitem` material strings against DF raws (gem types, metal bar identifiers)
+- [ ] Write end-to-end test instructions in `docs/`
+- [ ] Package and test as a proper `.apworld` file
+
+### Ideas / Future Features
+
+- [ ] **Skill milestone locations** — first Skilled / Expert / Master dwarf per skill category (originally cut for scope)
+- [ ] **Combat milestone locations** — first kill, first siege survived, first forgotten beast
+- [ ] **Artifact creation check** — a dwarf goes into a strange mood and produces an artifact
+- [ ] **Custom AP items** — define unique DF-flavored items as raw reactions for cleaner in-game delivery
+- [ ] **Overlay UI** — DFHack overlay panel showing current AP connection status and recent items
+- [ ] **Multi-fortress support** — allow switching between saves without resetting AP state
+- [ ] **DeathLink targeting** — option to target specific skill types when applying received DeathLink deaths
+
+---
