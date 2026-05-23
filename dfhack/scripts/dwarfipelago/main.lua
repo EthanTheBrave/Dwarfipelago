@@ -277,6 +277,93 @@ local function detect_trade_export()
     end
 end
 
+-- ── Workshop / furnace / building blueprint enforcement ─────────────────────
+-- When a dwarf tries to build a locked structure, the job is cancelled.
+-- Unlocked blueprints are tracked in persistent storage by the AP client:
+--   key "dwarfipelago/blueprint/<name>" = "1" when received.
+
+-- Workshops (df.workshop_type → blueprint name)
+local WORKSHOP_BLUEPRINTS = {
+    [df.workshop_type.Craftsdwarfs]     = "Craftsdwarf's Workshop Blueprint",
+    [df.workshop_type.MetalsmithsForge] = "Forge Blueprint",
+    [df.workshop_type.MagmaForge]       = "Magma Forge Blueprint",
+    [df.workshop_type.Kitchen]          = "Kitchen Blueprint",
+    [df.workshop_type.Jewelers]         = "Jeweler's Workshop Blueprint",
+    [df.workshop_type.Clothiers]        = "Clothier's Shop Blueprint",
+    [df.workshop_type.Tanners]          = "Tanner's Blueprint",
+    [df.workshop_type.Mechanics]        = "Mechanic's Workshop Blueprint",
+    [df.workshop_type.Siege]            = "Siege Workshop Blueprint",
+    [df.workshop_type.SoapMaker]        = "Soap Maker's Workshop Blueprint",
+    [df.workshop_type.Ashery]           = "Ashery Blueprint",
+    [df.workshop_type.Bowyers]          = "Bowyer's Workshop Blueprint",
+    [df.workshop_type.ScrewPress]       = "Screw Press Blueprint",
+    [df.workshop_type.Fishery]          = "Fishery Blueprint",
+    [df.workshop_type.Loom]             = "Loom Blueprint",
+    [df.workshop_type.Dyers]            = "Dyer's Workshop Blueprint",
+    [df.workshop_type.Butchers]         = "Butcher's Shop Blueprint",
+    [df.workshop_type.Farmers]          = "Farmer's Workshop Blueprint",
+}
+
+-- Furnaces (df.furnace_type → blueprint name)
+local FURNACE_BLUEPRINTS = {
+    [df.furnace_type.Smelter]           = "Smelter Blueprint",
+    [df.furnace_type.MagmaSmelter]      = "Magma Smelter Blueprint",
+    [df.furnace_type.WoodFurnace]       = "Wood Furnace Blueprint",
+    [df.furnace_type.GlassFurnace]      = "Glass Furnace Blueprint",
+    [df.furnace_type.Kiln]              = "Kiln Blueprint",
+    [df.furnace_type.MagmaKiln]         = "Magma Kiln Blueprint",
+    [df.furnace_type.MagmaGlassFurnace] = "Magma Glass Furnace Blueprint",
+}
+
+local function is_blueprint_unlocked(blueprint_name)
+    local val = dfhack.persistent.getSiteData("dwarfipelago/blueprint/" .. blueprint_name)
+    return val == "1"
+end
+
+function unlock_blueprint(blueprint_name)
+    dfhack.persistent.setSiteData("dwarfipelago/blueprint/" .. blueprint_name, "1")
+    dfhack.gui.showAnnouncement(
+        ("[AP] Blueprint received: %s"):format(blueprint_name),
+        COLOR_GREEN, true)
+    print(("[Dwarfipelago] Blueprint unlocked: %s"):format(blueprint_name))
+end
+
+-- Hook: cancel construction of locked workshops, furnaces, and farm plots.
+-- Called via eventful.onJobInitiated — fires when a new job is created.
+local function on_job_initiated(job)
+    if not state.is_enabled() then return end
+
+    -- Only care about construction jobs.
+    if job.job_type ~= df.job_type.ConstructBuilding then return end
+
+    local bld = dfhack.job.getHolder(job)
+    if not bld then return end
+
+    local blueprint_name = nil
+
+    -- Check workshops
+    if df.building_workshopst:is_instance(bld) then
+        blueprint_name = WORKSHOP_BLUEPRINTS[bld.type]
+
+    -- Check furnaces
+    elseif df.building_furnacest:is_instance(bld) then
+        blueprint_name = FURNACE_BLUEPRINTS[bld.type]
+
+    -- Check farm plots
+    elseif df.building_farmplotst:is_instance(bld) then
+        blueprint_name = "Farm Plot Blueprint"
+    end
+
+    if not blueprint_name then return end  -- ungated building, allow it
+
+    if not is_blueprint_unlocked(blueprint_name) then
+        dfhack.job.removeJob(job)
+        dfhack.gui.showAnnouncement(
+            ("[AP] Cannot build: %s not yet received!"):format(blueprint_name),
+            COLOR_YELLOW, true)
+    end
+end
+
 -- ── Start / stop ──────────────────────────────────────────────────────────────
 
 local function start()
@@ -285,6 +372,7 @@ local function start()
     -- Register hooks
     eventful.onJobCompleted[SCRIPT_NAME] = on_job_completed
     eventful.onUnitDeath[SCRIPT_NAME]    = on_unit_death
+    eventful.onJobInitiated[SCRIPT_NAME] = on_job_initiated
 
     -- Register poll loop
     repeatUtil.scheduleEvery(SCRIPT_NAME, POLL_TICKS, "ticks", poll_checks)
@@ -299,6 +387,7 @@ local function stop()
     -- Unregister hooks
     eventful.onJobCompleted[SCRIPT_NAME] = nil
     eventful.onUnitDeath[SCRIPT_NAME]    = nil
+    eventful.onJobInitiated[SCRIPT_NAME] = nil
     repeatUtil.cancel(SCRIPT_NAME)
 
     print("[Dwarfipelago] Stopped.")
