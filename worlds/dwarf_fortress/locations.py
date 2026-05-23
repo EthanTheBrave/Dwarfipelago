@@ -66,8 +66,20 @@ STATUS_LOCATIONS: list[LocationData] = [
     LocationData("Monarch Takes Residence", BASE_ID + 304, "Fortress"),
 ]
 
+# ── Fortress Title Milestones ─────────────────────────────────────────────────
+# Each title requires population AND either created-wealth OR exported-wealth.
+# See https://dwarffortresswiki.org/index.php/Fortress
+TITLE_LOCATIONS: list[LocationData] = [
+    LocationData("Hamlet Established",      BASE_ID + 400, "Fortress"),
+    LocationData("Village Established",     BASE_ID + 401, "Fortress"),
+    LocationData("Town Established",        BASE_ID + 402, "Fortress"),
+    LocationData("City Established",        BASE_ID + 403, "Fortress"),
+    LocationData("Metropolis Established",  BASE_ID + 404, "Fortress"),
+]
+
 ALL_LOCATIONS: list[LocationData] = (
-    WEALTH_LOCATIONS + PRODUCTION_LOCATIONS + TRADE_LOCATIONS + STATUS_LOCATIONS
+    WEALTH_LOCATIONS + PRODUCTION_LOCATIONS + TRADE_LOCATIONS
+    + STATUS_LOCATIONS + TITLE_LOCATIONS
 )
 
 LOCATION_TABLE: dict[str, int] = {loc.name: loc.ap_id for loc in ALL_LOCATIONS}

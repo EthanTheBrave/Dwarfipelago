@@ -54,6 +54,7 @@ Configurable per-slot in your options YAML:
 | `population_boom` | Grow your fortress to a configurable population (default: 300 dwarves) *(default)* |
 | `legendary_wealth` | Reach a configurable fortress wealth target (default: 100,000☼) |
 | `slay_megabeast` | Kill a dragon, titan, or other megabeast |
+| `mountainhome` | Achieve Mountainhome status — the monarch takes residence in your fortress (very difficult) |
 
 ## Locations (Checks)
 
@@ -63,6 +64,7 @@ Completing these milestones sends items to other players:
 - **First production** — first weapon forged, armor crafted, meal prepared, brew completed, metal bar smelted, gem cut, and more (18 milestones)
 - **Trade & diplomacy** — first caravan trade, first export, dwarven/elven/human caravan visits, outpost liaison meeting
 - **Fortress status** — noble appointments and civilisation recognition milestones
+- **Fortress titles** — Hamlet, Village, Town, City, Metropolis (population + wealth thresholds)
 
 ## Items Received
 
@@ -105,6 +107,8 @@ A running list of ideas, planned features, and things that still need doing. No 
 - [x] Batch DeathLink — configurable threshold (N deaths out / N deaths in), feedback-loop prevention
 - [x] Archipelago Launcher integration — Dwarf Fortress and Dwarf Fortress Client buttons; mod auto-starts when a world is loaded
 - [x] Wire up caravan detection (merchant/diplomat unit scanning, exported-wealth tracking for trade/export flags)
+- [x] Fortress title location checks — Hamlet / Village / Town / City / Metropolis (population + wealth thresholds)
+- [x] Mountainhome win condition — achieve Mountainhome status (monarch takes residence)
 - [ ] Validate `df.job_type` enum values against a live DFHack console for all production checks
 - [ ] Validate `createitem` material strings against DF raws (gem types, metal bar identifiers)
 - [ ] Write end-to-end test instructions in `docs/`

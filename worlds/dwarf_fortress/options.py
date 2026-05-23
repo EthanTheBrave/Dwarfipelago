@@ -8,6 +8,7 @@ class DwarfFortressGoal(Choice):
     option_slay_megabeast = 0
     option_legendary_wealth = 1
     option_population_boom = 2
+    option_mountainhome = 3
     default = 2
 
 
