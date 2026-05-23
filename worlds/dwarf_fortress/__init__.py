@@ -1,8 +1,9 @@
-from typing import Any
+from typing import Any, ClassVar
 from BaseClasses import Region, Location, Item, ItemClassification, Tutorial
 from worlds.AutoWorld import World, WebWorld
 
 from .options import DwarfFortressOptions, DwarfFortressGoal
+from .settings import DwarfFortressSettings
 from .items import (
     ItemData, ITEM_TABLE, AP_ITEM_POOL, FILLER_ITEMS, TRAP_ITEMS,
     PROGRESSION_ITEMS, USEFUL_ITEMS
@@ -43,6 +44,9 @@ class DwarfFortressWorld(World):
     game = "Dwarf Fortress"
     options_dataclass = DwarfFortressOptions
     options: DwarfFortressOptions
+
+    settings_key = "dwarf_fortress_options"
+    settings: ClassVar[DwarfFortressSettings]
 
     item_name_to_id = ITEM_TABLE
     location_name_to_id = LOCATION_TABLE
