@@ -302,11 +302,12 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
         if HAS_COMMON_CLIENT:
             super().__init__(server_address, password)
         self.dfhack = DFHackConnection()
-        self._poll_interval = 5.0   # seconds between fortress state polls
-        self._received_index = 0    # last applied item index
+        self._poll_interval = 5.0        # seconds between fortress state polls
+        self._received_index = 0         # last applied item index
         self._slot_data_synced = False
         self._goal_complete = False
-        self._pending_recv_deathlinks = 0   # incoming DeathLink bounces waiting to be applied
+        self._deathlink_threshold = 5    # dwarves per DeathLink (overridden by slot data)
+        self._pending_recv_deathlinks = 0  # incoming DeathLink bounces waiting to be applied
 
     # ── DFHack polling ────────────────────────────────────────────────────────
 
@@ -386,10 +387,11 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
         slot_data = getattr(self, "slot_data", {})
         if not slot_data:
             return  # not yet connected to AP, or no slot data
-        goal            = slot_data.get("goal", 0)
-        wealth_goal     = slot_data.get("wealth_goal_amount", 100000)
-        pop_goal        = slot_data.get("population_goal_amount", 300)
-        dl_threshold    = slot_data.get("deathlink_threshold", 5)
+        goal         = slot_data.get("goal", 0)
+        wealth_goal  = slot_data.get("wealth_goal_amount", 100000)
+        pop_goal     = slot_data.get("population_goal_amount", 300)
+        dl_threshold = slot_data.get("deathlink_threshold", 5)
+        self._deathlink_threshold = int(dl_threshold)
         def write():
             self.dfhack.run_command("lua", f'dfhack.persistent.setSiteData("dwarfipelago/goal", "{goal}")')
             self.dfhack.run_command("lua", f'dfhack.persistent.setSiteData("dwarfipelago/wealth_goal", "{wealth_goal}")')
@@ -398,60 +400,6 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
         write()
         self._slot_data_synced = True
         logger.info(f"Synced slot data → goal={goal}, wealth_goal={wealth_goal}, pop_goal={pop_goal}, dl_threshold={dl_threshold}")
-
-    async def _check_deathlink_send(self):
-        """
-        Compare the Lua-side death counter against how many DeathLinks we've
-        already sent. For each new multiple of deathlink_threshold deaths,
-        broadcast one DeathLink Bounce to the AP server.
-        """
-        if not HAS_COMMON_CLIENT:
-            return
-        threshold = getattr(self, "slot_data", {}).get("deathlink_threshold", 5)
-
-        def read_counts():
-            dc = self.dfhack.run_command(
-                "lua",
-                'print(dfhack.persistent.getSiteData("dwarfipelago/death_count") or "0")',
-            )
-            ds = self.dfhack.run_command(
-                "lua",
-                'print(dfhack.persistent.getSiteData("dwarfipelago/deathlinks_sent") or "0")',
-            )
-            return dc, ds
-
-        dc_raw, ds_raw = await asyncio.get_event_loop().run_in_executor(None, read_counts)
-        try:
-            death_count = int((dc_raw or "0").strip())
-            already_sent = int((ds_raw or "0").strip())
-        except ValueError:
-            return
-
-        to_send = death_count // threshold - already_sent
-        if to_send <= 0:
-            return
-
-        fortress_name = getattr(self, "auth", "The Fortress")
-        for _ in range(to_send):
-            await self.send_msgs([{
-                "cmd": "Bounce",
-                "tags": ["DeathLink"],
-                "data": {
-                    "time": time.time(),
-                    "cause": f"{threshold} dwarves have met their end in {fortress_name}",
-                    "source": fortress_name,
-                },
-            }])
-
-        new_sent = already_sent + to_send
-        await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: self.dfhack.run_command(
-                "lua",
-                f'dfhack.persistent.setSiteData("dwarfipelago/deathlinks_sent", "{new_sent}")',
-            ),
-        )
-        logger.info(f"Sent {to_send} DeathLink(s) — {death_count} total deaths / threshold {threshold}")
 
     async def _apply_received_deathlinks(self):
         """
@@ -471,8 +419,66 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
                 f'dfhack.persistent.setSiteData("dwarfipelago/pending_recv", tostring(c + {n}))',
             ),
         )
-        threshold = getattr(self, "slot_data", {}).get("deathlink_threshold", 5)
-        logger.info(f"Queued {n} received DeathLink(s) — Lua will kill {n * threshold} dwarves")
+        logger.info(f"Queued {n} received DeathLink(s) — Lua will kill {n * self._deathlink_threshold} dwarves")
+
+    async def _check_deathlink_send(self):
+        """
+        Compare the Lua-side death counter against how many DeathLinks we've
+        already sent. For each new multiple of deathlink_threshold deaths,
+        persist the new count then broadcast one DeathLink Bounce to the AP server.
+        """
+        if not HAS_COMMON_CLIENT:
+            return
+        threshold = self._deathlink_threshold
+        if threshold <= 0:
+            return
+
+        def read_counts():
+            dc = self.dfhack.run_command(
+                "lua",
+                'print(dfhack.persistent.getSiteData("dwarfipelago/death_count") or "0")',
+            )
+            ds = self.dfhack.run_command(
+                "lua",
+                'print(dfhack.persistent.getSiteData("dwarfipelago/deathlinks_sent") or "0")',
+            )
+            return dc, ds
+
+        dc_raw, ds_raw = await asyncio.get_event_loop().run_in_executor(None, read_counts)
+        try:
+            death_count  = int((dc_raw or "0").strip())
+            already_sent = int((ds_raw or "0").strip())
+        except ValueError:
+            return
+
+        to_send = death_count // threshold - already_sent
+        if to_send <= 0:
+            return
+
+        fortress_name = getattr(self, "auth", "The Fortress")
+        new_sent = already_sent
+        for _ in range(to_send):
+            new_sent += 1
+            # Persist the incremented count before sending so a crash can't double-send.
+            n = new_sent
+            await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: self.dfhack.run_command(
+                    "lua",
+                    f'dfhack.persistent.setSiteData("dwarfipelago/deathlinks_sent", "{n}")',
+                ),
+            )
+            await self.send_msgs([{
+                "cmd": "Bounce",
+                "tags": ["DeathLink"],
+                "data": {
+                    "time": time.time(),
+                    "cause": f"{threshold} dwarves have met their end in {fortress_name}",
+                    "source": fortress_name,
+                },
+            }])
+
+        logger.info(f"Sent {to_send} DeathLink(s) — {death_count} total deaths / threshold {threshold}")
 
     async def _check_goal_complete(self):
         """
@@ -502,6 +508,8 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
         await self.send_connect()
 
     def on_package(self, cmd: str, args: dict):
+        if HAS_COMMON_CLIENT:
+            super().on_package(cmd, args)
         if cmd == "Bounced" and "DeathLink" in args.get("tags", []):
             source = args.get("data", {}).get("source", "")
             # Ignore bounces that originated from us.
@@ -509,8 +517,6 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
                 cause = args.get("data", {}).get("cause", "unknown cause")
                 logger.info(f"DeathLink received from {source!r}: {cause}")
                 self._pending_recv_deathlinks += 1
-        if HAS_COMMON_CLIENT:
-            super().on_package(cmd, args)
 
     async def disconnect(self, allow_autoreconnect: bool = False):
         self.dfhack.disconnect()
