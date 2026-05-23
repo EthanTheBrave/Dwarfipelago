@@ -7,7 +7,7 @@ and started automatically by the launcher component defined in client.py.
 
 This shim exists for users who want to run the client directly from a terminal
 without the AP launcher, e.g.:
-    python DwarfFortressClient.py --server archipelago.gg:PORT --name YourName
+    python DwarfFortressClient.py --connect archipelago.gg:PORT --name YourName
 """
 
 import sys
