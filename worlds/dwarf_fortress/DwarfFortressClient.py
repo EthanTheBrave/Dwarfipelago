@@ -188,21 +188,27 @@ class DFHackConnection:
         body = self._recv_exactly(size) if size > 0 else b""
         return method_id, body
 
-    def _bind_method(self, method: str, input_msg: str = "", output_msg: str = "") -> int:
+    def _bind_method(self, method: str, input_msg: str = "", output_msg: str = "",
+                     plugin: str = "") -> int:
         """
         Call BindMethod (always RPC id 0) to obtain the assigned integer ID
         for a named method. Returns -1 on failure.
 
-        Sends:   CoreBindRequest  { method(1), input_msg(2), output_msg(3) }
+        Sends:   CoreBindRequest  { method(1), input_msg(2), output_msg(3), plugin(4) }
         Expects: CoreBindReply    { assigned_id(1) }
+
+        Core methods (RunCommand, GetVersion, …) use an empty plugin string.
+        Plugin methods use the plugin name, e.g. "rename" for rename.Unit.
+        Note: method is the bare name ("RunCommand"), NOT "Core.RunCommand".
         """
-        body = _pb_string(1, method) + _pb_string(2, input_msg) + _pb_string(3, output_msg)
+        body = (_pb_string(1, method) + _pb_string(2, input_msg)
+                + _pb_string(3, output_msg) + _pb_string(4, plugin))
         self._send_rpc(RPC_METHOD_BIND, body)
         reply_id, data = self._recv_rpc()
         if reply_id == RPC_REPLY_RESULT:
             ids = _pb_decode(data).get(1, [-1])
             return ids[0] if ids else -1
-        logger.error(f"BindMethod failed for {method!r}: reply_id={reply_id}")
+        logger.error(f"BindMethod failed for {method!r}: reply_id={reply_id}, data={data!r}")
         return -1
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -225,7 +231,7 @@ class DFHackConnection:
         try:
             if not hasattr(self, "_run_cmd_id"):
                 self._run_cmd_id = self._bind_method(
-                    "Core.RunCommand",
+                    "RunCommand",
                     "CoreRunCommandRequest",
                     "EmptyMessage",
                 )
