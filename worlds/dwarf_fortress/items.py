@@ -16,6 +16,42 @@ class ItemData:
 
 # ── Items DF sends to other players ──────────────────────────────────────────
 
+# Workshop blueprint items — progression gates that other players find and send
+# to unlock workshops in your fortress. These are the core AP mechanic.
+# Workshop / furnace / building blueprint items — progression gates that other
+# players find and send to unlock structures in your fortress.
+BLUEPRINT_ITEMS: list[ItemData] = [
+    # Workshops
+    ItemData("Craftsdwarf's Workshop Blueprint", BASE_ID + 540, ItemClassification.progression),
+    ItemData("Forge Blueprint",                  BASE_ID + 541, ItemClassification.progression),
+    ItemData("Kitchen Blueprint",                BASE_ID + 543, ItemClassification.progression),
+    ItemData("Jeweler's Workshop Blueprint",     BASE_ID + 544, ItemClassification.progression),
+    ItemData("Clothier's Shop Blueprint",        BASE_ID + 545, ItemClassification.progression),
+    ItemData("Tanner's Blueprint",               BASE_ID + 546, ItemClassification.progression),
+    ItemData("Mechanic's Workshop Blueprint",    BASE_ID + 547, ItemClassification.progression),
+    ItemData("Magma Forge Blueprint",            BASE_ID + 548, ItemClassification.progression),
+    ItemData("Siege Workshop Blueprint",         BASE_ID + 549, ItemClassification.progression),
+    ItemData("Soap Maker's Workshop Blueprint",  BASE_ID + 550, ItemClassification.progression),
+    ItemData("Ashery Blueprint",                 BASE_ID + 551, ItemClassification.progression),
+    ItemData("Bowyer's Workshop Blueprint",      BASE_ID + 552, ItemClassification.progression),
+    ItemData("Screw Press Blueprint",            BASE_ID + 553, ItemClassification.progression),
+    ItemData("Fishery Blueprint",                BASE_ID + 554, ItemClassification.progression),
+    ItemData("Loom Blueprint",                   BASE_ID + 555, ItemClassification.progression),
+    ItemData("Dyer's Workshop Blueprint",        BASE_ID + 556, ItemClassification.progression),
+    ItemData("Butcher's Shop Blueprint",         BASE_ID + 557, ItemClassification.progression),
+    ItemData("Farmer's Workshop Blueprint",      BASE_ID + 558, ItemClassification.progression),
+    # Furnaces
+    ItemData("Smelter Blueprint",                BASE_ID + 542, ItemClassification.progression),
+    ItemData("Magma Smelter Blueprint",          BASE_ID + 559, ItemClassification.progression),
+    ItemData("Wood Furnace Blueprint",           BASE_ID + 560, ItemClassification.progression),
+    ItemData("Glass Furnace Blueprint",          BASE_ID + 561, ItemClassification.progression),
+    ItemData("Kiln Blueprint",                   BASE_ID + 562, ItemClassification.progression),
+    ItemData("Magma Kiln Blueprint",             BASE_ID + 563, ItemClassification.progression),
+    ItemData("Magma Glass Furnace Blueprint",    BASE_ID + 564, ItemClassification.progression),
+    # Buildings
+    ItemData("Farm Plot Blueprint",              BASE_ID + 565, ItemClassification.progression),
+]
+
 PROGRESSION_ITEMS: list[ItemData] = [
     ItemData("Artifact Weapon",        BASE_ID + 500, ItemClassification.progression),
     ItemData("Artifact Armor",         BASE_ID + 501, ItemClassification.progression),
@@ -23,24 +59,24 @@ PROGRESSION_ITEMS: list[ItemData] = [
 ]
 
 USEFUL_ITEMS: list[ItemData] = [
-    ItemData("Masterwork Crafts",      BASE_ID + 510, ItemClassification.useful, quantity=3),
-    ItemData("Dwarven Steel Sword",    BASE_ID + 511, ItemClassification.useful, quantity=2),
-    ItemData("Fine Cloth",             BASE_ID + 512, ItemClassification.useful, quantity=2),
+    ItemData("Masterwork Crafts",      BASE_ID + 510, ItemClassification.useful),
+    ItemData("Dwarven Steel Sword",    BASE_ID + 511, ItemClassification.useful),
+    ItemData("Fine Cloth",             BASE_ID + 512, ItemClassification.useful),
     ItemData("Adamantine Fiber",       BASE_ID + 513, ItemClassification.useful),
 ]
 
 FILLER_ITEMS: list[ItemData] = [
-    ItemData("Dwarven Ale",            BASE_ID + 520, ItemClassification.filler, quantity=5),
-    ItemData("Stone Trinket",          BASE_ID + 521, ItemClassification.filler, quantity=5),
-    ItemData("Bone Crafts",            BASE_ID + 522, ItemClassification.filler, quantity=4),
-    ItemData("Raw Ore",                BASE_ID + 523, ItemClassification.filler, quantity=3),
-    ItemData("Wooden Cup",             BASE_ID + 524, ItemClassification.filler, quantity=3),
+    ItemData("Dwarven Ale",            BASE_ID + 520, ItemClassification.filler),
+    ItemData("Stone Trinket",          BASE_ID + 521, ItemClassification.filler),
+    ItemData("Bone Crafts",            BASE_ID + 522, ItemClassification.filler),
+    ItemData("Raw Ore",                BASE_ID + 523, ItemClassification.filler),
+    ItemData("Wooden Cup",             BASE_ID + 524, ItemClassification.filler),
 ]
 
 TRAP_ITEMS: list[ItemData] = [
-    ItemData("Cave Fisher Silk",       BASE_ID + 530, ItemClassification.trap, quantity=2),
-    ItemData("Dwarf Bones",            BASE_ID + 531, ItemClassification.trap, quantity=2),
-    ItemData("Goblin Trophy",          BASE_ID + 532, ItemClassification.trap, quantity=2),
+    ItemData("Cave Fisher Silk",       BASE_ID + 530, ItemClassification.trap),
+    ItemData("Dwarf Bones",            BASE_ID + 531, ItemClassification.trap),
+    ItemData("Goblin Trophy",          BASE_ID + 532, ItemClassification.trap),
 ]
 
 # ── Items the DF player receives from the multiworld ─────────────────────────
@@ -81,6 +117,7 @@ RECEIVED_TRAPS: list[ItemData] = [
 AP_ITEM_POOL: list[ItemData] = (
     PROGRESSION_ITEMS + USEFUL_ITEMS + FILLER_ITEMS + TRAP_ITEMS
     + RECEIVED_TRADE_GOODS + RECEIVED_RESOURCES + RECEIVED_TRAPS
+    BLUEPRINT_ITEMS + PROGRESSION_ITEMS + USEFUL_ITEMS + FILLER_ITEMS + TRAP_ITEMS
 )
 
 # All items (for name→ID mapping, including received items)

@@ -150,16 +150,7 @@ class DFHackConnection:
         try:
             sock = socket.create_connection((self.host, self.port), timeout=5)
             sock.sendall(DFHACK_MAGIC_REQUEST)
-            # recv() may return fewer bytes than requested even on loopback;
-            # loop until we have all 12 bytes of the handshake reply.
-            buf = bytearray()
-            needed = len(DFHACK_MAGIC_REPLY)
-            while len(buf) < needed:
-                chunk = sock.recv(needed - len(buf))
-                if not chunk:
-                    raise ConnectionError("DFHack closed connection during handshake")
-                buf.extend(chunk)
-            reply = bytes(buf)
+            reply = sock.recv(len(DFHACK_MAGIC_REPLY))
             if reply != DFHACK_MAGIC_REPLY:
                 logger.error(f"DFHack handshake failed: {reply!r}")
                 sock.close()

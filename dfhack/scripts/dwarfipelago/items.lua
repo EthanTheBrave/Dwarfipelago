@@ -261,6 +261,51 @@ M.handlers = {
     ["Lost Caravan"]         = recv_lost_caravan,
 }
 
+-- ── Blueprint items ───────────────────────────────────────────────────────────
+-- Workshop blueprints unlock the ability to build specific workshops.
+-- The unlock_blueprint function is defined in main.lua and writes to
+-- persistent storage so the onJobInitiated hook can check it.
+
+local BLUEPRINT_NAMES = {
+    -- Workshops
+    "Craftsdwarf's Workshop Blueprint",
+    "Forge Blueprint",
+    "Kitchen Blueprint",
+    "Jeweler's Workshop Blueprint",
+    "Clothier's Shop Blueprint",
+    "Tanner's Blueprint",
+    "Mechanic's Workshop Blueprint",
+    "Magma Forge Blueprint",
+    "Siege Workshop Blueprint",
+    "Soap Maker's Workshop Blueprint",
+    "Ashery Blueprint",
+    "Bowyer's Workshop Blueprint",
+    "Screw Press Blueprint",
+    "Fishery Blueprint",
+    "Loom Blueprint",
+    "Dyer's Workshop Blueprint",
+    "Butcher's Shop Blueprint",
+    "Farmer's Workshop Blueprint",
+    -- Furnaces
+    "Smelter Blueprint",
+    "Magma Smelter Blueprint",
+    "Wood Furnace Blueprint",
+    "Glass Furnace Blueprint",
+    "Kiln Blueprint",
+    "Magma Kiln Blueprint",
+    "Magma Glass Furnace Blueprint",
+    -- Buildings
+    "Farm Plot Blueprint",
+}
+
+-- Register blueprint handlers dynamically.
+for _, bp_name in ipairs(BLUEPRINT_NAMES) do
+    M.handlers[bp_name] = function()
+        -- unlock_blueprint is a global function defined in main.lua
+        unlock_blueprint(bp_name)
+    end
+end
+
 -- Called by main.lua when the client delivers an item by name.
 function M.receive(item_name)
     local handler = M.handlers[item_name]
