@@ -79,9 +79,10 @@ TRAP_ITEMS: list[ItemData] = [
     ItemData("Goblin Trophy",          BASE_ID + 532, ItemClassification.trap),
 ]
 
-# ── Items DF receives from other players ─────────────────────────────────────
-# (These are delivered in-game; they don't go into the AP item pool,
-#  but we define them here for name→ID mapping used by the client.)
+# ── Items the DF player receives from the multiworld ─────────────────────────
+# These ARE part of the AP item pool — they must be placed at locations so the
+# AP server can route them back to the DF player when those locations are checked.
+# The client's deliver_item() call hands them off to items.lua for in-game effect.
 
 RECEIVED_TRADE_GOODS: list[ItemData] = [
     ItemData("Cut Sapphire",           BASE_ID + 600, ItemClassification.useful),
@@ -108,8 +109,14 @@ RECEIVED_TRAPS: list[ItemData] = [
     ItemData("Lost Caravan",           BASE_ID + 624, ItemClassification.trap),
 ]
 
-# Pool that goes into the AP multiworld (what DF sends to others)
+# Pool that goes into the AP multiworld.
+# Includes both outbound items (things DF "produces" for other players) and
+# inbound items (trade goods, resources, traps the DF player receives back).
+# All of these must be in the pool; the AP server places them at locations and
+# routes them to the right player when those locations are checked.
 AP_ITEM_POOL: list[ItemData] = (
+    PROGRESSION_ITEMS + USEFUL_ITEMS + FILLER_ITEMS + TRAP_ITEMS
+    + RECEIVED_TRADE_GOODS + RECEIVED_RESOURCES + RECEIVED_TRAPS
     BLUEPRINT_ITEMS + PROGRESSION_ITEMS + USEFUL_ITEMS + FILLER_ITEMS + TRAP_ITEMS
 )
 
