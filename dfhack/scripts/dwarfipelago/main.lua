@@ -22,7 +22,7 @@ local applying_recv_deathlink = false
 
 -- ── Goal settings helpers ─────────────────────────────────────────────────────
 -- The Python client writes these to persistent storage after connecting.
--- goal: 0 = slay_megabeast, 1 = legendary_wealth, 2 = population_boom
+-- goal: 0 = slay_megabeast, 1 = legendary_wealth, 2 = population_boom, 3 = mountainhome
 
 local function goal_setting(key, default)
     return tonumber(dfhack.persistent.getSiteData("dwarfipelago/" .. key)) or default
@@ -61,6 +61,20 @@ local function check_goal_by_poll()
                     ("[AP] Goal reached: Population Boom! (%d dwarves). Victory!"):format(count),
                     COLOR_CYAN, true)
                 print("[Dwarfipelago] Goal complete: Population Boom!")
+            end
+        end
+    elseif goal == 3 then  -- mountainhome
+        -- Mountainhome is achieved when the monarch (king/queen) takes residence.
+        local ok_k, has_king  = pcall(dfhack.units.getUnitsByNobleRole, "KING")
+        local ok_q, has_queen = pcall(dfhack.units.getUnitsByNobleRole, "QUEEN")
+        local has_monarch = (ok_k and has_king and #has_king > 0)
+                         or (ok_q and has_queen and #has_queen > 0)
+        if has_monarch then
+            if state.mark_goal_complete() then
+                dfhack.gui.showAnnouncement(
+                    "[AP] Goal reached: Mountainhome! The monarch has arrived. Victory!",
+                    COLOR_CYAN, true)
+                print("[Dwarfipelago] Goal complete: Mountainhome!")
             end
         end
     end
@@ -165,6 +179,8 @@ local function poll_checks()
 
     apply_pending_recv_deathlinks()
     check_goal_by_poll()
+    detect_caravans()
+    detect_trade_export()
 
     for _, check in ipairs(checks.checks) do
         if not state.is_location_checked(check.id) then
@@ -197,10 +213,163 @@ local function on_job_completed(job)
     end
 end
 
--- ── Caravan arrival hook ─────────────────────────────────────────────────────
--- eventful.onCaravanArrival is not a standard event; we detect caravans
--- via the unit list on each poll cycle instead.
--- TODO: implement caravan detection in poll_checks using df.global.world.caravans
+-- ── Caravan & trade detection ────────────────────────────────────────────────
+-- Scans the active unit list for merchant and diplomat units each poll tick,
+-- then maps them to their civilisation's race to set the appropriate trade
+-- flags in checks.lua. Also tracks exported wealth to detect completed trades.
+
+local CARAVAN_RACES = {
+    DWARF = "dwarven_caravan",
+    ELF   = "elven_caravan",
+    HUMAN = "human_caravan",
+}
+
+local function detect_caravans()
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isAlive(unit) then
+            -- Merchant units mark a caravan visit for that race.
+            if unit.flags1.merchant then
+                local creature = df.creature_raw.find(unit.race)
+                if creature then
+                    local flag = CARAVAN_RACES[creature.creature_id]
+                    if flag and not checks.trade_flag(flag) then
+                        checks.set_trade_flag(flag)
+                        print(("[Dwarfipelago] Caravan detected: %s"):format(creature.creature_id))
+                    end
+                end
+            end
+
+            -- Diplomat / outpost liaison detection.
+            if unit.flags1.diplomat and not checks.trade_flag("liaison_met") then
+                checks.set_trade_flag("liaison_met")
+                print("[Dwarfipelago] Outpost liaison detected")
+            end
+        end
+    end
+end
+
+-- Detect first trade / first export by checking the fortress exported-wealth
+-- counter. DF increments this when goods are sold to a caravan, so a value
+-- above zero means at least one trade has been completed.
+local function detect_trade_export()
+    if checks.trade_flag("trade_completed") and checks.trade_flag("first_export") then
+        return  -- both already fired
+    end
+
+    -- DF50+ uses plotinfo; Classic uses ui.
+    local exported = 0
+    local ok, result = pcall(function()
+        return df.global.plotinfo.tasks.wealth_exported
+    end)
+    if ok and type(result) == "number" then
+        exported = result
+    else
+        ok, result = pcall(function()
+            return df.global.ui.tasks.wealth_exported
+        end)
+        if ok and type(result) == "number" then
+            exported = result
+        end
+    end
+
+    if exported > 0 then
+        if not checks.trade_flag("trade_completed") then
+            checks.set_trade_flag("trade_completed")
+            print("[Dwarfipelago] First trade detected (exported wealth > 0)")
+        end
+        if not checks.trade_flag("first_export") then
+            checks.set_trade_flag("first_export")
+            print("[Dwarfipelago] First export detected (exported wealth > 0)")
+        end
+    end
+end
+
+-- ── Workshop / furnace / building blueprint enforcement ─────────────────────
+-- When a dwarf tries to build a locked structure, the job is cancelled.
+-- Unlocked blueprints are tracked in persistent storage by the AP client:
+--   key "dwarfipelago/blueprint/<name>" = "1" when received.
+
+-- Workshops (df.workshop_type → blueprint name)
+local WORKSHOP_BLUEPRINTS = {
+    [df.workshop_type.Craftsdwarfs]     = "Craftsdwarf's Workshop Blueprint",
+    [df.workshop_type.MetalsmithsForge] = "Forge Blueprint",
+    [df.workshop_type.MagmaForge]       = "Magma Forge Blueprint",
+    [df.workshop_type.Kitchen]          = "Kitchen Blueprint",
+    [df.workshop_type.Jewelers]         = "Jeweler's Workshop Blueprint",
+    [df.workshop_type.Clothiers]        = "Clothier's Shop Blueprint",
+    [df.workshop_type.Tanners]          = "Tanner's Blueprint",
+    [df.workshop_type.Mechanics]        = "Mechanic's Workshop Blueprint",
+    [df.workshop_type.Siege]            = "Siege Workshop Blueprint",
+    [df.workshop_type.SoapMaker]        = "Soap Maker's Workshop Blueprint",
+    [df.workshop_type.Ashery]           = "Ashery Blueprint",
+    [df.workshop_type.Bowyers]          = "Bowyer's Workshop Blueprint",
+    [df.workshop_type.ScrewPress]       = "Screw Press Blueprint",
+    [df.workshop_type.Fishery]          = "Fishery Blueprint",
+    [df.workshop_type.Loom]             = "Loom Blueprint",
+    [df.workshop_type.Dyers]            = "Dyer's Workshop Blueprint",
+    [df.workshop_type.Butchers]         = "Butcher's Shop Blueprint",
+    [df.workshop_type.Farmers]          = "Farmer's Workshop Blueprint",
+}
+
+-- Furnaces (df.furnace_type → blueprint name)
+local FURNACE_BLUEPRINTS = {
+    [df.furnace_type.Smelter]           = "Smelter Blueprint",
+    [df.furnace_type.MagmaSmelter]      = "Magma Smelter Blueprint",
+    [df.furnace_type.WoodFurnace]       = "Wood Furnace Blueprint",
+    [df.furnace_type.GlassFurnace]      = "Glass Furnace Blueprint",
+    [df.furnace_type.Kiln]              = "Kiln Blueprint",
+    [df.furnace_type.MagmaKiln]         = "Magma Kiln Blueprint",
+    [df.furnace_type.MagmaGlassFurnace] = "Magma Glass Furnace Blueprint",
+}
+
+local function is_blueprint_unlocked(blueprint_name)
+    local val = dfhack.persistent.getSiteData("dwarfipelago/blueprint/" .. blueprint_name)
+    return val == "1"
+end
+
+function unlock_blueprint(blueprint_name)
+    dfhack.persistent.setSiteData("dwarfipelago/blueprint/" .. blueprint_name, "1")
+    dfhack.gui.showAnnouncement(
+        ("[AP] Blueprint received: %s"):format(blueprint_name),
+        COLOR_GREEN, true)
+    print(("[Dwarfipelago] Blueprint unlocked: %s"):format(blueprint_name))
+end
+
+-- Hook: cancel construction of locked workshops, furnaces, and farm plots.
+-- Called via eventful.onJobInitiated — fires when a new job is created.
+local function on_job_initiated(job)
+    if not state.is_enabled() then return end
+
+    -- Only care about construction jobs.
+    if job.job_type ~= df.job_type.ConstructBuilding then return end
+
+    local bld = dfhack.job.getHolder(job)
+    if not bld then return end
+
+    local blueprint_name = nil
+
+    -- Check workshops
+    if df.building_workshopst:is_instance(bld) then
+        blueprint_name = WORKSHOP_BLUEPRINTS[bld.type]
+
+    -- Check furnaces
+    elseif df.building_furnacest:is_instance(bld) then
+        blueprint_name = FURNACE_BLUEPRINTS[bld.type]
+
+    -- Check farm plots
+    elseif df.building_farmplotst:is_instance(bld) then
+        blueprint_name = "Farm Plot Blueprint"
+    end
+
+    if not blueprint_name then return end  -- ungated building, allow it
+
+    if not is_blueprint_unlocked(blueprint_name) then
+        dfhack.job.removeJob(job)
+        dfhack.gui.showAnnouncement(
+            ("[AP] Cannot build: %s not yet received!"):format(blueprint_name),
+            COLOR_YELLOW, true)
+    end
+end
 
 -- ── Start / stop ──────────────────────────────────────────────────────────────
 
@@ -210,6 +379,7 @@ local function start()
     -- Register hooks
     eventful.onJobCompleted[SCRIPT_NAME] = on_job_completed
     eventful.onUnitDeath[SCRIPT_NAME]    = on_unit_death
+    eventful.onJobInitiated[SCRIPT_NAME] = on_job_initiated
 
     -- Register poll loop
     repeatUtil.scheduleEvery(SCRIPT_NAME, POLL_TICKS, "ticks", poll_checks)
@@ -224,6 +394,7 @@ local function stop()
     -- Unregister hooks
     eventful.onJobCompleted[SCRIPT_NAME] = nil
     eventful.onUnitDeath[SCRIPT_NAME]    = nil
+    eventful.onJobInitiated[SCRIPT_NAME] = nil
     repeatUtil.cancel(SCRIPT_NAME)
 
     print("[Dwarfipelago] Stopped.")

@@ -51,7 +51,7 @@ game: Dwarf Fortress
 description: My DF world
 
 Dwarf Fortress:
-  goal: slay_megabeast          # slay_megabeast | legendary_wealth | population_boom
+  goal: population_boom          # population_boom | legendary_wealth | slay_megabeast | mountainhome
   wealth_goal_amount: 100000    # only used when goal is legendary_wealth
   population_goal_amount: 300   # only used when goal is population_boom (range: 20–500)
   trap_item_weight: 20          # 0–100, percentage of filler that are traps
