@@ -29,7 +29,7 @@ Complete economic and production milestones in your fortress to send items to ot
 
 2. **Install the DFHack mod**
    - Copy `dfhack/scripts/dwarfipelago/` into your DF installation's `dfhack/scripts/` folder
-   - Steam (Windows): `C:\Program Files (x86)\Steam\steamapps\common\Dwarf Fortress\dfhack\scripts\`
+   - Steam (Windows): `C:\Program Files (x86)\Steam\steamapps\common\Dwarf Fortress\dfhack\hack\scripts\`
 
 3. **Configure the game path** in your Archipelago `host.yaml`:
    ```yaml
