@@ -26,6 +26,37 @@ local function announce(msg)
     dfhack.gui.showAnnouncement("[AP] " .. msg, COLOR_GREEN, true)
 end
 
+-- Return the position of a living citizen as a spawn anchor (guaranteed walkable).
+-- Falls back to map centre if no citizens are found.
+local function get_fort_spawn_pos()
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+            return tostring(unit.pos.x), tostring(unit.pos.y), tostring(unit.pos.z)
+        end
+    end
+    local map = df.global.world.map
+    return tostring(math.floor(map.x_count / 2)),
+           tostring(math.floor(map.y_count / 2)),
+           tostring(map.z_count - 1)
+end
+
+-- Find the entity ID of a goblin civilisation in the world so spawned goblins
+-- belong to an enemy faction. Returns -1 if none found (e.g. goblin-free worlds).
+local function find_goblin_civ_id()
+    local creatures = df.global.world.raws.creatures.all
+    for _, ent in ipairs(df.global.world.entities.all) do
+        local ok, id = pcall(function()
+            if ent.race >= 0 and ent.race < #creatures then
+                if creatures[ent.race].creature_id == "GOBLIN" then
+                    return ent.id
+                end
+            end
+        end)
+        if ok and id then return id end
+    end
+    return -1
+end
+
 -- ── Item handlers: trade goods ────────────────────────────────────────────────
 -- createitem syntax: <item-token> <material>
 --   Cut gems  → SMALLGEM INORGANIC:<gem>   (SMALLGEM = cut gem; ROUGH = uncut)
@@ -108,13 +139,19 @@ end
 local function recv_goblin_ambush()
     announce("Trap: Goblin Ambush incoming!")
     -- Spawn 3 hostile goblins via modtools/create-unit.
-    -- -setUnitToFort places them near the fortress entrance.
+    -- -location is required; we anchor to a living citizen's tile.
+    -- Goblins are assigned to their civilisation's civ ID so they are treated as
+    -- enemies. -setUnitToFort is intentionally NOT used — that would make them
+    -- friendly fortress members instead of raiders.
+    local x, y, z   = get_fort_spawn_pos()
+    local civ_id_str = tostring(find_goblin_civ_id())
     local ok, err = pcall(function()
         for _ = 1, 3 do
             dfhack.run_script("modtools/create-unit",
-                "-race", "GOBLIN",
-                "-caste", "GOBLIN",
-                "-setUnitToFort"
+                "-race",     "GOBLIN",
+                "-civId",    civ_id_str,
+                "-groupId",  "-1",
+                "-location", "[", x, y, z, "]"
             )
         end
     end)
@@ -125,11 +162,15 @@ end
 
 local function recv_cave_bear()
     announce("Trap: A Cave Bear has found its way in!")
+    -- Wild (civId=-1) cave bear — wild animals attack dwarves on sight.
+    -- -setUnitToFort is intentionally NOT used as that would tame the bear.
+    local x, y, z = get_fort_spawn_pos()
     local ok, err = pcall(function()
         dfhack.run_script("modtools/create-unit",
-            "-race", "CAVE_BEAR",
-            "-caste", "CAVE_BEAR",
-            "-setUnitToFort"
+            "-race",     "CAVE_BEAR",
+            "-civId",    "-1",
+            "-groupId",  "-1",
+            "-location", "[", x, y, z, "]"
         )
     end)
     if not ok then
@@ -138,21 +179,26 @@ local function recv_cave_bear()
 end
 
 local function recv_vermin_infestation()
-    announce("Trap: Vermin Infestation! Rats everywhere!")
-    -- Spawn 10 rats scattered through the fortress.
+    announce("Trap: Vermin Infestation! Giant rats everywhere!")
+    -- RAT is a [VERMIN_SOIL] creature and cannot be spawned as a full unit.
+    -- GIANT_RAT is a proper hostile creature that serves the same narrative role.
+    -- Wild (civId=-1) so they attack dwarves. Spread across a 10-tile radius.
+    local x, y, z = get_fort_spawn_pos()
     local spawned = 0
     for _ = 1, 10 do
         local ok = pcall(function()
             dfhack.run_script("modtools/create-unit",
-                "-race", "RAT",
-                "-caste", "RAT",
-                "-setUnitToFort"
+                "-race",          "GIANT_RAT",
+                "-civId",         "-1",
+                "-groupId",       "-1",
+                "-location",      "[", x, y, z, "]",
+                "-locationRange", "[", "10", "10", "0", "]"
             )
         end)
         if ok then spawned = spawned + 1 end
     end
     if spawned == 0 then
-        dfhack.printerr("[Dwarfipelago] vermin_infestation: could not spawn any vermin")
+        dfhack.printerr("[Dwarfipelago] vermin_infestation: could not spawn any giant rats")
     end
 end
 
