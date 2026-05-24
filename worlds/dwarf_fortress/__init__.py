@@ -11,6 +11,17 @@ from .items import (
 from .locations import LocationData, LOCATION_TABLE, ALL_LOCATIONS
 from . import rules
 
+# Register the Archipelago launcher buttons (Dwarf Fortress + Dwarf Fortress Client).
+# Imported here so the components are registered whenever this world is loaded,
+# regardless of which AP version's discovery mechanism is in use.
+# Wrapped in a bare except so a missing display / headless server never breaks
+# world generation.
+try:
+    from . import client as _  # noqa: F401
+except Exception as _client_err:
+    import logging as _logging
+    _logging.warning(f"[Dwarfipelago] Failed to register launcher components: {_client_err}")
+
 
 class DwarfFortressWebWorld(WebWorld):
     theme = "dirt"
