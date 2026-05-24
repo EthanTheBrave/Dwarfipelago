@@ -1,14 +1,26 @@
-from typing import Any
+from typing import Any, ClassVar
 from BaseClasses import Region, Location, Item, ItemClassification, Tutorial
 from worlds.AutoWorld import World, WebWorld
 
 from .options import DwarfFortressOptions, DwarfFortressGoal
+from .settings import DwarfFortressSettings
 from .items import (
     ItemData, ITEM_TABLE, AP_ITEM_POOL, FILLER_ITEMS, TRAP_ITEMS,
     PROGRESSION_ITEMS, USEFUL_ITEMS
 )
 from .locations import LocationData, LOCATION_TABLE, ALL_LOCATIONS
 from . import rules
+
+# Register the Archipelago launcher buttons (Dwarf Fortress + Dwarf Fortress Client).
+# Imported here so the components are registered whenever this world is loaded,
+# regardless of which AP version's discovery mechanism is in use.
+# Wrapped in a bare except so a missing display / headless server never breaks
+# world generation.
+try:
+    from . import client as _  # noqa: F401
+except Exception as _client_err:
+    import logging as _logging
+    _logging.warning(f"[Dwarfipelago] Failed to register launcher components: {_client_err}")
 
 
 class DwarfFortressWebWorld(WebWorld):
@@ -43,6 +55,9 @@ class DwarfFortressWorld(World):
     game = "Dwarf Fortress"
     options_dataclass = DwarfFortressOptions
     options: DwarfFortressOptions
+
+    settings_key = "dwarf_fortress_options"
+    settings: ClassVar[DwarfFortressSettings]
 
     item_name_to_id = ITEM_TABLE
     location_name_to_id = LOCATION_TABLE

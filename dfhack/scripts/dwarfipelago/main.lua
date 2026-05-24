@@ -133,13 +133,20 @@ local function apply_pending_recv_deathlinks()
     local killed = 0
     for i = 1, math.min(to_kill, #candidates) do
         local unit = candidates[i]
+        -- modtools/kill-unit does not exist in modern DFHack; use the Lua API
+        -- directly. Try dfhack.units.kill() first (available in newer builds),
+        -- then fall back to blood depletion which causes natural bleed-out death.
         local ok, err = pcall(function()
-            dfhack.run_script("modtools/kill-unit", "--unit", tostring(unit.id))
+            if dfhack.units.kill then
+                dfhack.units.kill(unit)
+            else
+                unit.body.blood_count = 0
+            end
         end)
         if ok then
             killed = killed + 1
         else
-            dfhack.printerr("[Dwarfipelago] kill-unit failed: " .. tostring(err))
+            dfhack.printerr("[Dwarfipelago] kill unit failed: " .. tostring(err))
         end
     end
     applying_recv_deathlink = false
