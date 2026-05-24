@@ -194,15 +194,25 @@ class DFHackConnection:
         Call BindMethod (always RPC id 0) to obtain the assigned integer ID
         for a named method. Returns -1 on failure.
 
-        Sends:   CoreBindRequest  { method(1), input_msg(2), output_msg(3), plugin(4) }
+        Sends:   CoreBindRequest  { method(1), input_msg(2)?, output_msg(3)?, plugin(4)? }
         Expects: CoreBindReply    { assigned_id(1) }
 
         Core methods (RunCommand, GetVersion, …) use an empty plugin string.
         Plugin methods use the plugin name, e.g. "rename" for rename.Unit.
-        Note: method is the bare name ("RunCommand"), NOT "Core.RunCommand".
+        The method is the bare name ("RunCommand"), NOT "Core.RunCommand".
+
+        DFHack only validates input_msg / output_msg against the protobuf
+        full_name (e.g. "dfproto.CoreRunCommandRequest") when those fields
+        are present in the bind request.  Omitting them skips that check
+        entirely, so we only encode non-empty strings.
         """
-        body = (_pb_string(1, method) + _pb_string(2, input_msg)
-                + _pb_string(3, output_msg) + _pb_string(4, plugin))
+        body = _pb_string(1, method)
+        if input_msg:
+            body += _pb_string(2, input_msg)
+        if output_msg:
+            body += _pb_string(3, output_msg)
+        if plugin:
+            body += _pb_string(4, plugin)
         self._send_rpc(RPC_METHOD_BIND, body)
         reply_id, data = self._recv_rpc()
         if reply_id == RPC_REPLY_RESULT:
@@ -230,11 +240,12 @@ class DFHackConnection:
             return None
         try:
             if not hasattr(self, "_run_cmd_id"):
-                self._run_cmd_id = self._bind_method(
-                    "RunCommand",
-                    "CoreRunCommandRequest",
-                    "EmptyMessage",
-                )
+                # Omit input/output type names so DFHack skips signature
+                # validation (it only checks them when the fields are present).
+                # Using the fully-qualified proto names like
+                # "dfproto.CoreRunCommandRequest" also works but is version-
+                # sensitive; omitting them is simpler and equally correct.
+                self._run_cmd_id = self._bind_method("RunCommand")
                 if self._run_cmd_id < 0:
                     logger.error("Failed to bind Core.RunCommand")
                     return None
