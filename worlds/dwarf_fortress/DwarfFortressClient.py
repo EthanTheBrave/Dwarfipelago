@@ -33,8 +33,13 @@ except ImportError:
 DFHACK_HOST = "127.0.0.1"
 DFHACK_PORT = 5000
 
-DFHACK_MAGIC_REQUEST = b"DFHack?\n"
-DFHACK_MAGIC_REPLY   = b"DFHack!\n"
+# DFHack remote API handshake — magic (8 bytes) + version int32 LE (4 bytes) = 12 bytes total.
+# The client sends the request magic+version; the server replies with reply magic+version.
+# If only the 8-byte magic is sent, DFHack waits for the remaining 4 bytes and the
+# connection hangs until our recv() times out — hence "DFHack not reachable: timed out".
+_DFHACK_VERSION       = struct.pack("<i", 1)
+DFHACK_MAGIC_REQUEST  = b"DFHack?\n" + _DFHACK_VERSION   # 12 bytes
+DFHACK_MAGIC_REPLY    = b"DFHack!\n" + _DFHACK_VERSION   # 12 bytes
 
 # DFHack RPC reply / special IDs (carried in the message header's id field).
 # See https://docs.dfhack.org/en/stable/docs/dev/Remote.html
@@ -141,7 +146,7 @@ class DFHackConnection:
         try:
             sock = socket.create_connection((self.host, self.port), timeout=5)
             sock.sendall(DFHACK_MAGIC_REQUEST)
-            reply = sock.recv(8)
+            reply = sock.recv(len(DFHACK_MAGIC_REPLY))
             if reply != DFHACK_MAGIC_REPLY:
                 logger.error(f"DFHack handshake failed: {reply!r}")
                 sock.close()
