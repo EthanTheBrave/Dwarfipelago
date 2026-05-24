@@ -11,8 +11,8 @@ local M = {}
 local function spawn_item(item_type, material, quantity)
     quantity = quantity or 1
     for _ = 1, quantity do
-        -- createitem script: "createitem <type> <material> [<quantity>]"
-        -- e.g. createitem ITEM_GEM_ROUGH ONYX
+        -- createitem script: "createitem <item-token> <material>"
+        -- e.g. createitem SMALLGEM INORGANIC:RUBY
         local ok, err = pcall(function()
             dfhack.run_script("createitem", item_type, material)
         end)
@@ -27,68 +27,78 @@ local function announce(msg)
 end
 
 -- ── Item handlers: trade goods ────────────────────────────────────────────────
+-- createitem syntax: <item-token> <material>
+--   Cut gems  → SMALLGEM INORGANIC:<gem>   (SMALLGEM = cut gem; ROUGH = uncut)
+--   Metal bars → BAR INORGANIC:<metal>
+--   Figurines  → FIGURINE INORGANIC:<stone>
 
 local function recv_cut_sapphire()
-    spawn_item("ITEM_GEM_ROUGH", "SAPPHIRE")
+    spawn_item("SMALLGEM", "INORGANIC:SAPPHIRE")
     announce("Received: Cut Sapphire!")
 end
 
 local function recv_cut_ruby()
-    spawn_item("ITEM_GEM_ROUGH", "RUBY")
+    spawn_item("SMALLGEM", "INORGANIC:RUBY")
     announce("Received: Cut Ruby!")
 end
 
 local function recv_cut_diamond()
-    spawn_item("ITEM_GEM_ROUGH", "DIAMOND")
+    spawn_item("SMALLGEM", "INORGANIC:DIAMOND")
     announce("Received: Cut Diamond!")
 end
 
 local function recv_gold_bar()
-    spawn_item("ITEM_BAR", "METAL:GOLD")
+    spawn_item("BAR", "INORGANIC:GOLD")
     announce("Received: Gold Bar!")
 end
 
 local function recv_silver_bar()
-    spawn_item("ITEM_BAR", "METAL:SILVER")
+    spawn_item("BAR", "INORGANIC:SILVER")
     announce("Received: Silver Bar!")
 end
 
 local function recv_steel_bar()
-    spawn_item("ITEM_BAR", "METAL:STEEL")
+    spawn_item("BAR", "INORGANIC:STEEL")
     announce("Received: Steel Bar!")
 end
 
 local function recv_masterwork_craft()
-    spawn_item("ITEM_CRAFTS", "STONE:OBSIDIAN")
+    -- FIGURINE is the correct item token for a craft figurine.
+    spawn_item("FIGURINE", "INORGANIC:OBSIDIAN")
     announce("Received: Masterwork Craft!")
 end
 
 -- ── Item handlers: resources ──────────────────────────────────────────────────
+-- createitem syntax:
+--   Food (edible growths) → PLANT_GROWTH PLANT:<plant>:<growth>
+--   Wood logs             → WOOD PLANT_MAT:<tree>:WOOD
+--   Iron ore boulders     → BOULDER INORGANIC:<ore>
+--   Fuel bars             → BAR COAL:COKE  (or COAL:CHARCOAL)
 
 local function recv_food_bundle()
     for _ = 1, 5 do
-        spawn_item("ITEM_FOOD", "MUSHROOM_HELMET_PLUMP:MUSHROOM")
+        spawn_item("PLANT_GROWTH", "PLANT:MUSHROOM_HELMET_PLUMP:MUSHROOM")
     end
-    announce("Received: Food Bundle (5 meals)!")
+    announce("Received: Food Bundle (5 plump helmets)!")
 end
 
 local function recv_wood_bundle()
     for _ = 1, 5 do
-        spawn_item("ITEM_WOOD", "WOOD:OAK")
+        spawn_item("WOOD", "PLANT_MAT:OAK:WOOD")
     end
     announce("Received: Wood Bundle (5 logs)!")
 end
 
 local function recv_iron_ore_bundle()
     for _ = 1, 5 do
-        spawn_item("ITEM_BOULDER", "STONE:LIMONITE")
+        spawn_item("BOULDER", "INORGANIC:LIMONITE")
     end
     announce("Received: Iron Ore Bundle!")
 end
 
 local function recv_coal_bundle()
     for _ = 1, 3 do
-        spawn_item("ITEM_BAR", "COAL:COKE")
+        spawn_item("BAR", "COAL:COKE")
     end
     announce("Received: Coal Bundle!")
 end
