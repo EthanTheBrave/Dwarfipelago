@@ -53,9 +53,10 @@ Configurable per-slot in your options YAML:
 
 | Goal | Description |
 |------|-------------|
-| `slay_megabeast` | Kill a dragon, titan, or other megabeast *(default)* |
+| `population_boom` | Grow your fortress to a configurable population (default: 300 dwarves) *(default)* |
 | `legendary_wealth` | Reach a configurable fortress wealth target (default: 100,000☼) |
-| `population_boom` | Grow your fortress to a configurable population (default: 300 dwarves) |
+| `slay_megabeast` | Kill a dragon, titan, or other megabeast |
+| `mountainhome` | Achieve Mountainhome status — the monarch takes residence in your fortress (very difficult) |
 
 ## Locations (Checks)
 
@@ -65,14 +66,28 @@ Completing these milestones sends items to other players:
 - **First production** — first weapon forged, armor crafted, meal prepared, brew completed, metal bar smelted, gem cut, and more (18 milestones)
 - **Trade & diplomacy** — first caravan trade, first export, dwarven/elven/human caravan visits, outpost liaison meeting
 - **Fortress status** — noble appointments and civilisation recognition milestones
+- **Fortress titles** — Hamlet, Village, Town, City, Metropolis (population + wealth thresholds)
 
 ## Items Received
 
 | Type | Examples |
 |------|---------|
+| Workshop blueprints | 26 blueprints that unlock workshops, furnaces, and farm plots — **progression items** (see Progression section below) |
 | Trade goods | Cut gems, gold/silver/steel bars, masterwork crafts |
 | Resources | Food bundles, wood bundles, iron ore, coal |
 | Traps | Goblin ambush, cave bear incursion, vermin infestation, tantrum trigger |
+
+## Progression
+
+Workshop blueprints are the core Archipelago mechanic. Other players find your blueprints at their locations and send them to you, unlocking the matching structure in your fortress. Until you receive a blueprint, attempting to build that structure will be cancelled with a notification.
+
+**Gated workshops:** Craftsdwarf's, Forge, Magma Forge, Kitchen, Jeweler's, Clothier's, Tanner's, Mechanic's, Siege, Soap Maker's, Ashery, Bowyer's, Screw Press, Fishery, Loom, Dyer's, Butcher's, Farmer's
+
+**Gated furnaces:** Smelter, Magma Smelter, Wood Furnace, Glass Furnace, Kiln, Magma Kiln, Magma Glass Furnace
+
+**Gated buildings:** Farm Plot
+
+**Always available:** Carpenter's Workshop, Mason's Workshop, Still (dwarves need ale to survive)
 
 ## DeathLink
 
@@ -106,8 +121,9 @@ A running list of ideas, planned features, and things that still need doing. No 
 - [x] Fortress status checks — noble appointments and civilisation recognition milestones
 - [x] Batch DeathLink — configurable threshold (N deaths out / N deaths in), feedback-loop prevention
 - [x] Archipelago Launcher integration — Dwarf Fortress and Dwarf Fortress Client buttons; mod auto-starts when a world is loaded
-- [x] Package as a proper `.apworld` file with correct zip structure and manifest
-- [ ] Wire up caravan detection in `checks.lua` (dwarven / elven / human caravan visit checks are defined but not yet triggered in-game)
+- [x] Wire up caravan detection (merchant/diplomat unit scanning, exported-wealth tracking for trade/export flags)
+- [x] Fortress title location checks — Hamlet / Village / Town / City / Metropolis (population + wealth thresholds)
+- [x] Mountainhome win condition — achieve Mountainhome status (monarch takes residence)
 - [ ] Validate `df.job_type` enum values against a live DFHack console for all production checks
 - [ ] Validate `createitem` material strings against DF raws (gem types, metal bar identifiers)
 - [ ] Write end-to-end test instructions in `docs/`
