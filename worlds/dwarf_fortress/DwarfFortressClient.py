@@ -42,13 +42,17 @@ DFHACK_MAGIC_REQUEST  = b"DFHack?\n" + _DFHACK_VERSION   # 12 bytes
 DFHACK_MAGIC_REPLY    = b"DFHack!\n" + _DFHACK_VERSION   # 12 bytes
 
 # DFHack RPC reply / special IDs (carried in the message header's id field).
+# Source: DFHack RemoteClient.h — enum DFHackReplyCode : int16_t
 # See https://docs.dfhack.org/en/stable/docs/dev/Remote.html
-RPC_METHOD_BIND  =  0   # BindMethod — always id 0
-RPC_REPLY_RESULT = -1   # successful result
-RPC_REPLY_ERROR  = -2   # error result (protobuf CoreErrorInfo body)
-RPC_REPLY_FAIL   = -3   # call failed (non-protobuf)
-RPC_REPLY_TEXT   = -5   # TextNotification (console output mid-call)
-RPC_HEADER_SIZE  =  8   # two little-endian int32s: id + body_size
+RPC_METHOD_BIND  =  0   # BindMethod request — always method id 0
+RPC_REPLY_RESULT = -1   # successful result; body is the reply protobuf
+RPC_REPLY_FAIL   = -2   # call failed; body is CoreErrorInfo
+RPC_REPLY_TEXT   = -3   # TextNotification (console output emitted mid-call)
+RPC_REQUEST_QUIT = -4   # graceful disconnect
+# RPCMessageHeader: int16_t id (2 bytes) + 2 bytes alignment pad + int32_t size (4 bytes) = 8 bytes.
+# The C++ compiler inserts 2 bytes of padding after the int16_t so the int32_t is 4-byte aligned.
+# DFHack does not guarantee the padding bytes are zero, so we must parse by offset, not as two int32s.
+RPC_HEADER_SIZE  =  8
 
 # ── Minimal protobuf wire encoding / decoding ─────────────────────────────────
 # We only need CoreBindRequest/Reply and CoreRunCommandRequest, so we hand-roll
@@ -181,12 +185,20 @@ class DFHackConnection:
         return bytes(buf)
 
     def _send_rpc(self, method_id: int, body: bytes) -> None:
-        self._sock.sendall(struct.pack("<ii", method_id, len(body)) + body)
+        # RPCMessageHeader: int16_t id + int16_t pad(=0) + int32_t size = 8 bytes.
+        # Explicitly zero the 2-byte alignment pad so DFHack sees a clean header.
+        self._sock.sendall(struct.pack("<hhi", method_id, 0, len(body)) + body)
 
     def _recv_rpc(self) -> tuple[int, bytes]:
-        method_id, size = struct.unpack("<ii", self._recv_exactly(RPC_HEADER_SIZE))
+        # RPCMessageHeader is 8 bytes: int16_t id @ offset 0, int32_t size @ offset 4.
+        # The 2 bytes at offset 2 are alignment padding and may be non-zero garbage
+        # from DFHack's stack — extract fields by offset rather than treating the
+        # header as two int32s.
+        raw = self._recv_exactly(RPC_HEADER_SIZE)
+        reply_id = struct.unpack_from("<h", raw, 0)[0]   # int16_t at offset 0
+        size     = struct.unpack_from("<i", raw, 4)[0]   # int32_t at offset 4
         body = self._recv_exactly(size) if size > 0 else b""
-        return method_id, body
+        return reply_id, body
 
     def _bind_method(self, method: str, input_msg: str = "", output_msg: str = "",
                      plugin: str = "") -> int:
@@ -194,17 +206,18 @@ class DFHackConnection:
         Call BindMethod (always RPC id 0) to obtain the assigned integer ID
         for a named method. Returns -1 on failure.
 
-        Sends:   CoreBindRequest  { method(1), input_msg(2)?, output_msg(3)?, plugin(4)? }
+        Sends:   CoreBindRequest  { method(1), input_msg(2), output_msg(3), plugin(4)? }
         Expects: CoreBindReply    { assigned_id(1) }
 
-        Core methods (RunCommand, GetVersion, …) use an empty plugin string.
-        Plugin methods use the plugin name, e.g. "rename" for rename.Unit.
-        The method is the bare name ("RunCommand"), NOT "Core.RunCommand".
+        CoreBindRequest.input_msg and output_msg are proto2 *required* fields —
+        omitting them causes DFHack to reject the request with "could not decode
+        input args".  Pass the fully-qualified proto type names, e.g.:
+            input_msg  = "dfproto.CoreRunCommandRequest"
+            output_msg = "dfproto.EmptyMessage"
 
-        DFHack only validates input_msg / output_msg against the protobuf
-        full_name (e.g. "dfproto.CoreRunCommandRequest") when those fields
-        are present in the bind request.  Omitting them skips that check
-        entirely, so we only encode non-empty strings.
+        Core methods (RunCommand, GetVersion, …) use an empty plugin string.
+        Plugin methods set plugin to the plugin name, e.g. "rename".
+        The method name is always the bare name ("RunCommand"), NOT "Core.RunCommand".
         """
         body = _pb_string(1, method)
         if input_msg:
@@ -240,14 +253,15 @@ class DFHackConnection:
             return None
         try:
             if not hasattr(self, "_run_cmd_id"):
-                # Omit input/output type names so DFHack skips signature
-                # validation (it only checks them when the fields are present).
-                # Using the fully-qualified proto names like
-                # "dfproto.CoreRunCommandRequest" also works but is version-
-                # sensitive; omitting them is simpler and equally correct.
-                self._run_cmd_id = self._bind_method("RunCommand")
+                # CoreBindRequest.input_msg and output_msg are proto2 *required*
+                # fields — must pass the fully-qualified proto type names.
+                self._run_cmd_id = self._bind_method(
+                    "RunCommand",
+                    "dfproto.CoreRunCommandRequest",
+                    "dfproto.EmptyMessage",
+                )
                 if self._run_cmd_id < 0:
-                    logger.error("Failed to bind Core.RunCommand")
+                    logger.error("Failed to bind RunCommand")
                     return None
 
             # Encode CoreRunCommandRequest { command(1), arguments(2 repeated) }
@@ -264,7 +278,7 @@ class DFHackConnection:
                     output_parts.append(_extract_text_notification(data))
                 elif reply_id == RPC_REPLY_RESULT:
                     break
-                elif reply_id in (RPC_REPLY_ERROR, RPC_REPLY_FAIL):
+                elif reply_id == RPC_REPLY_FAIL:
                     logger.warning(f"DFHack RunCommand failed (id={reply_id}): {data!r}")
                     return None
 
