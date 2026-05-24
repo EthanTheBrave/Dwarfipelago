@@ -328,28 +328,22 @@ function unlock_blueprint(blueprint_name)
     print(("[Dwarfipelago] Blueprint unlocked: %s"):format(blueprint_name))
 end
 
--- Hook: cancel construction of locked workshops, furnaces, and farm plots.
--- Called via eventful.onJobInitiated — fires when a new job is created.
-local function on_job_initiated(job)
+-- Hook: remove designations for locked workshops, furnaces, and farm plots.
+-- Called via eventful.onBuildingCreated — fires the moment a player places a
+-- building designation, before any materials are claimed or jobs are queued.
+-- Deconstructing here gives immediate feedback and prevents dwarf retry spam.
+local function on_building_created(building_id)
     if not state.is_enabled() then return end
 
-    -- Only care about construction jobs.
-    if job.job_type ~= df.job_type.ConstructBuilding then return end
-
-    local bld = dfhack.job.getHolder(job)
+    local bld = df.building.find(building_id)
     if not bld then return end
 
     local blueprint_name = nil
 
-    -- Check workshops
     if df.building_workshopst:is_instance(bld) then
         blueprint_name = WORKSHOP_BLUEPRINTS[bld.type]
-
-    -- Check furnaces
     elseif df.building_furnacest:is_instance(bld) then
         blueprint_name = FURNACE_BLUEPRINTS[bld.type]
-
-    -- Check farm plots
     elseif df.building_farmplotst:is_instance(bld) then
         blueprint_name = "Farm Plot Blueprint"
     end
@@ -357,7 +351,7 @@ local function on_job_initiated(job)
     if not blueprint_name then return end  -- ungated building, allow it
 
     if not is_blueprint_unlocked(blueprint_name) then
-        dfhack.job.removeJob(job)
+        dfhack.buildings.deconstruct(bld)
         dfhack.gui.showAnnouncement(
             ("[AP] Cannot build: %s not yet received!"):format(blueprint_name),
             COLOR_YELLOW, true)
@@ -370,9 +364,9 @@ local function start()
     state.set_enabled(true)
 
     -- Register hooks
-    eventful.onJobCompleted[SCRIPT_NAME] = on_job_completed
-    eventful.onUnitDeath[SCRIPT_NAME]    = on_unit_death
-    eventful.onJobInitiated[SCRIPT_NAME] = on_job_initiated
+    eventful.onJobCompleted[SCRIPT_NAME]      = on_job_completed
+    eventful.onUnitDeath[SCRIPT_NAME]         = on_unit_death
+    eventful.onBuildingCreated[SCRIPT_NAME]   = on_building_created
 
     -- Register poll loop
     repeatUtil.scheduleEvery(SCRIPT_NAME, POLL_TICKS, "ticks", poll_checks)
@@ -385,9 +379,9 @@ local function stop()
     state.set_enabled(false)
 
     -- Unregister hooks
-    eventful.onJobCompleted[SCRIPT_NAME] = nil
-    eventful.onUnitDeath[SCRIPT_NAME]    = nil
-    eventful.onJobInitiated[SCRIPT_NAME] = nil
+    eventful.onJobCompleted[SCRIPT_NAME]    = nil
+    eventful.onUnitDeath[SCRIPT_NAME]       = nil
+    eventful.onBuildingCreated[SCRIPT_NAME] = nil
     repeatUtil.cancel(SCRIPT_NAME)
 
     print("[Dwarfipelago] Stopped.")
