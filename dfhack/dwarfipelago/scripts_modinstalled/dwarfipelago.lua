@@ -1,15 +1,19 @@
 -- Dwarfipelago main entry point.
 -- Usage (DFHack console):
---   dwarfipelago/main start   -- enable and register hooks
---   dwarfipelago/main stop    -- disable and unregister hooks
---   dwarfipelago/main status  -- show current state
---   dwarfipelago/main reset   -- wipe persistent state (use with care)
---   dwarfipelago/main receive <item_name>  -- manually deliver an item (for testing)
+--   dwarfipelago start              -- enable and register hooks
+--   dwarfipelago stop               -- disable and unregister hooks
+--   dwarfipelago status             -- show current state
+--   dwarfipelago reset              -- wipe persistent state (use with care)
+--   dwarfipelago receive <item>     -- manually deliver an item (for testing)
 
-local state  = require("dwarfipelago.state")
-local checks = require("dwarfipelago.checks")
-local items  = require("dwarfipelago.items")
+-- Internal modules live under internal/dwarfipelago/ to keep them out of the
+-- DFHack launcher autocomplete. Use reqscript (not require) so they hot-reload
+-- when edited without restarting DFHack.
+local state  = reqscript("internal/dwarfipelago/state")
+local checks = reqscript("internal/dwarfipelago/checks")
+local items  = reqscript("internal/dwarfipelago/items")
 
+-- DFHack built-in plugins use the standard require().
 local eventful   = require("plugins.eventful")
 local repeatUtil = require("repeat-util")
 
@@ -25,7 +29,7 @@ local applying_recv_deathlink = false
 -- goal: 0 = slay_megabeast, 1 = legendary_wealth, 2 = population_boom, 3 = mountainhome
 
 local function goal_setting(key, default)
-    return tonumber(dfhack.persistent.getSiteData("dwarfipelago/" .. key)) or default
+    return tonumber(dfhack.persistent.getWorldData("dwarfipelago/" .. key)) or default
 end
 
 -- ── Goal completion: poll-based checks (wealth & population) ─────────────────
@@ -189,10 +193,10 @@ local function poll_checks()
                 local newly_checked = state.mark_location_checked(check.id)
                 if newly_checked then
                     local queue_key = "dwarfipelago/pending_checks"
-                    local raw = dfhack.persistent.getSiteData(queue_key) or "[]"
+                    local raw = dfhack.persistent.getWorldData(queue_key) or "[]"
                     local queue = dfhack.json.decode(raw) or {}
                     table.insert(queue, check.id)
-                    dfhack.persistent.setSiteData(queue_key, dfhack.json.encode(queue))
+                    dfhack.persistent.setWorldData(queue_key, dfhack.json.encode(queue))
 
                     print(("[Dwarfipelago] Check: %s (%d)"):format(check.name, check.id))
                 end
@@ -323,12 +327,12 @@ local FURNACE_BLUEPRINTS = {
 }
 
 local function is_blueprint_unlocked(blueprint_name)
-    local val = dfhack.persistent.getSiteData("dwarfipelago/blueprint/" .. blueprint_name)
+    local val = dfhack.persistent.getWorldData("dwarfipelago/blueprint/" .. blueprint_name)
     return val == "1"
 end
 
 function unlock_blueprint(blueprint_name)
-    dfhack.persistent.setSiteData("dwarfipelago/blueprint/" .. blueprint_name, "1")
+    dfhack.persistent.setWorldData("dwarfipelago/blueprint/" .. blueprint_name, "1")
     dfhack.gui.showAnnouncement(
         ("[AP] Blueprint received: %s"):format(blueprint_name),
         COLOR_GREEN, true)
@@ -417,10 +421,10 @@ elseif cmd == "reset" then
 elseif cmd == "receive" then
     local item_name = table.concat(args, " ", 2)
     if item_name == "" then
-        dfhack.printerr("Usage: dwarfipelago/main receive <Item Name>")
+        dfhack.printerr("Usage: dwarfipelago receive <Item Name>")
     else
         items.receive(item_name)
     end
 else
-    print("Usage: dwarfipelago/main [start|stop|status|reset|receive <item>]")
+    print("Usage: dwarfipelago [start|stop|status|reset|receive <item>]")
 end
