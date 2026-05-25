@@ -11,22 +11,31 @@ DFHack remote API listens on 127.0.0.1:5000 by default.
 import asyncio
 import json
 import logging
+import os
 import socket
 import struct
 import argparse
+import subprocess
+import sys
 import time
 from typing import Optional
+from CommonClient import CommonContext, server_loop, ClientCommandProcessor, logger
+from NetUtils import ClientStatus
 
-# Archipelago CommonClient provides the base WebSocket client and message handling.
-# When running standalone (outside the AP installation), we provide a lightweight stub.
-try:
-    from CommonClient import CommonContext, server_loop, ClientCommandProcessor, logger
-    from NetUtils import ClientStatus
-    HAS_COMMON_CLIENT = True
-except ImportError:
-    HAS_COMMON_CLIENT = False
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger("DwarfFortressClient")
+_STEAM_CANDIDATES: list[str] = [
+    # Windows — 32-bit Steam
+    r"C:\Program Files (x86)\Steam\steamapps\common\Dwarf Fortress\Dwarf Fortress.exe",
+    # Windows — 64-bit Steam
+    r"C:\Program Files\Steam\steamapps\common\Dwarf Fortress\Dwarf Fortress.exe",
+    # Linux — default Steam library
+    os.path.expanduser("~/.steam/steam/steamapps/common/Dwarf Fortress/dfhack"),
+    # Linux — flatpak Steam
+    os.path.expanduser("~/.var/app/com.valvesoftware.Steam/data/Steam"
+                       "/steamapps/common/Dwarf Fortress/dfhack"),
+    # macOS — Steam
+    os.path.expanduser("~/Library/Application Support/Steam"
+                       "/steamapps/common/Dwarf Fortress/dfhack"),
+]
 
 # ── DFHack Remote API ─────────────────────────────────────────────────────────
 
@@ -127,6 +136,24 @@ def _extract_text_notification(body: bytes) -> str:
                 if isinstance(s, bytes):
                     parts.append(s.decode("utf-8", errors="replace"))
     return "".join(parts)
+
+def _get_df_executable() -> Optional[str]:
+    """Return the DF executable path from settings, or fall back to Steam defaults."""
+    # 1. Try AP settings (host.yaml).
+    try:
+        from settings import get_settings
+        path = str(get_settings().dwarf_fortress_options.game_path)
+        if os.path.isfile(path):
+            return path
+    except Exception:
+        pass
+
+    # 2. Try common Steam install locations.
+    for path in _STEAM_CANDIDATES:
+        if os.path.isfile(path):
+            return path
+
+    return None
 
 
 # ── DFHack connection ─────────────────────────────────────────────────────────
@@ -329,7 +356,7 @@ class DFHackConnection:
 
 # ── Archipelago Client ────────────────────────────────────────────────────────
 
-class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
+class DwarfFortressContext(CommonContext):
     """
     Archipelago client context for Dwarf Fortress.
 
@@ -342,8 +369,7 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
     items_handling = 0b111  # receive all items (local + remote + starting inventory)
 
     def __init__(self, server_address: str, password: Optional[str] = None):
-        if HAS_COMMON_CLIENT:
-            super().__init__(server_address, password)
+        super().__init__(server_address, password)
         self.dfhack = DFHackConnection()
         self._poll_interval = 5.0        # seconds between fortress state polls
         self._received_index = 0         # last applied item index
@@ -421,16 +447,13 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
         )
         if location_ids:
             logger.info(f"New checks: {location_ids}")
-            if HAS_COMMON_CLIENT:
-                await self.send_msgs([{
-                    "cmd": "LocationChecks",
-                    "locations": location_ids,
-                }])
+            await self.send_msgs([{
+                "cmd": "LocationChecks",
+                "locations": location_ids,
+            }])
 
     async def _apply_pending_items(self):
         """Apply any received AP items that haven't been delivered yet."""
-        if not HAS_COMMON_CLIENT:
-            return
         # self.items_received is populated by CommonClient when the server sends ReceivedItems.
         # We apply items in order starting from self._received_index.
         for i in range(self._received_index, len(self.items_received)):
@@ -502,8 +525,6 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
         already sent. For each new multiple of deathlink_threshold deaths,
         persist the new count then broadcast one DeathLink Bounce to the AP server.
         """
-        if not HAS_COMMON_CLIENT:
-            return
         threshold = self._deathlink_threshold
         if threshold <= 0:
             return
@@ -560,7 +581,7 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
         Poll the goal-complete flag written by the Lua mod and send
         ClientStatus.CLIENT_GOAL to the AP server the first time it's set.
         """
-        if not HAS_COMMON_CLIENT or self._goal_complete:
+        if self._goal_complete:
             return
         output = await asyncio.get_event_loop().run_in_executor(
             None,
@@ -581,10 +602,10 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
             await super().server_auth(password_requested)
         await self.get_username()
         await self.send_connect()
+       
 
     def on_package(self, cmd: str, args: dict):
-        if HAS_COMMON_CLIENT:
-            super().on_package(cmd, args)
+        super().on_package(cmd, args)
         if cmd == "Bounced" and "DeathLink" in args.get("tags", []):
             source = args.get("data", {}).get("source", "")
             # Ignore bounces that originated from us.
@@ -592,11 +613,15 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
                 cause = args.get("data", {}).get("cause", "unknown cause")
                 logger.info(f"DeathLink received from {source!r}: {cause}")
                 self._pending_recv_deathlinks += 1
+        if cmd == "Connected":
+            # Start DFHack polling and (when inside AP) the server connection as
+            # concurrent asyncio tasks so neither blocks the other.
+            self.dfhack_task = asyncio.create_task(self.dfhack_poll_loop(), name="DFHack poll")
+            self.server_task = asyncio.create_task(server_loop(self), name="server loop")
 
     async def disconnect(self, allow_autoreconnect: bool = False):
         self.dfhack.disconnect()
-        if HAS_COMMON_CLIENT:
-            await super().disconnect(allow_autoreconnect)
+        await super().disconnect(allow_autoreconnect)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -618,41 +643,40 @@ def main():
     # (e.g. multiprocessing internal arguments) without exiting with an error.
     args, _unknown = parser.parse_known_args()
 
-    if not HAS_COMMON_CLIENT:
-        logger.warning(
-            "Archipelago CommonClient not found. Running in standalone mode "
-            "(DFHack connection test only). Copy this file into your Archipelago "
-            "installation to run with full AP support."
-        )
-
     async def run():
+        if "Dwarfipelago Client" in args:
+            args.remove("Dwarfipelago Client")
+
         ctx = DwarfFortressContext(args.connect, args.password)
         ctx.dfhack.host = args.dfhack_host
         ctx.dfhack.port = args.dfhack_port
 
+
         if args.name:
             ctx.auth = args.name
 
+        exe = _get_df_executable()
+        if not exe:
+            subprocess.Popen([exe], cwd=cwd)
+            return
+
+        cwd = os.path.dirname(exe)
+        try:
+            subprocess.Popen([exe], cwd=cwd)
+        except OSError as e:
+            logger.error("Failed to launch Dwarf Fortress", str(e))
+
         # Start DFHack polling and (when inside AP) the server connection as
         # concurrent asyncio tasks so neither blocks the other.
-        ctx.dfhack_task = asyncio.create_task(ctx.dfhack_poll_loop(), name="DFHack poll")
-
-        if HAS_COMMON_CLIENT:
-            ctx.server_task = asyncio.create_task(server_loop(ctx), name="server loop")
-            # Show the AP client GUI window (kivy-based console).
-            # run_gui() schedules the UI as an asyncio task and returns immediately.
-            ctx.run_gui()
-            # Block until the user closes the window or the client disconnects.
-            await ctx.exit_event.wait()
-            ctx.dfhack_task.cancel()
-            await ctx.shutdown()
-        else:
-            # Standalone mode (no AP installation): run the DFHack poll loop
-            # directly until interrupted.
-            try:
-                await ctx.dfhack_task
-            except asyncio.CancelledError:
-                pass
+        # ctx.dfhack_task = asyncio.create_task(ctx.dfhack_poll_loop(), name="DFHack poll")
+        # ctx.server_task = asyncio.create_task(server_loop(ctx), name="server loop")
+        # Show the AP client GUI window (kivy-based console).
+        # run_gui() schedules the UI as an asyncio task and returns immediately.
+        ctx.run_gui()
+        # Block until the user closes the window or the client disconnects.
+        await ctx.exit_event.wait()
+        ctx.dfhack_task.cancel()
+        await ctx.shutdown()
 
     asyncio.run(run())
 
