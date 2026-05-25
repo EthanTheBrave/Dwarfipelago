@@ -232,7 +232,7 @@ end
 
 local function recv_lost_caravan()
     -- Flag that the next caravan should be skipped / arrive empty.
-    dfhack.persistent.setSiteData("dwarfipelago/trap/lost_caravan", "1")
+    dfhack.persistent.saveWorldDataString("dwarfipelago/trap/lost_caravan", "1")
     announce("Trap: A caravan has been lost on the road...")
 end
 

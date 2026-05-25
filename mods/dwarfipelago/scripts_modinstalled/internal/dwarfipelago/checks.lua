@@ -128,24 +128,24 @@ local function has_fortress_title(pop_req, created_req, exported_req)
 end
 
 -- ── Production flag helpers ───────────────────────────────────────────────────
--- Flags are set by the eventful job hook in main.lua and stored in site data.
+-- Flags are set by the eventful job hook in main.lua and stored in world data.
 -- Key format: "dwarfipelago/prod/<flag_name>"
 
 function M.set_production_flag(flag)
-    dfhack.persistent.setSiteData("dwarfipelago/prod/" .. flag, "1")
+    dfhack.persistent.saveWorldDataString("dwarfipelago/prod/" .. flag, "1")
 end
 
 function M.production_flag(flag)
-    local val = dfhack.persistent.getSiteData("dwarfipelago/prod/" .. flag)
+    local val = dfhack.persistent.getWorldDataString("dwarfipelago/prod/" .. flag)
     return val == "1"
 end
 
 function M.set_trade_flag(flag)
-    dfhack.persistent.setSiteData("dwarfipelago/trade/" .. flag, "1")
+    dfhack.persistent.saveWorldDataString("dwarfipelago/trade/" .. flag, "1")
 end
 
 function M.trade_flag(flag)
-    local val = dfhack.persistent.getSiteData("dwarfipelago/trade/" .. flag)
+    local val = dfhack.persistent.getWorldDataString("dwarfipelago/trade/" .. flag)
     return val == "1"
 end
 

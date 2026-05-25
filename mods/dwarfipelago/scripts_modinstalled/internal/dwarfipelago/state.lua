@@ -1,5 +1,5 @@
 -- Persistent state management for Dwarfipelago.
--- All data is stored in DFHack's site-level persistent storage so it survives
+-- All data is stored in DFHack's world-level persistent storage so it survives
 -- save/reload cycles. Keys are namespaced under "dwarfipelago/".
 
 local M = {}
@@ -15,7 +15,7 @@ local KEY_DL_RECV        = "dwarfipelago/pending_recv"   -- incoming deathlinks 
 -- ── Internal helpers ──────────────────────────────────────────────────────────
 
 local function read_table(key)
-    local raw = dfhack.persistent.getSiteData(key)
+    local raw = dfhack.persistent.getWorldDataString(key)
     if raw and raw ~= "" then
         return dfhack.json.decode(raw) or {}
     end
@@ -23,7 +23,7 @@ local function read_table(key)
 end
 
 local function write_table(key, tbl)
-    dfhack.persistent.setSiteData(key, dfhack.json.encode(tbl))
+    dfhack.persistent.saveWorldDataString(key, dfhack.json.encode(tbl))
 end
 
 -- ── Checked locations ─────────────────────────────────────────────────────────
@@ -79,51 +79,51 @@ end
 
 -- Increment the citizen death counter and return the new total.
 function M.increment_death_count()
-    local n = (tonumber(dfhack.persistent.getSiteData(KEY_DEATH_COUNT)) or 0) + 1
-    dfhack.persistent.setSiteData(KEY_DEATH_COUNT, tostring(n))
+    local n = (tonumber(dfhack.persistent.getWorldDataString(KEY_DEATH_COUNT)) or 0) + 1
+    dfhack.persistent.saveWorldDataString(KEY_DEATH_COUNT, tostring(n))
     return n
 end
 
 function M.get_death_count()
-    return tonumber(dfhack.persistent.getSiteData(KEY_DEATH_COUNT)) or 0
+    return tonumber(dfhack.persistent.getWorldDataString(KEY_DEATH_COUNT)) or 0
 end
 
 -- ── DeathLink: outgoing (sent to AP) ─────────────────────────────────────────
 
 function M.get_deathlinks_sent()
-    return tonumber(dfhack.persistent.getSiteData(KEY_DL_SENT)) or 0
+    return tonumber(dfhack.persistent.getWorldDataString(KEY_DL_SENT)) or 0
 end
 
 function M.set_deathlinks_sent(n)
-    dfhack.persistent.setSiteData(KEY_DL_SENT, tostring(n))
+    dfhack.persistent.saveWorldDataString(KEY_DL_SENT, tostring(n))
 end
 
 -- ── DeathLink: incoming (received from AP, kills to apply) ───────────────────
 
 function M.get_pending_recv()
-    return tonumber(dfhack.persistent.getSiteData(KEY_DL_RECV)) or 0
+    return tonumber(dfhack.persistent.getWorldDataString(KEY_DL_RECV)) or 0
 end
 
 function M.increment_pending_recv()
     local n = M.get_pending_recv() + 1
-    dfhack.persistent.setSiteData(KEY_DL_RECV, tostring(n))
+    dfhack.persistent.saveWorldDataString(KEY_DL_RECV, tostring(n))
 end
 
 function M.clear_pending_recv()
-    dfhack.persistent.setSiteData(KEY_DL_RECV, "0")
+    dfhack.persistent.saveWorldDataString(KEY_DL_RECV, "0")
 end
 
 -- ── Goal completion ───────────────────────────────────────────────────────────
 
 function M.is_goal_complete()
-    return dfhack.persistent.getSiteData(KEY_GOAL_COMPLETE) == "1"
+    return dfhack.persistent.getWorldDataString(KEY_GOAL_COMPLETE) == "1"
 end
 
 -- Mark the goal as complete and announce it in-game.
 -- Returns true if this is the first time (i.e. was not already complete).
 function M.mark_goal_complete()
     if M.is_goal_complete() then return false end
-    dfhack.persistent.setSiteData(KEY_GOAL_COMPLETE, "1")
+    dfhack.persistent.saveWorldDataString(KEY_GOAL_COMPLETE, "1")
     return true
 end
 
@@ -140,13 +140,13 @@ function M.dump()
 end
 
 function M.reset()
-    dfhack.persistent.setSiteData(KEY_CHECKED, "")
-    dfhack.persistent.setSiteData(KEY_RECEIVED, "")
-    dfhack.persistent.setSiteData(KEY_ENABLED, "")
-    dfhack.persistent.setSiteData(KEY_GOAL_COMPLETE, "")
-    dfhack.persistent.setSiteData(KEY_DEATH_COUNT, "")
-    dfhack.persistent.setSiteData(KEY_DL_SENT, "")
-    dfhack.persistent.setSiteData(KEY_DL_RECV, "")
+    dfhack.persistent.saveWorldDataString(KEY_CHECKED, "")
+    dfhack.persistent.saveWorldDataString(KEY_RECEIVED, "")
+    dfhack.persistent.saveWorldDataString(KEY_ENABLED, "")
+    dfhack.persistent.saveWorldDataString(KEY_GOAL_COMPLETE, "")
+    dfhack.persistent.saveWorldDataString(KEY_DEATH_COUNT, "")
+    dfhack.persistent.saveWorldDataString(KEY_DL_SENT, "")
+    dfhack.persistent.saveWorldDataString(KEY_DL_RECV, "")
     print("[Dwarfipelago] State reset.")
 end
 

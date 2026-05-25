@@ -335,9 +335,9 @@ class DFHackConnection:
         """
         lua = (
             "(function()"
-            " local q = dfhack.persistent.getWorldData"
+            " local q = dfhack.persistent.getWorldDataString"
             '("dwarfipelago/pending_checks") or "[]";'
-            ' dfhack.persistent.setWorldData("dwarfipelago/pending_checks", "[]");'
+            ' dfhack.persistent.saveWorldDataString("dwarfipelago/pending_checks", "[]");'
             " print(q)"
             " end)()"
         )
@@ -474,7 +474,7 @@ class DwarfFortressContext(CommonContext):
             # Persist the index so we don't re-deliver on restart.
             self.dfhack.run_command(
                 "lua",
-                f'dfhack.persistent.setWorldData("dwarfipelago/received_index",'
+                f'dfhack.persistent.saveWorldDataString("dwarfipelago/received_index",'
                 f' "{self._received_index}")',
             )
 
@@ -495,10 +495,10 @@ class DwarfFortressContext(CommonContext):
         dl_threshold = slot_data.get("deathlink_threshold", 5)
         self._deathlink_threshold = int(dl_threshold)
         def write():
-            self.dfhack.run_command("lua", f'dfhack.persistent.setWorldData("dwarfipelago/goal", "{goal}")')
-            self.dfhack.run_command("lua", f'dfhack.persistent.setWorldData("dwarfipelago/wealth_goal", "{wealth_goal}")')
-            self.dfhack.run_command("lua", f'dfhack.persistent.setWorldData("dwarfipelago/pop_goal", "{pop_goal}")')
-            self.dfhack.run_command("lua", f'dfhack.persistent.setWorldData("dwarfipelago/deathlink_threshold", "{dl_threshold}")')
+            self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/goal", "{goal}")')
+            self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/wealth_goal", "{wealth_goal}")')
+            self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/pop_goal", "{pop_goal}")')
+            self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_threshold", "{dl_threshold}")')
         write()
         self._slot_data_synced = True
         logger.info(f"Synced slot data → goal={goal}, wealth_goal={wealth_goal}, pop_goal={pop_goal}, dl_threshold={dl_threshold}")
@@ -516,9 +516,9 @@ class DwarfFortressContext(CommonContext):
             None,
             lambda: self.dfhack.run_command(
                 "lua",
-                f"local c = tonumber(dfhack.persistent.getWorldData"
+                f"local c = tonumber(dfhack.persistent.getWorldDataString"
                 f'("dwarfipelago/pending_recv") or "0") or 0; '
-                f'dfhack.persistent.setWorldData("dwarfipelago/pending_recv", tostring(c + {n}))',
+                f'dfhack.persistent.saveWorldDataString("dwarfipelago/pending_recv", tostring(c + {n}))',
             ),
         )
         logger.info(f"Queued {n} received DeathLink(s) — Lua will kill {n * self._deathlink_threshold} dwarves")
@@ -536,11 +536,11 @@ class DwarfFortressContext(CommonContext):
         def read_counts():
             dc = self.dfhack.run_command(
                 "lua",
-                'print(dfhack.persistent.getWorldData("dwarfipelago/death_count") or "0")',
+                'print(dfhack.persistent.getWorldDataString("dwarfipelago/death_count") or "0")',
             )
             ds = self.dfhack.run_command(
                 "lua",
-                'print(dfhack.persistent.getWorldData("dwarfipelago/deathlinks_sent") or "0")',
+                'print(dfhack.persistent.getWorldDataString("dwarfipelago/deathlinks_sent") or "0")',
             )
             return dc, ds
 
@@ -565,7 +565,7 @@ class DwarfFortressContext(CommonContext):
                 None,
                 lambda: self.dfhack.run_command(
                     "lua",
-                    f'dfhack.persistent.setWorldData("dwarfipelago/deathlinks_sent", "{n}")',
+                    f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlinks_sent", "{n}")',
                 ),
             )
             await self.send_msgs([{
@@ -591,7 +591,7 @@ class DwarfFortressContext(CommonContext):
             None,
             lambda: self.dfhack.run_command(
                 "lua",
-                'print(dfhack.persistent.getWorldData("dwarfipelago/goal_complete") or "")',
+                'print(dfhack.persistent.getWorldDataString("dwarfipelago/goal_complete") or "")',
             ),
         )
         if output and output.strip() == "1":
