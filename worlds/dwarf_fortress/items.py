@@ -120,19 +120,20 @@ RECEIVED_TRAPS: list[ItemData] = [
 #
 # RECEIVED_* are items routed back to the DF player (trade goods, resources,
 # traps) — they live in the pool so the AP server can place them at locations.
-AP_ITEM_POOL: list[ItemData] = (
-    BLUEPRINT_ITEMS
-    + PROGRESSION_ITEMS
-    + USEFUL_ITEMS
-    + FILLER_ITEMS
-    + TRAP_ITEMS
-    + RECEIVED_TRADE_GOODS
-    + RECEIVED_RESOURCES
-    + RECEIVED_TRAPS
-)
+AP_ITEM_POOL: list[ItemData] = \
+    BLUEPRINT_ITEMS \
+    + PROGRESSION_ITEMS \
+    + USEFUL_ITEMS \
+    + FILLER_ITEMS \
+    + TRAP_ITEMS \
+    + RECEIVED_TRADE_GOODS \
+    + RECEIVED_RESOURCES \
+    + RECEIVED_TRAPS \
+
 
 # All items (for name→ID mapping used by item_name_to_id).
 # AP_ITEM_POOL already covers every item the world deals with.
 ALL_ITEMS: list[ItemData] = AP_ITEM_POOL
-
-ITEM_TABLE: dict[str, int] = {item.name: item.ap_id for item in ALL_ITEMS}
+ITEM_TABLE: dict[str, int] = {}
+for data in ALL_ITEMS:
+    ITEM_TABLE.update({data.name: data.ap_id})
