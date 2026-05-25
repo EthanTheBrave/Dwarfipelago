@@ -154,51 +154,58 @@ end
 
 -- ── Job type → production flag mapping ───────────────────────────────────────
 -- Called by main.lua's eventful job hook to classify completed jobs.
+--
+-- Job type enum names can vary between DF versions (Steam vs Classic, DF 47 vs
+-- DF 50+).  Building the table with a helper that silently skips any name that
+-- is nil in the running version avoids "table index is nil" errors at load time.
 
--- DFHack job type enum values (df.job_type) — abbreviated list.
--- Full list: https://docs.dfhack.org/en/latest/docs/dev/Lua%20API.html
-local JOB_TO_FLAG = {
-    -- Crafting
-    [df.job_type.MakeCrafts]        = "crafted_item",
-    [df.job_type.CarveStatue]       = "crafted_item",
-    [df.job_type.MakeTotem]         = "crafted_item",
-    -- Weapons / armor
-    [df.job_type.MakeWeapon]        = "weapon",
-    [df.job_type.MakeAmmo]          = "weapon",
-    [df.job_type.MakeArmor]         = "armor",
-    [df.job_type.MakeHelm]          = "armor",
-    [df.job_type.MakeGloves]        = "armor",
-    [df.job_type.MakeBoots]         = "armor",
-    [df.job_type.MakePants]         = "armor",
-    [df.job_type.MakeShield]        = "armor",
-    -- Furniture
-    [df.job_type.MakeTable]         = "table",
-    [df.job_type.MakeChair]         = "furniture",
-    [df.job_type.MakeChest]         = "chest",
-    [df.job_type.MakeCabinet]       = "furniture",
-    [df.job_type.MakeBed]           = "bed",
-    [df.job_type.MakeDoor]          = "furniture",
-    [df.job_type.MakeFloodgate]     = "furniture",
-    [df.job_type.MakeBarrel]        = "barrel",
-    [df.job_type.MakeBucket]        = "furniture",
-    [df.job_type.MakeCage]          = "cage",
-    [df.job_type.MakeMechanism]     = "mechanism",
-    -- Food / drink
-    [df.job_type.PrepareMeal]       = "meal",
-    [df.job_type.BrewDrink]         = "brew",
-    -- Materials
-    [df.job_type.SmeltOre]          = "metal_bar",
-    [df.job_type.MeltMetalObject]   = "metal_bar",
-    [df.job_type.CutBlock]          = "stone_block",
-    [df.job_type.WeaveCloth]        = "cloth",
-    [df.job_type.ProcessPlants]     = "cloth",  -- also produces thread
-    [df.job_type.TanHide]           = "leather",
-    [df.job_type.CutGems]           = "gem",
-    [df.job_type.EncrustedWithGems] = "gem",
-    -- Traps
-    [df.job_type.ConstructTrap]     = "trap",
-    [df.job_type.LinkBuildingToTrigger] = "trap",
-}
+local JOB_TO_FLAG = {}
+local function map(name, flag)
+    local v = df.job_type[name]
+    if v ~= nil then JOB_TO_FLAG[v] = flag end
+end
+
+-- Crafting
+map("MakeCrafts",              "crafted_item")
+map("CarveStatue",             "crafted_item")  -- pre-50 name
+map("CarveFurniture",          "crafted_item")  -- DF 50+ name
+map("MakeTotem",               "crafted_item")
+-- Weapons / armor
+map("MakeWeapon",              "weapon")
+map("MakeAmmo",                "weapon")
+map("MakeArmor",               "armor")
+map("MakeHelm",                "armor")
+map("MakeGloves",              "armor")
+map("MakeBoots",               "armor")
+map("MakePants",               "armor")
+map("MakeShield",              "armor")
+-- Furniture
+map("MakeTable",               "table")
+map("MakeChair",               "furniture")
+map("MakeChest",               "chest")
+map("MakeCabinet",             "furniture")
+map("MakeBed",                 "bed")
+map("MakeDoor",                "furniture")
+map("MakeFloodgate",           "furniture")
+map("MakeBarrel",              "barrel")
+map("MakeBucket",              "furniture")
+map("MakeCage",                "cage")
+map("MakeMechanism",           "mechanism")
+-- Food / drink
+map("PrepareMeal",             "meal")
+map("BrewDrink",               "brew")
+-- Materials
+map("SmeltOre",                "metal_bar")
+map("MeltMetalObject",         "metal_bar")
+map("CutBlock",                "stone_block")
+map("WeaveCloth",              "cloth")
+map("ProcessPlants",           "cloth")   -- also produces thread
+map("TanHide",                 "leather")
+map("CutGems",                 "gem")
+map("EncrustedWithGems",       "gem")
+-- Traps
+map("ConstructTrap",           "trap")
+map("LinkBuildingToTrigger",   "trap")
 
 function M.job_to_production_flag(job)
     if job and job.job_type then
