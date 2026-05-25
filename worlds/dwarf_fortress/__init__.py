@@ -88,26 +88,43 @@ class DwarfFortressWorld(World):
         self.multiworld.regions += [menu, fortress]
 
     def create_items(self) -> None:
-        item_pool: list[DwarfFortressItem] = []
-
+        location_count = len(ALL_LOCATIONS)
         trap_weight = self.options.trap_item_weight.value / 100.0
 
-        for item_data in AP_ITEM_POOL:
+        # Separate required (progression) items from optional ones.
+        # Progression items — all blueprints plus Artifact/Legendary items — must
+        # always be included because rules.py gates locations behind them.  If they
+        # were trimmed to fit the location count the accessibility check would fail.
+        required: list[ItemData] = [
+            d for d in AP_ITEM_POOL
+            if d.classification == ItemClassification.progression
+        ]
+        optional: list[ItemData] = [
+            d for d in AP_ITEM_POOL
+            if d.classification != ItemClassification.progression
+        ]
+
+        item_pool: list[DwarfFortressItem] = []
+
+        # 1. Always add every progression item.
+        for item_data in required:
             for _ in range(item_data.quantity):
                 item_pool.append(self._make_item(item_data.name))
 
-        # Pad pool to match location count with filler/traps
-        location_count = len(ALL_LOCATIONS)
+        # 2. Fill remaining slots from optional items (shuffled for variety).
+        remaining = location_count - len(item_pool)
+        shuffled_optional = list(optional)
+        self.random.shuffle(shuffled_optional)
+        for item_data in shuffled_optional[:max(remaining, 0)]:
+            item_pool.append(self._make_item(item_data.name))
+
+        # 3. Pad with filler/traps if still under location count
+        #    (happens when progression items alone outnumber locations).
         while len(item_pool) < location_count:
             if self.random.random() < trap_weight and TRAP_ITEMS:
-                trap = self.random.choice(TRAP_ITEMS)
-                item_pool.append(self._make_item(trap.name))
+                item_pool.append(self._make_item(self.random.choice(TRAP_ITEMS).name))
             else:
-                filler = self.random.choice(FILLER_ITEMS)
-                item_pool.append(self._make_item(filler.name))
-
-        # Trim if we somehow overshoot
-        item_pool = item_pool[:location_count]
+                item_pool.append(self._make_item(self.random.choice(FILLER_ITEMS).name))
 
         self.multiworld.itempool += item_pool
 
