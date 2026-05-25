@@ -1,6 +1,7 @@
 from typing import Any, ClassVar
 from BaseClasses import Region, Location, Item, ItemClassification, Tutorial
 from worlds.AutoWorld import World, WebWorld
+from worlds.LauncherComponents import Component, icon_paths, components, Type, launch_subprocess
 
 from .options import DwarfFortressOptions, DwarfFortressGoal
 from .settings import DwarfFortressSettings
@@ -17,7 +18,10 @@ from . import rules
 # Wrapped in a bare except so a missing display / headless server never breaks
 # world generation.
 try:
-    from . import client as _  # noqa: F401
+    def run_client():
+        from .DwarfFortressClient import main  # lazy import
+        launch_subprocess(main)
+    components.append(Component("Dwarf Fortress Client", func=run_client, component_type=Type.CLIENT,))
 except Exception as _client_err:
     import logging as _logging
     _logging.warning(f"[Dwarfipelago] Failed to register launcher components: {_client_err}")
