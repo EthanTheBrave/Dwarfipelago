@@ -15,27 +15,60 @@ Complete economic and production milestones in your fortress to send items to ot
 | Component | Path | Description |
 |-----------|------|-------------|
 | AP World | `worlds/dwarf_fortress/` | Archipelago world definition — install into your AP `worlds/` folder or package as `.apworld` |
-| DFHack Mod | `dfhack/scripts/dwarfipelago/` | Lua scripts — copy into your DF `dfhack/hack/scripts/` folder |
+| DFHack Mod | `dfhack/dwarfipelago/` | DFHack mod — copy into your DF installation's `mods/` folder |
 | AP Client | `worlds/dwarf_fortress/DwarfFortressClient.py` | Bundled inside the AP world package — launched automatically by the AP launcher |
 
 ## Quick Setup
 
+### Prerequisites
+
+- **Dwarf Fortress** (Steam) — installed via Steam
+- **DFHack** — installed as a separate Steam item ([DFHack on Steam](https://store.steampowered.com/app/2346660/DFHack__Dwarf_Fortress_Modding_Engine/))
+  - Steam installs DFHack to `<SteamLibrary>\steamapps\common\DFHack\`
+- **Archipelago** 0.4.0+ — installed to `C:\ProgramData\Archipelago\` by default
+
+---
+
 1. **Install the AP World**
-   - Copy `worlds/dwarf_fortress/` into your Archipelago `worlds/` directory
-   - Or package it as an `.apworld` (run from inside the `worlds/` directory):
+   - Copy `worlds/dwarf_fortress/` into your Archipelago `worlds/` directory, **or** package it as an `.apworld`:
      ```
      cd worlds && zip -r ../dwarf_fortress.apworld dwarf_fortress/
      ```
+     Then copy `dwarf_fortress.apworld` into `C:\ProgramData\Archipelago\custom_worlds\`
 
 2. **Install the DFHack mod**
-   - Copy `dfhack/scripts/dwarfipelago/` into your DF installation's `dfhack/hack/scripts/` folder
-   - Steam (Windows): `C:\Program Files (x86)\Steam\steamapps\common\Dwarf Fortress\dfhack\hack\scripts\`
+
+   Create a `mods\dwarfipelago\` folder inside your DF installation (the folder won't exist by default):
+   ```
+   <SteamLibrary>\steamapps\common\Dwarf Fortress\mods\dwarfipelago\
+   ```
+   Copy the contents of `dfhack/dwarfipelago/` from this repo into that folder, so the result looks like:
+   ```
+   mods\dwarfipelago\
+     info.txt
+     scripts_modinstalled\
+       dwarfipelago.lua
+       internal\
+         dwarfipelago\
+           checks.lua
+           items.lua
+           state.lua
+   ```
+   Then **enable the mod** in DF's in-game mod manager before generating or loading a world.
+
+   > **For development:** Instead of copying on every change, add this line to
+   > `<DF install>\dfhack-config\script-paths.txt` to load scripts directly from the repo:
+   > ```
+   > + C:\path\to\Dwarfipelago\dfhack\dwarfipelago\scripts_modinstalled
+   > ```
+   > The `+` prefix means DFHack searches this path first.
 
 3. **Configure the game path** in your Archipelago `host.yaml`:
    ```yaml
    dwarf_fortress_options:
-     game_path: C:\Program Files (x86)\Steam\steamapps\common\Dwarf Fortress\dfhack\hack\launchdf.exe
+     game_path: <SteamLibrary>\steamapps\common\DFHack\hack\launchdf.exe
    ```
+   Replace `<SteamLibrary>` with the actual path to your Steam library (it may not be on your C: drive).
 
 4. **Generate your Archipelago session** with a `DwarfFortress.yaml` options file (see `worlds/dwarf_fortress/docs/setup_en.md`)
 
@@ -101,7 +134,7 @@ Dwarfipelago supports Archipelago's DeathLink system with a configurable thresho
 
 - **"Dwarf Fortress not found"** — set `game_path` in `host.yaml` (see Step 4 above)
 - **Client can't connect to DFHack** — ensure DFHack is running and its remote API is active on `127.0.0.1:5000`
-- **Mod doesn't start automatically** — load a fortress first and wait ~5 seconds; you can also run `dwarfipelago/main start` manually in the DFHack console
+- **Mod doesn't start automatically** — load a fortress first and wait ~5 seconds; you can also run `dwarfipelago start` manually in the DFHack console
 - **Items not arriving** — check the client log window; items are delivered via DFHack script calls when the client is connected
 
 For full setup details see [`worlds/dwarf_fortress/docs/setup_en.md`](worlds/dwarf_fortress/docs/setup_en.md).
