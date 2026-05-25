@@ -150,7 +150,14 @@ class DFHackConnection:
         try:
             sock = socket.create_connection((self.host, self.port), timeout=5)
             sock.sendall(DFHACK_MAGIC_REQUEST)
-            reply = sock.recv(len(DFHACK_MAGIC_REPLY))
+            buf = bytearray()
+            needed = len(DFHACK_MAGIC_REPLY)
+            while len(buf) < needed:
+                chunk = sock.recv(needed - len(buf))
+                if not chunk:
+                    raise ConnectionError("DFHack closed connection during handshake")
+                buf.extend(chunk)
+            reply = bytes(buf)
             if reply != DFHACK_MAGIC_REPLY:
                 logger.error(f"DFHack handshake failed: {reply!r}")
                 sock.close()
@@ -292,14 +299,14 @@ class DFHackConnection:
     def pop_pending_checks(self) -> list[int]:
         """
         Atomically read and clear the pending-checks queue written by the Lua mod.
-        The mod stores the queue as a JSON array in site data under
+        The mod stores the queue as a JSON array in world data under
         "dwarfipelago/pending_checks". Returns a list of AP location IDs.
         """
         lua = (
             "(function()"
-            " local q = dfhack.persistent.getSiteData"
+            " local q = dfhack.persistent.getWorldData"
             '("dwarfipelago/pending_checks") or "[]";'
-            ' dfhack.persistent.setSiteData("dwarfipelago/pending_checks", "[]");'
+            ' dfhack.persistent.setWorldData("dwarfipelago/pending_checks", "[]");'
             " print(q)"
             " end)()"
         )
@@ -316,7 +323,7 @@ class DFHackConnection:
     def deliver_item(self, item_name: str):
         """Deliver a received AP item to the fortress by calling the Lua item handler."""
         safe_name = item_name.replace("\\", "\\\\").replace('"', '\\"')
-        self.run_command("lua", f'require("dwarfipelago.items").receive("{safe_name}")')
+        self.run_command("lua", f'reqscript("internal/dwarfipelago/items").receive("{safe_name}")')
         logger.info(f"Delivered item to fortress: {item_name}")
 
 
@@ -386,7 +393,7 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
 
         We wait for a world to be loaded before starting because the mod
         registers eventful hooks that require an active game state.  Calling
-        'dwarfipelago/main start' on an already-running mod is safe — it simply
+        'dwarfipelago start' on an already-running mod is safe — it simply
         re-registers the hooks and re-enables the poll timer.
         """
         if self._mod_started:
@@ -402,7 +409,7 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
         if result and result.strip() == "1":
             await asyncio.get_event_loop().run_in_executor(
                 None,
-                lambda: self.dfhack.run_command("dwarfipelago/main", "start"),
+                lambda: self.dfhack.run_command("dwarfipelago", "start"),
             )
             self._mod_started = True
             logger.info("Auto-started dwarfipelago Lua mod")
@@ -440,7 +447,7 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
             # Persist the index so we don't re-deliver on restart.
             self.dfhack.run_command(
                 "lua",
-                f'dfhack.persistent.setSiteData("dwarfipelago/received_index",'
+                f'dfhack.persistent.setWorldData("dwarfipelago/received_index",'
                 f' "{self._received_index}")',
             )
 
@@ -461,10 +468,10 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
         dl_threshold = slot_data.get("deathlink_threshold", 5)
         self._deathlink_threshold = int(dl_threshold)
         def write():
-            self.dfhack.run_command("lua", f'dfhack.persistent.setSiteData("dwarfipelago/goal", "{goal}")')
-            self.dfhack.run_command("lua", f'dfhack.persistent.setSiteData("dwarfipelago/wealth_goal", "{wealth_goal}")')
-            self.dfhack.run_command("lua", f'dfhack.persistent.setSiteData("dwarfipelago/pop_goal", "{pop_goal}")')
-            self.dfhack.run_command("lua", f'dfhack.persistent.setSiteData("dwarfipelago/deathlink_threshold", "{dl_threshold}")')
+            self.dfhack.run_command("lua", f'dfhack.persistent.setWorldData("dwarfipelago/goal", "{goal}")')
+            self.dfhack.run_command("lua", f'dfhack.persistent.setWorldData("dwarfipelago/wealth_goal", "{wealth_goal}")')
+            self.dfhack.run_command("lua", f'dfhack.persistent.setWorldData("dwarfipelago/pop_goal", "{pop_goal}")')
+            self.dfhack.run_command("lua", f'dfhack.persistent.setWorldData("dwarfipelago/deathlink_threshold", "{dl_threshold}")')
         write()
         self._slot_data_synced = True
         logger.info(f"Synced slot data → goal={goal}, wealth_goal={wealth_goal}, pop_goal={pop_goal}, dl_threshold={dl_threshold}")
@@ -482,9 +489,9 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
             None,
             lambda: self.dfhack.run_command(
                 "lua",
-                f"local c = tonumber(dfhack.persistent.getSiteData"
+                f"local c = tonumber(dfhack.persistent.getWorldData"
                 f'("dwarfipelago/pending_recv") or "0") or 0; '
-                f'dfhack.persistent.setSiteData("dwarfipelago/pending_recv", tostring(c + {n}))',
+                f'dfhack.persistent.setWorldData("dwarfipelago/pending_recv", tostring(c + {n}))',
             ),
         )
         logger.info(f"Queued {n} received DeathLink(s) — Lua will kill {n * self._deathlink_threshold} dwarves")
@@ -504,11 +511,11 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
         def read_counts():
             dc = self.dfhack.run_command(
                 "lua",
-                'print(dfhack.persistent.getSiteData("dwarfipelago/death_count") or "0")',
+                'print(dfhack.persistent.getWorldData("dwarfipelago/death_count") or "0")',
             )
             ds = self.dfhack.run_command(
                 "lua",
-                'print(dfhack.persistent.getSiteData("dwarfipelago/deathlinks_sent") or "0")',
+                'print(dfhack.persistent.getWorldData("dwarfipelago/deathlinks_sent") or "0")',
             )
             return dc, ds
 
@@ -533,7 +540,7 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
                 None,
                 lambda: self.dfhack.run_command(
                     "lua",
-                    f'dfhack.persistent.setSiteData("dwarfipelago/deathlinks_sent", "{n}")',
+                    f'dfhack.persistent.setWorldData("dwarfipelago/deathlinks_sent", "{n}")',
                 ),
             )
             await self.send_msgs([{
@@ -559,7 +566,7 @@ class DwarfFortressContext(CommonContext if HAS_COMMON_CLIENT else object):
             None,
             lambda: self.dfhack.run_command(
                 "lua",
-                'print(dfhack.persistent.getSiteData("dwarfipelago/goal_complete") or "")',
+                'print(dfhack.persistent.getWorldData("dwarfipelago/goal_complete") or "")',
             ),
         )
         if output and output.strip() == "1":
