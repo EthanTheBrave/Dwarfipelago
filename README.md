@@ -15,7 +15,7 @@ Complete economic and production milestones in your fortress to send items to ot
 | Component | Path | Description |
 |-----------|------|-------------|
 | AP World | `worlds/dwarf_fortress/` | Archipelago world definition — install into your AP `worlds/` folder or package as `.apworld` |
-| DFHack Mod | `dfhack/dwarfipelago/` | DFHack mod — copy into your DF installation's `mods/` folder |
+| DFHack Mod | `mods/dwarfipelago/` | DFHack mod — copy into your DF installation's `mods/` folder |
 | AP Client | `worlds/dwarf_fortress/DwarfFortressClient.py` | Bundled inside the AP world package — launched automatically by the AP launcher |
 
 ## Quick Setup
@@ -25,54 +25,36 @@ Complete economic and production milestones in your fortress to send items to ot
 - **Dwarf Fortress** (Steam) — installed via Steam
 - **DFHack** — installed as a separate Steam item ([DFHack on Steam](https://store.steampowered.com/app/2346660/DFHack__Dwarf_Fortress_Modding_Engine/))
   - Steam installs DFHack to `<SteamLibrary>\steamapps\common\DFHack\`
-- **Archipelago** 0.4.0+ — installed to `C:\ProgramData\Archipelago\` by default
+- **Archipelago** 0.6.7 — installed to `C:\ProgramData\Archipelago\` by default
 
 ---
 
 1. **Install the AP World**
-   - Copy `worlds/dwarf_fortress/` into your Archipelago `worlds/` directory, **or** package it as an `.apworld`:
-     ```
-     cd worlds && zip -r ../dwarf_fortress.apworld dwarf_fortress/
-     ```
-     Then copy `dwarf_fortress.apworld` into `C:\ProgramData\Archipelago\custom_worlds\`
+   - download `dwarfipelago.apworld` in the release section and double click `dwarfipelago.apworld` which will then copy the apworld to custom_worlds
 
 2. **Install the DFHack mod**
 
-   Create a `mods\dwarfipelago\` folder inside your DF installation (the folder won't exist by default):
+   Copy over `mods` which will create `mods\dwarfipelago\` folder inside your DF installation (the folder won't exist by default)
+   If you are updating to a newer version, delete `mods\dwarfipelago\` and then copy over `mods\dwarfipelago\`.
    ```
-   <SteamLibrary>\steamapps\common\Dwarf Fortress\mods\dwarfipelago\
+   <SteamLibrary>\steamapps\common\Dwarf Fortress\mods
    ```
-   Copy the contents of `dfhack/dwarfipelago/` from this repo into that folder, so the result looks like:
+   The contents of `mods/dwarfipelago/` result looks like:
    ```
-   mods\dwarfipelago\
-     info.txt
-     scripts_modinstalled\
-       dwarfipelago.lua
-       internal\
-         dwarfipelago\
-           checks.lua
-           items.lua
-           state.lua
+    info.txt
+    scripts_modinstalled\
+      dwarfipelago.lua
+      internal\
+        dwarfipelago\
+          checks.lua
+          items.lua
+          state.lua
    ```
    Then **enable the mod** in DF's in-game mod manager before generating or loading a world.
 
-   > **For development:** Instead of copying on every change, add this line to
-   > `<DF install>\dfhack-config\script-paths.txt` to load scripts directly from the repo:
-   > ```
-   > + C:\path\to\Dwarfipelago\dfhack\dwarfipelago\scripts_modinstalled
-   > ```
-   > The `+` prefix means DFHack searches this path first.
+3. **Generate your Archipelago session** with a `DwarfFortress.yaml` options file (see `worlds/dwarf_fortress/docs/setup_en.md`)
 
-3. **Configure the game path** in your Archipelago `host.yaml`:
-   ```yaml
-   dwarf_fortress_options:
-     game_path: <SteamLibrary>\steamapps\common\DFHack\hack\launchdf.exe
-   ```
-   Replace `<SteamLibrary>` with the actual path to your Steam library (it may not be on your C: drive).
-
-4. **Generate your Archipelago session** with a `DwarfFortress.yaml` options file (see `worlds/dwarf_fortress/docs/setup_en.md`)
-
-5. **In the Archipelago launcher:**
+4. **In the Archipelago launcher:**
    - Click **Dwarf Fortress** to launch the game
    - Load or embark on a fortress
    - Click **Dwarf Fortress Client** and connect to your server
