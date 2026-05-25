@@ -7,7 +7,7 @@ Complete economic and production milestones in your fortress to send items to ot
 ## Requirements
 
 - Dwarf Fortress (Steam 2022+ or Classic)
-- [DFHack](https://github.com/DFHack/dfhack) — bundled with the Steam version; install separately for Classic
+- [DFHack](https://github.com/DFHack/dfhack) — Can also be downloaded through [Steam](https://store.steampowered.com/app/2346660/DFHack__Dwarf_Fortress_Modding_Engine/)
 - [Archipelago](https://archipelago.gg/) 0.4.0+
 
 ## Components
