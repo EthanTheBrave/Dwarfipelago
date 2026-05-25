@@ -29,7 +29,7 @@ local applying_recv_deathlink = false
 -- goal: 0 = slay_megabeast, 1 = legendary_wealth, 2 = population_boom, 3 = mountainhome
 
 local function goal_setting(key, default)
-    return tonumber(dfhack.persistent.getWorldData("dwarfipelago/" .. key)) or default
+    return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/" .. key)) or default
 end
 
 -- ── Goal completion: poll-based checks (wealth & population) ─────────────────
@@ -193,10 +193,10 @@ local function poll_checks()
                 local newly_checked = state.mark_location_checked(check.id)
                 if newly_checked then
                     local queue_key = "dwarfipelago/pending_checks"
-                    local raw = dfhack.persistent.getWorldData(queue_key) or "[]"
+                    local raw = dfhack.persistent.getWorldDataString(queue_key) or "[]"
                     local queue = dfhack.json.decode(raw) or {}
                     table.insert(queue, check.id)
-                    dfhack.persistent.setWorldData(queue_key, dfhack.json.encode(queue))
+                    dfhack.persistent.saveWorldDataString(queue_key, dfhack.json.encode(queue))
 
                     print(("[Dwarfipelago] Check: %s (%d)"):format(check.name, check.id))
                 end
@@ -327,12 +327,12 @@ local FURNACE_BLUEPRINTS = {
 }
 
 local function is_blueprint_unlocked(blueprint_name)
-    local val = dfhack.persistent.getWorldData("dwarfipelago/blueprint/" .. blueprint_name)
+    local val = dfhack.persistent.getWorldDataString("dwarfipelago/blueprint/" .. blueprint_name)
     return val == "1"
 end
 
 function unlock_blueprint(blueprint_name)
-    dfhack.persistent.setWorldData("dwarfipelago/blueprint/" .. blueprint_name, "1")
+    dfhack.persistent.saveWorldDataString("dwarfipelago/blueprint/" .. blueprint_name, "1")
     dfhack.gui.showAnnouncement(
         ("[AP] Blueprint received: %s"):format(blueprint_name),
         COLOR_GREEN, true)
