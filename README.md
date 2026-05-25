@@ -34,7 +34,7 @@ Complete economic and production milestones in your fortress to send items to ot
 3. **Configure the game path** in your Archipelago `host.yaml`:
    ```yaml
    dwarf_fortress_options:
-     game_path: C:\Program Files (x86)\Steam\steamapps\common\Dwarf Fortress\launchdf.exe
+     game_path: C:\Program Files (x86)\Steam\steamapps\common\Dwarf Fortress\dfhack\hack\launchdf.exe
    ```
 
 4. **Generate your Archipelago session** with a `DwarfFortress.yaml` options file (see `worlds/dwarf_fortress/docs/setup_en.md`)
