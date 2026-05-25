@@ -34,6 +34,43 @@ local function fortress_wealth()
     return 0
 end
 
+-- ── Fortress title helpers ────────────────────────────────────────────────────
+-- Titles require population AND (created wealth OR exported wealth).
+-- https://dwarffortresswiki.org/index.php/Fortress
+-- Defined before M.checks because has_fortress_title() is called immediately
+-- (not wrapped in a closure) when the check entries are constructed.
+
+local function citizen_count()
+    local count = 0
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+local function exported_wealth()
+    local ok, result = pcall(function()
+        return df.global.plotinfo.tasks.wealth_exported
+    end)
+    if ok and type(result) == "number" then return result end
+
+    ok, result = pcall(function()
+        return df.global.ui.tasks.wealth_exported
+    end)
+    if ok and type(result) == "number" then return result end
+
+    return 0
+end
+
+local function has_fortress_title(pop_req, created_req, exported_req)
+    return function()
+        if citizen_count() < pop_req then return false end
+        return fortress_wealth() >= created_req or exported_wealth() >= exported_req
+    end
+end
+
 M.checks = {
     -- Wealth milestones
     { id = 37370000, name = "Humble Beginnings",   fn = function() return fortress_wealth() >= 1000    end },
@@ -92,41 +129,6 @@ M.checks = {
     { id = 37370403, name = "City Established",       fn = has_fortress_title(110, 200000, 20000) },
     { id = 37370404, name = "Metropolis Established", fn = has_fortress_title(140, 300000, 30000) },
 }
-
--- ── Fortress title helpers ────────────────────────────────────────────────────
--- Titles require population AND (created wealth OR exported wealth).
--- https://dwarffortresswiki.org/index.php/Fortress
-
-local function citizen_count()
-    local count = 0
-    for _, unit in ipairs(df.global.world.units.active) do
-        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
-            count = count + 1
-        end
-    end
-    return count
-end
-
-local function exported_wealth()
-    local ok, result = pcall(function()
-        return df.global.plotinfo.tasks.wealth_exported
-    end)
-    if ok and type(result) == "number" then return result end
-
-    ok, result = pcall(function()
-        return df.global.ui.tasks.wealth_exported
-    end)
-    if ok and type(result) == "number" then return result end
-
-    return 0
-end
-
-local function has_fortress_title(pop_req, created_req, exported_req)
-    return function()
-        if citizen_count() < pop_req then return false end
-        return fortress_wealth() >= created_req or exported_wealth() >= exported_req
-    end
-end
 
 -- ── Production flag helpers ───────────────────────────────────────────────────
 -- Flags are set by the eventful job hook in main.lua and stored in world data.
