@@ -52,13 +52,9 @@ Complete economic and production milestones in your fortress to send items to ot
    ```
    Then **enable the mod** in DF's in-game mod manager before generating or loading a world.
 
-3. Enable DFHack Remote API:
-   - go to your `<dwarf fortress installation>/dfhack-config`
-   - modify remote-server.json and set `allow_remote` to true
+3. **Generate your Archipelago session** with a `DwarfFortress.yaml` options file (see `worlds/dwarf_fortress/docs/setup_en.md`)
 
-4. **Generate your Archipelago session** with a `DwarfFortress.yaml` options file (see `worlds/dwarf_fortress/docs/setup_en.md`)
-
-5. **In the Archipelago launcher:**
+4. **In the Archipelago launcher:**
    - Click **Dwarf Fortress** to launch the game
    - Load or embark on a fortress
    - Click **Dwarf Fortress Client** and connect to your server
