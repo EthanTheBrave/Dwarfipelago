@@ -382,6 +382,7 @@ class DwarfFortressContext(CommonContext):
         self._deathlink_threshold = 5    # dwarves per DeathLink (overridden by slot data)
         self._pending_recv_deathlinks = 0  # incoming DeathLink bounces waiting to be applied
         self._mod_started = False        # True once dwarfipelago/main start has succeeded
+        self._world_loaded = False       # True while DF has an active world loaded
 
     # ── DFHack polling ────────────────────────────────────────────────────────
 
@@ -389,6 +390,10 @@ class DwarfFortressContext(CommonContext):
         """
         Main loop: connect to DFHack, poll for new checks, apply received items.
         Reconnects automatically if DFHack drops.
+
+        All persistent-storage operations (saveWorldDataString / getWorldDataString)
+        require an active loaded world. We check dfhack.isWorldLoaded() at the top
+        of every cycle and skip the cycle entirely when DF is at the main menu.
         """
         while True:
             if not self.dfhack.is_connected():
@@ -400,49 +405,59 @@ class DwarfFortressContext(CommonContext):
                     continue
 
             try:
+                # ── World-loaded guard ────────────────────────────────────────
+                # saveWorldDataString / getWorldDataString crash when no world is
+                # loaded. Skip every storage-touching operation until DF is in a
+                # loaded fortress or adventure-mode session.
+                result = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: self.dfhack.run_command(
+                        "lua", "print(dfhack.isWorldLoaded() and '1' or '0')"
+                    ),
+                )
+                world_loaded = bool(result and result.strip() == "1")
+
+                if not world_loaded:
+                    if self._world_loaded:
+                        # Transition: player returned to the main menu.
+                        self._world_loaded = False
+                        self._mod_started = False
+                        self._slot_data_synced = False
+                        logger.info("World unloaded — pausing fortress polling until a save is loaded")
+                    await asyncio.sleep(self._poll_interval)
+                    continue
+
+                if not self._world_loaded:
+                    self._world_loaded = True
+                    logger.info("World loaded — resuming fortress polling")
+
+                # ── Auto-start mod ────────────────────────────────────────────
+                # 'dwarfipelago start' is safe to call on an already-running mod;
+                # it just re-registers hooks. We do it once per world load.
+                if not self._mod_started:
+                    await asyncio.get_event_loop().run_in_executor(
+                        None,
+                        lambda: self.dfhack.run_command("dwarfipelago", "start"),
+                    )
+                    self._mod_started = True
+                    logger.info("Auto-started dwarfipelago Lua mod")
+
+                # ── Fortress operations (world guaranteed loaded) ─────────────
                 self._sync_slot_data()
-                await self._try_auto_start_mod()
                 await self._apply_received_deathlinks()
                 await self._process_new_checks()
                 await self._apply_pending_items()
                 await self._check_deathlink_send()
                 await self._check_goal_complete()
+
             except Exception as e:
                 logger.warning(f"DFHack poll error: {e}")
                 self.dfhack.disconnect()
-                self._slot_data_synced = False  # re-sync on next connection
-                self._mod_started = False        # re-check mod on reconnect
+                self._slot_data_synced = False
+                self._mod_started = False
+                self._world_loaded = False
 
             await asyncio.sleep(self._poll_interval)
-
-    async def _try_auto_start_mod(self):
-        """
-        Start the Dwarfipelago Lua mod automatically once a fortress world is
-        loaded in DF.  Called every poll cycle, but does nothing after the first
-        successful start (tracked by self._mod_started).
-
-        We wait for a world to be loaded before starting because the mod
-        registers eventful hooks that require an active game state.  Calling
-        'dwarfipelago start' on an already-running mod is safe — it simply
-        re-registers the hooks and re-enables the poll timer.
-        """
-        if self._mod_started:
-            return
-
-        result = await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: self.dfhack.run_command(
-                "lua",
-                "print(dfhack.isWorldLoaded() and '1' or '0')",
-            ),
-        )
-        if result and result.strip() == "1":
-            await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: self.dfhack.run_command("dwarfipelago", "start"),
-            )
-            self._mod_started = True
-            logger.info("Auto-started dwarfipelago Lua mod")
 
     async def _process_new_checks(self):
         """Read new location checks from the Lua mod and report them to AP."""

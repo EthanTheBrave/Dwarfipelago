@@ -1,3 +1,4 @@
+--@ module = true
 -- Persistent state management for Dwarfipelago.
 -- All data is stored in DFHack's world-level persistent storage so it survives
 -- save/reload cycles. Keys are namespaced under "dwarfipelago/".

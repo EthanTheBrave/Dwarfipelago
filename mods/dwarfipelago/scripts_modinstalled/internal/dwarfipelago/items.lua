@@ -1,3 +1,4 @@
+--@ module = true
 -- Item spawning for Dwarfipelago.
 -- Called when the AP client delivers an item to the fortress.
 -- Each handler uses dfhack.run_script or direct df API calls to apply the effect.

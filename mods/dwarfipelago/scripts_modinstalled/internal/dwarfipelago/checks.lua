@@ -1,3 +1,4 @@
+--@ module = true
 -- Location check detection for Dwarfipelago.
 -- Each function returns true if the condition is currently met in the fortress.
 -- The AP location IDs must match locations.py (BASE_ID = 37370000).
