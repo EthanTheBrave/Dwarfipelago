@@ -125,16 +125,20 @@ def _extract_text_notification(body: bytes) -> str:
     """
     Extract plain text from a CoreTextNotification protobuf body.
 
-    Proto structure:
-      CoreTextNotification { fragments(1): CoreTextFragment {
-          fragments(1): Tile { str(1): string, fg(2), bg(3) } } }
+    Actual DFHack proto (dfhack.proto):
+      CoreTextNotification { repeated CoreTextFragment fragments = 1; }
+      CoreTextFragment     { required string text = 1;
+                             optional DFHackColorType color = 2; }
+
+    Two levels only: CoreTextNotification → CoreTextFragment → text string.
     """
     parts = []
-    for frag_bytes in _pb_decode(body).get(1, []):          # CoreTextFragment
-        for tile_bytes in _pb_decode(frag_bytes).get(1, []):  # Tile
-            for s in _pb_decode(tile_bytes).get(1, []):        # str field
-                if isinstance(s, bytes):
-                    parts.append(s.decode("utf-8", errors="replace"))
+    for frag_bytes in _pb_decode(body).get(1, []):   # CoreTextNotification.fragments
+        if not isinstance(frag_bytes, bytes):
+            continue
+        for s in _pb_decode(frag_bytes).get(1, []):  # CoreTextFragment.text
+            if isinstance(s, bytes):
+                parts.append(s.decode("utf-8", errors="replace"))
     return "".join(parts)
 
 def _get_df_executable() -> Optional[str]:
