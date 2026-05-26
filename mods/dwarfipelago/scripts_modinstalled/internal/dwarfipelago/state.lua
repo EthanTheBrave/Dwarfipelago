@@ -151,4 +151,8 @@ function M.reset()
     print("[Dwarfipelago] State reset.")
 end
 
+-- reqscript returns the script's _ENV, not the explicit return value.
+-- Copy all module exports into _ENV so callers can access them as
+-- env.set_enabled(), env.is_enabled(), etc.
+for k, v in pairs(M) do _ENV[k] = v end
 return M
