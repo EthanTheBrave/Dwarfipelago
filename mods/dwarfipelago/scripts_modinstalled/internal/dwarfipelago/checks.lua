@@ -1,3 +1,4 @@
+--@ module = true
 -- Location check detection for Dwarfipelago.
 -- Each function returns true if the condition is currently met in the fortress.
 -- The AP location IDs must match locations.py (BASE_ID = 37370000).
@@ -31,6 +32,43 @@ local function fortress_wealth()
     if ok and type(result) == "number" then return result end
 
     return 0
+end
+
+-- ── Fortress title helpers ────────────────────────────────────────────────────
+-- Titles require population AND (created wealth OR exported wealth).
+-- https://dwarffortresswiki.org/index.php/Fortress
+-- Defined before M.checks because has_fortress_title() is called immediately
+-- (not wrapped in a closure) when the check entries are constructed.
+
+local function citizen_count()
+    local count = 0
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+local function exported_wealth()
+    local ok, result = pcall(function()
+        return df.global.plotinfo.tasks.wealth_exported
+    end)
+    if ok and type(result) == "number" then return result end
+
+    ok, result = pcall(function()
+        return df.global.ui.tasks.wealth_exported
+    end)
+    if ok and type(result) == "number" then return result end
+
+    return 0
+end
+
+local function has_fortress_title(pop_req, created_req, exported_req)
+    return function()
+        if citizen_count() < pop_req then return false end
+        return fortress_wealth() >= created_req or exported_wealth() >= exported_req
+    end
 end
 
 M.checks = {
@@ -92,110 +130,82 @@ M.checks = {
     { id = 37370404, name = "Metropolis Established", fn = has_fortress_title(140, 300000, 30000) },
 }
 
--- ── Fortress title helpers ────────────────────────────────────────────────────
--- Titles require population AND (created wealth OR exported wealth).
--- https://dwarffortresswiki.org/index.php/Fortress
-
-local function citizen_count()
-    local count = 0
-    for _, unit in ipairs(df.global.world.units.active) do
-        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
-            count = count + 1
-        end
-    end
-    return count
-end
-
-local function exported_wealth()
-    local ok, result = pcall(function()
-        return df.global.plotinfo.tasks.wealth_exported
-    end)
-    if ok and type(result) == "number" then return result end
-
-    ok, result = pcall(function()
-        return df.global.ui.tasks.wealth_exported
-    end)
-    if ok and type(result) == "number" then return result end
-
-    return 0
-end
-
-local function has_fortress_title(pop_req, created_req, exported_req)
-    return function()
-        if citizen_count() < pop_req then return false end
-        return fortress_wealth() >= created_req or exported_wealth() >= exported_req
-    end
-end
-
 -- ── Production flag helpers ───────────────────────────────────────────────────
--- Flags are set by the eventful job hook in main.lua and stored in site data.
+-- Flags are set by the eventful job hook in main.lua and stored in world data.
 -- Key format: "dwarfipelago/prod/<flag_name>"
 
 function M.set_production_flag(flag)
-    dfhack.persistent.setSiteData("dwarfipelago/prod/" .. flag, "1")
+    dfhack.persistent.saveWorldDataString("dwarfipelago/prod/" .. flag, "1")
 end
 
 function M.production_flag(flag)
-    local val = dfhack.persistent.getSiteData("dwarfipelago/prod/" .. flag)
+    local val = dfhack.persistent.getWorldDataString("dwarfipelago/prod/" .. flag)
     return val == "1"
 end
 
 function M.set_trade_flag(flag)
-    dfhack.persistent.setSiteData("dwarfipelago/trade/" .. flag, "1")
+    dfhack.persistent.saveWorldDataString("dwarfipelago/trade/" .. flag, "1")
 end
 
 function M.trade_flag(flag)
-    local val = dfhack.persistent.getSiteData("dwarfipelago/trade/" .. flag)
+    local val = dfhack.persistent.getWorldDataString("dwarfipelago/trade/" .. flag)
     return val == "1"
 end
 
 -- ── Job type → production flag mapping ───────────────────────────────────────
 -- Called by main.lua's eventful job hook to classify completed jobs.
+--
+-- Job type enum names can vary between DF versions (Steam vs Classic, DF 47 vs
+-- DF 50+).  Building the table with a helper that silently skips any name that
+-- is nil in the running version avoids "table index is nil" errors at load time.
 
--- DFHack job type enum values (df.job_type) — abbreviated list.
--- Full list: https://docs.dfhack.org/en/latest/docs/dev/Lua%20API.html
-local JOB_TO_FLAG = {
-    -- Crafting
-    [df.job_type.MakeCrafts]        = "crafted_item",
-    [df.job_type.CarveStatue]       = "crafted_item",
-    [df.job_type.MakeTotem]         = "crafted_item",
-    -- Weapons / armor
-    [df.job_type.MakeWeapon]        = "weapon",
-    [df.job_type.MakeAmmo]          = "weapon",
-    [df.job_type.MakeArmor]         = "armor",
-    [df.job_type.MakeHelm]          = "armor",
-    [df.job_type.MakeGloves]        = "armor",
-    [df.job_type.MakeBoots]         = "armor",
-    [df.job_type.MakePants]         = "armor",
-    [df.job_type.MakeShield]        = "armor",
-    -- Furniture
-    [df.job_type.MakeTable]         = "table",
-    [df.job_type.MakeChair]         = "furniture",
-    [df.job_type.MakeChest]         = "chest",
-    [df.job_type.MakeCabinet]       = "furniture",
-    [df.job_type.MakeBed]           = "bed",
-    [df.job_type.MakeDoor]          = "furniture",
-    [df.job_type.MakeFloodgate]     = "furniture",
-    [df.job_type.MakeBarrel]        = "barrel",
-    [df.job_type.MakeBucket]        = "furniture",
-    [df.job_type.MakeCage]          = "cage",
-    [df.job_type.MakeMechanism]     = "mechanism",
-    -- Food / drink
-    [df.job_type.PrepareMeal]       = "meal",
-    [df.job_type.BrewDrink]         = "brew",
-    -- Materials
-    [df.job_type.SmeltOre]          = "metal_bar",
-    [df.job_type.MeltMetalObject]   = "metal_bar",
-    [df.job_type.CutBlock]          = "stone_block",
-    [df.job_type.WeaveCloth]        = "cloth",
-    [df.job_type.ProcessPlants]     = "cloth",  -- also produces thread
-    [df.job_type.TanHide]           = "leather",
-    [df.job_type.CutGems]           = "gem",
-    [df.job_type.EncrustedWithGems] = "gem",
-    -- Traps
-    [df.job_type.ConstructTrap]     = "trap",
-    [df.job_type.LinkBuildingToTrigger] = "trap",
-}
+local JOB_TO_FLAG = {}
+local function map(name, flag)
+    local v = df.job_type[name]
+    if v ~= nil then JOB_TO_FLAG[v] = flag end
+end
+
+-- Crafting
+map("MakeCrafts",              "crafted_item")
+map("CarveStatue",             "crafted_item")  -- pre-50 name
+map("CarveFurniture",          "crafted_item")  -- DF 50+ name
+map("MakeTotem",               "crafted_item")
+-- Weapons / armor
+map("MakeWeapon",              "weapon")
+map("MakeAmmo",                "weapon")
+map("MakeArmor",               "armor")
+map("MakeHelm",                "armor")
+map("MakeGloves",              "armor")
+map("MakeBoots",               "armor")
+map("MakePants",               "armor")
+map("MakeShield",              "armor")
+-- Furniture
+map("MakeTable",               "table")
+map("MakeChair",               "furniture")
+map("MakeChest",               "chest")
+map("MakeCabinet",             "furniture")
+map("MakeBed",                 "bed")
+map("MakeDoor",                "furniture")
+map("MakeFloodgate",           "furniture")
+map("MakeBarrel",              "barrel")
+map("MakeBucket",              "furniture")
+map("MakeCage",                "cage")
+map("MakeMechanism",           "mechanism")
+-- Food / drink
+map("PrepareMeal",             "meal")
+map("BrewDrink",               "brew")
+-- Materials
+map("SmeltOre",                "metal_bar")
+map("MeltMetalObject",         "metal_bar")
+map("CutBlock",                "stone_block")
+map("WeaveCloth",              "cloth")
+map("ProcessPlants",           "cloth")   -- also produces thread
+map("TanHide",                 "leather")
+map("CutGems",                 "gem")
+map("EncrustedWithGems",       "gem")
+-- Traps
+map("ConstructTrap",           "trap")
+map("LinkBuildingToTrigger",   "trap")
 
 function M.job_to_production_flag(job)
     if job and job.job_type then
@@ -208,4 +218,7 @@ end
 -- without duplicating the DF50 / Classic fallback logic.
 M.fortress_wealth = fortress_wealth
 
+-- reqscript returns the script's _ENV, not the explicit return value.
+-- Copy all module exports into _ENV so callers can access them as globals.
+for k, v in pairs(M) do _ENV[k] = v end
 return M
