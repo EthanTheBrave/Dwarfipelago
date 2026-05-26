@@ -12,6 +12,7 @@
 local state  = reqscript("internal/dwarfipelago/state")
 local checks = reqscript("internal/dwarfipelago/checks")
 local items  = reqscript("internal/dwarfipelago/items")
+local json   = require('json')
 
 -- DFHack built-in plugins use the standard require().
 local eventful   = require("plugins.eventful")
@@ -194,9 +195,9 @@ local function poll_checks()
                 if newly_checked then
                     local queue_key = "dwarfipelago/pending_checks"
                     local raw = dfhack.persistent.getWorldDataString(queue_key) or "[]"
-                    local queue = dfhack.json.decode(raw) or {}
+                    local queue = json.decode(raw) or {}
                     table.insert(queue, check.id)
-                    dfhack.persistent.saveWorldDataString(queue_key, dfhack.json.encode(queue))
+                    dfhack.persistent.saveWorldDataString(queue_key, json.encode(queue))
 
                     print(("[Dwarfipelago] Check: %s (%d)"):format(check.name, check.id))
                 end
