@@ -4,6 +4,7 @@
 -- save/reload cycles. Keys are namespaced under "dwarfipelago/".
 
 local M = {}
+local json = require('json')
 
 local KEY_CHECKED        = "dwarfipelago/checked_locations"
 local KEY_RECEIVED       = "dwarfipelago/received_items"
@@ -18,13 +19,13 @@ local KEY_DL_RECV        = "dwarfipelago/pending_recv"   -- incoming deathlinks 
 local function read_table(key)
     local raw = dfhack.persistent.getWorldDataString(key)
     if raw and raw ~= "" then
-        return dfhack.json.decode(raw) or {}
+        return json.decode(raw) or {}
     end
     return {}
 end
 
 local function write_table(key, tbl)
-    dfhack.persistent.saveWorldDataString(key, dfhack.json.encode(tbl))
+    dfhack.persistent.saveWorldDataString(key, json.encode(tbl))
 end
 
 -- ── Checked locations ─────────────────────────────────────────────────────────
@@ -131,7 +132,7 @@ end
 -- ── Debug helpers ─────────────────────────────────────────────────────────────
 
 function M.dump()
-    print("[Dwarfipelago] Checked locations:", dfhack.json.encode(M.get_checked_locations()))
+    print("[Dwarfipelago] Checked locations:", json.encode(M.get_checked_locations()))
     print("[Dwarfipelago] Received item index:", M.get_received_item_index())
     print("[Dwarfipelago] Goal complete:", M.is_goal_complete())
     print("[Dwarfipelago] Citizen deaths:", M.get_death_count())
