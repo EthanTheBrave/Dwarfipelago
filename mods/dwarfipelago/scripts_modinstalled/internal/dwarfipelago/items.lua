@@ -300,10 +300,16 @@ local BLUEPRINT_NAMES = {
 }
 
 -- Register blueprint handlers dynamically.
+-- Write directly to persistent storage rather than calling unlock_blueprint()
+-- from dwarfipelago.lua, because each script has its own _ENV and cross-script
+-- global calls resolve to nil.
 for _, bp_name in ipairs(BLUEPRINT_NAMES) do
     M.handlers[bp_name] = function()
-        -- unlock_blueprint is a global function defined in main.lua
-        unlock_blueprint(bp_name)
+        dfhack.persistent.saveWorldDataString("dwarfipelago/blueprint/" .. bp_name, "1")
+        dfhack.gui.showAnnouncement(
+            ("[AP] Blueprint received: %s"):format(bp_name),
+            COLOR_GREEN, true)
+        print(("[Dwarfipelago] Blueprint unlocked: %s"):format(bp_name))
     end
 end
 
