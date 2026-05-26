@@ -358,8 +358,14 @@ class DFHackConnection:
     def deliver_item(self, item_name: str):
         """Deliver a received AP item to the fortress by calling the Lua item handler."""
         safe_name = item_name.replace("\\", "\\\\").replace('"', '\\"')
-        self.run_command("lua", f'reqscript("internal/dwarfipelago/items").receive("{safe_name}")')
-        logger.info(f"Delivered item to fortress: {item_name}")
+        result = self.run_command(
+            "lua",
+            f'reqscript("internal/dwarfipelago/items").receive("{safe_name}")',
+        )
+        if result is None:
+            logger.warning(f"deliver_item: RPC returned None for {item_name!r} — connection lost?")
+        else:
+            logger.info(f"Delivered item to fortress: {item_name!r} (lua output: {result.strip()!r})")
 
 
 # ── Archipelago Client ────────────────────────────────────────────────────────
@@ -479,13 +485,28 @@ class DwarfFortressContext(CommonContext):
         """Apply any received AP items that haven't been delivered yet."""
         # self.items_received is populated by CommonClient when the server sends ReceivedItems.
         # We apply items in order starting from self._received_index.
+        pending = len(self.items_received) - self._received_index
+        if pending > 0:
+            logger.info(f"Applying {pending} pending item(s) starting at index {self._received_index}")
+
         for i in range(self._received_index, len(self.items_received)):
             network_item = self.items_received[i]
-            item_name = (
-                self.item_names.lookup_in_game(network_item.item)
-                if hasattr(self, "item_names")
-                else str(network_item.item)
-            )
+
+            # Resolve numeric item ID → human-readable name.
+            # The Lookup API changed between AP versions; try each approach in order.
+            item_name: str
+            try:
+                if hasattr(self, "item_names") and hasattr(self.item_names, "lookup_in_game"):
+                    item_name = self.item_names.lookup_in_game(network_item.item)
+                elif hasattr(self, "item_names"):
+                    item_name = self.item_names.get(network_item.item, str(network_item.item))
+                else:
+                    item_name = str(network_item.item)
+            except Exception as e:
+                logger.warning(f"Item name lookup failed for id {network_item.item}: {e}")
+                item_name = str(network_item.item)
+
+            logger.info(f"Delivering item [{i}]: id={network_item.item} → name={item_name!r}")
             await asyncio.get_event_loop().run_in_executor(
                 None, self.dfhack.deliver_item, item_name
             )
