@@ -218,4 +218,7 @@ end
 -- without duplicating the DF50 / Classic fallback logic.
 M.fortress_wealth = fortress_wealth
 
+-- reqscript returns the script's _ENV, not the explicit return value.
+-- Copy all module exports into _ENV so callers can access them as globals.
+for k, v in pairs(M) do _ENV[k] = v end
 return M
