@@ -21,29 +21,49 @@ class DynamicCraftingData:
 
 def generate_location_data(world: "DwarfFortressWorld"):
     dynamic_locations: list[LocationData] = []
-    if world.options.craftable_locations:
-        print("REACHED")
+    if world.options.craftable_locations != EnableItemCreationLocation.option_off:
         for item in world.options.craftable_items:
             new_location = DynamicCraftingData("", "", "", 0, 0, BASE_ID)
             new_location.item_name = item
             new_location.id = 1
-            if item == "Door":
-                new_location.base_location_id += 10000 
-                dynamic_locations = loop_locations(world, new_location, dynamic_locations)
-            if item == "Cage":
-                new_location.base_location_id += 10200 
-                dynamic_locations = loop_locations(world, new_location, dynamic_locations)
-
+            match item:
+                case "Beds": #20 Checks Max
+                    new_location.base_location_id += 10000 
+                    dynamic_locations = loop_locations(world, new_location, dynamic_locations)
+                case "Corkscrew": #60
+                    new_location.base_location_id += 10200 
+                    dynamic_locations = loop_locations(world, new_location, dynamic_locations)
+                case "Blocks": #100
+                    new_location.base_location_id += 10300 
+                    dynamic_locations = loop_locations(world, new_location, dynamic_locations)
+                case "Spike": #60
+                    new_location.base_location_id += 10400 
+                    dynamic_locations = loop_locations(world, new_location, dynamic_locations)
+                case "Ball": #60
+                    new_location.base_location_id += 10500 
+                    dynamic_locations = loop_locations(world, new_location, dynamic_locations)
+                # case "Door":
+                #     new_location.base_location_id += 10050 
+                #     dynamic_locations = loop_locations(world, new_location, dynamic_locations)
+                # case "Cage":
+                #     new_location.base_location_id += 10150 
+                #     dynamic_locations = loop_locations(world, new_location, dynamic_locations)
+                # case "Cage":
+                #     new_location.base_location_id += 10150 
+                #     dynamic_locations = loop_locations(world, new_location, dynamic_locations)
     return dynamic_locations
 
 def loop_locations(world: "DwarfFortressWorld", new_location: DynamicCraftingData, dynamic_locations: list[LocationData]) -> list[LocationData]:
     if world.options.craftable_enable_materials:
+        i = 0
         for materials in world.options.craftable_materials: #iterate all selected Materials
             if valid_materialitem(materials, new_location.item_name) == False:
                 continue
+            i += 1
             new_location.type = materials
             new_location.max_id = calulate_check_count(world)
-            new_location.base_location_id += 20 #max checks per craftables
+            if i > 1:
+                new_location.base_location_id += 20 #max checks per craftables
             for next_id in range(new_location.id, new_location.max_id + 1):
                 if next_id == new_location.max_id:
                     new_location.check_name = "Crafting "+ new_location.type + " " + new_location.item_name + " Final Check"
@@ -72,8 +92,16 @@ def calulate_check_count(world: "DwarfFortressWorld"):
         return checks
     
 def valid_materialitem(material: str, item: str) -> bool:
-    if material in {"Stone", "Metal", "Wood"} and item == "Door":
+    if material == "Wood" and item in {"Bed", "Training Axe", "Training Spear", "Training Sword"}:
         return True
-    if material in {"Wood", "Metal", "Glass"} and item == "Cage":
+    if material in {"Wood", "Metal"} and item in {"Animal Trap", "Barrel", "Bin", "Bucket", "Crutch", "Minecart", "Splint", "Stepladder", "Wheelbarrow"}:
+        return True
+    if material in {"Wood", "Metal", "Glass"} and item in {"Corkscrew", "Spike", "Cage", "Ball", "Pipe Section"}:
+        return True
+    if material in {"Wood", "Metal", "Leather"} and item in {"Buckler", "Shield"}:
+        return True
+    if material in {"Wood", "Stone", "Metal", "Glass"} and item in {"Altar", "Armor Stand", "Bookcase", "Cabinet", "Burial Container", "Chair", "Container", "Door", "Floodgate", "Grate", "Hatch Cover", "Pedestal", "Table", "Weapon Rack"}:
+        return True
+    if material in {"Wood", "Stone", "Metal", "Glass", "Ceramic"} and item == "Blocks":
         return True
     return False
