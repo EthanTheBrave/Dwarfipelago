@@ -1,3 +1,4 @@
+--@ module = true
 -- Item spawning for Dwarfipelago.
 -- Called when the AP client delivers an item to the fortress.
 -- Each handler uses dfhack.run_script or direct df API calls to apply the effect.
@@ -6,12 +7,32 @@ local M = {}
 
 -- ── Helpers ───────────────────────────────────────────────────────────────────
 
--- Spawn a single item at the trade depot / first available stockpile.
--- Falls back to dropping it at the cursor position if no depot exists.
+-- Spawn a single item at a living citizen's position.
+-- createitem places items at the keyboard cursor, so we move the cursor to a
+-- citizen's tile first — that guarantees a valid, walkable floor tile rather
+-- than (0,0,0) in solid rock (which is what happens when called via RPC with
+-- no active UI cursor).
 local function spawn_item(item_type, material, quantity)
     quantity = quantity or 1
+
+    -- Anchor the cursor at the first living citizen's position.
+    local anchored = false
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+            df.global.cursor.x = unit.pos.x
+            df.global.cursor.y = unit.pos.y
+            df.global.cursor.z = unit.pos.z
+            anchored = true
+            break
+        end
+    end
+    if not anchored then
+        dfhack.printerr("[Dwarfipelago] spawn_item: no living citizen found — cannot place " .. item_type)
+        return
+    end
+
     for _ = 1, quantity do
-        -- createitem script: "createitem <item-token> <material>"
+        -- createitem plugin: "createitem <item-token> <material>"
         -- e.g. createitem SMALLGEM INORGANIC:RUBY
         local ok, err = pcall(function()
             dfhack.run_script("createitem", item_type, material)
@@ -232,7 +253,7 @@ end
 
 local function recv_lost_caravan()
     -- Flag that the next caravan should be skipped / arrive empty.
-    dfhack.persistent.setSiteData("dwarfipelago/trap/lost_caravan", "1")
+    dfhack.persistent.saveWorldDataString("dwarfipelago/trap/lost_caravan", "1")
     announce("Trap: A caravan has been lost on the road...")
 end
 
@@ -299,10 +320,16 @@ local BLUEPRINT_NAMES = {
 }
 
 -- Register blueprint handlers dynamically.
+-- Write directly to persistent storage rather than calling unlock_blueprint()
+-- from dwarfipelago.lua, because each script has its own _ENV and cross-script
+-- global calls resolve to nil.
 for _, bp_name in ipairs(BLUEPRINT_NAMES) do
     M.handlers[bp_name] = function()
-        -- unlock_blueprint is a global function defined in main.lua
-        unlock_blueprint(bp_name)
+        dfhack.persistent.saveWorldDataString("dwarfipelago/blueprint/" .. bp_name, "1")
+        dfhack.gui.showAnnouncement(
+            ("[AP] Blueprint received: %s"):format(bp_name),
+            COLOR_GREEN, true)
+        print(("[Dwarfipelago] Blueprint unlocked: %s"):format(bp_name))
     end
 end
 
@@ -316,4 +343,7 @@ function M.receive(item_name)
     end
 end
 
+-- reqscript returns the script's _ENV, not the explicit return value.
+-- Copy all module exports into _ENV so callers can access them as globals.
+for k, v in pairs(M) do _ENV[k] = v end
 return M
