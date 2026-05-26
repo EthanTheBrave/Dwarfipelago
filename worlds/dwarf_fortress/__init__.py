@@ -148,6 +148,8 @@ class DwarfFortressWorld(World):
             "wealth_goal_amount": self.options.wealth_goal_amount.value,
             "population_goal_amount": self.options.population_goal_amount.value,
             "deathlink_threshold": self.options.deathlink_threshold.value,
+            "seed": self.random.randint(12212, 9090763),
+            "player_name": self.player_name,
         }
 
     # ── Completion condition ──────────────────────────────────────────────────

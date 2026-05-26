@@ -18,7 +18,7 @@ import argparse
 import subprocess
 import sys
 import time
-from typing import Optional
+from typing import Any, Optional
 from CommonClient import CommonContext, server_loop, ClientCommandProcessor, logger
 from NetUtils import ClientStatus
 
@@ -317,7 +317,9 @@ class DFHackConnection:
             while True:
                 reply_id, data = self._recv_rpc()
                 if reply_id == RPC_REPLY_TEXT:
-                    output_parts.append(_extract_text_notification(data))
+                    text = _extract_text_notification(data)
+                    text = text.replace("\n", "")
+                    output_parts.append(text)
                 elif reply_id == RPC_REPLY_RESULT:
                     break
                 elif reply_id == RPC_REPLY_FAIL:
@@ -387,7 +389,7 @@ class DwarfFortressContext(CommonContext):
         self.dfhack = DFHackConnection()
         self._poll_interval = 5.0        # seconds between fortress state polls
         self._received_index = 0         # last applied item index
-        self._slot_data_synced = False
+        self._slot_data_synced = False   # Loaded the correct saved world
         self._goal_complete = False
         self._deathlink_threshold = 5    # dwarves per DeathLink (overridden by slot data)
         self._pending_recv_deathlinks = 0  # incoming DeathLink bounces waiting to be applied
@@ -454,11 +456,12 @@ class DwarfFortressContext(CommonContext):
 
                 # ── Fortress operations (world guaranteed loaded) ─────────────
                 self._sync_slot_data()
-                await self._apply_received_deathlinks()
-                await self._process_new_checks()
-                await self._apply_pending_items()
-                await self._check_deathlink_send()
-                await self._check_goal_complete()
+                if self._slot_data_synced:
+                    await self._apply_received_deathlinks()
+                    await self._process_new_checks()
+                    await self._apply_pending_items()
+                    await self._check_deathlink_send()
+                    await self._check_goal_complete()
 
             except Exception as e:
                 logger.warning(f"DFHack poll error: {e}")
@@ -533,15 +536,21 @@ class DwarfFortressContext(CommonContext):
         wealth_goal  = slot_data.get("wealth_goal_amount", 100000)
         pop_goal     = slot_data.get("population_goal_amount", 300)
         dl_threshold = slot_data.get("deathlink_threshold", 5)
+        seed         = slot_data.get("seed", 0)
+        current_seed = self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("dwarfipelago/seed"))')
         self._deathlink_threshold = int(dl_threshold)
-        def write():
-            self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/goal", "{goal}")')
-            self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/wealth_goal", "{wealth_goal}")')
-            self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/pop_goal", "{pop_goal}")')
-            self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_threshold", "{dl_threshold}")')
-        write()
-        self._slot_data_synced = True
-        logger.info(f"Synced slot data → goal={goal}, wealth_goal={wealth_goal}, pop_goal={pop_goal}, dl_threshold={dl_threshold}")
+        if current_seed == 'nil' or current_seed == str(seed):
+            def write():
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/goal", "{goal}")')
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/wealth_goal", "{wealth_goal}")')
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/pop_goal", "{pop_goal}")')
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_threshold", "{dl_threshold}")')
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/seed", "{seed}")')
+            write()
+            self._slot_data_synced = True
+            logger.info(f"Synced slot data → goal={goal}, wealth_goal={wealth_goal}, pop_goal={pop_goal}, dl_threshold={dl_threshold}")
+        else:
+            logger.error(f'This saved world does not match this slot. Please load the correct world or create a new one.')
 
     async def _apply_received_deathlinks(self):
         """
@@ -660,6 +669,7 @@ class DwarfFortressContext(CommonContext):
         if cmd == "Connected":
             # Start DFHack polling and (when inside AP) the server connection as
             # concurrent asyncio tasks so neither blocks the other.
+            self.slot_data: dict[str, Any] = args.get("slot_data", {})
             self.dfhack_task = asyncio.create_task(self.dfhack_poll_loop(), name="DFHack poll")
             self.server_task = asyncio.create_task(server_loop(self), name="server loop")
 
