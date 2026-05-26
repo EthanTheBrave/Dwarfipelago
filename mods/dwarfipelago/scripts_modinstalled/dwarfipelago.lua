@@ -294,37 +294,45 @@ end
 --   key "dwarfipelago/blueprint/<name>" = "1" when received.
 
 -- Workshops (df.workshop_type → blueprint name)
-local WORKSHOP_BLUEPRINTS = {
-    [df.workshop_type.Craftsdwarfs]     = "Craftsdwarf's Workshop Blueprint",
-    [df.workshop_type.MetalsmithsForge] = "Forge Blueprint",
-    [df.workshop_type.MagmaForge]       = "Magma Forge Blueprint",
-    [df.workshop_type.Kitchen]          = "Kitchen Blueprint",
-    [df.workshop_type.Jewelers]         = "Jeweler's Workshop Blueprint",
-    [df.workshop_type.Clothiers]        = "Clothier's Shop Blueprint",
-    [df.workshop_type.Tanners]          = "Tanner's Blueprint",
-    [df.workshop_type.Mechanics]        = "Mechanic's Workshop Blueprint",
-    [df.workshop_type.Siege]            = "Siege Workshop Blueprint",
-    [df.workshop_type.SoapMaker]        = "Soap Maker's Workshop Blueprint",
-    [df.workshop_type.Ashery]           = "Ashery Blueprint",
-    [df.workshop_type.Bowyers]          = "Bowyer's Workshop Blueprint",
-    [df.workshop_type.ScrewPress]       = "Screw Press Blueprint",
-    [df.workshop_type.Fishery]          = "Fishery Blueprint",
-    [df.workshop_type.Loom]             = "Loom Blueprint",
-    [df.workshop_type.Dyers]            = "Dyer's Workshop Blueprint",
-    [df.workshop_type.Butchers]         = "Butcher's Shop Blueprint",
-    [df.workshop_type.Farmers]          = "Farmer's Workshop Blueprint",
-}
+-- Built with a helper so nil enum values (names that changed between DF
+-- versions) are silently skipped rather than causing "table index is nil".
+local WORKSHOP_BLUEPRINTS = {}
+local function wmap(name, bp)
+    local v = df.workshop_type[name]
+    if v ~= nil then WORKSHOP_BLUEPRINTS[v] = bp end
+end
+wmap("Craftsdwarfs",     "Craftsdwarf's Workshop Blueprint")
+wmap("MetalsmithsForge", "Forge Blueprint")
+wmap("MagmaForge",       "Magma Forge Blueprint")
+wmap("Kitchen",          "Kitchen Blueprint")
+wmap("Jewelers",         "Jeweler's Workshop Blueprint")
+wmap("Clothiers",        "Clothier's Shop Blueprint")
+wmap("Tanners",          "Tanner's Blueprint")
+wmap("Mechanics",        "Mechanic's Workshop Blueprint")
+wmap("Siege",            "Siege Workshop Blueprint")
+wmap("SoapMaker",        "Soap Maker's Workshop Blueprint")
+wmap("Ashery",           "Ashery Blueprint")
+wmap("Bowyers",          "Bowyer's Workshop Blueprint")
+wmap("ScrewPress",       "Screw Press Blueprint")
+wmap("Fishery",          "Fishery Blueprint")
+wmap("Loom",             "Loom Blueprint")
+wmap("Dyers",            "Dyer's Workshop Blueprint")
+wmap("Butchers",         "Butcher's Shop Blueprint")
+wmap("Farmers",          "Farmer's Workshop Blueprint")
 
 -- Furnaces (df.furnace_type → blueprint name)
-local FURNACE_BLUEPRINTS = {
-    [df.furnace_type.Smelter]           = "Smelter Blueprint",
-    [df.furnace_type.MagmaSmelter]      = "Magma Smelter Blueprint",
-    [df.furnace_type.WoodFurnace]       = "Wood Furnace Blueprint",
-    [df.furnace_type.GlassFurnace]      = "Glass Furnace Blueprint",
-    [df.furnace_type.Kiln]              = "Kiln Blueprint",
-    [df.furnace_type.MagmaKiln]         = "Magma Kiln Blueprint",
-    [df.furnace_type.MagmaGlassFurnace] = "Magma Glass Furnace Blueprint",
-}
+local FURNACE_BLUEPRINTS = {}
+local function fmap(name, bp)
+    local v = df.furnace_type[name]
+    if v ~= nil then FURNACE_BLUEPRINTS[v] = bp end
+end
+fmap("Smelter",           "Smelter Blueprint")
+fmap("MagmaSmelter",      "Magma Smelter Blueprint")
+fmap("WoodFurnace",       "Wood Furnace Blueprint")
+fmap("GlassFurnace",      "Glass Furnace Blueprint")
+fmap("Kiln",              "Kiln Blueprint")
+fmap("MagmaKiln",         "Magma Kiln Blueprint")
+fmap("MagmaGlassFurnace", "Magma Glass Furnace Blueprint")
 
 local function is_blueprint_unlocked(blueprint_name)
     local val = dfhack.persistent.getWorldDataString("dwarfipelago/blueprint/" .. blueprint_name)
