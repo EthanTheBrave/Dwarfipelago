@@ -176,52 +176,9 @@ local function apply_pending_recv_deathlinks()
     print(("[Dwarfipelago] DeathLink applied: %d/%d dwarves killed"):format(killed, to_kill))
 end
 
--- ── Poll loop: wealth, trade, and goal milestones ─────────────────────────────
--- Runs every POLL_TICKS game ticks. Production checks are handled by eventful.
-
-local function poll_checks()
-    if not state.is_enabled() then return end
-
-    apply_pending_recv_deathlinks()
-    check_goal_by_poll()
-    detect_caravans()
-    detect_trade_export()
-
-    for _, check in ipairs(checks.checks) do
-        if not state.is_location_checked(check.id) then
-            local ok, result = pcall(check.fn)
-            if ok and result then
-                local newly_checked = state.mark_location_checked(check.id)
-                if newly_checked then
-                    local queue_key = "dwarfipelago/pending_checks"
-                    local raw = dfhack.persistent.getWorldDataString(queue_key) or "[]"
-                    local queue = json.decode(raw) or {}
-                    table.insert(queue, check.id)
-                    dfhack.persistent.saveWorldDataString(queue_key, json.encode(queue))
-
-                    print(("[Dwarfipelago] Check: %s (%d)"):format(check.name, check.id))
-                end
-            end
-        end
-    end
-end
-
--- ── eventful hook: job completion → production flags ─────────────────────────
-
-local function on_job_completed(job)
-    if not state.is_enabled() then return end
-
-    local flag = checks.job_to_production_flag(job)
-    if flag and not checks.production_flag(flag) then
-        checks.set_production_flag(flag)
-        -- Production flags will be picked up on the next poll cycle.
-    end
-end
-
 -- ── Caravan & trade detection ────────────────────────────────────────────────
--- Scans the active unit list for merchant and diplomat units each poll tick,
--- then maps them to their civilisation's race to set the appropriate trade
--- flags in checks.lua. Also tracks exported wealth to detect completed trades.
+-- Defined before poll_checks because poll_checks calls them directly (they are
+-- locals, so forward references would resolve to nil at call time).
 
 local CARAVAN_RACES = {
     DWARF = "dwarven_caravan",
@@ -286,6 +243,48 @@ local function detect_trade_export()
             checks.set_trade_flag("first_export")
             print("[Dwarfipelago] First export detected (exported wealth > 0)")
         end
+    end
+end
+
+-- ── Poll loop: wealth, trade, and goal milestones ─────────────────────────────
+-- Runs every POLL_TICKS game ticks. Production checks are handled by eventful.
+
+local function poll_checks()
+    if not state.is_enabled() then return end
+
+    apply_pending_recv_deathlinks()
+    check_goal_by_poll()
+    detect_caravans()
+    detect_trade_export()
+
+    for _, check in ipairs(checks.checks) do
+        if not state.is_location_checked(check.id) then
+            local ok, result = pcall(check.fn)
+            if ok and result then
+                local newly_checked = state.mark_location_checked(check.id)
+                if newly_checked then
+                    local queue_key = "dwarfipelago/pending_checks"
+                    local raw = dfhack.persistent.getWorldDataString(queue_key) or "[]"
+                    local queue = json.decode(raw) or {}
+                    table.insert(queue, check.id)
+                    dfhack.persistent.saveWorldDataString(queue_key, json.encode(queue))
+
+                    print(("[Dwarfipelago] Check: %s (%d)"):format(check.name, check.id))
+                end
+            end
+        end
+    end
+end
+
+-- ── eventful hook: job completion → production flags ─────────────────────────
+
+local function on_job_completed(job)
+    if not state.is_enabled() then return end
+
+    local flag = checks.job_to_production_flag(job)
+    if flag and not checks.production_flag(flag) then
+        checks.set_production_flag(flag)
+        -- Production flags will be picked up on the next poll cycle.
     end
 end
 
