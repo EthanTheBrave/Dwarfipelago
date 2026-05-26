@@ -47,11 +47,15 @@ class DeathLinkThreshold(Range):
     range_end = 20
     default = 5
 
-class EnableItemCreationLocation(Toggle):
+class EnableItemCreationLocation(Choice):
     """
     Enable Craftable locations where you are required to make X of Items.
+    If option_storage is selected, the X amount needs to be present in storage.
     """
     display_name = "Enable Item Creation Locations"
+    option_off = 0
+    option_on = 1
+    option_storage = 2
 
 class VariableItemCreationLocations(OptionList):
     """
@@ -60,14 +64,14 @@ class VariableItemCreationLocations(OptionList):
     display_name = "Craftable X Items locations"
     valid_keys = {
         "Beds", "Corkscrew", "Blocks", "Spike", "Ball", "Altar", "Animal Trap", "Armor Stand",
-        "Barrel", "Bin", "Bookcase", "Bucket", "Buckler", "Cabinet", "Cage", "Casket", "Chair",
-        "Chest", "Crutch", "Door", "Floodgate", "Grate", "Hatch Door", "Minecart", "Pedestal",
+        "Barrel", "Bin", "Bookcase", "Bucket", "Buckler", "Cabinet", "Cage", "Burial Container", "Chair",
+        "Container", "Crutch", "Door", "Floodgate", "Grate", "Hatch Cover", "Minecart", "Pedestal",
         "Pipe Section", "Shield", "Splint", "Stepladder", "Table", "Training Axe", "Training Spear",
         "Training Sword", "Weapon Rack", "Wheelbarrow"
     }
     default = valid_keys.copy() 
 
-class VariableItemMateriaToggle(Toggle):
+class VariableItemMaterialToggle(Toggle):
     """
     If Craftable locations are enabled, Do you need to craft certian materials of that item?
     Craft X amount of Y Item
@@ -80,7 +84,7 @@ class VariableItemTypeCreationLocations(OptionList):
     """
     display_name = "Craftable X Items locations"
     valid_keys = {
-        "Stone", "Wood", "Metal", "Glass", "Leather", "Cloth", "Bone", "Shells"
+        "Stone", "Wood", "Metal", "Glass", "Leather", "Cloth", "Bone", "Shells", "Ceramic"
     }
     default = valid_keys.copy() 
 
@@ -112,7 +116,7 @@ class DwarfFortressOptions(PerGameCommonOptions):
     population_goal_amount: PopulationGoalAmount
     craftable_locations: EnableItemCreationLocation
     craftable_items: VariableItemCreationLocations
-    craftable_enable_materials: VariableItemMateriaToggle
+    craftable_enable_materials: VariableItemMaterialToggle
     craftable_materials: VariableItemTypeCreationLocations
     craftable_max_amount: VariableItemCreationMaxAmount
     craftable_threshold: VariableItemCreationThreshold
