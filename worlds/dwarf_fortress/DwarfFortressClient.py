@@ -193,6 +193,10 @@ class DFHackConnection:
                 logger.error(f"DFHack handshake failed: {reply!r}")
                 sock.close()
                 return False
+            # Handshake done — widen the timeout for normal RPC calls.
+            # The 5-second connect timeout is too short for commands like
+            # 'dwarfipelago start' that register hooks and take longer to return.
+            sock.settimeout(30)
             self._sock = sock
             logger.info(f"Connected to DFHack at {self.host}:{self.port}")
             return True
