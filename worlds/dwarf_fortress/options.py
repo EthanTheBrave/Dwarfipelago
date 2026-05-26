@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from Options import Choice, Range, PerGameCommonOptions
+from Options import Choice, Range, PerGameCommonOptions, DeathLink, OptionList, Toggle
 
 
 class DwarfFortressGoal(Choice):
@@ -47,11 +47,73 @@ class DeathLinkThreshold(Range):
     range_end = 20
     default = 5
 
+class EnableItemCreationLocation(Toggle):
+    """
+    Enable Craftable locations where you are required to make X of Items.
+    """
+    display_name = "Enable Item Creation Locations"
+
+class VariableItemCreationLocations(OptionList):
+    """
+    If Craftable locations are enabled, which items to craft X amount are checks.
+    """
+    display_name = "Craftable X Items locations"
+    valid_keys = {
+        "Beds", "Corkscrew", "Blocks", "Spike", "Ball", "Altar", "Animal Trap", "Armor Stand",
+        "Barrel", "Bin", "Bookcase", "Bucket", "Buckler", "Cabinet", "Cage", "Casket", "Chair",
+        "Chest", "Crutch", "Door", "Floodgate", "Grate", "Hatch Door", "Minecart", "Pedestal",
+        "Pipe Section", "Shield", "Splint", "Stepladder", "Table", "Training Axe", "Training Spear",
+        "Training Sword", "Weapon Rack", "Wheelbarrow"
+    }
+    default = valid_keys.copy() 
+
+class VariableItemMateriaToggle(Toggle):
+    """
+    If Craftable locations are enabled, Do you need to craft certian materials of that item?
+    Craft X amount of Y Item
+    """
+    display_name = "Enable Item Creation Item Materials"
+
+class VariableItemTypeCreationLocations(OptionList):
+    """
+    Select which item types for craft X amount are required.
+    """
+    display_name = "Craftable X Items locations"
+    valid_keys = {
+        "Stone", "Wood", "Metal", "Glass", "Leather", "Cloth", "Bone", "Shells"
+    }
+    default = valid_keys.copy() 
+
+class VariableItemCreationMaxAmount(Range):
+    """
+    If Craftable locations are enabled, what is the max amount to need to make per item?
+    """
+    display_name = "Max Craftable location amount"
+    range_start = 10
+    range_end = 100
+    default = 15
+
+class VariableItemCreationThreshold(Range):
+    """
+    If Craftable locations are enabled, How many do you need to make per check?
+    ex: 10 = every 10 crafted items is a check 
+    """
+    display_name = "Craftable Location Check Threshold"
+    range_start = 5
+    range_end = 100
+    default = 5
 
 @dataclass
 class DwarfFortressOptions(PerGameCommonOptions):
+    deathlink: DeathLink
+    deathlink_threshold: DeathLinkThreshold
     goal: DwarfFortressGoal
     wealth_goal_amount: WealthGoalAmount
     population_goal_amount: PopulationGoalAmount
+    craftable_locations: EnableItemCreationLocation
+    craftable_items: VariableItemCreationLocations
+    craftable_enable_materials: VariableItemMateriaToggle
+    craftable_materials: VariableItemTypeCreationLocations
+    craftable_max_amount: VariableItemCreationMaxAmount
+    craftable_threshold: VariableItemCreationThreshold
     trap_item_weight: TrapItemWeight
-    deathlink_threshold: DeathLinkThreshold

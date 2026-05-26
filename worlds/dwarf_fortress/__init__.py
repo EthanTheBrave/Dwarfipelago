@@ -10,6 +10,7 @@ from .items import (
     PROGRESSION_ITEMS, USEFUL_ITEMS
 )
 from .locations import LocationData, LOCATION_TABLE, ALL_LOCATIONS
+from .crafting_locations import generate_location_data
 from . import rules
 
 # Register the Archipelago launcher buttons (Dwarf Fortress + Dwarf Fortress Client).
@@ -65,8 +66,14 @@ class DwarfFortressWorld(World):
 
     item_name_to_id = ITEM_TABLE
     location_name_to_id = LOCATION_TABLE
+    dynamic_locations = []
 
     web = DwarfFortressWebWorld()
+
+    def generate_early(self) -> None:
+        self.dynamic_locations = generate_location_data(self)
+        for locations in self.dynamic_locations:
+            self.location_name_to_id[locations.name] = locations.ap_id
 
     # ── Generation lifecycle ──────────────────────────────────────────────────
 
@@ -76,9 +83,9 @@ class DwarfFortressWorld(World):
 
         menu.connect(fortress)
 
-        for loc_data in ALL_LOCATIONS:
+        for loc_data in self.location_name_to_id:
             loc = DwarfFortressLocation(
-                self.player, loc_data.name, loc_data.ap_id, fortress
+                self.player, loc_data, self.location_name_to_id[loc_data], fortress
             )
             fortress.locations.append(loc)
 
@@ -92,7 +99,7 @@ class DwarfFortressWorld(World):
         self.multiworld.regions += [menu, fortress]
 
     def create_items(self) -> None:
-        location_count = len(ALL_LOCATIONS)
+        location_count = len(ALL_LOCATIONS) + len(self.dynamic_locations)
         trap_weight = self.options.trap_item_weight.value / 100.0
 
         # Separate required (progression) items from optional ones.
