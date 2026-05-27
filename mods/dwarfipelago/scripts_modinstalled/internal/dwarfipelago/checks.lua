@@ -219,6 +219,82 @@ end
 -- without duplicating the DF50 / Classic fallback logic.
 M.fortress_wealth = fortress_wealth
 
+-- ── Job type → craft count flag mapping ──────────────────────────────────────
+-- Separate from JOB_TO_FLAG: maps jobs to the specific AP option names used in
+-- craftable_items and craftable_materials (lowercase, underscored).
+-- The AP client writes these same strings into the dwarfipelago/craft_checks
+-- config so Lua counts and AP thresholds use identical flag names.
+
+local JOB_TO_CRAFT_FLAG = {}
+local function cmap(name, flag)
+    local v = df.job_type[name]
+    if v ~= nil then JOB_TO_CRAFT_FLAG[v] = flag end
+end
+
+-- craftable_items
+cmap("MakeTotem",       "altar")
+cmap("MakeDoor",        "door")
+cmap("MakeCage",        "cage")
+cmap("MakeBox",         "bin")
+cmap("CutBlock",        "blocks")
+cmap("MakeWheelbarrow", "wheelbarrow")
+cmap("MakeGrate",       "grate")
+cmap("MakeCorkscrew",   "corkscrew")
+cmap("MakeAnimalTrap",  "animal_trap")
+cmap("MakeBall",        "ball")
+cmap("MakeArmorStand",  "armor_stand")
+cmap("MakePedestal",    "pedestal")
+cmap("MakeBucket",      "bucket")
+cmap("MakeSpike",       "spike")
+
+-- craftable_materials (unambiguous by job type)
+cmap("WeaveCloth",      "cloth")
+cmap("ProcessPlants",   "cloth")
+cmap("TanHide",         "leather")
+cmap("SmeltOre",        "metal")
+cmap("MeltMetalObject", "metal")
+cmap("MakeGlass",       "glass")
+
+-- Jobs where the flag depends on the job's primary material (stone/bone/shell/wood).
+local NEEDS_MAT_CHECK = {}
+local function matjob(name)
+    local v = df.job_type[name]
+    if v ~= nil then NEEDS_MAT_CHECK[v] = true end
+end
+matjob("MakeCrafts")
+matjob("CarveBone")
+matjob("CarveStatue")
+matjob("CarveFurniture")
+
+local function mat_craft_flag(job)
+    local ok, mat = pcall(dfhack.matinfo.decode, job.mat_type, job.mat_index)
+    if not ok or not mat then return nil end
+    if mat.mode == "inorganic" then
+        local raw = mat.inorganic
+        if raw and raw.flags.IS_METAL then return "metal" end
+        return "stone"
+    elseif mat.mode == "plant" then
+        return "wood"
+    elseif mat.mode == "creature" then
+        local m = mat.material
+        if m and m.flags.SHELL then return "shells" end
+        return "bone"
+    end
+    return nil
+end
+
+-- Returns the AP craftable_items/materials flag for a completed job,
+-- or nil if the job type is not tracked for quantity checks.
+function M.job_to_craft_flag(job)
+    if not job or not job.job_type then return nil end
+    local flag = JOB_TO_CRAFT_FLAG[job.job_type]
+    if flag then return flag end
+    if NEEDS_MAT_CHECK[job.job_type] then
+        return mat_craft_flag(job)
+    end
+    return nil
+end
+
 -- ── Craft count helpers ───────────────────────────────────────────────────────
 -- Cumulative counts of completed production jobs per flag, persisted in world
 -- data.  Incremented by the eventful job hook in dwarfipelago.lua.

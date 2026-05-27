@@ -15,12 +15,14 @@ local KEY_DL_SENT        = "dwarfipelago/deathlinks_sent" -- deathlinks dispatch
 local KEY_DL_RECV        = "dwarfipelago/pending_recv"   -- incoming deathlinks to apply
 local KEY_CRAFT_CHECKS   = "dwarfipelago/craft_checks"   -- AP-written milestone config
 
--- All production flag names that have cumulative craft-count keys.
--- Must stay in sync with JOB_TO_FLAG in checks.lua.
+-- All craft-count flag names (match AP craftable_items / craftable_materials options).
+-- Must stay in sync with JOB_TO_CRAFT_FLAG and NEEDS_MAT_CHECK in checks.lua.
 local CRAFT_FLAGS = {
-    "crafted_item", "weapon", "armor", "furniture", "meal", "brew",
-    "metal_bar", "stone_block", "cloth", "leather", "gem",
-    "mechanism", "trap", "cage", "barrel", "chest", "table", "bed",
+    -- craftable_items
+    "altar", "door", "cage", "bin", "blocks", "wheelbarrow", "grate",
+    "corkscrew", "animal_trap", "ball", "armor_stand", "pedestal", "bucket", "spike",
+    -- craftable_materials
+    "cloth", "stone", "leather", "shells", "metal", "bone", "wood", "glass",
 }
 
 -- ── Internal helpers ──────────────────────────────────────────────────────────

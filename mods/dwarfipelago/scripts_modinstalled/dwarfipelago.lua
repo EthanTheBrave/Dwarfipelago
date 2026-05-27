@@ -318,14 +318,18 @@ end
 local function on_job_completed(job)
     if not state.is_enabled() then return end
 
-    local flag = checks.job_to_production_flag(job)
-    if flag then
-        -- Set the "first production" boolean flag (existing behaviour).
-        if not checks.production_flag(flag) then
-            checks.set_production_flag(flag)
-        end
-        -- Increment cumulative count; craft-milestone checks read this each poll.
-        checks.increment_craft_count(flag)
+    -- Boolean first-production flags (drive the existing BASE_ID+100 checks).
+    local prod_flag = checks.job_to_production_flag(job)
+    if prod_flag and not checks.production_flag(prod_flag) then
+        checks.set_production_flag(prod_flag)
+    end
+
+    -- Cumulative craft counts (drive the new quantity-based checks).
+    -- Uses specific AP option names (door, cage, metal, cloth, …) rather than
+    -- the generic aggregated names used by the boolean system above.
+    local craft_flag = checks.job_to_craft_flag(job)
+    if craft_flag then
+        checks.increment_craft_count(craft_flag)
     end
 end
 
