@@ -58,7 +58,7 @@ def loop_locations(world: "DwarfFortressWorld", new_location: DynamicCraftingDat
             else:
                 new_location.check_name = "Crafting " + new_location.item_name + " Check "+ str(next_id + 1)
                 new_location.base_location_id += 1
-            dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, ""))
+            dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, generate_requirements(new_location.item_name, new_location.type)))
     return dynamic_locations
 
 def calulate_check_count(world: "DwarfFortressWorld"):
@@ -71,9 +71,9 @@ def calulate_check_count(world: "DwarfFortressWorld"):
 def valid_materialitem(material: str, item: str) -> bool:
     if material == "Wood" and item in {"Bed", "Training Axe", "Training Spear", "Training Sword", "Cup", "Ballista Parts", "Catapult Parts"}:
         return True
-    if material in {"Wood", "Metal"} and item in {"Animal Trap", "Barrel", "Bin", "Bucket", "Crutch", "Minecart", "Splint", "Stepladder", "Wheelbarrow", "Ballista Arrows"}:
+    if material in {"Wood", "Metal"} and item in {"Animal Trap", "Barrel", "Bin", "Bucket", "Crutch", "Minecart", "Splint", "Stepladder", "Wheelbarrow", "Ballista Arrows", "Corkscrew"}:
         return True
-    if material in {"Wood", "Metal", "Glass"} and item in {"Corkscrew", "Spike", "Cage", "Ball", "Pipe Section"}:
+    if material in {"Wood", "Metal", "Glass"} and item in {"Spike", "Cage", "Ball", "Pipe Section"}:
         return True
     if material in {"Wood", "Metal", "Leather"} and item in {"Buckler", "Shield"}:
         return True
@@ -93,7 +93,9 @@ def valid_materialitem(material: str, item: str) -> bool:
         return True
     if material in {"Metal", "Glass"} and item == "Goblet":
         return True
-    if material == "Bone" and item in {"Totem", "Leggings", "Greaves", }:
+    if material == "Bone" and item == "Totem":
+        return True
+    if material in {"Bone, Metal"} and item == "Gauntlets":
         return True
     if material in {"Leather", "Bone", "Metal"} and item == "Helm":
         return True
@@ -117,6 +119,566 @@ def non_material_items(item: str) -> bool:
     if item in {"Ash", "Charcoal", "Metal Bars", "Coke Bars", "Pearlash", "Gypsum Plaster", "Quicklime", "Glass", "Leather", "Sheet", "Cloth", "Alcohol", "Lye", "Potash", "Milk of Lime", "Prepared Meal", "Tallow", "Oil", "Press Cake", "Honey", "Bee Wax", "Dye", "Soap"}:
         return True
     return False
+
+def generate_requirements(item: str, type: str) -> str:
+    standard_location = ""
+    match type:
+        case "Metal":
+            standard_location = "Forge Blueprint,Magma Forge Blueprint"
+        case "Wood":
+            standard_location = "Carpenter's Workshop Blueprint"
+        case "Stone":
+            standard_location = "Stoneworker's Workshop Blueprint"
+        case "Glass":
+            standard_location = "Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+        case "Leather":
+            standard_location = "Tanner's Blueprint,Leather Works Blueprint"
+        case "Cloth":
+            standard_location = "Loom Blueprint,Clothier's Shop Blueprint"
+    match item:
+        case "Beds": return "ALL:Carpenter's Workshop Blueprint"
+        case "Corkscrew":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint"
+            else:
+                return "ANY:"+standard_location
+        case "Blocks":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Stoneworker's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint,Kiln Blueprint,Magma Kiln Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+            if type == "Ceramic":
+                return "ANY:Kiln Blueprint,Magma Kiln Blueprint"
+        case "Spike":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+        case "Ball":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+        case "Altar":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Stoneworker's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Stone":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+        case "Animal Trap":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+        case "Armor Stand":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Stoneworker's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Stone":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+        case "Barrel":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+        case "Bin":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+        case "Bookcase":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Stoneworker's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Stone":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+        case "Bucket":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+        case "Buckler":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint :OR: ALL:Leather Works Blueprint,Tanner's Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Leather":
+                return "ALL:"+standard_location
+        case "Cabinet":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Stoneworker's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Stone":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+        case "Cage":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+        case "Burial Container":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Stoneworker's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Stone":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+        case "Chair":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Stoneworker's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Stone":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+        case "Container":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Stoneworker's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Stone":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+        case "Crutch":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+        case "Door":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Stoneworker's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Stone":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+        case "Floodgate":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Stoneworker's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Stone":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+        case "Grate":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Stoneworker's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Stone":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+        case "Hatch Cover":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Stoneworker's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Stone":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+        case "Minecart":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+        case "Pedestal":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Stoneworker's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Stone":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+        case "Pipe Section":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+        case "Shield":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint :OR: ALL:Leather Works Blueprint,Tanner's Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Leather":
+                return "ALL:"+standard_location
+        case "Splint":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+        case "Stepladder":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+        case "Table":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Stoneworker's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Stone":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+        case "Training Axe":
+            return "ANY:Carpenter's Workshop Blueprint"
+        case "Training Spear":
+            return "ANY:Carpenter's Workshop Blueprint"
+        case "Training Sword":
+            return "ANY:Carpenter's Workshop Blueprint"
+        case "Weapon Rack":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Stoneworker's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Stone":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+        case "Wheelbarrow":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+        case "Crossbow":
+            if type == "":
+                return "ANY:Bowyer's Workshop Blueprint,Forge Blueprint"
+            elif type in {"Wood", "Bone"}:
+                return "ALL:Bowyer's Workshop Blueprint"
+            elif type == "Metal":
+                return "ANY:"+standard_location
+        case "Bolt":
+            if type == "":
+                return "ANY:Craftsdwarf's Workshop Blueprint,Forge Blueprint"
+            elif type in {"Wood", "Bone"}:
+                return "ALL:Craftsdwarf's Workshop Blueprint"
+            elif type == "Metal":
+                return "ANY:"+standard_location
+        case "Millstone":
+            return "ALL:Stoneworker's Workshop Blueprint"
+        case "Quern":
+            return "ALL:Stoneworker's Workshop Blueprint"
+        case "Slab":
+            return "ALL:Stoneworker's Workshop Blueprint"
+        case "Statue":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Stoneworker's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Stone":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+        case "Mechanism":
+            return "ALL:Mechanic's Workshop Blueprint"
+        case "Traction Bench":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Stoneworker's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint :AND: ANY:Forge Blueprint,Magma Forge Blueprint,Clothier's Shop Blueprint :AND: ALL:Mechanic's Workshop Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location+",Mechanic's Workshop Blueprint :AND: ANY:Forge Blueprint,Magma Forge Blueprint,Clothier's Shop Blueprint"
+            if type == "Stone":
+                return "ALL:"+standard_location+",Mechanic's Workshop Blueprint :AND: ANY:Forge Blueprint,Magma Forge Blueprint,Clothier's Shop Blueprint"
+            if type == "Metal":
+                return "ANY:"+standard_location+" :AND: ALL:Mechanic's Workshop Blueprint"
+            if type == "Glass":
+                return "ANY:"+standard_location+" :AND: ALL:Mechanic's Workshop Blueprint :AND: ANY:Forge Blueprint,Magma Forge Blueprint,Clothier's Shop Blueprint"
+        case "Crafts":
+            return "ANY:Craftsdwarf's Workshop Blueprint"
+        case "Liquid Container":
+            if type == "":
+                return "ANY:Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint OR ALL:Leather Works Blueprint,Tanner's Blueprint"
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+            if type == "Leather":
+                return "ALL:"+standard_location
+        case "Goblet":
+            return "ANY:Forge Blueprint,Magma Forge Blueprint"
+        case "Mug":
+            return "ALL:Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+        case "Cup":
+            return "ALL:Craftsdwarf's Workshop Blueprint"
+        case "Toy":
+            return "ALL:Craftsdwarf's Workshop Blueprint"
+        case "Totem":
+            return "ALL:Craftsdwarf's Workshop Blueprint,Butcher's Shop Blueprint"
+        case "Helm":
+            if type == "":
+                return "ANY:Forge Blueprint,Magma Forge Blueprint,Craftsdwarf's Workshop Blueprint :OR: ALL:Leather Works Blueprint,Tanner's Blueprint"
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Bone":
+                return "ALL:Craftsdwarf's Workshop Blueprint"
+            if type == "Leather":
+                return "ALL:"+standard_location
+        case "Ballista Parts":
+            return "ALL:Siege Workshop Blueprint"
+        case "Catapult Parts":
+            return "ALL:Siege Workshop Blueprint"
+        case "Ballista Arrows":
+            if type == "":
+                return "ALL:Siege Workshop Blueprint"
+            if type == "Metal":
+                return "ALL:"+standard_location+",Siege Workshop Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location+",Siege Workshop Blueprint"
+        case "Ash":
+            return "ALL:Wood Furnace Blueprint"
+        case "Charcoal":
+            return "ALL:Wood Furnace Blueprint"
+        case "Metal Bars":
+            return "ANY:Smelter Blueprint,Magma Smelter Blueprint"
+        case "Coke Bars":
+            return "ANY:Smelter Blueprint,Magma Smelter Blueprint"
+        case "Pearlash":
+            return "ANY:Kiln Blueprint,Magma Kiln Blueprint"
+        case "Gypsum Plaster":
+            return "ANY:Kiln Blueprint,Magma Kiln Blueprint"
+        case "Jug":
+            return "ANY:Kiln Blueprint,Magma Kiln Blueprint"
+        case "Large Pot":
+            return "ANY:Kiln Blueprint,Magma Kiln Blueprint"
+        case "Hive":
+            return "ANY:Kiln Blueprint,Magma Kiln Blueprint"
+        case "Quicklime":
+            return "ANY:Kiln Blueprint,Magma Kiln Blueprint"
+        case "Glass":
+            return "ANY:Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+        case "Window":
+            return "ANY:Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+        case "Book Binding":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Stoneworker's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Stone":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+        case "Scroll Roller":
+            if type == "":
+                return "ANY:Carpenter's Workshop Blueprint,Stoneworker's Workshop Blueprint,Forge Blueprint,Magma Forge Blueprint,Glass Furnace Blueprint,Magma Glass Furnace Blueprint"
+            if type == "Wood":
+                return "ALL:"+standard_location
+            if type == "Stone":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Glass":
+                return "ANY:"+standard_location
+        case "Leather":
+            return "ALL:Tanner's Blueprint"
+        case "Sheet":
+            return "ANY:Screw Press Blueprint,Farmer's Workshop Blueprint,Tanner's Blueprint"
+        case "Cloth":
+            return "ALL:Loom Blueprint"
+        case "Alcohol":
+            return "ALL:Still Blueprint"
+        case "Lye":
+            return "ALL:Ashery Blueprint,Wood Furnace Blueprint"
+        case "Potash":
+            return "ALL:Ashery Blueprint,Wood Furnace Blueprint"
+        case "Milk of Lime":
+            return "ALL:Ashery Blueprint :AND: ANY:Kiln Blueprint,Magma Kiln Blueprint"
+        case "Prepared Meal":
+            return "ALL:Kitchen Blueprint"
+        case "Tallow":
+            return "ALL:Kitchen Blueprint,Butcher's Shop Blueprint"
+        case "Oil":
+            return "ALL:Screw Press Blueprint"
+        case "Press Cake":
+            return "ALL:Screw Press Blueprint"
+        case "Honey":
+            return "ALL:Screw Press Blueprint"
+        case "Bee Wax":
+            return "ALL:Screw Press Blueprint"
+        case "Headgear Clothing":
+            if type == "":
+                return "ALL:Clothier's Shop Blueprint,Loom Blueprint :OR: ALL:Leather Works Blueprint,Tanner's Blueprint"
+            if type == "Cloth":
+                return "ALL:"+standard_location
+            if type == "Leather":
+                return "ALL:"+standard_location
+        case "Upper Body Clothing":
+            if type == "":
+                return "ALL:Clothier's Shop Blueprint,Loom Blueprint :OR: ALL:Leather Works Blueprint,Tanner's Blueprint"
+            if type == "Cloth":
+                return "ALL:"+standard_location
+            if type == "Leather":
+                return "ALL:"+standard_location
+        case "Upper Body Armor":
+            if type == "":
+                return "ANY:Forge Blueprint,Magma Forge Blueprint :OR: ALL:Leather Works Blueprint,Tanner's Blueprint"
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Leather":
+                return "ALL:"+standard_location
+        case "Hand Clothing":
+            if type == "":
+                return "ALL:Clothier's Shop Blueprint,Loom Blueprint :OR: ALL:Leather Works Blueprint,Tanner's Blueprint"
+            if type == "Cloth":
+                return "ALL:"+standard_location
+            if type == "Leather":
+                return "ALL:"+standard_location     
+        case "Gauntlets":
+            if type == "":
+                return "ANY:Forge Blueprint,Magma Forge Blueprint,Craftsdwarf's Workshop Blueprint"
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Bone":
+                return "ALL:Craftsdwarf's Workshop Blueprint"
+        case "Lower Body Clothing":
+            if type == "":
+                return "ALL:Clothier's Shop Blueprint,Loom Blueprint :OR: ALL:Leather Works Blueprint,Tanner's Blueprint"
+            if type == "Cloth":
+                return "ALL:"+standard_location
+            if type == "Leather":
+                return "ALL:"+standard_location     
+        case "Lower Body Armor":
+            if type == "":
+                return "ANY:Forge Blueprint,Magma Forge Blueprint,Craftsdwarf's Workshop Blueprint :OR: ALL:Leather Works Blueprint,Tanner's Blueprint"
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Bone":
+                return "ALL:Craftsdwarf's Workshop Blueprint"
+            if type == "Leather":
+                return "ALL:"+standard_location
+        case "Footwear":
+            if type == "":
+                return "ANY:Forge Blueprint,Magma Forge Blueprint :OR: ALL:Leather Works Blueprint,Tanner's Blueprint :OR: ALL:Clothier's Shop Blueprint,Loom Blueprint"
+            if type == "Metal":
+                return "ANY:"+standard_location
+            if type == "Cloth":
+                return "ALL:"+standard_location
+            if type == "Leather":
+                return "ALL:"+standard_location
+        case "Dye":
+            return "ALL:Loom Blueprint,Dyer's Workshop Blueprint"
+        case "Bag":
+            if type == "":
+                return "ALL:Clothier's Shop Blueprint,Loom Blueprint :OR: ALL:Leather Works Blueprint,Tanner's Blueprint"
+            if type == "Cloth":
+                return "ALL:"+standard_location
+            if type == "Leather":
+                return "ALL:"+standard_location     
+        case "Rope/Chain":
+            if type == "":
+                return "ANY:Forge Blueprint,Magma Forge Blueprint :OR: ALL:Clothier's Shop Blueprint,Loom Blueprint"
+            if type == "Cloth":
+                return "ALL:"+standard_location
+            if type == "Metal":
+                return "ANY:"+standard_location
+        case "Battle Axe":
+            return "ANY:Forge Blueprint,Magma Forge Blueprint"
+        case "Mace":
+            return "ANY:Forge Blueprint,Magma Forge Blueprint"
+        case "Pick":
+            return "ANY:Forge Blueprint,Magma Forge Blueprint"
+        case "Short Sword":
+            return "ANY:Forge Blueprint,Magma Forge Blueprint"
+        case "Spear":
+            return "ANY:Forge Blueprint,Magma Forge Blueprint"
+        case "War Hammer":
+            return "ANY:Forge Blueprint,Magma Forge Blueprint"
+        case "Anvil":
+            return "ANY:Forge Blueprint,Magma Forge Blueprint"
+        case "Coins":
+            return "ANY:Forge Blueprint,Magma Forge Blueprint"
+        case "Soap":
+            return "ALL:Wood Furnace Blueprint,Ashery Blueprint,Soap Maker's Workshop Blueprint :AND: ALL:Butcher's Shop Blueprint,Kitchen Blueprint OR ALL:Screw Press Blueprint"
+    print("We missed something"+item+" "+type)
+    
 
 def assign_locationid_block(item: str) -> int:
     match item:
@@ -170,8 +732,8 @@ def assign_locationid_block(item: str) -> int:
         case "Cup": return 19400
         case "Toy": return 19600
         case "Totem": return 19800
-        case "Leggings": return 20000
-        case "Greaves": return 20200
+#        case "Leggings": return 20000
+        case "Gauntlets": return 20200
         case "Helm": return 20400
         case "Ballista Parts": return 20600
         case "Catapult Parts": return 20800
