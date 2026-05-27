@@ -4,6 +4,7 @@
 -- The AP location IDs must match locations.py (BASE_ID = 37370000).
 
 local M = {}
+local json = require('json')
 
 -- ── Noble position helper ─────────────────────────────────────────────────────
 -- Uses dfhack.units.getUnitsByNobleRole(code) which is available in DFHack 0.47+
@@ -217,6 +218,49 @@ end
 -- Expose wealth accessor so main.lua can use it for the goal check
 -- without duplicating the DF50 / Classic fallback logic.
 M.fortress_wealth = fortress_wealth
+
+-- ── Craft count helpers ───────────────────────────────────────────────────────
+-- Cumulative counts of completed production jobs per flag, persisted in world
+-- data.  Incremented by the eventful job hook in dwarfipelago.lua.
+-- Key format: "dwarfipelago/craft_count/<flag_name>"
+
+local CRAFT_COUNT_PREFIX = "dwarfipelago/craft_count/"
+
+function M.increment_craft_count(flag)
+    local key = CRAFT_COUNT_PREFIX .. flag
+    local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
+    dfhack.persistent.saveWorldDataString(key, tostring(n))
+    return n
+end
+
+function M.get_craft_count(flag)
+    return tonumber(dfhack.persistent.getWorldDataString(CRAFT_COUNT_PREFIX .. flag)) or 0
+end
+
+-- Read craft milestone configs written by the AP client during _sync_slot_data.
+-- Returns a list of {flag=string, threshold=number, id=number, name=string?}.
+-- Written to key "dwarfipelago/craft_checks" as a JSON array.
+-- Returns an empty table when not yet synced.
+function M.get_craft_check_configs()
+    local raw = dfhack.persistent.getWorldDataString("dwarfipelago/craft_checks")
+    if not raw or raw == "" then return {} end
+    return json.decode(raw) or {}
+end
+
+-- Print all craft counts referenced by the current config as a JSON object.
+-- Called by the AP client to poll progress:
+--   run_command("lua", 'reqscript("internal/dwarfipelago/checks").print_craft_counts()')
+function M.print_craft_counts()
+    local counts = {}
+    local seen   = {}
+    for _, cfg in ipairs(M.get_craft_check_configs()) do
+        if cfg.flag and not seen[cfg.flag] then
+            seen[cfg.flag] = true
+            counts[cfg.flag] = M.get_craft_count(cfg.flag)
+        end
+    end
+    print(json.encode(counts))
+end
 
 -- reqscript returns the script's _ENV, not the explicit return value.
 -- Copy all module exports into _ENV so callers can access them as globals.
