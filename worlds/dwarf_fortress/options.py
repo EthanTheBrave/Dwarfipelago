@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from Options import Choice, Range, PerGameCommonOptions, DeathLink, OptionList, Toggle
+from Options import Choice, Range, PerGameCommonOptions, DeathLink, OptionList, Toggle, StartInventory
 
 
 class DwarfFortressGoal(Choice):
@@ -69,12 +69,12 @@ class VariableItemCreationLocations(OptionList):
         "Pipe Section", "Shield", "Splint", "Stepladder", "Table", "Training Axe", "Training Spear",
         "Training Sword", "Weapon Rack", "Wheelbarrow", "Crossbow", "Bolt", "Millstone", "Quern",
         "Slab", "Statue", "Mechanism", "Traction Bench", "Crafts", "Liquid Container", "Goblet",
-        "Mug", "Cup", "Toy", "Totem", "Leggings", "Greaves", "Helm", "Ballista Parts",
-        "Catapult Parts", "Ballista Arrows", "Ash", "Charcoal", "Metal Bars", "Coke Bars", "Pearlash",
-        "Gypsum Plaster", "Jug", "Large Pot", "Hive", "Quicklime", "Glass", "Window", "Book Binding",
+        "Mug", "Cup", "Toy", "Totem", "Helm", "Ballista Parts", "Catapult Parts", "Ballista Arrows",
+        "Ash", "Charcoal", "Metal Bars", "Coke Bars", "Pearlash", "Gypsum Plaster", "Jug", "Large Pot",
+        "Hive", "Quicklime", "Glass", "Window", "Book Binding",
         "Scroll Roller", "Leather", "Sheet", "Cloth", "Alcohol", "Lye", "Potash", "Milk of Lime",
         "Prepared Meal", "Tallow", "Oil", "Press Cake", "Honey", "Bee Wax", "Headgear Clothing",
-        "Upper Body Clothing", "Upper Body Armor", "Hand Clothing", "Lower Body Clothing",
+        "Upper Body Clothing", "Upper Body Armor", "Hand Clothing", "Gauntlets", "Lower Body Clothing",
         "Lower Body Armor", "Footwear", "Dye", "Bag", "Rope/Chain", "Battle Axe", "Mace",
         "Pick", "Short Sword", "Spear", "War Hammer", "Anvil", "Coins", "Soap"
     }
@@ -116,6 +116,11 @@ class VariableItemCreationThreshold(Range):
     range_end = 100
     default = 5
 
+class StartingDefaultDFInventory(StartInventory):
+    """Starting Blueprints to make your starting game less "fun" """
+    display_name = "Start Inventory"
+    default = {"Carpenter's Workshop Blueprint": 1, "Stoneworker's Workshop Blueprint": 1, "Still Blueprint": 1}
+
 @dataclass
 class DwarfFortressOptions(PerGameCommonOptions):
     deathlink: DeathLink
@@ -130,3 +135,5 @@ class DwarfFortressOptions(PerGameCommonOptions):
     craftable_max_amount: VariableItemCreationMaxAmount
     craftable_threshold: VariableItemCreationThreshold
     trap_item_weight: TrapItemWeight
+    start_inventory: StartingDefaultDFInventory
+

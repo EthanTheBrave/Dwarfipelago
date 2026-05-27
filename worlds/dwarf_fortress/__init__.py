@@ -120,22 +120,22 @@ class DwarfFortressWorld(World):
         # 1. Always add every progression item.
         for item_data in required:
             for _ in range(item_data.quantity):
-                item_pool.append(self._make_item(item_data.name))
+                item_pool.append(self.create_item(item_data.name))
 
         # 2. Fill remaining slots from optional items (shuffled for variety).
         remaining = location_count - len(item_pool)
         shuffled_optional = list(optional)
         self.random.shuffle(shuffled_optional)
         for item_data in shuffled_optional[:max(remaining, 0)]:
-            item_pool.append(self._make_item(item_data.name))
+            item_pool.append(self.create_item(item_data.name))
 
         # 3. Pad with filler/traps if still under location count
         #    (happens when progression items alone outnumber locations).
         while len(item_pool) < location_count:
             if self.random.random() < trap_weight and TRAP_ITEMS:
-                item_pool.append(self._make_item(self.random.choice(TRAP_ITEMS).name))
+                item_pool.append(self.create_item(self.random.choice(TRAP_ITEMS).name))
             else:
-                item_pool.append(self._make_item(self.random.choice(FILLER_ITEMS).name))
+                item_pool.append(self.create_item(self.random.choice(FILLER_ITEMS).name))
 
         self.multiworld.itempool += item_pool
 
@@ -168,7 +168,7 @@ class DwarfFortressWorld(World):
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
-    def _make_item(self, name: str) -> DwarfFortressItem:
+    def create_item(self, name: str) -> DwarfFortressItem:
         classification = ItemClassification.filler
         for item_data in AP_ITEM_POOL:
             if item_data.name == name:

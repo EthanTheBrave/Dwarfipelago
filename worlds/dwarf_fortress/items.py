@@ -50,6 +50,13 @@ BLUEPRINT_ITEMS: list[ItemData] = [
     ItemData("Magma Glass Furnace Blueprint",    BASE_ID + 564, ItemClassification.progression),
     # Buildings
     ItemData("Farm Plot Blueprint",              BASE_ID + 565, ItemClassification.progression),
+    # Normally Start with
+    ItemData("Carpenter's Workshop Blueprint",   BASE_ID + 566, ItemClassification.progression),
+    ItemData("Stoneworker's Workshop Blueprint", BASE_ID + 567, ItemClassification.progression),
+    ItemData("Still Blueprint",                  BASE_ID + 568, ItemClassification.progression),
+    
+    ItemData("Leather Works Blueprint",          BASE_ID + 569, ItemClassification.progression),
+
 ]
 
 PROGRESSION_ITEMS: list[ItemData] = [
