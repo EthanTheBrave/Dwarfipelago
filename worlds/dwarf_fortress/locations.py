@@ -11,7 +11,8 @@ class LocationData:
     ap_id: int
     region: str = "Fortress"
     goal_only: bool = False  # if True, only relevant for a specific goal
-    item_requirements: str = ""
+    material_type: str = ""
+    df_item: str = ""
 
 
 # ── Wealth Milestones ─────────────────────────────────────────────────────────

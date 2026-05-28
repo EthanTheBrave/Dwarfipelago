@@ -1,4 +1,5 @@
 from BaseClasses import MultiWorld
+from worlds.dwarf_fortress.crafting_locations import DynamicCraftingLocationRules
 from .options import DwarfFortressGoal
 
 
@@ -48,51 +49,9 @@ def set_rules(world: "DwarfFortressWorld") -> None:
             loc.access_rule = lambda state, bp=blueprint_name: state.has(bp, player)
 
     # -- Dynamic location requirements -----------------------------------------
-    for location in world.dynamic_locations:
-        loc = multiworld.get_location(location.name, player)
-        if location.item_requirements != "":
-            #handle :AND: :OR: rules
-            and_check = False
-            or_check = False
-            and_split = []
-            or_split = []
-            
-            if ":AND" in location.item_requirements:
-                and_check = True
-                and_split = str.split(location.item_requirements, " :AND: ")
-            if  ":OR:" in location.item_requirements:
-                or_check = True
-                or_split = str.split(location.item_requirements, " :OR: ")
-
-            if and_check == False and or_check == False:
-                rule_type = "ALL"
-                if "ALL:" in location.item_requirements:
-                    location.item_requirements = str.replace(location.item_requirements, "ALL:", "")
-                elif "ANY:" in location.item_requirements:
-                    rule_type = "ANY"
-                    location.item_requirements = str.replace(location.item_requirements, "ANY:", "")
-                split = str.split(location.item_requirements, ",")
-                if len(split) == 0:
-                    loc.access_rule = lambda state: state.has(location.item_requirements, player)
-                else:
-                    if rule_type == "ALL":
-                        loc.access_rule = lambda state: state.has_all(split, player)
-                    else:
-                        loc.access_rule = lambda state: state.has_any(split, player)
-            elif and_check == False and or_check == True:
-                i = 0
-                type_list = {}
-                for requirements in or_split:
-                    rule_type = "ALL"
-                    if "ALL:" in requirements:
-                        requirements = str.replace(requirements, "ALL:", "")
-                    elif "ANY:" in requirements:
-                        rule_type = "ANY"
-                        requirements = str.replace(requirements, "ANY:", "")
-                    split = str.split(requirements, ",")
-                    type_list.update({i, {rule_type, split}})
-                    i +=1
-                print(type_list)
+    if len(world.dynamic_locations) > 0:
+        dynamic_rules = DynamicCraftingLocationRules(world)
+        dynamic_rules.set_dynamic_rules()
 
     # ── Goal condition ────────────────────────────────────────────────────────
     goal_location = multiworld.get_location("Goal", player)
