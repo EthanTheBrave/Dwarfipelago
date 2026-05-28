@@ -57,6 +57,13 @@ class EnableItemCreationLocation(Choice):
     option_on = 1
     option_storage = 2
 
+class TradesInLogic(Toggle):
+    """
+    Should resource trading be considered in logic?
+    EX: trade for Metal Bars instead of requiring a Smelter Blueprint
+    """
+    display_name = "Resource Trading in Logic"
+
 class VariableItemCreationLocations(OptionList):
     """
     If Craftable locations are enabled, which items to craft X amount are checks.
@@ -129,6 +136,7 @@ class DwarfFortressOptions(PerGameCommonOptions):
     wealth_goal_amount: WealthGoalAmount
     population_goal_amount: PopulationGoalAmount
     craftable_locations: EnableItemCreationLocation
+    trades_inlogic: TradesInLogic
     craftable_items: VariableItemCreationLocations
     craftable_enable_materials: VariableItemMaterialToggle
     craftable_materials: VariableItemTypeCreationLocations
@@ -136,4 +144,3 @@ class DwarfFortressOptions(PerGameCommonOptions):
     craftable_threshold: VariableItemCreationThreshold
     trap_item_weight: TrapItemWeight
     start_inventory: StartingDefaultDFInventory
-
