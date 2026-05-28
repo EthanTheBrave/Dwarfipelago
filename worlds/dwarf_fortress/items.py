@@ -79,9 +79,10 @@ TRAP_ITEMS: list[ItemData] = [
     ItemData("Goblin Trophy",          BASE_ID + 532, ItemClassification.trap),
 ]
 
-# ── Items DF receives from other players ─────────────────────────────────────
-# (These are delivered in-game; they don't go into the AP item pool,
-#  but we define them here for name→ID mapping used by the client.)
+# ── Items the DF player receives from the multiworld ─────────────────────────
+# These ARE part of the AP item pool — they must be placed at locations so the
+# AP server can route them back to the DF player when those locations are checked.
+# The client's deliver_item() call hands them off to items.lua for in-game effect.
 
 RECEIVED_TRADE_GOODS: list[ItemData] = [
     ItemData("Cut Sapphire",           BASE_ID + 600, ItemClassification.useful),
@@ -108,17 +109,31 @@ RECEIVED_TRAPS: list[ItemData] = [
     ItemData("Lost Caravan",           BASE_ID + 624, ItemClassification.trap),
 ]
 
-# Pool that goes into the AP multiworld (what DF sends to others)
-AP_ITEM_POOL: list[ItemData] = (
-    BLUEPRINT_ITEMS + PROGRESSION_ITEMS + USEFUL_ITEMS + FILLER_ITEMS + TRAP_ITEMS
-)
+# Pool that goes into the AP multiworld.
+#
+# BLUEPRINT_ITEMS are progression-gated items the DF player must receive to
+# unlock workshops. They must ALL be in the pool — create_items() guarantees
+# they are never trimmed, regardless of location count.
+#
+# PROGRESSION_ITEMS / USEFUL_ITEMS / FILLER_ITEMS / TRAP_ITEMS are outbound
+# items DF contributes that other players may find.
+#
+# RECEIVED_* are items routed back to the DF player (trade goods, resources,
+# traps) — they live in the pool so the AP server can place them at locations.
+AP_ITEM_POOL: list[ItemData] = \
+    BLUEPRINT_ITEMS \
+    + PROGRESSION_ITEMS \
+    + USEFUL_ITEMS \
+    + FILLER_ITEMS \
+    + TRAP_ITEMS \
+    + RECEIVED_TRADE_GOODS \
+    + RECEIVED_RESOURCES \
+    + RECEIVED_TRAPS \
 
-# All items (for name→ID mapping, including received items)
-ALL_ITEMS: list[ItemData] = (
-    AP_ITEM_POOL
-    + RECEIVED_TRADE_GOODS
-    + RECEIVED_RESOURCES
-    + RECEIVED_TRAPS
-)
 
-ITEM_TABLE: dict[str, int] = {item.name: item.ap_id for item in ALL_ITEMS}
+# All items (for name→ID mapping used by item_name_to_id).
+# AP_ITEM_POOL already covers every item the world deals with.
+ALL_ITEMS: list[ItemData] = AP_ITEM_POOL
+ITEM_TABLE: dict[str, int] = {}
+for data in ALL_ITEMS:
+    ITEM_TABLE.update({data.name: data.ap_id})

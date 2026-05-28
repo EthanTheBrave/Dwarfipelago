@@ -7,39 +7,60 @@ Complete economic and production milestones in your fortress to send items to ot
 ## Requirements
 
 - Dwarf Fortress (Steam 2022+ or Classic)
-- [DFHack](https://github.com/DFHack/dfhack) — bundled with the Steam version; install separately for Classic
-- [Archipelago](https://archipelago.gg/) 0.4.0+
+- [DFHack](https://github.com/DFHack/dfhack) — Can also be downloaded through [Steam](https://store.steampowered.com/app/2346660/DFHack__Dwarf_Fortress_Modding_Engine/)
+- [Archipelago](https://archipelago.gg/) 0.6.7
 
 ## Components
 
 | Component | Path | Description |
 |-----------|------|-------------|
 | AP World | `worlds/dwarf_fortress/` | Archipelago world definition — install into your AP `worlds/` folder or package as `.apworld` |
-| DFHack Mod | `dfhack/scripts/dwarfipelago/` | Lua scripts — copy into your DF `dfhack/hack/scripts/` folder |
+| DFHack Mod | `mods/dwarfipelago/` | DFHack mod — copy into your DF installation's `mods/` folder |
 | AP Client | `worlds/dwarf_fortress/DwarfFortressClient.py` | Bundled inside the AP world package — launched automatically by the AP launcher |
 
 ## Quick Setup
 
+### Prerequisites
+
+- **Dwarf Fortress** (Steam) — installed via Steam
+- **DFHack** — installed as a separate Steam item ([DFHack on Steam](https://store.steampowered.com/app/2346660/DFHack__Dwarf_Fortress_Modding_Engine/))
+  - Steam installs DFHack to `<SteamLibrary>\steamapps\common\DFHack\`
+- **Archipelago** 0.6.7 — installed to `C:\ProgramData\Archipelago\` by default
+
+---
+
 1. **Install the AP World**
-   - Copy `worlds/dwarf_fortress/` into your Archipelago `worlds/` directory
-   - Or package it as an `.apworld` (run from inside the `worlds/` directory):
-     ```
-     cd worlds && zip -r ../dwarf_fortress.apworld dwarf_fortress/
-     ```
+   - download `dwarfipelago.apworld` in the release section and double click `dwarfipelago.apworld` which will then copy the apworld to custom_worlds
 
 2. **Install the DFHack mod**
-   - Copy `dfhack/scripts/dwarfipelago/` into your DF installation's `dfhack/hack/scripts/` folder
-   - Steam (Windows): `C:\Program Files (x86)\Steam\steamapps\common\Dwarf Fortress\dfhack\hack\scripts\`
 
-3. **Configure the game path** in your Archipelago `host.yaml`:
-   ```yaml
-   dwarf_fortress_options:
-     game_path: C:\Program Files (x86)\Steam\steamapps\common\Dwarf Fortress\launchdf.exe
+   Copy over `mods` which will create `mods\dwarfipelago\` folder inside your DF installation (the folder won't exist by default)
+   If you are updating to a newer version, delete `mods\dwarfipelago\` and then copy over `mods\dwarfipelago\`.
    ```
+   <SteamLibrary>\steamapps\common\Dwarf Fortress\mods
+   ```
+   The contents of `mods/dwarfipelago/` result looks like:
+   ```
+    info.txt
+    scripts_modinstalled\
+      dwarfipelago.lua
+      internal\
+        dwarfipelago\
+          checks.lua
+          items.lua
+          state.lua
+   ```
+   Then **enable the mod** in DF's in-game mod manager before generating or loading a world.
 
-4. **Generate your Archipelago session** with a `DwarfFortress.yaml` options file (see `worlds/dwarf_fortress/docs/setup_en.md`)
+   > **Note:** When DF enables a mod it copies it to a separate snapshot directory. If you update the mod files later, you must also update the snapshot or re-enable the mod. The snapshot lives at:
+   > ```
+   > %AppData%\Roaming\Bay 12 Games\Dwarf Fortress\data\installed_mods\dwarfipelago (1)\
+   > ```
+   > On Windows, paste that path into Explorer's address bar. Any time you change a `.lua` file during development, copy it to the matching path in `installed_mods` (or simply disable and re-enable the mod in DF's mod manager to regenerate the snapshot automatically).
 
-5. **In the Archipelago launcher:**
+3. **Generate your Archipelago session** with a `DwarfFortress.yaml` options file (see `worlds/dwarf_fortress/docs/setup_en.md`)
+
+4. **In the Archipelago launcher:**
    - Click **Dwarf Fortress** to launch the game
    - Load or embark on a fortress
    - Click **Dwarf Fortress Client** and connect to your server
@@ -101,7 +122,7 @@ Dwarfipelago supports Archipelago's DeathLink system with a configurable thresho
 
 - **"Dwarf Fortress not found"** — set `game_path` in `host.yaml` (see Step 4 above)
 - **Client can't connect to DFHack** — ensure DFHack is running and its remote API is active on `127.0.0.1:5000`
-- **Mod doesn't start automatically** — load a fortress first and wait ~5 seconds; you can also run `dwarfipelago/main start` manually in the DFHack console
+- **Mod doesn't start automatically** — load a fortress first and wait ~5 seconds; you can also run `dwarfipelago start` manually in the DFHack console
 - **Items not arriving** — check the client log window; items are delivered via DFHack script calls when the client is connected
 
 For full setup details see [`worlds/dwarf_fortress/docs/setup_en.md`](worlds/dwarf_fortress/docs/setup_en.md).
