@@ -150,6 +150,9 @@ class DwarfFortressWorld(World):
         return self.random.choice(FILLER_ITEMS).name
 
     def fill_slot_data(self) -> dict[str, Any]:
+        crafting_location_data = {}
+        for locations in self.dynamic_locations:
+            crafting_location_data[locations.ap_id] = {"item": locations.df_item, "material": locations.material_type}
         return {
             "goal": self.options.goal.value,
             "wealth_goal_amount": self.options.wealth_goal_amount.value,
@@ -157,6 +160,7 @@ class DwarfFortressWorld(World):
             "deathlink_threshold": self.options.deathlink_threshold.value,
             "seed": self.random.randint(12212, 9090763),
             "player_name": self.player_name,
+            "crafting_locations": crafting_location_data
         }
 
     # ── Completion condition ──────────────────────────────────────────────────

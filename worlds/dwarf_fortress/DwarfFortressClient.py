@@ -540,13 +540,15 @@ class DwarfFortressContext(CommonContext):
         current_seed = self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("dwarfipelago/seed"))')
         self._deathlink_threshold = int(dl_threshold)
         if current_seed == 'nil' or current_seed == str(seed):
-            def write():
-                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/goal", "{goal}")')
-                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/wealth_goal", "{wealth_goal}")')
-                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/pop_goal", "{pop_goal}")')
-                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_threshold", "{dl_threshold}")')
-                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/seed", "{seed}")')
-            write()
+            if current_seed == 'nil':
+                def write():
+                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/goal", "{goal}")')
+                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/wealth_goal", "{wealth_goal}")')
+                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/pop_goal", "{pop_goal}")')
+                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_threshold", "{dl_threshold}")')
+                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/seed", "{seed}")')
+                write()
+                self.init_crafting_locations(slot_data.get("crafting_locations"))
             self._slot_data_synced = True
             logger.info(f"Synced slot data → goal={goal}, wealth_goal={wealth_goal}, pop_goal={pop_goal}, dl_threshold={dl_threshold}")
         else:
@@ -647,6 +649,15 @@ class DwarfFortressContext(CommonContext):
             self._goal_complete = True
             await self.send_msgs([{"cmd": "StatusUpdate", "status": ClientStatus.CLIENT_GOAL}])
             logger.info("Goal complete — sent ClientStatus.CLIENT_GOAL to AP server")
+
+    def init_crafting_locations(self, crafting_location):
+        for crafts in crafting_location:
+            storage_name ="dwarfipelago/"
+            if crafting_location[crafts]["material"] == "": #material type doesn't matter, add them all
+                storage_name += crafting_location[crafts]["item"]
+            else:
+                storage_name ="dwarfipelago/"+crafting_location[crafts]["item"] + "_"+crafting_location[crafts]["material"]
+            self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("{storage_name}", "0")')
 
     # ── CommonClient overrides ────────────────────────────────────────────────
 
