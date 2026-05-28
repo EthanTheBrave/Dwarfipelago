@@ -98,7 +98,7 @@ class VariableItemTypeCreationLocations(OptionList):
     """
     Select which item types for craft X amount are required.
     """
-    display_name = "Craftable X Items locations"
+    display_name = "Craftable X Items Materials"
     valid_keys = {
         "Stone", "Wood", "Metal", "Glass", "Leather", "Cloth", "Bone", "Ceramic"
     }
