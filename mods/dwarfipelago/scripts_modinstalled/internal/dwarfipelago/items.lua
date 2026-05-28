@@ -1,3 +1,4 @@
+--@ module = true
 -- Item spawning for Dwarfipelago.
 -- Called when the AP client delivers an item to the fortress.
 -- Each handler uses dfhack.run_script or direct df API calls to apply the effect.
@@ -6,13 +7,33 @@ local M = {}
 
 -- ── Helpers ───────────────────────────────────────────────────────────────────
 
--- Spawn a single item at the trade depot / first available stockpile.
--- Falls back to dropping it at the cursor position if no depot exists.
+-- Spawn a single item at a living citizen's position.
+-- createitem places items at the keyboard cursor, so we move the cursor to a
+-- citizen's tile first — that guarantees a valid, walkable floor tile rather
+-- than (0,0,0) in solid rock (which is what happens when called via RPC with
+-- no active UI cursor).
 local function spawn_item(item_type, material, quantity)
     quantity = quantity or 1
+
+    -- Anchor the cursor at the first living citizen's position.
+    local anchored = false
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+            df.global.cursor.x = unit.pos.x
+            df.global.cursor.y = unit.pos.y
+            df.global.cursor.z = unit.pos.z
+            anchored = true
+            break
+        end
+    end
+    if not anchored then
+        dfhack.printerr("[Dwarfipelago] spawn_item: no living citizen found — cannot place " .. item_type)
+        return
+    end
+
     for _ = 1, quantity do
-        -- createitem script: "createitem <type> <material> [<quantity>]"
-        -- e.g. createitem ITEM_GEM_ROUGH ONYX
+        -- createitem plugin: "createitem <item-token> <material>"
+        -- e.g. createitem SMALLGEM INORGANIC:RUBY
         local ok, err = pcall(function()
             dfhack.run_script("createitem", item_type, material)
         end)
@@ -26,69 +47,110 @@ local function announce(msg)
     dfhack.gui.showAnnouncement("[AP] " .. msg, COLOR_GREEN, true)
 end
 
+-- Return the position of a living citizen as a spawn anchor (guaranteed walkable).
+-- Falls back to map centre if no citizens are found.
+local function get_fort_spawn_pos()
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+            return tostring(unit.pos.x), tostring(unit.pos.y), tostring(unit.pos.z)
+        end
+    end
+    local map = df.global.world.map
+    return tostring(math.floor(map.x_count / 2)),
+           tostring(math.floor(map.y_count / 2)),
+           tostring(map.z_count - 1)
+end
+
+-- Find the entity ID of a goblin civilisation in the world so spawned goblins
+-- belong to an enemy faction. Returns -1 if none found (e.g. goblin-free worlds).
+local function find_goblin_civ_id()
+    local creatures = df.global.world.raws.creatures.all
+    for _, ent in ipairs(df.global.world.entities.all) do
+        local ok, id = pcall(function()
+            if ent.race >= 0 and ent.race < #creatures then
+                if creatures[ent.race].creature_id == "GOBLIN" then
+                    return ent.id
+                end
+            end
+        end)
+        if ok and id then return id end
+    end
+    return -1
+end
+
 -- ── Item handlers: trade goods ────────────────────────────────────────────────
+-- createitem syntax: <item-token> <material>
+--   Cut gems  → SMALLGEM INORGANIC:<gem>   (SMALLGEM = cut gem; ROUGH = uncut)
+--   Metal bars → BAR INORGANIC:<metal>
+--   Figurines  → FIGURINE INORGANIC:<stone>
 
 local function recv_cut_sapphire()
-    spawn_item("ITEM_GEM_ROUGH", "SAPPHIRE")
+    spawn_item("SMALLGEM", "INORGANIC:SAPPHIRE")
     announce("Received: Cut Sapphire!")
 end
 
 local function recv_cut_ruby()
-    spawn_item("ITEM_GEM_ROUGH", "RUBY")
+    spawn_item("SMALLGEM", "INORGANIC:RUBY")
     announce("Received: Cut Ruby!")
 end
 
 local function recv_cut_diamond()
-    spawn_item("ITEM_GEM_ROUGH", "DIAMOND")
+    spawn_item("SMALLGEM", "INORGANIC:DIAMOND")
     announce("Received: Cut Diamond!")
 end
 
 local function recv_gold_bar()
-    spawn_item("ITEM_BAR", "METAL:GOLD")
+    spawn_item("BAR", "INORGANIC:GOLD")
     announce("Received: Gold Bar!")
 end
 
 local function recv_silver_bar()
-    spawn_item("ITEM_BAR", "METAL:SILVER")
+    spawn_item("BAR", "INORGANIC:SILVER")
     announce("Received: Silver Bar!")
 end
 
 local function recv_steel_bar()
-    spawn_item("ITEM_BAR", "METAL:STEEL")
+    spawn_item("BAR", "INORGANIC:STEEL")
     announce("Received: Steel Bar!")
 end
 
 local function recv_masterwork_craft()
-    spawn_item("ITEM_CRAFTS", "STONE:OBSIDIAN")
+    -- FIGURINE is the correct item token for a craft figurine.
+    spawn_item("FIGURINE", "INORGANIC:OBSIDIAN")
     announce("Received: Masterwork Craft!")
 end
 
 -- ── Item handlers: resources ──────────────────────────────────────────────────
+-- createitem syntax:
+--   Food (edible growths) → PLANT_GROWTH PLANT:<plant>:<growth>
+--   Wood logs             → WOOD PLANT_MAT:<tree>:WOOD
+--   Iron ore boulders     → BOULDER INORGANIC:<ore>
+--   Fuel bars             → BAR COAL:COKE  (or COAL:CHARCOAL)
 
 local function recv_food_bundle()
     for _ = 1, 5 do
-        spawn_item("ITEM_FOOD", "MUSHROOM_HELMET_PLUMP:MUSHROOM")
+        spawn_item("PLANT_GROWTH", "PLANT:MUSHROOM_HELMET_PLUMP:MUSHROOM")
     end
-    announce("Received: Food Bundle (5 meals)!")
+    announce("Received: Food Bundle (5 plump helmets)!")
 end
 
 local function recv_wood_bundle()
     for _ = 1, 5 do
-        spawn_item("ITEM_WOOD", "WOOD:OAK")
+        spawn_item("WOOD", "PLANT_MAT:OAK:WOOD")
     end
     announce("Received: Wood Bundle (5 logs)!")
 end
 
 local function recv_iron_ore_bundle()
     for _ = 1, 5 do
-        spawn_item("ITEM_BOULDER", "STONE:LIMONITE")
+        spawn_item("BOULDER", "INORGANIC:LIMONITE")
     end
     announce("Received: Iron Ore Bundle!")
 end
 
 local function recv_coal_bundle()
     for _ = 1, 3 do
-        spawn_item("ITEM_BAR", "COAL:COKE")
+        spawn_item("BAR", "COAL:COKE")
     end
     announce("Received: Coal Bundle!")
 end
@@ -98,13 +160,19 @@ end
 local function recv_goblin_ambush()
     announce("Trap: Goblin Ambush incoming!")
     -- Spawn 3 hostile goblins via modtools/create-unit.
-    -- -setUnitToFort places them near the fortress entrance.
+    -- -location is required; we anchor to a living citizen's tile.
+    -- Goblins are assigned to their civilisation's civ ID so they are treated as
+    -- enemies. -setUnitToFort is intentionally NOT used — that would make them
+    -- friendly fortress members instead of raiders.
+    local x, y, z   = get_fort_spawn_pos()
+    local civ_id_str = tostring(find_goblin_civ_id())
     local ok, err = pcall(function()
         for _ = 1, 3 do
             dfhack.run_script("modtools/create-unit",
-                "-race", "GOBLIN",
-                "-caste", "GOBLIN",
-                "-setUnitToFort"
+                "-race",     "GOBLIN",
+                "-civId",    civ_id_str,
+                "-groupId",  "-1",
+                "-location", "[", x, y, z, "]"
             )
         end
     end)
@@ -115,11 +183,15 @@ end
 
 local function recv_cave_bear()
     announce("Trap: A Cave Bear has found its way in!")
+    -- Wild (civId=-1) cave bear — wild animals attack dwarves on sight.
+    -- -setUnitToFort is intentionally NOT used as that would tame the bear.
+    local x, y, z = get_fort_spawn_pos()
     local ok, err = pcall(function()
         dfhack.run_script("modtools/create-unit",
-            "-race", "CAVE_BEAR",
-            "-caste", "CAVE_BEAR",
-            "-setUnitToFort"
+            "-race",     "CAVE_BEAR",
+            "-civId",    "-1",
+            "-groupId",  "-1",
+            "-location", "[", x, y, z, "]"
         )
     end)
     if not ok then
@@ -128,21 +200,26 @@ local function recv_cave_bear()
 end
 
 local function recv_vermin_infestation()
-    announce("Trap: Vermin Infestation! Rats everywhere!")
-    -- Spawn 10 rats scattered through the fortress.
+    announce("Trap: Vermin Infestation! Giant rats everywhere!")
+    -- RAT is a [VERMIN_SOIL] creature and cannot be spawned as a full unit.
+    -- GIANT_RAT is a proper hostile creature that serves the same narrative role.
+    -- Wild (civId=-1) so they attack dwarves. Spread across a 10-tile radius.
+    local x, y, z = get_fort_spawn_pos()
     local spawned = 0
     for _ = 1, 10 do
         local ok = pcall(function()
             dfhack.run_script("modtools/create-unit",
-                "-race", "RAT",
-                "-caste", "RAT",
-                "-setUnitToFort"
+                "-race",          "GIANT_RAT",
+                "-civId",         "-1",
+                "-groupId",       "-1",
+                "-location",      "[", x, y, z, "]",
+                "-locationRange", "[", "10", "10", "0", "]"
             )
         end)
         if ok then spawned = spawned + 1 end
     end
     if spawned == 0 then
-        dfhack.printerr("[Dwarfipelago] vermin_infestation: could not spawn any vermin")
+        dfhack.printerr("[Dwarfipelago] vermin_infestation: could not spawn any giant rats")
     end
 end
 
@@ -176,7 +253,7 @@ end
 
 local function recv_lost_caravan()
     -- Flag that the next caravan should be skipped / arrive empty.
-    dfhack.persistent.setSiteData("dwarfipelago/trap/lost_caravan", "1")
+    dfhack.persistent.saveWorldDataString("dwarfipelago/trap/lost_caravan", "1")
     announce("Trap: A caravan has been lost on the road...")
 end
 
@@ -243,10 +320,16 @@ local BLUEPRINT_NAMES = {
 }
 
 -- Register blueprint handlers dynamically.
+-- Write directly to persistent storage rather than calling unlock_blueprint()
+-- from dwarfipelago.lua, because each script has its own _ENV and cross-script
+-- global calls resolve to nil.
 for _, bp_name in ipairs(BLUEPRINT_NAMES) do
     M.handlers[bp_name] = function()
-        -- unlock_blueprint is a global function defined in main.lua
-        unlock_blueprint(bp_name)
+        dfhack.persistent.saveWorldDataString("dwarfipelago/blueprint/" .. bp_name, "1")
+        dfhack.gui.showAnnouncement(
+            ("[AP] Blueprint received: %s"):format(bp_name),
+            COLOR_GREEN, true)
+        print(("[Dwarfipelago] Blueprint unlocked: %s"):format(bp_name))
     end
 end
 
@@ -260,4 +343,7 @@ function M.receive(item_name)
     end
 end
 
+-- reqscript returns the script's _ENV, not the explicit return value.
+-- Copy all module exports into _ENV so callers can access them as globals.
+for k, v in pairs(M) do _ENV[k] = v end
 return M
