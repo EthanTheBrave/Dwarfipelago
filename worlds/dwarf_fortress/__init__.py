@@ -160,7 +160,9 @@ class DwarfFortressWorld(World):
             "deathlink_threshold": self.options.deathlink_threshold.value,
             "seed": self.random.randint(12212, 9090763),
             "player_name": self.player_name,
-            "crafting_locations": crafting_location_data
+            "crafting_locations": crafting_location_data,
+            "craftable_max_amount": self.options.craftable_max_amount,
+            "craftable_threshold": self.options.craftable_threshold
         }
 
     # ── Completion condition ──────────────────────────────────────────────────
