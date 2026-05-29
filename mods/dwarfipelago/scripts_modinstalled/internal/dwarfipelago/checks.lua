@@ -4,7 +4,6 @@
 -- The AP location IDs must match locations.py (BASE_ID = 37370000).
 
 local M = {}
-local json = require('json')
 
 -- ── Noble position helper ─────────────────────────────────────────────────────
 -- Uses dfhack.units.getUnitsByNobleRole(code) which is available in DFHack 0.47+
@@ -297,8 +296,9 @@ end
 
 -- ── Craft count helpers ───────────────────────────────────────────────────────
 -- Cumulative counts of completed production jobs per flag, persisted in world
--- data.  Incremented by the eventful job hook in dwarfipelago.lua.
--- Key format: "dwarfipelago/craft_count/<flag_name>"
+-- data under "dwarfipelago/craft_count/<flag_name>".
+-- Incremented by the eventful job hook in dwarfipelago.lua.
+-- The AP client polls these directly to decide when a milestone threshold is met.
 
 local CRAFT_COUNT_PREFIX = "dwarfipelago/craft_count/"
 
@@ -311,31 +311,6 @@ end
 
 function M.get_craft_count(flag)
     return tonumber(dfhack.persistent.getWorldDataString(CRAFT_COUNT_PREFIX .. flag)) or 0
-end
-
--- Read craft milestone configs written by the AP client during _sync_slot_data.
--- Returns a list of {flag=string, threshold=number, id=number, name=string?}.
--- Written to key "dwarfipelago/craft_checks" as a JSON array.
--- Returns an empty table when not yet synced.
-function M.get_craft_check_configs()
-    local raw = dfhack.persistent.getWorldDataString("dwarfipelago/craft_checks")
-    if not raw or raw == "" then return {} end
-    return json.decode(raw) or {}
-end
-
--- Print all craft counts referenced by the current config as a JSON object.
--- Called by the AP client to poll progress:
---   run_command("lua", 'reqscript("internal/dwarfipelago/checks").print_craft_counts()')
-function M.print_craft_counts()
-    local counts = {}
-    local seen   = {}
-    for _, cfg in ipairs(M.get_craft_check_configs()) do
-        if cfg.flag and not seen[cfg.flag] then
-            seen[cfg.flag] = true
-            counts[cfg.flag] = M.get_craft_count(cfg.flag)
-        end
-    end
-    print(json.encode(counts))
 end
 
 -- reqscript returns the script's _ENV, not the explicit return value.

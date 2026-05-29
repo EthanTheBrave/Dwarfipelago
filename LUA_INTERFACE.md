@@ -53,7 +53,6 @@ All keys are namespaced under `dwarfipelago/`.
 
 | Key | Format | Written by | Description |
 |-----|--------|------------|-------------|
-| `dwarfipelago/craft_checks` | JSON `CraftCheck[]` | Python | Craft milestone config (see schema below) |
 | `dwarfipelago/goal` | `"0"`–`"3"` | Python | Goal type from slot data |
 | `dwarfipelago/wealth_goal` | Integer string | Python | Wealth target for legendary_wealth goal |
 | `dwarfipelago/pop_goal` | Integer string | Python | Population target for population_boom goal |
@@ -90,20 +89,13 @@ Skipped types (never queued): `CORPSE`, `CORPSEPIECE`, `VERMIN`, `PLANT`, `PLANT
 
 Queue is capped at 500 entries — if Python falls behind, oldest events are dropped.
 
-### CraftCheck
-Written by Python to tell Lua what craft quantity milestones to track.
+### Craft Counts
+Lua increments a counter in `dwarfipelago/craft_count/<flag>` each time a matching
+job completes. Python polls these counters and is responsible for deciding when a
+threshold is met and sending the location check to the AP server.
 
-```json
-[
-  { "flag": "metal",  "threshold": 10, "id": 37370518, "name": "Smelt 10 Metal Bars" },
-  { "flag": "cloth",  "threshold": 10, "id": 37370514, "name": "Produce 10 Cloth"    },
-  { "flag": "altar",  "threshold": 10, "id": 37370500, "name": "Craft 10 Altars"     }
-]
-```
-
-`flag` must exactly match one of the craft flags below. `id` is the AP location ID Lua
-will push to `pending_checks` when the threshold is reached. `name` appears in the
-in-game announcement.
+Read a count with `dfhack.persistent.getWorldDataString("dwarfipelago/craft_count/<flag>")` —
+returns an integer string, or `nil` if no jobs have completed yet.
 
 #### Craft item flags (items crafted at a workshop)
 | Flag | Job type(s) |
@@ -162,15 +154,7 @@ stripped output string.
 
 JSON sent through the inline Lua string must have its double-quotes escaped
 before embedding. Look at how `_sync_slot_data` writes the goal/wealth/pop
-values — the craft_checks write follows the same approach, just with a JSON
-string instead of a plain number.
-
-### Call a Lua function and read its output
-
-Some helpers in the Lua modules use `print()` to return data rather than a
-return value. Call them via `reqscript("internal/dwarfipelago/<module>")` and
-parse the output. `print_craft_counts()` in `checks` is the main one — it
-prints a JSON object of `{flag: count}` pairs for all tracked craft types.
+values — any JSON config follows the same approach.
 
 ---
 
@@ -192,8 +176,6 @@ Load them from Python via `reqscript("internal/dwarfipelago/<module>")`.
 | `job_to_craft_flag(job)` | fn → string\|nil | Maps a completed job to its craft-count flag |
 | `increment_craft_count(flag)` | fn → int | Increment and persist a craft count, returns new total |
 | `get_craft_count(flag)` | fn → int | Read current craft count for a flag |
-| `get_craft_check_configs()` | fn → table | Read the craft milestone config written by Python |
-| `print_craft_counts()` | fn | Print all tracked craft counts as a JSON object (stdout) |
 | `fortress_wealth()` | fn → int | Current total fortress wealth |
 
 ### `state`
