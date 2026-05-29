@@ -428,15 +428,95 @@ local function on_job_initiated(job)
     end
 end
 
+-- ── Item event helpers ────────────────────────────────────────────────────────
+
+local ITEM_EVENT_CAP = 500  -- prevent runaway growth if Python client is slow
+
+-- Item types we don't care about for AP tracking purposes.
+local SKIP_ITEM_TYPES = {
+    CORPSE = true, CORPSEPIECE = true, VERMIN = true,
+    PLANT = true, PLANT_GROWTH = true,
+}
+
+-- Converts a df.item pointer to a plain table safe for JSON serialisation.
+-- Returns nil for item types in the skip list or if the item is invalid.
+local function item_to_info(item)
+    if not item then return nil end
+    local type_name = df.item_type[item:getType()] or "UNKNOWN"
+    if SKIP_ITEM_TYPES[type_name] then return nil end
+
+    local mat_str = "unknown"
+    local ok, mat = pcall(dfhack.matinfo.decode, item)
+    if ok and mat then
+        mat_str = mat:toString() or mat_str
+    end
+
+    return {
+        id       = item.id,
+        type     = type_name,
+        material = mat_str,
+        quality  = item.quality,
+        artifact = item.flags.artifact == true,
+    }
+end
+
+-- Append one entry to a world-data JSON queue, capping at ITEM_EVENT_CAP.
+local function queue_item_event(key, entry)
+    local raw   = dfhack.persistent.getWorldDataString(key) or "[]"
+    local queue = json.decode(raw) or {}
+    table.insert(queue, entry)
+    if #queue > ITEM_EVENT_CAP then table.remove(queue, 1) end
+    dfhack.persistent.saveWorldDataString(key, json.encode(queue))
+end
+
+-- ── onItemCreated hook ────────────────────────────────────────────────────────
+-- Fires whenever DF creates a new item (crafted output, dropped loot, etc.).
+-- Pushes item info to "dwarfipelago/pending_item_created" for the Python client.
+
+local function on_item_created(item_id)
+    if not state.is_enabled() then return end
+    local info = item_to_info(df.item.find(item_id))
+    if info then
+        queue_item_event("dwarfipelago/pending_item_created", info)
+    end
+end
+
+-- ── onItemPutInStockpile hook ─────────────────────────────────────────────────
+-- Fires when an item lands in a stockpile.
+-- Attaches stockpile name/number and pushes to "dwarfipelago/pending_item_stockpiled".
+
+local function on_item_stockpile(item_id)
+    if not state.is_enabled() then return end
+    local item = df.item.find(item_id)
+    local info = item_to_info(item)
+    if not info then return end
+
+    -- Walk the item's building refs to find its stockpile.
+    for _, ref in ipairs(item.general_refs) do
+        if df.general_ref_building_holderst:is_instance(ref) then
+            local bld = df.building.find(ref.building_id)
+            if bld and df.building_stockpilest:is_instance(bld) then
+                info.stockpile_name   = bld.name ~= "" and bld.name or nil
+                info.stockpile_number = bld.stockpile_number
+                break
+            end
+        end
+    end
+
+    queue_item_event("dwarfipelago/pending_item_stockpiled", info)
+end
+
 -- ── Start / stop ──────────────────────────────────────────────────────────────
 
 local function start()
     state.set_enabled(true)
 
     -- Register hooks
-    eventful.onJobCompleted[SCRIPT_NAME] = on_job_completed
-    eventful.onUnitDeath[SCRIPT_NAME]    = on_unit_death
-    eventful.onJobInitiated[SCRIPT_NAME] = on_job_initiated
+    eventful.onJobCompleted[SCRIPT_NAME]        = on_job_completed
+    eventful.onUnitDeath[SCRIPT_NAME]           = on_unit_death
+    eventful.onJobInitiated[SCRIPT_NAME]        = on_job_initiated
+    eventful.onItemCreated[SCRIPT_NAME]         = on_item_created
+    eventful.onItemPutInStockpile[SCRIPT_NAME]  = on_item_stockpile
 
     -- Register poll loop
     repeatUtil.scheduleEvery(SCRIPT_NAME, POLL_TICKS, "ticks", poll_checks)
@@ -449,9 +529,11 @@ local function stop()
     state.set_enabled(false)
 
     -- Unregister hooks
-    eventful.onJobCompleted[SCRIPT_NAME] = nil
-    eventful.onUnitDeath[SCRIPT_NAME]    = nil
-    eventful.onJobInitiated[SCRIPT_NAME] = nil
+    eventful.onJobCompleted[SCRIPT_NAME]        = nil
+    eventful.onUnitDeath[SCRIPT_NAME]           = nil
+    eventful.onJobInitiated[SCRIPT_NAME]        = nil
+    eventful.onItemCreated[SCRIPT_NAME]         = nil
+    eventful.onItemPutInStockpile[SCRIPT_NAME]  = nil
     repeatUtil.cancel(SCRIPT_NAME)
 
     print("[Dwarfipelago] Stopped.")
