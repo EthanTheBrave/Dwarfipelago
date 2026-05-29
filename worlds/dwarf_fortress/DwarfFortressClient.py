@@ -672,6 +672,7 @@ class DwarfFortressContext(CommonContext):
                 storage_name += self._crafting_locations[crafts]["item"]
             else:
                 storage_name += self._crafting_locations[crafts]["item"] + "_"+self._crafting_locations[crafts]["material"]
+            storage_name = storage_name.lower()
             self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("{storage_name}", "0")')
 
     async def _crafting_location_checks(self):
@@ -687,6 +688,7 @@ class DwarfFortressContext(CommonContext):
                 storage_name += self._crafting_locations[crafts]["item"]
             else:
                 storage_name += self._crafting_locations[crafts]["item"] + "_"+self._crafting_locations[crafts]["material"]
+            storage_name = storage_name.lower()
             amount_crafted_str = self.dfhack.run_command("lua", f'dfhack.persistent.getWorldDataString("{storage_name}")')
             if amount_crafted_str == "nil" or amount_crafted_str == "0":
                 continue
