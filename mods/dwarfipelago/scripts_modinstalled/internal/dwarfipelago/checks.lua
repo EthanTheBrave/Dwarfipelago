@@ -170,6 +170,7 @@ map("MakeCrafts",              "crafted_item")
 map("CarveStatue",             "crafted_item")  -- pre-50 name
 map("CarveFurniture",          "crafted_item")  -- DF 50+ name
 map("MakeTotem",               "crafted_item")
+map("ForgeAnvil",              "crafted_item")
 -- Weapons / armor
 map("MakeWeapon",              "weapon")
 map("MakeAmmo",                "weapon")
@@ -231,20 +232,59 @@ local function cmap(name, flag)
 end
 
 -- craftable_items
-cmap("MakeTotem",       "altar")
-cmap("MakeDoor",        "door")
-cmap("MakeCage",        "cage")
-cmap("MakeBox",         "bin")
-cmap("CutBlock",        "blocks")
-cmap("MakeWheelbarrow", "wheelbarrow")
-cmap("MakeGrate",       "grate")
-cmap("MakeCorkscrew",   "corkscrew")
-cmap("MakeAnimalTrap",  "animal_trap")
-cmap("MakeBall",        "ball")
-cmap("MakeArmorStand",  "armor_stand")
-cmap("MakePedestal",    "pedestal")
-cmap("MakeBucket",      "bucket")
-cmap("MakeSpike",       "spike")
+cmap("MakeTool",            "TOOL_SUBTYPE")
+cmap("ConstructDoor",       "door")
+cmap("MakeCage",            "cage")
+cmap("ConstructBin",        "bin")
+cmap("ConstructBlocks",     "blocks")
+cmap("ConstructGrate",      "grate")
+cmap("MakeTrapComponent",   "TRAP_SUBTYPE")
+cmap("ConstructBed",        "bed")
+cmap("MakeAnimalTrap",      "animal_trap")
+cmap("ConstructArmorStand", "armor_stand")
+cmap("MakePedestal",        "pedestal")
+cmap("MakeBucket",          "bucket")
+
+-- craftable_materials (unambiguous by job type)
+cmap("WeaveCloth",      "cloth")
+cmap("ProcessPlants",   "cloth")
+cmap("TanHide",         "leather")
+cmap("SmeltOre",        "metal")
+cmap("MeltMetalObject", "metal")
+cmap("MakeGlass",       "glass")
+cmap("MakeCeramicItem", "ceramics")
+
+
+local TOOL_SUBTYPE_FLAG = {}
+local function tools_subtype(name, flag)
+    TOOL_SUBTYPE_FLAG[v] = flag
+end
+
+-- tools subtype
+tools_subtype(28,        "altar")
+tools_subtype(11,        "jug")
+tools_subtype(12,        "large_pot")
+tools_subtype(13,        "hive")
+--tools_subtype(14,        "honeycomb")
+tools_subtype(16,        "minecart")
+tools_subtype(17,        "wheelbarrow")
+tools_subtype(18,        "stepladder")
+tools_subtype(19,        "scroll_roller")
+tools_subtype(20,        "book_binding")
+tools_subtype(23,        "bookcase")
+tools_subtype(26,        "pedestal")
+tools_subtype(27,        "pedestal") --actually a display case
+
+local TRAP_SUBTYPE_FLAG = {}
+local function trap_subtype(name, flag)
+    TRAP_SUBTYPE_FLAG[v] = flag
+end
+-- trap subtype
+trap_subtype(1, "corkscrew")
+trap_subtype(2, "ball")
+trap_subtype(4, "spike")
+
+
 
 -- craftable_materials (unambiguous by job type)
 cmap("WeaveCloth",      "cloth")
@@ -286,7 +326,17 @@ end
 function M.job_to_craft_flag(job)
     if not job or not job.job_type then return nil end
     local flag = JOB_TO_CRAFT_FLAG[job.job_type]
-    if flag then return flag end
+    if flag then
+        if flag == "TOOL_SUBTYPE"
+        then
+            flag = TOOL_SUBTYPE_FLAG[job.item_subtype]
+        end
+        if flag == "TRAP_SUBTYPE"
+        then
+            flag = TRAP_SUBTYPE_FLAG[job.item_subtype]
+        end
+        return flag 
+    end
     if NEEDS_MAT_CHECK[job.job_type] then
         return mat_craft_flag(job)
     end
