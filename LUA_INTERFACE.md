@@ -122,10 +122,10 @@ returns an integer string, or `nil` if no jobs have completed yet.
 | `leather` | TanHide |
 | `metal` | SmeltOre, MeltMetalObject |
 | `glass` | MakeGlass |
+| `ceramics` | MakeCeramicItem (Kiln) |
 | `stone` | MakeCrafts / CarveFurniture / CarveStatue with inorganic non-metal material |
 | `wood` | MakeCrafts / CarveFurniture with plant material |
-| `bone` | MakeCrafts / CarveBone with creature non-shell material |
-| `shells` | MakeCrafts with creature shell material |
+| `bone` | MakeCrafts / CarveBone with creature material |
 
 ---
 
