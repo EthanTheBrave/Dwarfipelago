@@ -244,6 +244,8 @@ cmap("MakeAnimalTrap",      "animal_trap")
 cmap("ConstructArmorStand", "armor_stand")
 cmap("MakePedestal",        "pedestal")
 cmap("MakeBucket",          "bucket")
+cmap("MakeBarrel",          "barrel")
+cmap("MakeShield",          "SHIELD_SUBTYPE")
 
 -- craftable_materials (unambiguous by job type)
 cmap("WeaveCloth",      "cloth")
@@ -284,6 +286,17 @@ trap_subtype(1, "corkscrew")
 trap_subtype(2, "ball")
 trap_subtype(4, "spike")
 
+local SHIELD_SUBTYPE_FLAG = {}
+local function shield_subtype(name, flag)
+    SHIELD_SUBTYPE_FLAG[v] = flag
+end
+-- trap subtype
+shield_subtype(0, "shield")
+shield_subtype(1, "buckler")
+shield_subtype(2, "shield")
+shield_subtype(3, "shield")
+shield_subtype(4, "shield")
+shield_subtype(5, "shield")
 
 
 -- craftable_materials (unambiguous by job type)
@@ -330,10 +343,12 @@ function M.job_to_craft_flag(job)
         if flag == "TOOL_SUBTYPE"
         then
             flag = TOOL_SUBTYPE_FLAG[job.item_subtype]
-        end
-        if flag == "TRAP_SUBTYPE"
+        else if flag == "TRAP_SUBTYPE"
         then
             flag = TRAP_SUBTYPE_FLAG[job.item_subtype]
+        else if flag == "SHIELD_SUBTYPE"
+        then
+            flag = SHIELD_SUBTYPE_FLAG[job.item_subtype]
         end
         return flag 
     end
