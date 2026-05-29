@@ -57,6 +57,10 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/wealth_goal` | Integer string | Python | Wealth target for legendary_wealth goal |
 | `dwarfipelago/pop_goal` | Integer string | Python | Population target for population_boom goal |
 | `dwarfipelago/deathlink_threshold` | Integer string | Python | Dwarves per DeathLink send/receive |
+| `dwarfipelago/seed` | Integer string | Python | your "identity" for your world and AP |
+| `dwarfipelago/crafting_max` | Integer string | Python | max count for item crafts |
+| `dwarfipelago/crafting_enabled` | Integer string | Python | crafting location feature enabled |
+| `dwarfipelago/crafting_materials` | Integer string | Python | crafting location materials enabled |
 
 ---
 
@@ -95,7 +99,18 @@ job completes. Python polls these counters and is responsible for deciding when 
 threshold is met and sending the location check to the AP server.
 
 Read a count with `dfhack.persistent.getWorldDataString("dwarfipelago/craft_count/<flag>")` —
-returns an integer string, or `nil` if no jobs have completed yet.
+returns an integer string.
+
+Initialized by Python to create the persistent storage for Lua to count the crafts to.
+Example:
+
+| Key | Description |
+|-----|--------|------------|-------------|
+| `dwarfipelago/craft_count/Barrel_Metal` | total count for Metal Barrels created / stored based on the `dwarfipelago/crafting_enabled` setting |
+| `dwarfipelago/craft_count/Barrel_Wood` | total count for Wooden Barrels created / stored based on the `dwarfipelago/crafting_enabled` setting |
+| `dwarfipelago/craft_count/Barrel` | total count any type of Barrels created / stored based on the `dwarfipelago/crafting_enabled` setting and if `dwarfipelago/crafting_enabled` is disabled|
+| `dwarfipelago/craft_count/Glass` | Since Glass has only 1 type, its stored in this format based on the `dwarfipelago/crafting_enabled` setting |
+
 
 #### Craft item flags (items crafted at a workshop)
 | Flag | Job type(s) |

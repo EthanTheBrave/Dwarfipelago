@@ -667,26 +667,26 @@ class DwarfFortressContext(CommonContext):
 
     def init_crafting_locations(self):
         for crafts in self._crafting_locations:
-            storage_name ="dwarfipelago/"
+            storage_name ="dwarfipelago/craft_count/"
             if self._crafting_locations[crafts]["material"] == "": #material type doesn't matter, add them all
                 storage_name += self._crafting_locations[crafts]["item"]
             else:
-                storage_name ="dwarfipelago/"+self._crafting_locations[crafts]["item"] + "_"+self._crafting_locations[crafts]["material"]
+                storage_name += self._crafting_locations[crafts]["item"] + "_"+self._crafting_locations[crafts]["material"]
             self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("{storage_name}", "0")')
 
     async def _crafting_location_checks(self):
         """Read new crafting location checks from persistent storage and report them to AP."""
         local_checks = []
-        storage_name ="dwarfipelago/"
         if len(self._completed_crafting_locations) == 0: #not inialized yet
             return
         for crafts in self._crafting_locations:
+            storage_name ="dwarfipelago/craft_count"
             if crafts in self._completed_crafting_locations: #this check is already completed
                 continue
             if self._crafting_locations[crafts]["material"] == "": #material type doesn't matter, add them all
                 storage_name += self._crafting_locations[crafts]["item"]
             else:
-                storage_name ="dwarfipelago/"+self._crafting_locations[crafts]["item"] + "_"+self._crafting_locations[crafts]["material"]
+                storage_name += self._crafting_locations[crafts]["item"] + "_"+self._crafting_locations[crafts]["material"]
             amount_crafted_str = self.dfhack.run_command("lua", f'dfhack.persistent.getWorldDataString("{storage_name}")')
             if amount_crafted_str == "nil" or amount_crafted_str == "0":
                 continue
