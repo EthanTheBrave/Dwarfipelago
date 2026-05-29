@@ -253,8 +253,9 @@ cmap("TanHide",         "leather")
 cmap("SmeltOre",        "metal")
 cmap("MeltMetalObject", "metal")
 cmap("MakeGlass",       "glass")
+cmap("MakeCeramicItem", "ceramics")
 
--- Jobs where the flag depends on the job's primary material (stone/bone/shell/wood).
+-- Jobs where the flag depends on the job's primary material (stone/bone/wood).
 local NEEDS_MAT_CHECK = {}
 local function matjob(name)
     local v = df.job_type[name]
@@ -275,8 +276,6 @@ local function mat_craft_flag(job)
     elseif mat.mode == "plant" then
         return "wood"
     elseif mat.mode == "creature" then
-        local m = mat.material
-        if m and m.flags.SHELL then return "shells" end
         return "bone"
     end
     return nil
