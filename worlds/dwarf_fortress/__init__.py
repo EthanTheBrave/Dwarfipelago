@@ -10,6 +10,7 @@ from .items import (
     PROGRESSION_ITEMS, USEFUL_ITEMS
 )
 from .locations import LocationData, LOCATION_TABLE, ALL_LOCATIONS
+from .crafting_locations import generate_location_data
 from . import rules
 
 # Register the Archipelago launcher buttons (Dwarf Fortress + Dwarf Fortress Client).
@@ -65,8 +66,14 @@ class DwarfFortressWorld(World):
 
     item_name_to_id = ITEM_TABLE
     location_name_to_id = LOCATION_TABLE
+    dynamic_locations = []
 
     web = DwarfFortressWebWorld()
+
+    def generate_early(self) -> None:
+        self.dynamic_locations = generate_location_data(self)
+        for locations in self.dynamic_locations:
+            self.location_name_to_id[locations.name] = locations.ap_id
 
     # ── Generation lifecycle ──────────────────────────────────────────────────
 
@@ -76,9 +83,9 @@ class DwarfFortressWorld(World):
 
         menu.connect(fortress)
 
-        for loc_data in ALL_LOCATIONS:
+        for loc_data in self.location_name_to_id:
             loc = DwarfFortressLocation(
-                self.player, loc_data.name, loc_data.ap_id, fortress
+                self.player, loc_data, self.location_name_to_id[loc_data], fortress
             )
             fortress.locations.append(loc)
 
@@ -92,7 +99,7 @@ class DwarfFortressWorld(World):
         self.multiworld.regions += [menu, fortress]
 
     def create_items(self) -> None:
-        location_count = len(ALL_LOCATIONS)
+        location_count = len(ALL_LOCATIONS) + len(self.dynamic_locations)
         trap_weight = self.options.trap_item_weight.value / 100.0
 
         # Separate required (progression) items from optional ones.
@@ -113,22 +120,22 @@ class DwarfFortressWorld(World):
         # 1. Always add every progression item.
         for item_data in required:
             for _ in range(item_data.quantity):
-                item_pool.append(self._make_item(item_data.name))
+                item_pool.append(self.create_item(item_data.name))
 
         # 2. Fill remaining slots from optional items (shuffled for variety).
         remaining = location_count - len(item_pool)
         shuffled_optional = list(optional)
         self.random.shuffle(shuffled_optional)
         for item_data in shuffled_optional[:max(remaining, 0)]:
-            item_pool.append(self._make_item(item_data.name))
+            item_pool.append(self.create_item(item_data.name))
 
         # 3. Pad with filler/traps if still under location count
         #    (happens when progression items alone outnumber locations).
         while len(item_pool) < location_count:
             if self.random.random() < trap_weight and TRAP_ITEMS:
-                item_pool.append(self._make_item(self.random.choice(TRAP_ITEMS).name))
+                item_pool.append(self.create_item(self.random.choice(TRAP_ITEMS).name))
             else:
-                item_pool.append(self._make_item(self.random.choice(FILLER_ITEMS).name))
+                item_pool.append(self.create_item(self.random.choice(FILLER_ITEMS).name))
 
         self.multiworld.itempool += item_pool
 
@@ -143,6 +150,9 @@ class DwarfFortressWorld(World):
         return self.random.choice(FILLER_ITEMS).name
 
     def fill_slot_data(self) -> dict[str, Any]:
+        crafting_location_data = {}
+        for locations in self.dynamic_locations:
+            crafting_location_data[locations.ap_id] = {"item": locations.df_item, "material": locations.material_type}
         return {
             "goal": self.options.goal.value,
             "wealth_goal_amount": self.options.wealth_goal_amount.value,
@@ -150,6 +160,9 @@ class DwarfFortressWorld(World):
             "deathlink_threshold": self.options.deathlink_threshold.value,
             "seed": self.random.randint(12212, 9090763),
             "player_name": self.player_name,
+            "crafting_locations": crafting_location_data,
+            "craftable_max_amount": self.options.craftable_max_amount,
+            "craftable_threshold": self.options.craftable_threshold
         }
 
     # ── Completion condition ──────────────────────────────────────────────────
@@ -161,7 +174,7 @@ class DwarfFortressWorld(World):
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
-    def _make_item(self, name: str) -> DwarfFortressItem:
+    def create_item(self, name: str) -> DwarfFortressItem:
         classification = ItemClassification.filler
         for item_data in AP_ITEM_POOL:
             if item_data.name == name:
