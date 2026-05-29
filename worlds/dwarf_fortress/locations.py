@@ -13,6 +13,7 @@ class LocationData:
     goal_only: bool = False  # if True, only relevant for a specific goal
     material_type: str = ""
     df_item: str = ""
+    threshold: int = 0
 
 
 # ── Wealth Milestones ─────────────────────────────────────────────────────────

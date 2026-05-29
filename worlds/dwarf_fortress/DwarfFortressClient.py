@@ -395,6 +395,11 @@ class DwarfFortressContext(CommonContext):
         self._pending_recv_deathlinks = 0  # incoming DeathLink bounces waiting to be applied
         self._mod_started = False        # True once dwarfipelago/main start has succeeded
         self._world_loaded = False       # True while DF has an active world loaded
+        self._crafting_locations = {}    # Dict of all crafting locations
+        self._crafting_max_value = 0     # max items to produce
+        self._crafting_threshold = 0     # crafting thresholds
+        self._completed_crafting_locations = [] #completed locations so we don't keep sending
+        self.seed = 0                    # your "identity"
 
     # ── DFHack polling ────────────────────────────────────────────────────────
 
@@ -455,10 +460,11 @@ class DwarfFortressContext(CommonContext):
                     logger.info("Auto-started dwarfipelago Lua mod")
 
                 # ── Fortress operations (world guaranteed loaded) ─────────────
-                self._sync_slot_data()
+                await self._sync_slot_data()
                 if self._slot_data_synced:
                     await self._apply_received_deathlinks()
                     await self._process_new_checks()
+                    await self._crafting_location_checks()
                     await self._apply_pending_items()
                     await self._check_deathlink_send()
                     await self._check_goal_complete()
@@ -521,7 +527,7 @@ class DwarfFortressContext(CommonContext):
                 f' "{self._received_index}")',
             )
 
-    def _sync_slot_data(self):
+    async def _sync_slot_data(self):
         """
         Write AP slot data (goal type + targets) to DFHack persistent storage
         so the Lua mod can read the goal settings without an RPC round-trip.
@@ -536,20 +542,29 @@ class DwarfFortressContext(CommonContext):
         wealth_goal  = slot_data.get("wealth_goal_amount", 100000)
         pop_goal     = slot_data.get("population_goal_amount", 300)
         dl_threshold = slot_data.get("deathlink_threshold", 5)
-        seed         = slot_data.get("seed", 0)
+        self.seed         = slot_data.get("seed", 0)
+        self._crafting_locations = slot_data.get("crafting_locations")
+        self._crafting_max_value = slot_data.get("craftable_max_amount")
+        self._crafting_threshold = slot_data.get("craftable_threshold")
+        crafting_enabled = slot_data.get("craftable_enabled") # 0 off, 1 on, 2 storage
+        materials_enabled = slot_data.get("craftable_materials")
         current_seed = self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("dwarfipelago/seed"))')
         self._deathlink_threshold = int(dl_threshold)
-        if current_seed == 'nil' or current_seed == str(seed):
+        if current_seed == 'nil' or current_seed == str(self.seed):
             if current_seed == 'nil':
                 def write():
                     self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/goal", "{goal}")')
                     self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/wealth_goal", "{wealth_goal}")')
                     self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/pop_goal", "{pop_goal}")')
                     self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_threshold", "{dl_threshold}")')
-                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/seed", "{seed}")')
+                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/seed", "{self.seed}")')
+                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/crafting_max", "{self._crafting_threshold}")')
+                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/crafting_enabled", "{crafting_enabled}")')
+                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/crafting_materials", "{materials_enabled}")')
                 write()
-                self.init_crafting_locations(slot_data.get("crafting_locations"))
+                self.init_crafting_locations()
             self._slot_data_synced = True
+            await self.getAPKeyValue("Dwarfipelago/"+str(self.seed)+"/completed_locations")
             logger.info(f"Synced slot data → goal={goal}, wealth_goal={wealth_goal}, pop_goal={pop_goal}, dl_threshold={dl_threshold}")
         else:
             logger.error(f'This saved world does not match this slot. Please load the correct world or create a new one.')
@@ -650,15 +665,65 @@ class DwarfFortressContext(CommonContext):
             await self.send_msgs([{"cmd": "StatusUpdate", "status": ClientStatus.CLIENT_GOAL}])
             logger.info("Goal complete — sent ClientStatus.CLIENT_GOAL to AP server")
 
-    def init_crafting_locations(self, crafting_location):
-        for crafts in crafting_location:
+    def init_crafting_locations(self):
+        for crafts in self._crafting_locations:
             storage_name ="dwarfipelago/"
-            if crafting_location[crafts]["material"] == "": #material type doesn't matter, add them all
-                storage_name += crafting_location[crafts]["item"]
+            if self._crafting_locations[crafts]["material"] == "": #material type doesn't matter, add them all
+                storage_name += self._crafting_locations[crafts]["item"]
             else:
-                storage_name ="dwarfipelago/"+crafting_location[crafts]["item"] + "_"+crafting_location[crafts]["material"]
+                storage_name ="dwarfipelago/"+self._crafting_locations[crafts]["item"] + "_"+self._crafting_locations[crafts]["material"]
             self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("{storage_name}", "0")')
 
+    async def _crafting_location_checks(self):
+        """Read new crafting location checks from persistent storage and report them to AP."""
+        local_checks = []
+        storage_name ="dwarfipelago/"
+        if len(self._completed_crafting_locations) == 0: #not inialized yet
+            return
+        for crafts in self._crafting_locations:
+            if crafts in self._completed_crafting_locations: #this check is already completed
+                continue
+            if self._crafting_locations[crafts]["material"] == "": #material type doesn't matter, add them all
+                storage_name += self._crafting_locations[crafts]["item"]
+            else:
+                storage_name ="dwarfipelago/"+self._crafting_locations[crafts]["item"] + "_"+self._crafting_locations[crafts]["material"]
+            amount_crafted_str = self.dfhack.run_command("lua", f'dfhack.persistent.getWorldDataString("{storage_name}")')
+            if amount_crafted_str == "nil" or amount_crafted_str == "0":
+                continue
+            else:
+                amount_crafted = int(amount_crafted_str)
+                if amount_crafted >= self._crafting_max_value: #got the last threshold
+                    local_checks.append(crafts)
+                    continue
+                else:
+                    if amount_crafted / self._crafting_threshold >= self._crafting_locations[crafts]["threshold"]: #threshold met
+                        local_checks.append(crafts)
+                        continue
+        if local_checks:
+            logger.info(f"New checks: {local_checks}")
+            await self.send_msgs([{
+                "cmd": "LocationChecks",
+                "locations": local_checks,
+            }])
+        for location in local_checks:
+            self._completed_crafting_locations.append(location)
+            self.setAPKeyValue("Dwarfipelago/"+str(self.seed)+"/completed_locations", self._completed_crafting_locations)
+
+    async def setAPKeyValue(self, key:str, value:list[int]):
+        await self.send_msgs([{
+            "cmd": "Set",
+            "key": key,
+            "default": hex(0),
+            "want_reply": False,
+            "operations": [{"operation": "replace",
+            "value": value}]
+        }])
+
+    async def getAPKeyValue(self, key:str) -> str:
+        await self.send_msgs([{
+            "cmd": "Get",
+            "keys": [key],
+        }])
     # ── CommonClient overrides ────────────────────────────────────────────────
 
     async def server_auth(self, password_requested: bool = False):
@@ -683,6 +748,13 @@ class DwarfFortressContext(CommonContext):
             self.slot_data: dict[str, Any] = args.get("slot_data", {})
             self.dfhack_task = asyncio.create_task(self.dfhack_poll_loop(), name="DFHack poll")
             self.server_task = asyncio.create_task(server_loop(self), name="server loop")
+        if cmd == "Retrieved":
+            if "Dwarfipelago/"+str(self.seed)+"/completed_locations" in args['keys']:
+                if args['keys']["Dwarfipelago/"+str(self.seed)+"/completed_locations"] != None:
+                    self._completed_crafting_locations = args['keys']["Dwarfipelago/"+str(self.seed)+"/completed_locations"]
+                else:
+                    self._completed_crafting_locations.append(0)
+            #response from the Get Command
 
     async def disconnect(self, allow_autoreconnect: bool = False):
         self.dfhack.disconnect()

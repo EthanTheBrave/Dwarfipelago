@@ -152,7 +152,7 @@ class DwarfFortressWorld(World):
     def fill_slot_data(self) -> dict[str, Any]:
         crafting_location_data = {}
         for locations in self.dynamic_locations:
-            crafting_location_data[locations.ap_id] = {"item": locations.df_item, "material": locations.material_type}
+            crafting_location_data[locations.ap_id] = {"item": locations.df_item, "material": locations.material_type, "threshold": locations.threshold}
         return {
             "goal": self.options.goal.value,
             "wealth_goal_amount": self.options.wealth_goal_amount.value,
@@ -161,8 +161,10 @@ class DwarfFortressWorld(World):
             "seed": self.random.randint(12212, 9090763),
             "player_name": self.player_name,
             "crafting_locations": crafting_location_data,
-            "craftable_max_amount": self.options.craftable_max_amount,
-            "craftable_threshold": self.options.craftable_threshold
+            "craftable_max_amount": self.options.craftable_max_amount.value,
+            "craftable_threshold": self.options.craftable_threshold.value,
+            "craftable_enabled": self.options.craftable_locations.value,
+            "craftable_materials": self.options.craftable_enable_materials.value
         }
 
     # ── Completion condition ──────────────────────────────────────────────────
