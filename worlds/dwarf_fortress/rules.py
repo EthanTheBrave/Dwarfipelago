@@ -1,4 +1,5 @@
 from BaseClasses import MultiWorld
+from worlds.dwarf_fortress.crafting_locations import DynamicCraftingLocationRules
 from .options import DwarfFortressGoal
 
 
@@ -47,6 +48,11 @@ def set_rules(world: "DwarfFortressWorld") -> None:
             loc = multiworld.get_location(loc_name, player)
             loc.access_rule = lambda state, bp=blueprint_name: state.has(bp, player)
 
+    # -- Dynamic location requirements -----------------------------------------
+    if len(world.dynamic_locations) > 0:
+        dynamic_rules = DynamicCraftingLocationRules(world)
+        dynamic_rules.set_dynamic_rules()
+
     # ── Goal condition ────────────────────────────────────────────────────────
     goal_location = multiworld.get_location("Goal", player)
 
@@ -64,7 +70,6 @@ def set_rules(world: "DwarfFortressWorld") -> None:
             state.has("Legendary Blueprint", player)
             and state.has("Artifact Weapon", player)
         )
-
     else:
         # Population Boom: population grows organically, but the fortress must
         # be established enough to sustain it — require any one progression item.
@@ -73,3 +78,4 @@ def set_rules(world: "DwarfFortressWorld") -> None:
             or state.has("Artifact Weapon", player)
             or state.has("Artifact Armor", player)
         )
+

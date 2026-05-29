@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 
 
 BASE_ID = 37370000
@@ -11,6 +11,8 @@ class LocationData:
     ap_id: int
     region: str = "Fortress"
     goal_only: bool = False  # if True, only relevant for a specific goal
+    material_type: str = ""
+    df_item: str = ""
 
 
 # ── Wealth Milestones ─────────────────────────────────────────────────────────
