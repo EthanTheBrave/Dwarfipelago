@@ -246,42 +246,6 @@ local function detect_trade_export()
     end
 end
 
--- ── Craft quantity milestone checks ──────────────────────────────────────────
--- Called each poll tick. Reads the AP-client-written config
--- ("dwarfipelago/craft_checks") and fires a location check for each
--- entry whose cumulative craft count has reached its threshold.
--- The config is a JSON array written by the AP client in _sync_slot_data:
---   [{"flag": "metal_bar", "threshold": 10, "id": 37370500, "name": "..."}]
-
-local function check_craft_milestones()
-    for _, cfg in ipairs(checks.get_craft_check_configs()) do
-        local loc_id    = cfg.id
-        local flag      = cfg.flag
-        local threshold = cfg.threshold
-        if not (loc_id and flag and threshold) then goto continue end
-        if state.is_location_checked(loc_id) then goto continue end
-
-        if checks.get_craft_count(flag) >= threshold then
-            local newly_checked = state.mark_location_checked(loc_id)
-            if newly_checked then
-                local queue_key = "dwarfipelago/pending_checks"
-                local raw   = dfhack.persistent.getWorldDataString(queue_key) or "[]"
-                local queue = json.decode(raw) or {}
-                table.insert(queue, loc_id)
-                dfhack.persistent.saveWorldDataString(queue_key, json.encode(queue))
-
-                local label = cfg.name or (flag .. " x" .. tostring(threshold))
-                dfhack.gui.showAnnouncement(
-                    ("[AP] Craft milestone reached: %s!"):format(label),
-                    COLOR_GREEN, true)
-                print(("[Dwarfipelago] Craft milestone: %s count>=%d (location %d)"):format(
-                    flag, threshold, loc_id))
-            end
-        end
-        ::continue::
-    end
-end
-
 -- ── Poll loop: wealth, trade, and goal milestones ─────────────────────────────
 -- Runs every POLL_TICKS game ticks. Production checks are handled by eventful.
 
@@ -292,7 +256,6 @@ local function poll_checks()
     check_goal_by_poll()
     detect_caravans()
     detect_trade_export()
-    check_craft_milestones()
 
     for _, check in ipairs(checks.checks) do
         if not state.is_location_checked(check.id) then
@@ -324,9 +287,8 @@ local function on_job_completed(job)
         checks.set_production_flag(prod_flag)
     end
 
-    -- Cumulative craft counts (drive the new quantity-based checks).
-    -- Uses specific AP option names (door, cage, metal, cloth, …) rather than
-    -- the generic aggregated names used by the boolean system above.
+    -- Cumulative craft counts — incremented here, polled by the AP client.
+    -- Threshold comparisons and location check firing happen on the Python side.
     local craft_flag = checks.job_to_craft_flag(job)
     if craft_flag then
         checks.increment_craft_count(craft_flag)
