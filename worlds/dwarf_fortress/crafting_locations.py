@@ -49,7 +49,7 @@ def loop_locations(world: "DwarfFortressWorld", new_location: DynamicCraftingDat
                 else:
                     new_location.check_name = "Crafting "+ new_location.type + " " + new_location.item_name + " Check "+ str(next_id + 1)
                     new_location.base_location_id += 1
-                dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, new_location.type, new_location.item_name))
+                dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, new_location.type, new_location.item_name, next_id + 1))
     else: # Materials doesn't matter
         new_location.max_id = calulate_check_count(world)
         for next_id in range(new_location.id, new_location.max_id):
@@ -59,14 +59,14 @@ def loop_locations(world: "DwarfFortressWorld", new_location: DynamicCraftingDat
             else:
                 new_location.check_name = "Crafting " + new_location.item_name + " Check "+ str(next_id + 1)
                 new_location.base_location_id += 1
-            dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, "", new_location.item_name))
+            dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, "", new_location.item_name, next_id + 1))
     return dynamic_locations
 
 def calulate_check_count(world: "DwarfFortressWorld"):
     if world.options.craftable_threshold >= world.options.craftable_max_amount:
         return 1
     else:
-        checks = math.floor(world.options.craftable_max_amount / world.options.craftable_threshold)
+        checks = math.ceil(world.options.craftable_max_amount / world.options.craftable_threshold)
         return checks
     
 def valid_materialitem(material: str, item: str) -> bool:
