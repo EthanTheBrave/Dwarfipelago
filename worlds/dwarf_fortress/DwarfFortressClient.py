@@ -720,7 +720,6 @@ class DwarfFortressContext(CommonContext):
                         local_checks.append(int(crafts))
                         continue
         if local_checks:
-            logger.info(f"New checks: {local_checks}")
             await self.send_msgs([{
                 "cmd": "LocationChecks",
                 "locations": local_checks,
