@@ -18,55 +18,9 @@ Complete economic and production milestones in your fortress to send items to ot
 | DFHack Mod | `mods/dwarfipelago/` | DFHack mod — copy into your DF installation's `mods/` folder |
 | AP Client | `worlds/dwarf_fortress/DwarfFortressClient.py` | Bundled inside the AP world package — launched automatically by the AP launcher |
 
-## Quick Setup
+## Setup
 
-### Prerequisites
-
-- **Dwarf Fortress** (Steam) — installed via Steam
-- **DFHack** — installed as a separate Steam item ([DFHack on Steam](https://store.steampowered.com/app/2346660/DFHack__Dwarf_Fortress_Modding_Engine/))
-  - Steam installs DFHack to `<SteamLibrary>\steamapps\common\DFHack\`
-- **Archipelago** 0.6.7 — installed to `C:\ProgramData\Archipelago\` by default
-
----
-
-1. **Install the AP World**
-   - download `dwarfipelago.apworld` in the release section and double click `dwarfipelago.apworld` which will then copy the apworld to custom_worlds
-
-2. **Install the DFHack mod**
-
-   Copy over `mods` which will create `mods\dwarfipelago\` folder inside your DF installation (the folder won't exist by default)
-   If you are updating to a newer version, delete `mods\dwarfipelago\` and then copy over `mods\dwarfipelago\`.
-   ```
-   <SteamLibrary>\steamapps\common\Dwarf Fortress\mods
-   ```
-   The contents of `mods/dwarfipelago/` result looks like:
-   ```
-    info.txt
-    scripts_modinstalled\
-      dwarfipelago.lua
-      internal\
-        dwarfipelago\
-          checks.lua
-          items.lua
-          state.lua
-   ```
-   Then **enable the mod** in DF's in-game mod manager before generating or loading a world.
-
-   > **Note:** When DF enables a mod it copies it to a separate snapshot directory. If you update the mod files later, you must also update the snapshot or re-enable the mod. The snapshot lives at:
-   > ```
-   > %AppData%\Roaming\Bay 12 Games\Dwarf Fortress\data\installed_mods\dwarfipelago (1)\
-   > ```
-   > On Windows, paste that path into Explorer's address bar. Any time you change a `.lua` file during development, copy it to the matching path in `installed_mods` (or simply disable and re-enable the mod in DF's mod manager to regenerate the snapshot automatically).
-
-3. **Generate your Archipelago session** with a `DwarfFortress.yaml` options file (see `worlds/dwarf_fortress/docs/setup_en.md`)
-
-4. **In the Archipelago launcher:**
-   - Click **Dwarf Fortress** to launch the game
-   - Load or embark on a fortress
-   - Click **Dwarf Fortress Client** and connect to your server
-   - The mod starts automatically once your fortress is loaded — no DFHack console commands needed
-
-   > The AP client is bundled inside the world package — no separate file to copy into your Archipelago root.
+See [`worlds/dwarf_fortress/docs/setup_en.md`](worlds/dwarf_fortress/docs/setup_en.md) for full installation and configuration instructions.
 
 ## Trade Depot
 
