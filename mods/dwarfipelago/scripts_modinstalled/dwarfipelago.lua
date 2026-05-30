@@ -531,50 +531,74 @@ local function ensure_trade_depot()
         return
     end
 
-    -- Place the depot 7 tiles to the left (west) of the anchor position,
-    -- clamped so the full 5×5 footprint stays inside the map.
+    -- Helper: clear a 5×5 area and attempt to place the depot there.
+    -- Returns the constructed building on success, nil on failure.
     local map = df.global.world.map
-    local tx = math.max(1, math.min(sx - 7, map.x_count - 6))
-    local ty = math.max(1, math.min(sy,     map.y_count - 6))
-    local x2, y2 = tx + 4, ty + 4
+    local function try_place(tx, ty)
+        -- Clamp so the full 5×5 footprint stays inside the map.
+        tx = math.max(1, math.min(tx, map.x_count - 6))
+        ty = math.max(1, math.min(ty, map.y_count - 6))
+        local x2, y2 = tx + 4, ty + 4
 
-    -- Clear any buildings overlapping the 5×5 footprint.
-    local blds_to_remove = {}
-    for _, b in ipairs(df.global.world.buildings.all) do
-        if b.z == sz and b.x1 <= x2 and b.x2 >= tx and
-                         b.y1 <= y2 and b.y2 >= ty then
-            table.insert(blds_to_remove, b)
+        -- Clear buildings overlapping the footprint.
+        local blds_to_remove = {}
+        for _, b in ipairs(df.global.world.buildings.all) do
+            if b.z == sz and b.x1 <= x2 and b.x2 >= tx and
+                             b.y1 <= y2 and b.y2 >= ty then
+                table.insert(blds_to_remove, b)
+            end
         end
-    end
-    for _, b in ipairs(blds_to_remove) do
-        pcall(function() dfhack.buildings.deconstruct(b) end)
-    end
-
-    -- Clear any items sitting on the 5×5 footprint.
-    local items_to_remove = {}
-    for _, item in ipairs(df.global.world.items.all) do
-        if item.pos.z == sz and
-           item.pos.x >= tx and item.pos.x <= x2 and
-           item.pos.y >= ty and item.pos.y <= y2 then
-            table.insert(items_to_remove, item)
+        for _, b in ipairs(blds_to_remove) do
+            pcall(function() dfhack.buildings.deconstruct(b) end)
         end
-    end
-    for _, item in ipairs(items_to_remove) do
-        pcall(function() dfhack.items.remove(item) end)
+
+        -- Clear items on the footprint.
+        local items_to_remove = {}
+        for _, item in ipairs(df.global.world.items.all) do
+            if item.pos.z == sz and
+               item.pos.x >= tx and item.pos.x <= x2 and
+               item.pos.y >= ty and item.pos.y <= y2 then
+                table.insert(items_to_remove, item)
+            end
+        end
+        for _, item in ipairs(items_to_remove) do
+            pcall(function() dfhack.items.remove(item) end)
+        end
+
+        -- Attempt construction.
+        local ok, result = pcall(function()
+            return dfhack.buildings.constructBuilding{
+                type   = df.building_type.TradeDepot,
+                pos    = {x = tx, y = ty, z = sz},
+                width  = 5,
+                height = 5,
+            }
+        end)
+        if ok and result then
+            return result, tx, ty
+        end
+        return nil
     end
 
-    -- Construct the trade depot.
-    local build_ok, bld = pcall(function()
-        return dfhack.buildings.constructBuilding{
-            type   = df.building_type.TradeDepot,
-            pos    = {x = tx, y = ty, z = sz},
-            width  = 5,
-            height = 5,
-        }
-    end)
+    -- Try each cardinal direction (7 tiles out), west first.
+    local candidates = {
+        { sx - 7, sy     },  -- west
+        { sx + 7, sy     },  -- east
+        { sx,     sy - 7 },  -- north
+        { sx,     sy + 7 },  -- south
+    }
+    local bld, tx, ty
+    for _, c in ipairs(candidates) do
+        local b, px, py = try_place(c[1], c[2])
+        if b then
+            bld, tx, ty = b, px, py
+            break
+        end
+        print(("[Dwarfipelago] Depot placement failed at %d,%d — trying next direction"):format(c[1], c[2]))
+    end
 
-    if not build_ok or not bld then
-        dfhack.printerr("[Dwarfipelago] Failed to place trade depot: " .. tostring(bld))
+    if not bld then
+        dfhack.printerr("[Dwarfipelago] Failed to place trade depot in any direction")
         return
     end
 
