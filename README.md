@@ -124,9 +124,9 @@ A running list of ideas, planned features, and things that still need doing. No 
 - [x] Wire up caravan detection (merchant/diplomat unit scanning, exported-wealth tracking for trade/export flags)
 - [x] Fortress title location checks — Hamlet / Village / Town / City / Metropolis (population + wealth thresholds)
 - [x] Mountainhome win condition — achieve Mountainhome status (monarch takes residence)
-- [ ] Validate `df.job_type` enum values against a live DFHack console for all production checks
-- [ ] Validate `createitem` material strings against DF raws (gem types, metal bar identifiers)
-- [ ] Write end-to-end test instructions in `docs/`
+- [~] Validate `df.job_type` enum values against a live DFHack console for all production checks
+- [~] Validate `createitem` material strings against DF raws (gem types, metal bar identifiers)
+- [x] Write end-to-end test instructions in `docs/`
 
 ### Ideas / Future Features
 
@@ -137,5 +137,6 @@ A running list of ideas, planned features, and things that still need doing. No 
 - [ ] **Overlay UI** — DFHack overlay panel showing current AP connection status and recent items
 - [ ] **Multi-fortress support** — allow switching between saves without resetting AP state
 - [ ] **DeathLink targeting** — option to target specific skill types when applying received DeathLink deaths
+- [ ] **Random Option for Crafting Check** — selects a specified number of random item checks to have included in AP gen
 
 ---
