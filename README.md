@@ -138,5 +138,6 @@ A running list of ideas, planned features, and things that still need doing. No 
 - [ ] **Multi-fortress support** — allow switching between saves without resetting AP state
 - [ ] **DeathLink targeting** — option to target specific skill types when applying received DeathLink deaths
 - [ ] **Random Option for Crafting Check** — selects a specified number of random item checks to have included in AP gen
+- [ ] **Rival Beast When MegaBeast is Victory** — finds a named beast during world gen and spawns them in when a specific check is sent
 
 ---
