@@ -308,6 +308,9 @@ local function on_job_completed(job)
     local craft_flag = checks.job_to_craft_flag(job)
     if craft_flag then
         checks.increment_craft_count(craft_flag)
+        if craft_flag == "honey" then
+            checks.increment_craft_count("bee_wax")
+        end
     end
 end
 

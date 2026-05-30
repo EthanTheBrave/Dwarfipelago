@@ -378,6 +378,7 @@ reaction_subtype("MAKE_MILK_OF_LIME",               "milk_of_lime")
 reaction_subtype("RENDER_FAT",                      "tallow")
 reaction_subtype("PRESS_OIL_FRUIT",                 "oil")
 reaction_subtype("PRESS_OIL",                       "oil")
+reaction_subtype("PRESS_HONEYCOMB",                 "honey")
 
 
 
