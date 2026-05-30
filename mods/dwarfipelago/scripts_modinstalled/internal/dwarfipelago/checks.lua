@@ -299,6 +299,10 @@ cmap("MakeArmor",               "UARMOR_SUBTYPE")
 cmap("MakeGloves",              "GARMOR_SUBTYPE")
 cmap("MakePants",               "LARMOR_SUBTYPE")
 cmap("MakeShoes",               "footwear")
+cmap("ConstructBag",            "bag")
+cmap("MintCoins",               "coin")
+cmap("MakeChain",               "rope/chain")
+cmap("ForgeAnvil",              "anvil")
 
 
 
@@ -344,13 +348,26 @@ local WEAPON_SUBTYPE_FLAG = {}
 local function weapon_subtype(subtype_id, flag)
     WEAPON_SUBTYPE_FLAG[subtype_id] = flag
 end
-weapon_subtype(21, "training_axe")
-weapon_subtype(22, "training_sword")
-weapon_subtype(23, "training_spear")
+weapon_subtype(1,   "battle_axe")
+weapon_subtype(2,   "war_hammer")
+weapon_subtype(3,   "short_sword")
+weapon_subtype(4,   "spear")
+weapon_subtype(5,   "mace")
+weapon_subtype(7,   "pick")
+weapon_subtype(21,  "training_axe")
+weapon_subtype(22,  "training_sword")
+weapon_subtype(23,  "training_spear")
 weapon_subtype(6,   "crossbow")
-weapon_subtype(33,   "crossbow")
-weapon_subtype(37,   "crossbow")
+weapon_subtype(33,  "crossbow")
+weapon_subtype(34,  "war_hammer")
+weapon_subtype(36,  "mace")
+weapon_subtype(37,  "crossbow")
+weapon_subtype(39,  "spear")
 weapon_subtype(41,   "crossbow")
+weapon_subtype(42,   "battle_axe")
+weapon_subtype(43,   "spear")
+
+
 
 
 local HELM_SUBTYPE_FLAG = {}
@@ -405,6 +422,8 @@ reaction_subtype("RENDER_FAT",                      "tallow")
 reaction_subtype("PRESS_OIL_FRUIT",                 "oil")
 reaction_subtype("PRESS_OIL",                       "oil")
 reaction_subtype("PRESS_HONEYCOMB",                 "honey")
+reaction_subtype("MAKE_SOAP_FROM_OIL",              "soap")
+reaction_subtype("MAKE_SOAP_FROM_TALLOW",           "soap")
 
 
 local UARMOR_SUBTYPE_FLAG = {}
