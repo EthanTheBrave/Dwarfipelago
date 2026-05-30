@@ -232,59 +232,78 @@ local function cmap(name, flag)
 end
 
 -- craftable_items
-cmap("MakeTool",            "TOOL_SUBTYPE")
-cmap("ConstructDoor",       "door")
-cmap("MakeCage",            "cage")
-cmap("ConstructBin",        "bin")
-cmap("ConstructBlocks",     "blocks")
-cmap("ConstructGrate",      "grate")
-cmap("MakeTrapComponent",   "TRAP_SUBTYPE")
-cmap("ConstructBed",        "bed")
-cmap("MakeAnimalTrap",      "animal_trap")
-cmap("ConstructArmorStand", "armor_stand")
-cmap("MakePedestal",        "pedestal")
-cmap("MakeBucket",          "bucket")
-cmap("MakeBarrel",          "barrel")
-cmap("MakeShield",          "SHIELD_SUBTYPE")
-cmap("ConstructCabinet",    "cabinet")
-cmap("ConstructCoffin",     "burial_container")
-cmap("ConstructThrone",     "chair")
-cmap("ConstructChest",      "container")
-cmap("ConstructCrutch",     "crutch")
-cmap("ConstructFloodgate",  "floodgate")
-cmap("ConstructGrate",      "grate")
-cmap("ConstructHatchCover", "hatch_cover")
-cmap("MakePipeSection",     "pipe_section")
-cmap("ConstructSplint",     "splint")
-cmap("ConstructTable",      "table")
-cmap("MakeWeapon",          "WEAPON_SUBTYPE")
-cmap("ConstructWeaponRack", "weapon_rack")
-cmap("MakeAmmo",            "bolt")
-cmap("ConstructMillstone",  "millstone")
-cmap("ConstructQuern",      "quern")
-cmap("ConstructSlab",       "slab")
-cmap("ConstructStatue",     "statue")
-cmap("ConstructMechanisms", "mechanism")
-cmap("ConstructTractionBench", "traction_bench")
-cmap("MakeFigurine",        "crafts")
-cmap("MakeAmulet",          "crafts")
-cmap("MakeScepter",         "crafts")
-cmap("MakeCrown",           "crafts")
-cmap("MakeRing",            "crafts")
-cmap("MakeEarring",         "crafts")
-cmap("MakeBracelet",        "crafts")
-cmap("MakeCrafts",          "crafts")
-cmap("MakeFlask",           "liquid_container")
+cmap("MakeTool",                "TOOL_SUBTYPE")
+cmap("ConstructDoor",           "door")
+cmap("MakeCage",                "cage")
+cmap("ConstructBin",            "bin")
+cmap("ConstructBlocks",         "blocks")
+cmap("ConstructGrate",          "grate")
+cmap("MakeTrapComponent",       "TRAP_SUBTYPE")
+cmap("ConstructBed",            "bed")
+cmap("MakeAnimalTrap",          "animal_trap")
+cmap("ConstructArmorStand",     "armor_stand")
+cmap("MakePedestal",            "pedestal")
+cmap("MakeBucket",              "bucket")
+cmap("MakeBarrel",              "barrel")
+cmap("MakeShield",              "SHIELD_SUBTYPE")
+cmap("ConstructCabinet",        "cabinet")
+cmap("ConstructCoffin",         "burial_container")
+cmap("ConstructThrone",         "chair")
+cmap("ConstructChest",          "container")
+cmap("ConstructCrutch",         "crutch")
+cmap("ConstructFloodgate",      "floodgate")
+cmap("ConstructGrate",          "grate")
+cmap("ConstructHatchCover",     "hatch_cover")
+cmap("MakePipeSection",         "pipe_section")
+cmap("ConstructSplint",         "splint")
+cmap("ConstructTable",          "table")
+cmap("MakeWeapon",              "WEAPON_SUBTYPE")
+cmap("ConstructWeaponRack",     "weapon_rack")
+cmap("MakeAmmo",                "bolt")
+cmap("ConstructMillstone",      "millstone")
+cmap("ConstructQuern",          "quern")
+cmap("ConstructSlab",           "slab")
+cmap("ConstructStatue",         "statue")
+cmap("ConstructMechanisms",     "mechanism")
+cmap("ConstructTractionBench",  "traction_bench")
+cmap("MakeFigurine",            "crafts")
+cmap("MakeAmulet",              "crafts")
+cmap("MakeScepter",             "crafts")
+cmap("MakeCrown",               "crafts")
+cmap("MakeRing",                "crafts")
+cmap("MakeEarring",             "crafts")
+cmap("MakeBracelet",            "crafts")
+cmap("MakeCrafts",              "crafts")
+cmap("MakeFlask",               "liquid_container")
+cmap("MakeGoblet",              "GOBLET_SUBTYPE")
+cmap("MakeToy",                 "toy")
+cmap("MakeTotem",               "totem")
+cmap("MakeHelm",                "HELM_SUBTYPE")
+cmap("ConstructBallistaParts",  "ballista_parts")
+cmap("ConstructCatapultParts",  "catapult_parts")
+cmap("AssembleSiegeAmmo",       "ballista_arrows")
+cmap("MakeAsh",                 "ash")
+cmap("MakeCharcoal"             "charcoal")
+cmap("SmeltOre"                 "metal_bars")
+cmap("MeltMetalObject",         "metal_bars")
+cmap("CustomReaction",          "REACTION_SUBTYPE")
+cmap("MakeRawGlass",            "glass")
+cmap("MakeWindow",              "window")
+cmap("TanHide",                 "leather")
+cmap("WeaveCloth",              "cloth")
+cmap("MakeLye",                 "lye")
+cmap("MakePotashFromLye",       "potash")
+cmap("MakePotashFromAsh",       "potash")
+cmap("PrepareMeal",             "prepared_meal")
+cmap("MakeArmor",               "UARMOR_SUBTYPE")
+cmap("MakeGloves",              "GARMOR_SUBTYPE")
+cmap("MakePants",               "LARMOR_SUBTYPE")
+cmap("MakeShoes",               "footwear")
+cmap("ConstructBag",            "bag")
+cmap("MintCoins",               "coin")
+cmap("MakeChain",               "rope/chain")
+cmap("ForgeAnvil",              "anvil")
 
-
--- craftable_materials (unambiguous by job type)
-cmap("WeaveCloth",      "cloth")
-cmap("ProcessPlants",   "cloth")
-cmap("TanHide",         "leather")
-cmap("SmeltOre",        "metal")
-cmap("MeltMetalObject", "metal")
-cmap("MakeGlass",       "glass")
-cmap("MakeCeramicItem", "ceramics")
 
 
 local TOOL_SUBTYPE_FLAG = {}
@@ -329,27 +348,146 @@ local WEAPON_SUBTYPE_FLAG = {}
 local function weapon_subtype(subtype_id, flag)
     WEAPON_SUBTYPE_FLAG[subtype_id] = flag
 end
-weapon_subtype(21, "training_axe")
-weapon_subtype(22, "training_sword")
-weapon_subtype(23, "training_spear")
+weapon_subtype(1,   "battle_axe")
+weapon_subtype(2,   "war_hammer")
+weapon_subtype(3,   "short_sword")
+weapon_subtype(4,   "spear")
+weapon_subtype(5,   "mace")
+weapon_subtype(7,   "pick")
+weapon_subtype(21,  "training_axe")
+weapon_subtype(22,  "training_sword")
+weapon_subtype(23,  "training_spear")
 weapon_subtype(6,   "crossbow")
-weapon_subtype(33,   "crossbow")
-weapon_subtype(37,   "crossbow")
+weapon_subtype(33,  "crossbow")
+weapon_subtype(34,  "war_hammer")
+weapon_subtype(36,  "mace")
+weapon_subtype(37,  "crossbow")
+weapon_subtype(39,  "spear")
 weapon_subtype(41,   "crossbow")
+weapon_subtype(42,   "battle_axe")
+weapon_subtype(43,   "spear")
 
 
 
 
+local HELM_SUBTYPE_FLAG = {}
+local function helm_subtype(subtype_id, flag)
+    HELM_SUBTYPE_FLAG[subtype_id] = flag
+end
+helm_subtype(0, "helm")
+helm_subtype(1, "headgear_clothing")
+helm_subtype(2, "headgear_clothing")
+helm_subtype(3, "headgear_clothing")
+helm_subtype(4, "headgear_clothing")
+helm_subtype(5, "headgear_clothing")
+helm_subtype(6, "headgear_clothing")
+helm_subtype(7, "headgear_clothing")
+helm_subtype(8, "headgear_clothing")
+helm_subtype(9, "headgear_clothing")
+helm_subtype(10, "headgear_clothing")
+helm_subtype(11, "headgear_clothing")
+helm_subtype(12, "helm")
+helm_subtype(13, "headgear_clothing")
+helm_subtype(14, "headgear_clothing")
+helm_subtype(15, "headgear_clothing")
 
 
--- craftable_materials (unambiguous by job type)
-cmap("WeaveCloth",      "cloth")
-cmap("ProcessPlants",   "cloth")
-cmap("TanHide",         "leather")
-cmap("SmeltOre",        "metal")
-cmap("MeltMetalObject", "metal")
-cmap("MakeGlass",       "glass")
-cmap("MakeCeramicItem", "ceramics")
+local GOBLET_SUBTYPE_FLAG = {}
+local function goblet_subtype(name, flag)
+    local v = df.job_type[name]
+    if v ~= nil then GOBLET_SUBTYPE_FLAG[v] = flag end
+end
+goblet_subtype("wood",   "cup")
+goblet_subtype("stone",  "mug")
+goblet_subtype("metal",  "goblet")
+goblet_subtype("glass",   "goblet")
+
+local REACTION_SUBTYPE_FLAG = {}
+local function reaction_subtype(name, flag)
+    local v = df.job_type[name]
+    if v ~= nil then REACTION_SUBTYPE_FLAG[v] = flag end
+end
+reaction_subtype("LIGNITE_TO_COAL",                 "coke_bar")
+reaction_subtype("BITUMINOUS_COAL_TO_COAL",         "coke_bar")
+reaction_subtype("MAKE_PEARLASH",                   "pearlash")
+reaction_subtype("MAKE_PLASTER_POWDER",             "gypsum_plaster")
+reaction_subtype("MAKE_QUICKLIME",                  "quicklime")
+reaction_subtype("MAKE_PARCHMENT",                  "sheet")
+reaction_subtype("PRESS_PLANT_PAPER",               "sheet")
+reaction_subtype("MAKE_SHEET_FROM_PLANT",           "sheet")
+reaction_subtype("BREW_DRINK_FROM_PLANT",           "alcohol")
+reaction_subtype("BREW_DRINK_FROM_PLANT_GROWTH",    "alcohol")
+reaction_subtype("MAKE_MILK_OF_LIME",               "milk_of_lime")
+reaction_subtype("RENDER_FAT",                      "tallow")
+reaction_subtype("PRESS_OIL_FRUIT",                 "oil")
+reaction_subtype("PRESS_OIL",                       "oil")
+reaction_subtype("PRESS_HONEYCOMB",                 "honey")
+reaction_subtype("MAKE_SOAP_FROM_OIL",              "soap")
+reaction_subtype("MAKE_SOAP_FROM_TALLOW",           "soap")
+
+
+local UARMOR_SUBTYPE_FLAG = {}
+local function uarmor_subtype(subtype_id, flag)
+    UARMOR_SUBTYPE_FLAG[subtype_id] = flag
+end
+uarmor_subtype(0, "upper_body_armor")
+uarmor_subtype(1, "upper_body_clothing")
+uarmor_subtype(2, "upper_body_armor")
+uarmor_subtype(3, "upper_body_clothing")
+uarmor_subtype(4, "upper_body_clothing")
+uarmor_subtype(5, "upper_body_clothing")
+uarmor_subtype(6, "upper_body_clothing")
+uarmor_subtype(7, "upper_body_clothing")
+uarmor_subtype(8, "upper_body_clothing")
+uarmor_subtype(9, "upper_body_clothing")
+uarmor_subtype(10, "upper_body_clothing")
+uarmor_subtype(11, "upper_body_clothing")
+uarmor_subtype(12, "upper_body_armor")
+uarmor_subtype(13, "upper_body_clothing")
+uarmor_subtype(14, "upper_body_armor")
+uarmor_subtype(15, "upper_body_clothing")
+uarmor_subtype(16, "upper_body_armor")
+uarmor_subtype(17, "upper_body_clothing")
+uarmor_subtype(18, "upper_body_armor")
+uarmor_subtype(19, "upper_body_clothing")
+
+local GARMOR_SUBTYPE_FLAG = {}
+local function garmor_subtype(subtype_id, flag)
+    GARMOR_SUBTYPE_FLAG[subtype_id] = flag
+end
+garmor_subtype(0, "gauntlets")
+garmor_subtype(1, "hand_clothing")
+garmor_subtype(2, "hand_clothing")
+garmor_subtype(3, "gauntlets")
+garmor_subtype(4, "hand_clothing")
+garmor_subtype(5, "gauntlets")
+garmor_subtype(6, "hand_clothing")
+garmor_subtype(7, "gauntlets")
+garmor_subtype(8, "hand_clothing")
+garmor_subtype(9, "gauntlets")
+garmor_subtype(10, "hand_clothing")
+
+local LARMOR_SUBTYPE_FLAG = {}
+local function larmor_subtype(subtype_id, flag)
+    LARMOR_SUBTYPE_FLAG[subtype_id] = flag
+end
+larmor_subtype(0, "lower_body_clothing")
+larmor_subtype(1, "lower_body_armor")
+larmor_subtype(2, "lower_body_armor")
+larmor_subtype(3, "lower_body_clothing")
+larmor_subtype(4, "lower_body_clothing")
+larmor_subtype(5, "lower_body_clothing")
+larmor_subtype(6, "lower_body_clothing")
+larmor_subtype(7, "lower_body_clothing")
+larmor_subtype(8, "lower_body_clothing")
+larmor_subtype(9, "lower_body_armor")
+larmor_subtype(10, "lower_body_clothing")
+larmor_subtype(11, "lower_body_armor")
+larmor_subtype(12, "lower_body_clothing")
+larmor_subtype(13, "lower_body_armor")
+larmor_subtype(14, "lower_body_clothing")
+larmor_subtype(15, "lower_body_armor")
+larmor_subtype(16, "lower_body_clothing")
 
 -- Jobs where the flag depends on the job's primary material (stone/bone/wood).
 local NEEDS_MAT_CHECK = {}
@@ -384,18 +522,44 @@ function M.job_to_craft_flag(job)
     local flag = JOB_TO_CRAFT_FLAG[job.job_type]
     if flag then
         if flag == "TOOL_SUBTYPE" then
-            flag = TOOL_SUBTYPE_FLAG[job.item_subtype]
+            flag = TOOL_SUBTYPE_FLAG[tonumber(job.item_subtype)]
         elseif flag == "TRAP_SUBTYPE" then
-            flag = TRAP_SUBTYPE_FLAG[job.item_subtype]
+            flag = TRAP_SUBTYPE_FLAG[tonumber(job.item_subtype)]
         elseif flag == "SHIELD_SUBTYPE" then
-            flag = SHIELD_SUBTYPE_FLAG[job.item_subtype]
+            flag = SHIELD_SUBTYPE_FLAG[tonumber(job.item_subtype)]
         elseif flag == "WEAPON_SUBTYPE" then
-            flag = WEAPON_SUBTYPE_FLAG[job.item_subtype]
+            flag = WEAPON_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+        elseif flag == "HELM_SUBTYPE" then
+            flag = HELM_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+        elseif flag == "GOBLET_SUBTYPE" then
+            flag = GOBLET_SUBTYPE_FLAG[mat_craft_flag(job)]
+        elseif flag == "REACTION_SUBTYPE" then
+            if string.find(job.reaction_name, "DYE") then --too many DYES to add
+                flag = "dye"
+            else
+                flag = REACTION_SUBTYPE_FLAG[job.reaction_name]
+            end
+        elseif flag == "UARMOR_SUBTYPE" then
+            flag = UARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+        elseif flag == "GARMOR_SUBTYPE" then
+            flag = GARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+        elseif flag == "LARMOR_SUBTYPE" then
+            flag = LARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+        end
+        if flag == "ash" or flag == "charcoal" or flag == "metal_bars" or flag == "coke_bars"
+            or flag == "pearlash" or flag == "gypsum_plaster" or flag == "quicklime" or flag == "glass"
+            or flag == "leather" or flag == "sheet" or flag == "cloth" or flag == "alcohol" 
+            or flag == "lye" or flag == "Potash" or flag == "milk_of_lime" or flag == "prepared_meal"
+            or flag == "tallow" or flag == "oil" or flag == "press_cake" or flag == "honey"
+            or flag == "bee_wax" or flag == "dye" or flag == "soap" then
+                return flag
+        end
+        local need_mat = dfhack.persistent.getWorldDataString('dwarfipelago/crafting_materials')
+        if tonumber(need_mat) == 1 then
+            local material_used = mat_craft_flag(job) -- shouldn't return nil here
+            return tostring(flag) .. "_" .. tostring(material_used) 
         end
         return flag 
-    end
-    if NEEDS_MAT_CHECK[job.job_type] then
-        return mat_craft_flag(job)
     end
     return nil
 end
