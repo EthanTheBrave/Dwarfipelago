@@ -7,35 +7,51 @@ local M = {}
 
 -- ── Helpers ───────────────────────────────────────────────────────────────────
 
--- Spawn a single item at a living citizen's position.
--- createitem places items at the keyboard cursor, so we move the cursor to a
--- citizen's tile first — that guarantees a valid, walkable floor tile rather
--- than (0,0,0) in solid rock (which is what happens when called via RPC with
--- no active UI cursor).
+-- Return the center tile of the first trade depot in the fortress, or nil.
+-- The depot is 5×5; (x1+2, y1+2) is its center tile.
+local function find_trade_depot_center()
+    for _, bld in ipairs(df.global.world.buildings.all) do
+        if df.building_tradedepotst:is_instance(bld) then
+            return bld.x1 + 2, bld.y1 + 2, bld.z
+        end
+    end
+    return nil
+end
+
+-- Spawn items at the trade depot (the designated AP delivery point).
+-- Falls back to a living citizen's tile if no depot exists yet.
+-- createitem places items at the keyboard cursor, so we set the cursor first.
 local function spawn_item(item_type, material, quantity)
     quantity = quantity or 1
 
-    -- Anchor the cursor at the first living citizen's position.
-    local anchored = false
-    for _, unit in ipairs(df.global.world.units.active) do
-        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
-            df.global.cursor.x = unit.pos.x
-            df.global.cursor.y = unit.pos.y
-            df.global.cursor.z = unit.pos.z
-            anchored = true
-            break
+    -- Prefer the trade depot center; fall back to any living citizen.
+    local cx, cy, cz = find_trade_depot_center()
+    if cx then
+        df.global.cursor.x = cx
+        df.global.cursor.y = cy
+        df.global.cursor.z = cz
+    else
+        local anchored = false
+        for _, unit in ipairs(df.global.world.units.active) do
+            if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+                df.global.cursor.x = unit.pos.x
+                df.global.cursor.y = unit.pos.y
+                df.global.cursor.z = unit.pos.z
+                anchored = true
+                break
+            end
         end
-    end
-    if not anchored then
-        dfhack.printerr("[Dwarfipelago] spawn_item: no living citizen found — cannot place " .. item_type)
-        return
+        if not anchored then
+            dfhack.printerr("[Dwarfipelago] spawn_item: no depot or citizen — cannot place " .. item_type)
+            return
+        end
     end
 
     for _ = 1, quantity do
-        -- createitem plugin: "createitem <item-token> <material>"
+        -- createitem is a DFHack plugin command; use run_command, not run_script.
         -- e.g. createitem SMALLGEM INORGANIC:RUBY
         local ok, err = pcall(function()
-            dfhack.run_script("createitem", item_type, material)
+            dfhack.run_command("createitem", item_type, material)
         end)
         if not ok then
             dfhack.printerr("[Dwarfipelago] Failed to spawn " .. item_type .. ": " .. tostring(err))
