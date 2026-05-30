@@ -496,6 +496,7 @@ local function ensure_trade_depot()
             end
         end
     end)
+    -- First try: citizen scan (may fail at load time before citizen state initialises)
     if not sx then
         for _, unit in ipairs(df.global.world.units.active) do
             if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
@@ -504,8 +505,17 @@ local function ensure_trade_depot()
             end
         end
     end
+    -- Second try: any living dwarf-race unit (handles early-load edge case)
     if not sx then
-        dfhack.printerr("[Dwarfipelago] ensure_trade_depot: no starting position found")
+        for _, unit in ipairs(df.global.world.units.active) do
+            if dfhack.units.isAlive(unit) and unit.pos.x > 0 then
+                sx, sy, sz = unit.pos.x, unit.pos.y, unit.pos.z
+                break
+            end
+        end
+    end
+    if not sx then
+        dfhack.printerr("[Dwarfipelago] ensure_trade_depot: no starting position found — will retry next load")
         return
     end
 
@@ -556,8 +566,12 @@ local function start()
     eventful.onJobCompleted[SCRIPT_NAME]        = on_job_completed
     eventful.onUnitDeath[SCRIPT_NAME]           = on_unit_death
     eventful.onJobInitiated[SCRIPT_NAME]        = on_job_initiated
-    eventful.onItemCreated[SCRIPT_NAME]         = on_item_created
-    eventful.onItemPutInStockpile[SCRIPT_NAME]  = on_item_stockpile
+    if eventful.onItemCreated then
+        eventful.onItemCreated[SCRIPT_NAME]        = on_item_created
+    end
+    if eventful.onItemPutInStockpile then
+        eventful.onItemPutInStockpile[SCRIPT_NAME] = on_item_stockpile
+    end
 
     -- Register poll loop
     repeatUtil.scheduleEvery(SCRIPT_NAME, POLL_TICKS, "ticks", poll_checks)
@@ -573,8 +587,12 @@ local function stop()
     eventful.onJobCompleted[SCRIPT_NAME]        = nil
     eventful.onUnitDeath[SCRIPT_NAME]           = nil
     eventful.onJobInitiated[SCRIPT_NAME]        = nil
-    eventful.onItemCreated[SCRIPT_NAME]         = nil
-    eventful.onItemPutInStockpile[SCRIPT_NAME]  = nil
+    if eventful.onItemCreated then
+        eventful.onItemCreated[SCRIPT_NAME]        = nil
+    end
+    if eventful.onItemPutInStockpile then
+        eventful.onItemPutInStockpile[SCRIPT_NAME] = nil
+    end
     repeatUtil.cancel(SCRIPT_NAME)
 
     print("[Dwarfipelago] Stopped.")
