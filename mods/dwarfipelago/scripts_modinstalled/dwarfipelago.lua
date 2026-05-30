@@ -246,11 +246,27 @@ local function detect_trade_export()
     end
 end
 
+-- Forward declaration so poll_checks can call ensure_trade_depot, which is
+-- defined later in the file (after the item event helpers).
+local ensure_trade_depot
+
 -- ── Poll loop: wealth, trade, and goal milestones ─────────────────────────────
 -- Runs every POLL_TICKS game ticks. Production checks are handled by eventful.
 
 local function poll_checks()
     if not state.is_enabled() then return end
+    -- repeatUtil fires the callback immediately on registration, and again
+    -- during world-loading screens.  Do nothing until the fortress map is
+    -- fully live and the simulation is running.
+    if not dfhack.isMapLoaded() then return end
+
+    -- All AP checks are gated on a trade depot existing.  ensure_trade_depot
+    -- retries every poll tick (every POLL_TICKS game ticks) until it succeeds,
+    -- so it naturally defers until units and map data are fully loaded.
+    if dfhack.persistent.getWorldDataString("dwarfipelago/depot_built") ~= "1" then
+        ensure_trade_depot()
+        return
+    end
 
     apply_pending_recv_deathlinks()
     check_goal_by_poll()
@@ -292,6 +308,33 @@ local function on_job_completed(job)
     local craft_flag = checks.job_to_craft_flag(job)
     if craft_flag then
         checks.increment_craft_count(craft_flag)
+        if craft_flag == "honey" then
+            checks.increment_craft_count("bee_wax")
+        elseif craft_flag == "oil" then
+            checks.increment_craft_count("press_cake")
+        end
+    end
+
+    -- Stockpile detection: StoreItemInStockpile fires when a dwarf deposits an
+    -- item. Used in place of the non-existent onItemPutInStockpile event.
+    if job.job_type == df.job_type.StoreItemInStockpile then
+        for _, item_ref in ipairs(job.items) do
+            local item = df.item.find(item_ref.item_id)
+            local info = item_to_info(item)
+            if info then
+                for _, ref in ipairs(item.general_refs) do
+                    if df.general_ref_building_holderst:is_instance(ref) then
+                        local bld = df.building.find(ref.building_id)
+                        if bld and df.building_stockpilest:is_instance(bld) then
+                            info.stockpile_name   = bld.name ~= "" and bld.name or nil
+                            info.stockpile_number = bld.stockpile_number
+                            break
+                        end
+                    end
+                end
+                queue_item_event("dwarfipelago/pending_item_stockpiled", info)
+            end
+        end
     end
 end
 
@@ -447,29 +490,186 @@ local function on_item_created(item_id)
     end
 end
 
--- ── onItemPutInStockpile hook ─────────────────────────────────────────────────
--- Fires when an item lands in a stockpile.
--- Attaches stockpile name/number and pushes to "dwarfipelago/pending_item_stockpiled".
+-- ── Starting trade depot ──────────────────────────────────────────────────────
+-- On the first start of a new world, build a Trade Depot near the starting
+-- wagon so AP-delivered items land in a predictable, accessible location.
+-- Runs once per world; the result is stored in persistent data.
 
-local function on_item_stockpile(item_id)
-    if not state.is_enabled() then return end
-    local item = df.item.find(item_id)
-    local info = item_to_info(item)
-    if not info then return end
+ensure_trade_depot = function()
+    if dfhack.persistent.getWorldDataString("dwarfipelago/depot_built") == "1" then
+        return  -- already placed this world
+    end
 
-    -- Walk the item's building refs to find its stockpile.
-    for _, ref in ipairs(item.general_refs) do
-        if df.general_ref_building_holderst:is_instance(ref) then
-            local bld = df.building.find(ref.building_id)
-            if bld and df.building_stockpilest:is_instance(bld) then
-                info.stockpile_name   = bld.name ~= "" and bld.name or nil
-                info.stockpile_number = bld.stockpile_number
+    -- If the player already built a trade depot, adopt it as the delivery point.
+    for _, bld in ipairs(df.global.world.buildings.all) do
+        if df.building_tradedepotst:is_instance(bld) then
+            dfhack.persistent.saveWorldDataString("dwarfipelago/depot_built", "1")
+            print("[Dwarfipelago] Existing trade depot adopted as AP delivery point.")
+            return
+        end
+    end
+
+    -- Find the starting position.
+    -- Priority 1: embark wagon (VEHICLE item — present on fresh embark)
+    local sx, sy, sz
+    pcall(function()
+        for _, item in ipairs(df.global.world.items.all) do
+            if item:getType() == df.item_type.VEHICLE then
+                sx, sy, sz = item.pos.x, item.pos.y, item.pos.z
+                return
+            end
+        end
+    end)
+    -- Priority 2: citizen scan
+    if not sx then
+        for _, unit in ipairs(df.global.world.units.active) do
+            if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+                sx, sy, sz = unit.pos.x, unit.pos.y, unit.pos.z
                 break
             end
         end
     end
+    -- Priority 3: any alive unit
+    if not sx then
+        for _, unit in ipairs(df.global.world.units.active) do
+            if dfhack.units.isAlive(unit) then
+                sx, sy, sz = unit.pos.x, unit.pos.y, unit.pos.z
+                break
+            end
+        end
+    end
+    -- Priority 4: map center, z borrowed from any unit at all
+    if not sx then
+        local m = df.global.world.map
+        for _, unit in ipairs(df.global.world.units.active) do
+            if unit.pos.z > 0 then
+                sx = math.floor(m.x_count / 2)
+                sy = math.floor(m.y_count / 2)
+                sz = unit.pos.z
+                break
+            end
+        end
+    end
+    if not sx then
+        dfhack.printerr("[Dwarfipelago] ensure_trade_depot: no position found — will retry next load")
+        return
+    end
 
-    queue_item_event("dwarfipelago/pending_item_stockpiled", info)
+    -- Helper: clear a 5×5 area and attempt to place the depot there.
+    -- Returns the constructed building on success, nil on failure.
+    local map = df.global.world.map
+    local function try_place(tx, ty)
+        -- Clamp so the full 5×5 footprint stays inside the map.
+        tx = math.max(1, math.min(tx, map.x_count - 6))
+        ty = math.max(1, math.min(ty, map.y_count - 6))
+        local x2, y2 = tx + 4, ty + 4
+
+        -- Flatten terrain: convert walls/ramps/trees to floor so the depot
+        -- can be placed.  findSimilarTileType picks the closest floor variant
+        -- for the existing material; the pcall guards against any API mismatch.
+        for dy = 0, 4 do
+            for dx = 0, 4 do
+                pcall(function()
+                    local bx, by = tx + dx, ty + dy
+                    local block = dfhack.maps.getTileBlock(bx, by, sz)
+                    if not block then return end
+                    local lx, ly = bx % 16, by % 16
+                    local new_tt = dfhack.maps.findSimilarTileType(
+                        block.tiletype[lx][ly], df.tiletype_shape.FLOOR)
+                    if new_tt and new_tt ~= 0 then
+                        block.tiletype[lx][ly] = new_tt
+                        block.designation[lx][ly].hidden = false
+                    end
+                end)
+            end
+        end
+
+        -- Clear buildings overlapping the footprint.
+        local blds_to_remove = {}
+        for _, b in ipairs(df.global.world.buildings.all) do
+            if b.z == sz and b.x1 <= x2 and b.x2 >= tx and
+                             b.y1 <= y2 and b.y2 >= ty then
+                table.insert(blds_to_remove, b)
+            end
+        end
+        for _, b in ipairs(blds_to_remove) do
+            pcall(function() dfhack.buildings.deconstruct(b) end)
+        end
+
+        -- Clear items on the footprint.
+        local items_to_remove = {}
+        for _, item in ipairs(df.global.world.items.all) do
+            if item.pos.z == sz and
+               item.pos.x >= tx and item.pos.x <= x2 and
+               item.pos.y >= ty and item.pos.y <= y2 then
+                table.insert(items_to_remove, item)
+            end
+        end
+        for _, item in ipairs(items_to_remove) do
+            pcall(function() dfhack.items.remove(item) end)
+        end
+
+        -- Attempt construction.
+        local ok, result = pcall(function()
+            return dfhack.buildings.constructBuilding{
+                type   = df.building_type.TradeDepot,
+                pos    = {x = tx, y = ty, z = sz},
+                width  = 5,
+                height = 5,
+            }
+        end)
+        if ok and result then
+            return result, tx, ty
+        end
+        return nil
+    end
+
+    -- Try each cardinal direction (7 tiles out), west first.
+    local candidates = {
+        { sx - 7, sy     },  -- west
+        { sx + 7, sy     },  -- east
+        { sx,     sy - 7 },  -- north
+        { sx,     sy + 7 },  -- south
+    }
+    local bld, tx, ty
+    for _, c in ipairs(candidates) do
+        local b, px, py = try_place(c[1], c[2])
+        if b then
+            bld, tx, ty = b, px, py
+            break
+        end
+        print(("[Dwarfipelago] Depot placement failed at %d,%d — trying next direction"):format(c[1], c[2]))
+    end
+
+    if not bld then
+        dfhack.printerr("[Dwarfipelago] Failed to place trade depot in any direction")
+        return
+    end
+
+    -- Instantly complete: set to max build stage, then remove the construction
+    -- job so no dwarf tries to "finish" it and triggers a materials warning.
+    pcall(function()
+        local max = bld:getMaxBuildStage()
+        if max and max > 0 then bld:setBuildStage(max) end
+    end)
+    pcall(function()
+        local to_remove = {}
+        for i = 0, #bld.jobs - 1 do
+            local job = bld.jobs[i]
+            if job and job.job_type == df.job_type.ConstructBuilding then
+                table.insert(to_remove, job)
+            end
+        end
+        for _, job in ipairs(to_remove) do
+            dfhack.job.removeJob(job)
+        end
+    end)
+
+    dfhack.persistent.saveWorldDataString("dwarfipelago/depot_built", "1")
+    dfhack.gui.showAnnouncement(
+        "[AP] A Trading Post has been established near your starting wagon!",
+        COLOR_GREEN, true)
+    print(("[Dwarfipelago] Trade depot placed at %d,%d,%d"):format(tx, ty, sz))
 end
 
 -- ── Start / stop ──────────────────────────────────────────────────────────────
@@ -481,8 +681,10 @@ local function start()
     eventful.onJobCompleted[SCRIPT_NAME]        = on_job_completed
     eventful.onUnitDeath[SCRIPT_NAME]           = on_unit_death
     eventful.onJobInitiated[SCRIPT_NAME]        = on_job_initiated
-    eventful.onItemCreated[SCRIPT_NAME]         = on_item_created
-    eventful.onItemPutInStockpile[SCRIPT_NAME]  = on_item_stockpile
+    -- enableEvent initializes the onItemCreated hook table; without this call
+    -- the table is nil and the registration below silently does nothing.
+    eventful.enableEvent(eventful.eventType.ITEM_CREATED, 1)
+    eventful.onItemCreated[SCRIPT_NAME] = on_item_created
 
     -- Register poll loop
     repeatUtil.scheduleEvery(SCRIPT_NAME, POLL_TICKS, "ticks", poll_checks)
@@ -498,8 +700,9 @@ local function stop()
     eventful.onJobCompleted[SCRIPT_NAME]        = nil
     eventful.onUnitDeath[SCRIPT_NAME]           = nil
     eventful.onJobInitiated[SCRIPT_NAME]        = nil
-    eventful.onItemCreated[SCRIPT_NAME]         = nil
-    eventful.onItemPutInStockpile[SCRIPT_NAME]  = nil
+    if eventful.onItemCreated then
+        eventful.onItemCreated[SCRIPT_NAME] = nil
+    end
     repeatUtil.cancel(SCRIPT_NAME)
 
     print("[Dwarfipelago] Stopped.")

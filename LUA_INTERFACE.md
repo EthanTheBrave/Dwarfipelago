@@ -67,7 +67,7 @@ All keys are namespaced under `dwarfipelago/`.
 ## Data Schemas
 
 ### ItemEvent
-Produced by `onItemCreated` and `onItemPutInStockpile` hooks.
+Produced by the `onItemCreated` eventful hook and by `StoreItemInStockpile` job detection inside `onJobCompleted`.
 
 ```json
 {
