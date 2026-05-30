@@ -672,9 +672,10 @@ local function start()
     eventful.onJobCompleted[SCRIPT_NAME]        = on_job_completed
     eventful.onUnitDeath[SCRIPT_NAME]           = on_unit_death
     eventful.onJobInitiated[SCRIPT_NAME]        = on_job_initiated
-    if eventful.onItemCreated then
-        eventful.onItemCreated[SCRIPT_NAME] = on_item_created
-    end
+    -- enableEvent initializes the onItemCreated hook table; without this call
+    -- the table is nil and the registration below silently does nothing.
+    eventful.enableEvent(eventful.eventType.ITEM_CREATED, 1)
+    eventful.onItemCreated[SCRIPT_NAME] = on_item_created
 
     -- Register poll loop
     repeatUtil.scheduleEvery(SCRIPT_NAME, POLL_TICKS, "ticks", poll_checks)
