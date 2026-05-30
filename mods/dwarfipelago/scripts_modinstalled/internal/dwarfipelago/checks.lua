@@ -534,7 +534,7 @@ function M.job_to_craft_flag(job)
         elseif flag == "GOBLET_SUBTYPE" then
             flag = GOBLET_SUBTYPE_FLAG[mat_craft_flag(job)]
         elseif flag == "REACTION_SUBTYPE" then
-            if string.find(job.reaction_name, "DYE") then
+            if string.find(job.reaction_name, "DYE") then --too many DYES to add
                 flag = "dye"
             else
                 flag = REACTION_SUBTYPE_FLAG[job.reaction_name]
@@ -546,10 +546,20 @@ function M.job_to_craft_flag(job)
         elseif flag == "LARMOR_SUBTYPE" then
             flag = LARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
         end
+        if flag == "ash" or flag == "charcoal" or flag == "metal_bars" or flag == "coke_bars"
+            or flag == "pearlash" or flag == "gypsum_plaster" or flag == "quicklime" or flag == "glass"
+            or flag == "leather" or flag == "sheet" or flag == "cloth" or flag == "alcohol" 
+            or flag == "lye" or flag == "Potash" or flag == "milk_of_lime" or flag == "prepared_meal"
+            or flag == "tallow" or flag == "oil" or flag == "press_cake" or flag == "honey"
+            or flag == "bee_wax" or flag == "dye" or flag == "soap" then
+                return flag
+        end
+        local need_mat = dfhack.persistent.getWorldDataString('dwarfipelago/crafting_materials')
+        if tonumber(need_mat) == 1 then
+            local material_used = mat_craft_flag(job) -- shouldn't return nil here
+            return tostring(flag) .. "_" .. tostring(material_used) 
+        end
         return flag 
-    end
-    if NEEDS_MAT_CHECK[job.job_type] then
-        return mat_craft_flag(job)
     end
     return nil
 end
