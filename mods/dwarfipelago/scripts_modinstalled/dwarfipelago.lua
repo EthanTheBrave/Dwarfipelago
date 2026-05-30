@@ -309,6 +309,28 @@ local function on_job_completed(job)
     if craft_flag then
         checks.increment_craft_count(craft_flag)
     end
+
+    -- Stockpile detection: StoreItemInStockpile fires when a dwarf deposits an
+    -- item. Used in place of the non-existent onItemPutInStockpile event.
+    if job.job_type == df.job_type.StoreItemInStockpile then
+        for _, item_ref in ipairs(job.items) do
+            local item = df.item.find(item_ref.item_id)
+            local info = item_to_info(item)
+            if info then
+                for _, ref in ipairs(item.general_refs) do
+                    if df.general_ref_building_holderst:is_instance(ref) then
+                        local bld = df.building.find(ref.building_id)
+                        if bld and df.building_stockpilest:is_instance(bld) then
+                            info.stockpile_name   = bld.name ~= "" and bld.name or nil
+                            info.stockpile_number = bld.stockpile_number
+                            break
+                        end
+                    end
+                end
+                queue_item_event("dwarfipelago/pending_item_stockpiled", info)
+            end
+        end
+    end
 end
 
 -- ── Workshop / furnace / building blueprint enforcement ─────────────────────
@@ -457,29 +479,6 @@ local function on_item_created(item_id)
     if info then
         queue_item_event("dwarfipelago/pending_item_created", info)
     end
-end
-
--- ── onItemPutInStockpile hook ─────────────────────────────────────────────────
--- Fires when an item lands in a stockpile.
--- Attaches stockpile name/number and pushes to "dwarfipelago/pending_item_stockpiled".
-
-local function on_item_stockpile(item_id)
-    if not state.is_enabled() then return end
-    local item = df.item.find(item_id)
-    local info = item_to_info(item)
-    if not info then return end
-
-    -- Walk the item's building refs to find its stockpile.
-    for _, ref in ipairs(item.general_refs) do
-        if df.general_ref_building_holderst:is_instance(ref) then
-            local bld = df.building.find(ref.building_id)
-            if bld and df.building_stockpilest:is_instance(bld) then
-                info.stockpile_name   = bld.name ~= "" and bld.name or nil
-                info.stockpile_number = bld.stockpile_number
-            end
-        end
-    end
-    queue_item_event("dwarfipelago/pending_item_stockpiled", info)
 end
 
 -- ── Starting trade depot ──────────────────────────────────────────────────────
@@ -674,10 +673,7 @@ local function start()
     eventful.onUnitDeath[SCRIPT_NAME]           = on_unit_death
     eventful.onJobInitiated[SCRIPT_NAME]        = on_job_initiated
     if eventful.onItemCreated then
-        eventful.onItemCreated[SCRIPT_NAME]        = on_item_created
-    end
-    if eventful.onItemPutInStockpile then
-        eventful.onItemPutInStockpile[SCRIPT_NAME] = on_item_stockpile
+        eventful.onItemCreated[SCRIPT_NAME] = on_item_created
     end
 
     -- Register poll loop
@@ -695,10 +691,7 @@ local function stop()
     eventful.onUnitDeath[SCRIPT_NAME]           = nil
     eventful.onJobInitiated[SCRIPT_NAME]        = nil
     if eventful.onItemCreated then
-        eventful.onItemCreated[SCRIPT_NAME]        = nil
-    end
-    if eventful.onItemPutInStockpile then
-        eventful.onItemPutInStockpile[SCRIPT_NAME] = nil
+        eventful.onItemCreated[SCRIPT_NAME] = nil
     end
     repeatUtil.cancel(SCRIPT_NAME)
 
