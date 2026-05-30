@@ -246,6 +246,10 @@ local function detect_trade_export()
     end
 end
 
+-- Forward declaration so poll_checks can call ensure_trade_depot, which is
+-- defined later in the file (after the item event helpers).
+local ensure_trade_depot
+
 -- ── Poll loop: wealth, trade, and goal milestones ─────────────────────────────
 -- Runs every POLL_TICKS game ticks. Production checks are handled by eventful.
 
@@ -479,7 +483,7 @@ end
 -- wagon so AP-delivered items land in a predictable, accessible location.
 -- Runs once per world; the result is stored in persistent data.
 
-local function ensure_trade_depot()
+ensure_trade_depot = function()
     if dfhack.persistent.getWorldDataString("dwarfipelago/depot_built") == "1" then
         return  -- already placed this world
     end
