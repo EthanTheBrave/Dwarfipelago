@@ -310,6 +310,8 @@ local function on_job_completed(job)
         checks.increment_craft_count(craft_flag)
         if craft_flag == "honey" then
             checks.increment_craft_count("bee_wax")
+        elseif craft_flag == "oil" then
+            checks.increment_craft_count("press_cake")
         end
     end
 end

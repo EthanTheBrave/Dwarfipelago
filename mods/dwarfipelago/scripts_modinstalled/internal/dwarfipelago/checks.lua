@@ -278,7 +278,7 @@ cmap("MakeFlask",               "liquid_container")
 cmap("MakeGoblet",              "GOBLET_SUBTYPE")
 cmap("MakeToy",                 "toy")
 cmap("MakeTotem",               "totem")
-cmap("MakeHelm",                "helm")
+cmap("MakeHelm",                "HELM_SUBTYPE")
 cmap("ConstructBallistaParts",  "ballista_parts")
 cmap("ConstructCatapultParts",  "catapult_parts")
 cmap("AssembleSiegeAmmo",       "ballista_arrows")
@@ -295,6 +295,10 @@ cmap("MakeLye",                 "lye")
 cmap("MakePotashFromLye",       "potash")
 cmap("MakePotashFromAsh",       "potash")
 cmap("PrepareMeal",             "prepared_meal")
+cmap("MakeArmor",               "UARMOR_SUBTYPE")
+cmap("MakeGloves",              "GARMOR_SUBTYPE")
+cmap("MakePants",               "LARMOR_SUBTYPE")
+cmap("MakeShoes",               "footwear")
 
 
 
@@ -349,6 +353,28 @@ weapon_subtype(37,   "crossbow")
 weapon_subtype(41,   "crossbow")
 
 
+local HELM_SUBTYPE_FLAG = {}
+local function helm_subtype(subtype_id, flag)
+    HELM_SUBTYPE_FLAG[subtype_id] = flag
+end
+helm_subtype(0, "helm")
+helm_subtype(1, "headgear_clothing")
+helm_subtype(2, "headgear_clothing")
+helm_subtype(3, "headgear_clothing")
+helm_subtype(4, "headgear_clothing")
+helm_subtype(5, "headgear_clothing")
+helm_subtype(6, "headgear_clothing")
+helm_subtype(7, "headgear_clothing")
+helm_subtype(8, "headgear_clothing")
+helm_subtype(9, "headgear_clothing")
+helm_subtype(10, "headgear_clothing")
+helm_subtype(11, "headgear_clothing")
+helm_subtype(12, "helm")
+helm_subtype(13, "headgear_clothing")
+helm_subtype(14, "headgear_clothing")
+helm_subtype(15, "headgear_clothing")
+
+
 local GOBLET_SUBTYPE_FLAG = {}
 local function goblet_subtype(name, flag)
     local v = df.job_type[name]
@@ -381,7 +407,68 @@ reaction_subtype("PRESS_OIL",                       "oil")
 reaction_subtype("PRESS_HONEYCOMB",                 "honey")
 
 
+local UARMOR_SUBTYPE_FLAG = {}
+local function uarmor_subtype(subtype_id, flag)
+    UARMOR_SUBTYPE_FLAG[subtype_id] = flag
+end
+uarmor_subtype(0, "upper_body_armor")
+uarmor_subtype(1, "upper_body_clothing")
+uarmor_subtype(2, "upper_body_armor")
+uarmor_subtype(3, "upper_body_clothing")
+uarmor_subtype(4, "upper_body_clothing")
+uarmor_subtype(5, "upper_body_clothing")
+uarmor_subtype(6, "upper_body_clothing")
+uarmor_subtype(7, "upper_body_clothing")
+uarmor_subtype(8, "upper_body_clothing")
+uarmor_subtype(9, "upper_body_clothing")
+uarmor_subtype(10, "upper_body_clothing")
+uarmor_subtype(11, "upper_body_clothing")
+uarmor_subtype(12, "upper_body_armor")
+uarmor_subtype(13, "upper_body_clothing")
+uarmor_subtype(14, "upper_body_armor")
+uarmor_subtype(15, "upper_body_clothing")
+uarmor_subtype(16, "upper_body_armor")
+uarmor_subtype(17, "upper_body_clothing")
+uarmor_subtype(18, "upper_body_armor")
+uarmor_subtype(19, "upper_body_clothing")
 
+local GARMOR_SUBTYPE_FLAG = {}
+local function garmor_subtype(subtype_id, flag)
+    GARMOR_SUBTYPE_FLAG[subtype_id] = flag
+end
+garmor_subtype(0, "gauntlets")
+garmor_subtype(1, "hand_clothing")
+garmor_subtype(2, "hand_clothing")
+garmor_subtype(3, "gauntlets")
+garmor_subtype(4, "hand_clothing")
+garmor_subtype(5, "gauntlets")
+garmor_subtype(6, "hand_clothing")
+garmor_subtype(7, "gauntlets")
+garmor_subtype(8, "hand_clothing")
+garmor_subtype(9, "gauntlets")
+garmor_subtype(10, "hand_clothing")
+
+local LARMOR_SUBTYPE_FLAG = {}
+local function larmor_subtype(subtype_id, flag)
+    LARMOR_SUBTYPE_FLAG[subtype_id] = flag
+end
+larmor_subtype(0, "lower_body_clothing")
+larmor_subtype(1, "lower_body_armor")
+larmor_subtype(2, "lower_body_armor")
+larmor_subtype(3, "lower_body_clothing")
+larmor_subtype(4, "lower_body_clothing")
+larmor_subtype(5, "lower_body_clothing")
+larmor_subtype(6, "lower_body_clothing")
+larmor_subtype(7, "lower_body_clothing")
+larmor_subtype(8, "lower_body_clothing")
+larmor_subtype(9, "lower_body_armor")
+larmor_subtype(10, "lower_body_clothing")
+larmor_subtype(11, "lower_body_armor")
+larmor_subtype(12, "lower_body_clothing")
+larmor_subtype(13, "lower_body_armor")
+larmor_subtype(14, "lower_body_clothing")
+larmor_subtype(15, "lower_body_armor")
+larmor_subtype(16, "lower_body_clothing")
 
 -- Jobs where the flag depends on the job's primary material (stone/bone/wood).
 local NEEDS_MAT_CHECK = {}
@@ -416,17 +503,29 @@ function M.job_to_craft_flag(job)
     local flag = JOB_TO_CRAFT_FLAG[job.job_type]
     if flag then
         if flag == "TOOL_SUBTYPE" then
-            flag = TOOL_SUBTYPE_FLAG[job.item_subtype]
+            flag = TOOL_SUBTYPE_FLAG[tonumber(job.item_subtype)]
         elseif flag == "TRAP_SUBTYPE" then
-            flag = TRAP_SUBTYPE_FLAG[job.item_subtype]
+            flag = TRAP_SUBTYPE_FLAG[tonumber(job.item_subtype)]
         elseif flag == "SHIELD_SUBTYPE" then
-            flag = SHIELD_SUBTYPE_FLAG[job.item_subtype]
+            flag = SHIELD_SUBTYPE_FLAG[tonumber(job.item_subtype)]
         elseif flag == "WEAPON_SUBTYPE" then
-            flag = WEAPON_SUBTYPE_FLAG[job.item_subtype]
+            flag = WEAPON_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+        elseif flag == "HELM_SUBTYPE" then
+            flag = HELM_SUBTYPE_FLAG[tonumber(job.item_subtype)]
         elseif flag == "GOBLET_SUBTYPE" then
             flag = GOBLET_SUBTYPE_FLAG[mat_craft_flag(job)]
         elseif flag == "REACTION_SUBTYPE" then
-            flag = REACTION_SUBTYPE_FLAG[job.reaction_name]
+            if string.find(job.reaction_name, "DYE") then
+                flag = "dye"
+            else
+                flag = REACTION_SUBTYPE_FLAG[job.reaction_name]
+            end
+        elseif flag == "UARMOR_SUBTYPE" then
+            flag = UARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+        elseif flag == "GARMOR_SUBTYPE" then
+            flag = GARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+        elseif flag == "LARMOR_SUBTYPE" then
+            flag = LARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
         end
         return flag 
     end
