@@ -395,8 +395,9 @@ end
 local ITEM_EVENT_CAP = 500  -- prevent runaway growth if Python client is slow
 
 -- Item types we don't care about for AP tracking purposes.
+-- REMAINS = decayed bones/teeth (item_remainsst) has no quality field.
 local SKIP_ITEM_TYPES = {
-    CORPSE = true, CORPSEPIECE = true, VERMIN = true,
+    CORPSE = true, CORPSEPIECE = true, REMAINS = true, VERMIN = true,
     PLANT = true, PLANT_GROWTH = true,
 }
 
@@ -413,11 +414,15 @@ local function item_to_info(item)
         mat_str = mat:toString() or mat_str
     end
 
+    -- Not all item structs expose a quality field (e.g. REMAINS, LIQUID_MISC).
+    local quality = 0
+    pcall(function() quality = item.quality end)
+
     return {
         id       = item.id,
         type     = type_name,
         material = mat_str,
-        quality  = item.quality,
+        quality  = quality,
         artifact = item.flags.artifact == true,
     }
 end
