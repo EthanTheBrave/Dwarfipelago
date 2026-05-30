@@ -485,8 +485,8 @@ local function ensure_trade_depot()
         end
     end
 
-    -- Find the starting position: prefer the embark wagon (a VEHICLE item),
-    -- fall back to the first living citizen.
+    -- Find the starting position.
+    -- Priority 1: embark wagon (VEHICLE item — present on fresh embark)
     local sx, sy, sz
     pcall(function()
         for _, item in ipairs(df.global.world.items.all) do
@@ -496,7 +496,7 @@ local function ensure_trade_depot()
             end
         end
     end)
-    -- First try: citizen scan (may fail at load time before citizen state initialises)
+    -- Priority 2: citizen scan
     if not sx then
         for _, unit in ipairs(df.global.world.units.active) do
             if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
@@ -505,26 +505,65 @@ local function ensure_trade_depot()
             end
         end
     end
-    -- Second try: any living dwarf-race unit (handles early-load edge case)
+    -- Priority 3: any alive unit
     if not sx then
         for _, unit in ipairs(df.global.world.units.active) do
-            if dfhack.units.isAlive(unit) and unit.pos.x > 0 then
+            if dfhack.units.isAlive(unit) then
                 sx, sy, sz = unit.pos.x, unit.pos.y, unit.pos.z
                 break
             end
         end
     end
+    -- Priority 4: map center, z borrowed from any unit at all
     if not sx then
-        dfhack.printerr("[Dwarfipelago] ensure_trade_depot: no starting position found — will retry next load")
+        local m = df.global.world.map
+        for _, unit in ipairs(df.global.world.units.active) do
+            if unit.pos.z > 0 then
+                sx = math.floor(m.x_count / 2)
+                sy = math.floor(m.y_count / 2)
+                sz = unit.pos.z
+                break
+            end
+        end
+    end
+    if not sx then
+        dfhack.printerr("[Dwarfipelago] ensure_trade_depot: no position found — will retry next load")
         return
     end
 
-    -- Place the 5×5 depot slightly east of the starting position, clamped to
-    -- map bounds so we never try to build off the edge.
+    -- Place the depot 7 tiles to the left (west) of the anchor position,
+    -- clamped so the full 5×5 footprint stays inside the map.
     local map = df.global.world.map
-    local tx = math.max(1, math.min(sx + 4, map.x_count - 6))
-    local ty = math.max(1, math.min(sy - 2, map.y_count - 6))
+    local tx = math.max(1, math.min(sx - 7, map.x_count - 6))
+    local ty = math.max(1, math.min(sy,     map.y_count - 6))
+    local x2, y2 = tx + 4, ty + 4
 
+    -- Clear any buildings overlapping the 5×5 footprint.
+    local blds_to_remove = {}
+    for _, b in ipairs(df.global.world.buildings.all) do
+        if b.z == sz and b.x1 <= x2 and b.x2 >= tx and
+                         b.y1 <= y2 and b.y2 >= ty then
+            table.insert(blds_to_remove, b)
+        end
+    end
+    for _, b in ipairs(blds_to_remove) do
+        pcall(function() dfhack.buildings.deconstruct(b) end)
+    end
+
+    -- Clear any items sitting on the 5×5 footprint.
+    local items_to_remove = {}
+    for _, item in ipairs(df.global.world.items.all) do
+        if item.pos.z == sz and
+           item.pos.x >= tx and item.pos.x <= x2 and
+           item.pos.y >= ty and item.pos.y <= y2 then
+            table.insert(items_to_remove, item)
+        end
+    end
+    for _, item in ipairs(items_to_remove) do
+        pcall(function() dfhack.items.remove(item) end)
+    end
+
+    -- Construct the trade depot.
     local build_ok, bld = pcall(function()
         return dfhack.buildings.constructBuilding{
             type   = df.building_type.TradeDepot,
@@ -535,18 +574,14 @@ local function ensure_trade_depot()
     end)
 
     if not build_ok or not bld then
-        dfhack.printerr("[Dwarfipelago] Failed to plan trade depot: " .. tostring(bld))
+        dfhack.printerr("[Dwarfipelago] Failed to place trade depot: " .. tostring(bld))
         return
     end
 
-    -- Attempt instant completion so no dwarf labour or materials are required.
-    -- setBuildStage / getMaxBuildStage are virtual methods on building structs;
-    -- pcall guards against versions where they aren't available.
+    -- Instantly complete so no labour or materials are required.
     pcall(function()
         local max = bld:getMaxBuildStage()
-        if max and max > 0 then
-            bld:setBuildStage(max)
-        end
+        if max and max > 0 then bld:setBuildStage(max) end
     end)
 
     dfhack.persistent.saveWorldDataString("dwarfipelago/depot_built", "1")
