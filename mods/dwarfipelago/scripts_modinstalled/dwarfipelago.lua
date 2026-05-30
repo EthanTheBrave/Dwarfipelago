@@ -396,9 +396,10 @@ local ITEM_EVENT_CAP = 500  -- prevent runaway growth if Python client is slow
 
 -- Item types we don't care about for AP tracking purposes.
 -- REMAINS = decayed bones/teeth (item_remainsst) has no quality field.
+-- FISH_RAW = uncleaned fish (not yet a usable item).
 local SKIP_ITEM_TYPES = {
     CORPSE = true, CORPSEPIECE = true, REMAINS = true, VERMIN = true,
-    PLANT = true, PLANT_GROWTH = true,
+    PLANT = true, PLANT_GROWTH = true, FISH_RAW = true,
 }
 
 -- Converts a df.item pointer to a plain table safe for JSON serialisation.
