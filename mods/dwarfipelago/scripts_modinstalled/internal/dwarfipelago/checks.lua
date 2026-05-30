@@ -503,13 +503,17 @@ matjob("CarveFurniture")
 local function mat_craft_flag(job)
     local ok, mat = pcall(dfhack.matinfo.decode, job.mat_type, job.mat_index)
     if not ok or not mat then return nil end
+    local token = mat:toString() or ""
     if mat.mode == "inorganic" then
         local raw = mat.inorganic
         if raw and raw.flags.IS_METAL then return "metal" end
+        if token:find("GLASS") then return "glass" end
+        if token:find("CLAY") or token:find("PORCELAIN") or token:find("KAOLINITE") then return "ceramics" end
         return "stone"
     elseif mat.mode == "plant" then
         return "wood"
     elseif mat.mode == "creature" then
+        if token:find("LEATHER") then return "leather" end
         return "bone"
     end
     return nil
