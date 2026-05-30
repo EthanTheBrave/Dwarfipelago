@@ -699,7 +699,7 @@ class DwarfFortressContext(CommonContext):
         if len(self._completed_crafting_locations) == 0: #not inialized yet
             return
         for crafts in self._crafting_locations:
-            storage_name ="dwarfipelago/craft_count"
+            storage_name ="dwarfipelago/craft_count/"
             if crafts in self._completed_crafting_locations: #this check is already completed
                 continue
             if self._crafting_locations[crafts]["material"] == "": #material type doesn't matter, add them all
@@ -707,17 +707,17 @@ class DwarfFortressContext(CommonContext):
             else:
                 storage_name += self._crafting_locations[crafts]["item"] + "_"+self._crafting_locations[crafts]["material"]
             storage_name = storage_name.lower()
-            amount_crafted_str = self.dfhack.run_command("lua", f'dfhack.persistent.getWorldDataString("{storage_name}")')
+            amount_crafted_str = self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("{storage_name}"))')
             if amount_crafted_str == "nil" or amount_crafted_str == "0":
                 continue
             else:
                 amount_crafted = int(amount_crafted_str)
                 if amount_crafted >= self._crafting_max_value: #got the last threshold
-                    local_checks.append(crafts)
+                    local_checks.append(int(crafts))
                     continue
                 else:
                     if amount_crafted / self._crafting_threshold >= self._crafting_locations[crafts]["threshold"]: #threshold met
-                        local_checks.append(crafts)
+                        local_checks.append(int(crafts))
                         continue
         if local_checks:
             logger.info(f"New checks: {local_checks}")
@@ -726,8 +726,11 @@ class DwarfFortressContext(CommonContext):
                 "locations": local_checks,
             }])
         for location in local_checks:
-            self._completed_crafting_locations.append(location)
+            location_str = str(location)
+            self._completed_crafting_locations.append(location_str)
             self.setAPKeyValue("Dwarfipelago/"+str(self.seed)+"/completed_locations", self._completed_crafting_locations)
+            location_name = self._crafting_locations[location_str]["location_name"]
+            self.dfhack.run_command("lua", f'dfhack.gui.showAnnouncement("{location_name} Completed!", COLOR_GREEN)')
 
     async def setAPKeyValue(self, key:str, value:list[int]):
         await self.send_msgs([{
