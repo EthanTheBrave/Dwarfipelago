@@ -41,11 +41,21 @@ class DeathLinkThreshold(Range):
     How many of your dwarves must die to send one DeathLink to other players.
     Incoming DeathLinks kill this many of your dwarves in return.
     Set to 1 for classic one-death-equals-one-death behaviour.
+    When Death Link Percentage is enabled, this value is treated as a percentage of your current population.
     """
     display_name = "Death Link Threshold"
     range_start = 1
-    range_end = 20
+    range_end = 50
     default = 5
+
+
+class DeathLinkPercentage(Toggle):
+    """
+    When enabled, the Death Link Threshold is treated as a percentage of your current population
+    rather than a flat dwarf count.
+    Example: threshold=10 with 80 dwarves kills/requires 8 dwarves per DeathLink.
+    """
+    display_name = "Death Link Percentage"
 
 class EnableItemCreationLocation(Choice):
     """
@@ -132,6 +142,7 @@ class StartingDefaultDFInventory(StartInventory):
 class DwarfFortressOptions(PerGameCommonOptions):
     deathlink: DeathLink
     deathlink_threshold: DeathLinkThreshold
+    deathlink_percentage: DeathLinkPercentage
     goal: DwarfFortressGoal
     wealth_goal_amount: WealthGoalAmount
     population_goal_amount: PopulationGoalAmount
