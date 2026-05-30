@@ -422,31 +422,32 @@ class DwarfFortressContext(CommonContext):
                     continue
 
             try:
-                # ── World-loaded guard ────────────────────────────────────────
-                # saveWorldDataString / getWorldDataString crash when no world is
-                # loaded. Skip every storage-touching operation until DF is in a
-                # loaded fortress or adventure-mode session.
+                # ── Map-loaded guard ──────────────────────────────────────────
+                # saveWorldDataString / getWorldDataString require an active map.
+                # isMapLoaded() is stricter than isWorldLoaded() — it returns true
+                # only once fortress/adventure mode is fully live, not during world
+                # generation or loading screens.
                 result = await asyncio.get_event_loop().run_in_executor(
                     None,
                     lambda: self.dfhack.run_command(
-                        "lua", "print(dfhack.isWorldLoaded() and '1' or '0')"
+                        "lua", "print(dfhack.isMapLoaded() and '1' or '0')"
                     ),
                 )
                 world_loaded = bool(result and result.strip() == "1")
 
                 if not world_loaded:
                     if self._world_loaded:
-                        # Transition: player returned to the main menu.
+                        # Transition: player returned to the main menu / world gen.
                         self._world_loaded = False
                         self._mod_started = False
                         self._slot_data_synced = False
-                        logger.info("World unloaded — pausing fortress polling until a save is loaded")
+                        logger.info("Map unloaded — pausing fortress polling until a save is loaded")
                     await asyncio.sleep(self._poll_interval)
                     continue
 
                 if not self._world_loaded:
                     self._world_loaded = True
-                    logger.info("World loaded — resuming fortress polling")
+                    logger.info("Map loaded — resuming fortress polling")
 
                 # ── Auto-start mod ────────────────────────────────────────────
                 # 'dwarfipelago start' is safe to call on an already-running mod;
@@ -459,15 +460,32 @@ class DwarfFortressContext(CommonContext):
                     self._mod_started = True
                     logger.info("Auto-started dwarfipelago Lua mod")
 
-                # ── Fortress operations (world guaranteed loaded) ─────────────
+                # ── Fortress operations (map guaranteed loaded) ───────────────
                 await self._sync_slot_data()
                 if self._slot_data_synced:
+                    # DeathLink and goal checks are safe to run at any time.
                     await self._apply_received_deathlinks()
-                    await self._process_new_checks()
-                    await self._crafting_location_checks()
-                    await self._apply_pending_items()
                     await self._check_deathlink_send()
                     await self._check_goal_complete()
+
+                    # Location checks and item delivery are held until the trade
+                    # depot is established — either auto-placed by the mod or
+                    # manually built by the player.
+                    depot_result = await asyncio.get_event_loop().run_in_executor(
+                        None,
+                        lambda: self.dfhack.run_command(
+                            "lua",
+                            'print(dfhack.persistent.getWorldDataString'
+                            '("dwarfipelago/depot_built") or "")',
+                        ),
+                    )
+                    depot_ready = bool(depot_result and depot_result.strip() == "1")
+                    if depot_ready:
+                        await self._process_new_checks()
+                        await self._crafting_location_checks()
+                        await self._apply_pending_items()
+                    else:
+                        logger.debug("Trade depot not yet established — holding checks and item delivery")
 
             except Exception as e:
                 logger.warning(f"DFHack poll error: {e}")

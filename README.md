@@ -18,55 +18,34 @@ Complete economic and production milestones in your fortress to send items to ot
 | DFHack Mod | `mods/dwarfipelago/` | DFHack mod — copy into your DF installation's `mods/` folder |
 | AP Client | `worlds/dwarf_fortress/DwarfFortressClient.py` | Bundled inside the AP world package — launched automatically by the AP launcher |
 
-## Quick Setup
+## Setup
 
-### Prerequisites
+See [`worlds/dwarf_fortress/docs/setup_en.md`](worlds/dwarf_fortress/docs/setup_en.md) for full installation and configuration instructions.
 
-- **Dwarf Fortress** (Steam) — installed via Steam
-- **DFHack** — installed as a separate Steam item ([DFHack on Steam](https://store.steampowered.com/app/2346660/DFHack__Dwarf_Fortress_Modding_Engine/))
-  - Steam installs DFHack to `<SteamLibrary>\steamapps\common\DFHack\`
-- **Archipelago** 0.6.7 — installed to `C:\ProgramData\Archipelago\` by default
+## Trade Depot
 
----
+When you load a fortress with Dwarfipelago active, the mod automatically places a **Trade Depot** near your starting wagon. This depot serves as the central hub for Archipelago:
 
-1. **Install the AP World**
-   - download `dwarfipelago.apworld` in the release section and double click `dwarfipelago.apworld` which will then copy the apworld to custom_worlds
+- **AP items you receive** (gems, bars, resources, traps) are spawned directly at the depot
+- **Location checks** and **item delivery** are both held until the depot is established — nothing is sent to or received from the AP server before it exists
 
-2. **Install the DFHack mod**
+### What to expect on first load
 
-   Copy over `mods` which will create `mods\dwarfipelago\` folder inside your DF installation (the folder won't exist by default)
-   If you are updating to a newer version, delete `mods\dwarfipelago\` and then copy over `mods\dwarfipelago\`.
-   ```
-   <SteamLibrary>\steamapps\common\Dwarf Fortress\mods
-   ```
-   The contents of `mods/dwarfipelago/` result looks like:
-   ```
-    info.txt
-    scripts_modinstalled\
-      dwarfipelago.lua
-      internal\
-        dwarfipelago\
-          checks.lua
-          items.lua
-          state.lua
-   ```
-   Then **enable the mod** in DF's in-game mod manager before generating or loading a world.
+1. Within a few in-game ticks of loading your fortress, you will see the announcement:
+   > *[AP] A Trading Post has been established near your starting wagon!*
+2. The depot is placed **7 tiles west** of your starting wagon and instantly completed — no dwarves or materials required
+3. If that spot is blocked, the mod tries the other three cardinal directions automatically
+4. If the player has already built a Trade Depot before the mod runs, the existing depot is adopted as the delivery point and no second one is placed
 
-   > **Note:** When DF enables a mod it copies it to a separate snapshot directory. If you update the mod files later, you must also update the snapshot or re-enable the mod. The snapshot lives at:
-   > ```
-   > %AppData%\Roaming\Bay 12 Games\Dwarf Fortress\data\installed_mods\dwarfipelago (1)\
-   > ```
-   > On Windows, paste that path into Explorer's address bar. Any time you change a `.lua` file during development, copy it to the matching path in `installed_mods` (or simply disable and re-enable the mod in DF's mod manager to regenerate the snapshot automatically).
+### If the depot is not appearing
 
-3. **Generate your Archipelago session** with a `DwarfFortress.yaml` options file (see `worlds/dwarf_fortress/docs/setup_en.md`)
-
-4. **In the Archipelago launcher:**
-   - Click **Dwarf Fortress** to launch the game
-   - Load or embark on a fortress
-   - Click **Dwarf Fortress Client** and connect to your server
-   - The mod starts automatically once your fortress is loaded — no DFHack console commands needed
-
-   > The AP client is bundled inside the world package — no separate file to copy into your Archipelago root.
+- Make sure the mod is enabled in DF's mod manager and the installed_mods snapshot is up to date (see setup step 2)
+- You can build a Trade Depot manually in any location — the mod will detect and adopt it on the next poll tick
+- To force a retry, run in the DFHack console:
+  ```
+  lua dfhack.persistent.saveWorldDataString("dwarfipelago/depot_built", "0")
+  ```
+  Then save and reload your fortress
 
 ## Win Conditions
 

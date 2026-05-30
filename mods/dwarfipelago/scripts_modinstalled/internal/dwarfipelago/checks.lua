@@ -383,17 +383,13 @@ function M.job_to_craft_flag(job)
     if not job or not job.job_type then return nil end
     local flag = JOB_TO_CRAFT_FLAG[job.job_type]
     if flag then
-        if flag == "TOOL_SUBTYPE"
-        then
+        if flag == "TOOL_SUBTYPE" then
             flag = TOOL_SUBTYPE_FLAG[job.item_subtype]
-        else if flag == "TRAP_SUBTYPE"
-        then
+        elseif flag == "TRAP_SUBTYPE" then
             flag = TRAP_SUBTYPE_FLAG[job.item_subtype]
-        else if flag == "SHIELD_SUBTYPE"
-        then
+        elseif flag == "SHIELD_SUBTYPE" then
             flag = SHIELD_SUBTYPE_FLAG[job.item_subtype]
-        else if flag == "WEAPON_SUBTYPE"
-        then
+        elseif flag == "WEAPON_SUBTYPE" then
             flag = WEAPON_SUBTYPE_FLAG[job.item_subtype]
         end
         return flag 
