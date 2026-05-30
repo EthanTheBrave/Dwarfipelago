@@ -323,6 +323,10 @@ local BLUEPRINT_NAMES = {
     "Dyer's Workshop Blueprint",
     "Butcher's Shop Blueprint",
     "Farmer's Workshop Blueprint",
+    "Carpenter's Workshop Blueprint",
+    "Stoneworker's Workshop Blueprint",
+    "Still Blueprint",
+    "Leather Works Blueprint",
     -- Furnaces
     "Smelter Blueprint",
     "Magma Smelter Blueprint",
