@@ -56,7 +56,8 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/goal` | `"0"`–`"3"` | Python | Goal type from slot data |
 | `dwarfipelago/wealth_goal` | Integer string | Python | Wealth target for legendary_wealth goal |
 | `dwarfipelago/pop_goal` | Integer string | Python | Population target for population_boom goal |
-| `dwarfipelago/deathlink_threshold` | Integer string | Python | Dwarves per DeathLink send/receive |
+| `dwarfipelago/deathlink_threshold` | Integer string | Python | Dwarves (or % of pop) per DeathLink send/receive; option max is 50 |
+| `dwarfipelago/deathlink_percentage` | `"0"` or `"1"` | Python | When `"1"`, threshold is treated as % of current population instead of a flat count |
 | `dwarfipelago/seed` | Integer string | Python | your "identity" for your world and AP |
 | `dwarfipelago/crafting_max` | Integer string | Python | max count for item crafts |
 | `dwarfipelago/crafting_enabled` | Integer string | Python | crafting location feature enabled |

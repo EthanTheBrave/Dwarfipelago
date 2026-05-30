@@ -131,8 +131,22 @@ local function apply_pending_recv_deathlinks()
 
     state.clear_pending_recv()
 
-    local threshold = goal_setting("deathlink_threshold", 5)
-    local to_kill   = pending * threshold
+    local threshold     = goal_setting("deathlink_threshold", 5)
+    local is_percentage = goal_setting("deathlink_percentage", 0) == 1
+
+    local per_link
+    if is_percentage then
+        local pop = 0
+        for _, unit in ipairs(df.global.world.units.active) do
+            if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+                pop = pop + 1
+            end
+        end
+        per_link = math.max(1, math.floor(pop * threshold / 100))
+    else
+        per_link = threshold
+    end
+    local to_kill = pending * per_link
 
     -- Collect living citizens into a list, then shuffle it.
     local candidates = {}
