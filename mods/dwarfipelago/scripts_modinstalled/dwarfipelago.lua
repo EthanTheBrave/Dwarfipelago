@@ -684,6 +684,9 @@ local function start()
     -- enableEvent initializes the onItemCreated hook table; without this call
     -- the table is nil and the registration below silently does nothing.
     eventful.enableEvent(eventful.eventType.ITEM_CREATED, 1)
+    eventful.enableEvent(eventful.eventType.JOB_COMPLETED, 1)
+    eventful.enableEvent(eventful.eventType.JOB_INITIATED, 1)
+    eventful.enableEvent(eventful.eventType.UNIT_DEATH, 1)
     eventful.onItemCreated[SCRIPT_NAME] = on_item_created
 
     -- Register poll loop
