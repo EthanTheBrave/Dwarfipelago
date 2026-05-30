@@ -638,10 +638,23 @@ ensure_trade_depot = function()
         return
     end
 
-    -- Instantly complete so no labour or materials are required.
+    -- Instantly complete: set to max build stage, then remove the construction
+    -- job so no dwarf tries to "finish" it and triggers a materials warning.
     pcall(function()
         local max = bld:getMaxBuildStage()
         if max and max > 0 then bld:setBuildStage(max) end
+    end)
+    pcall(function()
+        local to_remove = {}
+        for i = 0, #bld.jobs - 1 do
+            local job = bld.jobs[i]
+            if job and job.job_type == df.job_type.ConstructBuilding then
+                table.insert(to_remove, job)
+            end
+        end
+        for _, job in ipairs(to_remove) do
+            dfhack.job.removeJob(job)
+        end
     end)
 
     dfhack.persistent.saveWorldDataString("dwarfipelago/depot_built", "1")
