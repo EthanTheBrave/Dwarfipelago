@@ -252,6 +252,14 @@ end
 local function poll_checks()
     if not state.is_enabled() then return end
 
+    -- All AP checks are gated on a trade depot existing.  ensure_trade_depot
+    -- retries every poll tick (every POLL_TICKS game ticks) until it succeeds,
+    -- so it naturally defers until units and map data are fully loaded.
+    if dfhack.persistent.getWorldDataString("dwarfipelago/depot_built") ~= "1" then
+        ensure_trade_depot()
+        return
+    end
+
     apply_pending_recv_deathlinks()
     check_goal_by_poll()
     detect_caravans()
@@ -540,6 +548,26 @@ local function ensure_trade_depot()
         ty = math.max(1, math.min(ty, map.y_count - 6))
         local x2, y2 = tx + 4, ty + 4
 
+        -- Flatten terrain: convert walls/ramps/trees to floor so the depot
+        -- can be placed.  findSimilarTileType picks the closest floor variant
+        -- for the existing material; the pcall guards against any API mismatch.
+        for dy = 0, 4 do
+            for dx = 0, 4 do
+                pcall(function()
+                    local bx, by = tx + dx, ty + dy
+                    local block = dfhack.maps.getTileBlock(bx, by, sz)
+                    if not block then return end
+                    local lx, ly = bx % 16, by % 16
+                    local new_tt = dfhack.maps.findSimilarTileType(
+                        block.tiletype[lx][ly], df.tiletype_shape.FLOOR)
+                    if new_tt and new_tt ~= 0 then
+                        block.tiletype[lx][ly] = new_tt
+                        block.designation[lx][ly].hidden = false
+                    end
+                end)
+            end
+        end
+
         -- Clear buildings overlapping the footprint.
         local blds_to_remove = {}
         for _, b in ipairs(df.global.world.buildings.all) do
@@ -619,7 +647,6 @@ end
 
 local function start()
     state.set_enabled(true)
-    ensure_trade_depot()
 
     -- Register hooks
     eventful.onJobCompleted[SCRIPT_NAME]        = on_job_completed
