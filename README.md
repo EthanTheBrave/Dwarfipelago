@@ -68,6 +68,31 @@ Complete economic and production milestones in your fortress to send items to ot
 
    > The AP client is bundled inside the world package — no separate file to copy into your Archipelago root.
 
+## Trade Depot
+
+When you load a fortress with Dwarfipelago active, the mod automatically places a **Trade Depot** near your starting wagon. This depot serves as the central hub for Archipelago:
+
+- **AP items you receive** (gems, bars, resources, traps) are spawned directly at the depot
+- **Location checks** and **item delivery** are both held until the depot is established — nothing is sent to or received from the AP server before it exists
+
+### What to expect on first load
+
+1. Within a few in-game ticks of loading your fortress, you will see the announcement:
+   > *[AP] A Trading Post has been established near your starting wagon!*
+2. The depot is placed **7 tiles west** of your starting wagon and instantly completed — no dwarves or materials required
+3. If that spot is blocked, the mod tries the other three cardinal directions automatically
+4. If the player has already built a Trade Depot before the mod runs, the existing depot is adopted as the delivery point and no second one is placed
+
+### If the depot is not appearing
+
+- Make sure the mod is enabled in DF's mod manager and the installed_mods snapshot is up to date (see setup step 2)
+- You can build a Trade Depot manually in any location — the mod will detect and adopt it on the next poll tick
+- To force a retry, run in the DFHack console:
+  ```
+  lua dfhack.persistent.saveWorldDataString("dwarfipelago/depot_built", "0")
+  ```
+  Then save and reload your fortress
+
 ## Win Conditions
 
 Configurable per-slot in your options YAML:
