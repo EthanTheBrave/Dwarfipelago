@@ -255,6 +255,10 @@ local ensure_trade_depot
 
 local function poll_checks()
     if not state.is_enabled() then return end
+    -- repeatUtil fires the callback immediately on registration, and again
+    -- during world-loading screens.  Do nothing until the fortress map is
+    -- fully live and the simulation is running.
+    if not dfhack.isMapLoaded() then return end
 
     -- All AP checks are gated on a trade depot existing.  ensure_trade_depot
     -- retries every poll tick (every POLL_TICKS game ticks) until it succeeds,
