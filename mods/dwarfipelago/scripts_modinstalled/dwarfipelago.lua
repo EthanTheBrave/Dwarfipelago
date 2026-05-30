@@ -460,18 +460,97 @@ local function on_item_stockpile(item_id)
             if bld and df.building_stockpilest:is_instance(bld) then
                 info.stockpile_name   = bld.name ~= "" and bld.name or nil
                 info.stockpile_number = bld.stockpile_number
+            end
+        end
+    end
+    queue_item_event("dwarfipelago/pending_item_stockpiled", info)
+end
+
+-- ── Starting trade depot ──────────────────────────────────────────────────────
+-- On the first start of a new world, build a Trade Depot near the starting
+-- wagon so AP-delivered items land in a predictable, accessible location.
+-- Runs once per world; the result is stored in persistent data.
+
+local function ensure_trade_depot()
+    if dfhack.persistent.getWorldDataString("dwarfipelago/depot_built") == "1" then
+        return  -- already placed this world
+    end
+
+    -- If the player already built a trade depot, adopt it as the delivery point.
+    for _, bld in ipairs(df.global.world.buildings.all) do
+        if df.building_tradedepotst:is_instance(bld) then
+            dfhack.persistent.saveWorldDataString("dwarfipelago/depot_built", "1")
+            print("[Dwarfipelago] Existing trade depot adopted as AP delivery point.")
+            return
+        end
+    end
+
+    -- Find the starting position: prefer the embark wagon (a VEHICLE item),
+    -- fall back to the first living citizen.
+    local sx, sy, sz
+    pcall(function()
+        for _, item in ipairs(df.global.world.items.all) do
+            if item:getType() == df.item_type.VEHICLE then
+                sx, sy, sz = item.pos.x, item.pos.y, item.pos.z
+                return
+            end
+        end
+    end)
+    if not sx then
+        for _, unit in ipairs(df.global.world.units.active) do
+            if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+                sx, sy, sz = unit.pos.x, unit.pos.y, unit.pos.z
                 break
             end
         end
     end
+    if not sx then
+        dfhack.printerr("[Dwarfipelago] ensure_trade_depot: no starting position found")
+        return
+    end
 
-    queue_item_event("dwarfipelago/pending_item_stockpiled", info)
+    -- Place the 5×5 depot slightly east of the starting position, clamped to
+    -- map bounds so we never try to build off the edge.
+    local map = df.global.world.map
+    local tx = math.max(1, math.min(sx + 4, map.x_count - 6))
+    local ty = math.max(1, math.min(sy - 2, map.y_count - 6))
+
+    local build_ok, bld = pcall(function()
+        return dfhack.buildings.constructBuilding{
+            type   = df.building_type.TradeDepot,
+            pos    = {x = tx, y = ty, z = sz},
+            width  = 5,
+            height = 5,
+        }
+    end)
+
+    if not build_ok or not bld then
+        dfhack.printerr("[Dwarfipelago] Failed to plan trade depot: " .. tostring(bld))
+        return
+    end
+
+    -- Attempt instant completion so no dwarf labour or materials are required.
+    -- setBuildStage / getMaxBuildStage are virtual methods on building structs;
+    -- pcall guards against versions where they aren't available.
+    pcall(function()
+        local max = bld:getMaxBuildStage()
+        if max and max > 0 then
+            bld:setBuildStage(max)
+        end
+    end)
+
+    dfhack.persistent.saveWorldDataString("dwarfipelago/depot_built", "1")
+    dfhack.gui.showAnnouncement(
+        "[AP] A Trading Post has been established near your starting wagon!",
+        COLOR_GREEN, true)
+    print(("[Dwarfipelago] Trade depot placed at %d,%d,%d"):format(tx, ty, sz))
 end
 
 -- ── Start / stop ──────────────────────────────────────────────────────────────
 
 local function start()
     state.set_enabled(true)
+    ensure_trade_depot()
 
     -- Register hooks
     eventful.onJobCompleted[SCRIPT_NAME]        = on_job_completed
