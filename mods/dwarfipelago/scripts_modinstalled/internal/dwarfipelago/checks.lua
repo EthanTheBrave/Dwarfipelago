@@ -232,59 +232,70 @@ local function cmap(name, flag)
 end
 
 -- craftable_items
-cmap("MakeTool",            "TOOL_SUBTYPE")
-cmap("ConstructDoor",       "door")
-cmap("MakeCage",            "cage")
-cmap("ConstructBin",        "bin")
-cmap("ConstructBlocks",     "blocks")
-cmap("ConstructGrate",      "grate")
-cmap("MakeTrapComponent",   "TRAP_SUBTYPE")
-cmap("ConstructBed",        "bed")
-cmap("MakeAnimalTrap",      "animal_trap")
-cmap("ConstructArmorStand", "armor_stand")
-cmap("MakePedestal",        "pedestal")
-cmap("MakeBucket",          "bucket")
-cmap("MakeBarrel",          "barrel")
-cmap("MakeShield",          "SHIELD_SUBTYPE")
-cmap("ConstructCabinet",    "cabinet")
-cmap("ConstructCoffin",     "burial_container")
-cmap("ConstructThrone",     "chair")
-cmap("ConstructChest",      "container")
-cmap("ConstructCrutch",     "crutch")
-cmap("ConstructFloodgate",  "floodgate")
-cmap("ConstructGrate",      "grate")
-cmap("ConstructHatchCover", "hatch_cover")
-cmap("MakePipeSection",     "pipe_section")
-cmap("ConstructSplint",     "splint")
-cmap("ConstructTable",      "table")
-cmap("MakeWeapon",          "WEAPON_SUBTYPE")
-cmap("ConstructWeaponRack", "weapon_rack")
-cmap("MakeAmmo",            "bolt")
-cmap("ConstructMillstone",  "millstone")
-cmap("ConstructQuern",      "quern")
-cmap("ConstructSlab",       "slab")
-cmap("ConstructStatue",     "statue")
-cmap("ConstructMechanisms", "mechanism")
-cmap("ConstructTractionBench", "traction_bench")
-cmap("MakeFigurine",        "crafts")
-cmap("MakeAmulet",          "crafts")
-cmap("MakeScepter",         "crafts")
-cmap("MakeCrown",           "crafts")
-cmap("MakeRing",            "crafts")
-cmap("MakeEarring",         "crafts")
-cmap("MakeBracelet",        "crafts")
-cmap("MakeCrafts",          "crafts")
-cmap("MakeFlask",           "liquid_container")
+cmap("MakeTool",                "TOOL_SUBTYPE")
+cmap("ConstructDoor",           "door")
+cmap("MakeCage",                "cage")
+cmap("ConstructBin",            "bin")
+cmap("ConstructBlocks",         "blocks")
+cmap("ConstructGrate",          "grate")
+cmap("MakeTrapComponent",       "TRAP_SUBTYPE")
+cmap("ConstructBed",            "bed")
+cmap("MakeAnimalTrap",          "animal_trap")
+cmap("ConstructArmorStand",     "armor_stand")
+cmap("MakePedestal",            "pedestal")
+cmap("MakeBucket",              "bucket")
+cmap("MakeBarrel",              "barrel")
+cmap("MakeShield",              "SHIELD_SUBTYPE")
+cmap("ConstructCabinet",        "cabinet")
+cmap("ConstructCoffin",         "burial_container")
+cmap("ConstructThrone",         "chair")
+cmap("ConstructChest",          "container")
+cmap("ConstructCrutch",         "crutch")
+cmap("ConstructFloodgate",      "floodgate")
+cmap("ConstructGrate",          "grate")
+cmap("ConstructHatchCover",     "hatch_cover")
+cmap("MakePipeSection",         "pipe_section")
+cmap("ConstructSplint",         "splint")
+cmap("ConstructTable",          "table")
+cmap("MakeWeapon",              "WEAPON_SUBTYPE")
+cmap("ConstructWeaponRack",     "weapon_rack")
+cmap("MakeAmmo",                "bolt")
+cmap("ConstructMillstone",      "millstone")
+cmap("ConstructQuern",          "quern")
+cmap("ConstructSlab",           "slab")
+cmap("ConstructStatue",         "statue")
+cmap("ConstructMechanisms",     "mechanism")
+cmap("ConstructTractionBench",  "traction_bench")
+cmap("MakeFigurine",            "crafts")
+cmap("MakeAmulet",              "crafts")
+cmap("MakeScepter",             "crafts")
+cmap("MakeCrown",               "crafts")
+cmap("MakeRing",                "crafts")
+cmap("MakeEarring",             "crafts")
+cmap("MakeBracelet",            "crafts")
+cmap("MakeCrafts",              "crafts")
+cmap("MakeFlask",               "liquid_container")
+cmap("MakeGoblet",              "GOBLET_SUBTYPE")
+cmap("MakeToy",                 "toy")
+cmap("MakeTotem",               "totem")
+cmap("MakeHelm",                "helm")
+cmap("ConstructBallistaParts",  "ballista_parts")
+cmap("ConstructCatapultParts",  "catapult_parts")
+cmap("AssembleSiegeAmmo",       "ballista_arrows")
+cmap("MakeAsh",                 "ash")
+cmap("MakeCharcoal"             "charcoal")
+cmap("SmeltOre"                 "metal_bars")
+cmap("MeltMetalObject",         "metal_bars")
+cmap("CustomReaction",          "REACTION_SUBTYPE")
+cmap("MakeRawGlass",            "glass")
+cmap("MakeWindow",              "window")
+cmap("TanHide",                 "leather")
+cmap("WeaveCloth",              "cloth")
+cmap("MakeLye",                 "lye")
+cmap("MakePotashFromLye",       "potash")
+cmap("MakePotashFromAsh",       "potash")
+cmap("PrepareMeal",             "prepared_meal")
 
-
--- craftable_materials (unambiguous by job type)
-cmap("WeaveCloth",      "cloth")
-cmap("ProcessPlants",   "cloth")
-cmap("TanHide",         "leather")
-cmap("SmeltOre",        "metal")
-cmap("MeltMetalObject", "metal")
-cmap("MakeGlass",       "glass")
-cmap("MakeCeramicItem", "ceramics")
 
 
 local TOOL_SUBTYPE_FLAG = {}
@@ -338,18 +349,38 @@ weapon_subtype(37,   "crossbow")
 weapon_subtype(41,   "crossbow")
 
 
+local GOBLET_SUBTYPE_FLAG = {}
+local function goblet_subtype(name, flag)
+    local v = df.job_type[name]
+    if v ~= nil then GOBLET_SUBTYPE_FLAG[v] = flag end
+end
+goblet_subtype("wood",   "cup")
+goblet_subtype("stone",  "mug")
+goblet_subtype("metal",  "goblet")
+goblet_subtype("glass",   "goblet")
+
+local REACTION_SUBTYPE_FLAG = {}
+local function reaction_subtype(name, flag)
+    local v = df.job_type[name]
+    if v ~= nil then REACTION_SUBTYPE_FLAG[v] = flag end
+end
+reaction_subtype("LIGNITE_TO_COAL",                 "coke_bar")
+reaction_subtype("BITUMINOUS_COAL_TO_COAL",         "coke_bar")
+reaction_subtype("MAKE_PEARLASH",                   "pearlash")
+reaction_subtype("MAKE_PLASTER_POWDER",             "gypsum_plaster")
+reaction_subtype("MAKE_QUICKLIME",                  "quicklime")
+reaction_subtype("MAKE_PARCHMENT",                  "sheet")
+reaction_subtype("PRESS_PLANT_PAPER",               "sheet")
+reaction_subtype("MAKE_SHEET_FROM_PLANT",           "sheet")
+reaction_subtype("BREW_DRINK_FROM_PLANT",           "alcohol")
+reaction_subtype("BREW_DRINK_FROM_PLANT_GROWTH",    "alcohol")
+reaction_subtype("MAKE_MILK_OF_LIME",               "milk_of_lime")
+reaction_subtype("RENDER_FAT",                      "tallow")
+reaction_subtype("PRESS_OIL_FRUIT",                 "oil")
+reaction_subtype("PRESS_OIL",                       "oil")
 
 
 
-
--- craftable_materials (unambiguous by job type)
-cmap("WeaveCloth",      "cloth")
-cmap("ProcessPlants",   "cloth")
-cmap("TanHide",         "leather")
-cmap("SmeltOre",        "metal")
-cmap("MeltMetalObject", "metal")
-cmap("MakeGlass",       "glass")
-cmap("MakeCeramicItem", "ceramics")
 
 -- Jobs where the flag depends on the job's primary material (stone/bone/wood).
 local NEEDS_MAT_CHECK = {}
@@ -391,6 +422,10 @@ function M.job_to_craft_flag(job)
             flag = SHIELD_SUBTYPE_FLAG[job.item_subtype]
         elseif flag == "WEAPON_SUBTYPE" then
             flag = WEAPON_SUBTYPE_FLAG[job.item_subtype]
+        elseif flag == "GOBLET_SUBTYPE" then
+            flag = GOBLET_SUBTYPE_FLAG[mat_craft_flag(job)]
+        elseif flag == "REACTION_SUBTYPE" then
+            flag = REACTION_SUBTYPE_FLAG[job.reaction_name]
         end
         return flag 
     end
