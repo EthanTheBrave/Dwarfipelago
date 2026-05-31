@@ -273,6 +273,152 @@ local function recv_lost_caravan()
     announce("Trap: A caravan has been lost on the road...")
 end
 
+-- ── Megabeast spawn helpers ───────────────────────────────────────────────────
+
+-- Search for an open, non-surface floor tile well below ground.
+-- Randomly samples positions across multiple z-levels so it handles any
+-- embark layout without a full tile scan. Returns x, y, z or nil.
+local function find_underground_spawn()
+    if not dfhack.isMapLoaded() then return nil end
+    local map = df.global.world.map
+
+    -- Estimate surface z from a living citizen (fallback: upper 40% of map).
+    local surface_z = math.floor(map.z_count * 0.6)
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+            surface_z = unit.pos.z
+            break
+        end
+    end
+
+    local z_high = math.max(2, surface_z - 10)
+    local z_low  = math.max(2, surface_z - 40)
+
+    for z = z_high, z_low, -1 do
+        for _ = 1, 30 do
+            local x = math.random(5, map.x_count - 6)
+            local y = math.random(5, map.y_count - 6)
+            local block = dfhack.maps.getTileBlock(x, y, z)
+            if block then
+                local lx, ly = x % 16, y % 16
+                local shape  = df.tiletype.attrs[block.tiletype[lx][ly]].shape
+                if shape == df.tiletype_shape.FLOOR
+                        and not block.designation[lx][ly].outside then
+                    return x, y, z
+                end
+            end
+        end
+    end
+    return nil
+end
+
+-- Carve a 5×5 area of floor tiles around the spawn point and reveal hidden tiles
+-- so the breach looks like the beast smashed its way through.
+local function carve_breach(cx, cy, cz)
+    for dx = -2, 2 do
+        for dy = -2, 2 do
+            local nx, ny = cx + dx, cy + dy
+            local block = dfhack.maps.getTileBlock(nx, ny, cz)
+            if block then
+                local lx, ly = nx % 16, ny % 16
+                local tt    = block.tiletype[lx][ly]
+                local shape = df.tiletype.attrs[tt].shape
+                if shape ~= df.tiletype_shape.FLOOR and shape ~= df.tiletype_shape.OPEN then
+                    local floor_tt = dfhack.maps.findSimilarTileType(tt, df.tiletype_shape.FLOOR)
+                    if floor_tt and floor_tt ~= 0 then
+                        block.tiletype[lx][ly] = floor_tt
+                    end
+                end
+                block.designation[lx][ly].hidden = false
+            end
+        end
+    end
+    local b = dfhack.maps.getTileBlock(cx, cy, cz)
+    if b then dfhack.maps.enableBlockUpdates(b, true) end
+end
+
+-- Scan creature raws for a random megabeast type present in this world.
+local function pick_megabeast_type()
+    local candidates = {}
+    for _, creature in ipairs(df.global.world.raws.creatures.all) do
+        for _, caste in ipairs(creature.caste) do
+            if caste.flags.MEGABEAST then
+                table.insert(candidates, creature.creature_id)
+                break
+            end
+        end
+    end
+    return #candidates > 0 and candidates[math.random(#candidates)] or "DRAGON"
+end
+
+-- Spawn a precursor threat (giant cave spider) underground as a Training 2 warm-up.
+local function spawn_precursor_threat()
+    local x, y, z = find_underground_spawn()
+    if not x then
+        local sx, sy, sz = get_fort_spawn_pos()
+        x, y, z = tonumber(sx), tonumber(sy), tonumber(sz)
+    end
+    local ok, err = pcall(function()
+        dfhack.run_script("modtools/create-unit",
+            "-race", "GIANT_CAVE_SPIDER", "-civId", "-1", "-groupId", "-1",
+            "-location", "[", tostring(x), tostring(y), tostring(z), "]")
+    end)
+    if not ok then
+        dfhack.printerr("[Dwarfipelago] precursor spawn failed: " .. tostring(err))
+    end
+end
+
+-- Spawn the AP-controlled megabeast target. Picks a random type from the world's
+-- raws, finds an underground tile, spawns there, carves a breach, and stores the
+-- new unit's ID so only that specific kill triggers victory.
+local function spawn_target_megabeast()
+    if dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/spawned") == "1" then
+        return  -- already summoned this world (e.g. reloaded mid-session)
+    end
+
+    local x, y, z = find_underground_spawn()
+    if not x then
+        local sx, sy, sz = get_fort_spawn_pos()
+        x, y, z = tonumber(sx), tonumber(sy), tonumber(sz)
+    end
+
+    local beast_type = pick_megabeast_type()
+    dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/target_type", beast_type)
+
+    local pre_count = #df.global.world.units.all
+    local ok, err = pcall(function()
+        dfhack.run_script("modtools/create-unit",
+            "-race", beast_type, "-civId", "-1", "-groupId", "-1",
+            "-location", "[", tostring(x), tostring(y), tostring(z), "]")
+    end)
+    if not ok then
+        dfhack.printerr("[Dwarfipelago] megabeast spawn failed: " .. tostring(err))
+        return
+    end
+
+    -- Identify the newly added unit and persist its ID for targeted kill detection.
+    for i = pre_count, #df.global.world.units.all - 1 do
+        local u = df.global.world.units.all[i]
+        if u then
+            local ok2, is_mega = pcall(dfhack.units.isMegabeast, u)
+            if ok2 and is_mega then
+                dfhack.persistent.saveWorldDataString(
+                    "dwarfipelago/megabeast/target_id", tostring(u.id))
+                break
+            end
+        end
+    end
+
+    carve_breach(x, y, z)
+    dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/spawned", "1")
+
+    local display = beast_type:gsub("_", " "):lower():gsub("^%l", string.upper)
+    dfhack.gui.showAnnouncement(
+        ("[AP] A %s has broken through from the depths! Your military stands ready."):format(display),
+        COLOR_RED, true)
+    print(("[Dwarfipelago] Megabeast spawned: %s at %d,%d,%d"):format(beast_type, x, y, z))
+end
+
 -- ── Item handlers: progression locks ─────────────────────────────────────────
 
 local function recv_merchants_coffer()
@@ -313,7 +459,22 @@ local function recv_military_training()
     local key = "dwarfipelago/unlock/military_training"
     local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
     dfhack.persistent.saveWorldDataString(key, tostring(n))
-    announce(("Military Training received! Combat readiness %d/3"):format(n))
+
+    if n == 1 then
+        announce("Military Training received! Ancient combat techniques studied... (1/3)")
+        dfhack.gui.showAnnouncement(
+            "[AP] A deep rumbling echoes from below. Something has noticed your fortress.",
+            COLOR_YELLOW, true)
+    elseif n == 2 then
+        announce("Military Training received! Your soldiers sharpen their blades... (2/3)")
+        dfhack.gui.showAnnouncement(
+            "[AP] A creature stirs in the tunnels — a precursor to something far worse.",
+            COLOR_YELLOW, true)
+        spawn_precursor_threat()
+    else
+        announce("Military Training received! Your military is ready — the beast awakens! (3/3)")
+        spawn_target_megabeast()
+    end
 end
 
 -- ── Dispatch table ────────────────────────────────────────────────────────────
