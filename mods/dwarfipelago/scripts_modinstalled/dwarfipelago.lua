@@ -25,6 +25,18 @@ local POLL_TICKS  = 100  -- poll wealth/trade/goal checks every N ticks
 -- hook does not count those kills toward our own outgoing DeathLink threshold.
 local applying_recv_deathlink = false
 
+-- Per-session tracking for "milestone reached but locked" notifications.
+-- Keyed by AP location ID; prevents repeating the same announcement every poll.
+local _notified_locked = {}
+
+local WEALTH_LOCK_TIERS = {
+    { id = 37370000, threshold = 1000,   coffers = 1, name = "Humble Beginnings"   },
+    { id = 37370001, threshold = 10000,  coffers = 2, name = "Growing Stronghold"  },
+    { id = 37370002, threshold = 50000,  coffers = 3, name = "Prosperous Fortress" },
+    { id = 37370003, threshold = 100000, coffers = 4, name = "Rich Citadel"        },
+    { id = 37370004, threshold = 500000, coffers = 5, name = "Legendary Vault"     },
+}
+
 -- ── Goal settings helpers ─────────────────────────────────────────────────────
 -- The Python client writes these to persistent storage after connecting.
 -- goal: 0 = slay_megabeast, 1 = legendary_wealth, 2 = population_boom, 3 = mountainhome
@@ -43,7 +55,9 @@ local function check_goal_by_poll()
 
     if goal == 1 then  -- legendary_wealth
         local target = goal_setting("wealth_goal", 100000)
-        if checks.fortress_wealth() >= target then
+        if checks.fortress_wealth() >= target
+                and goal_setting("unlock/wealth_coffers", 0) >= 5
+                and goal_setting("unlock/immigration_waves", 0) >= 3 then
             if state.mark_goal_complete() then
                 dfhack.gui.showAnnouncement(
                     "[AP] Goal reached: Legendary Wealth! Victory is yours.",
@@ -60,7 +74,8 @@ local function check_goal_by_poll()
                 count = count + 1
             end
         end
-        if count >= target then
+        if count >= target
+                and goal_setting("unlock/immigration_waves", 0) >= 5 then  -- population_boom
             if state.mark_goal_complete() then
                 dfhack.gui.showAnnouncement(
                     ("[AP] Goal reached: Population Boom! (%d dwarves). Victory!"):format(count),
@@ -68,13 +83,17 @@ local function check_goal_by_poll()
                 print("[Dwarfipelago] Goal complete: Population Boom!")
             end
         end
+
     elseif goal == 3 then  -- mountainhome
-        -- Mountainhome is achieved when the monarch (king/queen) takes residence.
+        -- Mountainhome is achieved when the monarch (king/queen) takes residence
+        -- and the Monarch's Invitation has been received from the multiworld.
         local ok_k, has_king  = pcall(dfhack.units.getUnitsByNobleRole, "KING")
         local ok_q, has_queen = pcall(dfhack.units.getUnitsByNobleRole, "QUEEN")
         local has_monarch = (ok_k and has_king and #has_king > 0)
                          or (ok_q and has_queen and #has_queen > 0)
-        if has_monarch then
+        if has_monarch
+                and goal_setting("unlock/monarch_invitation", 0) == 1
+                and goal_setting("unlock/immigration_waves", 0) >= 5 then
             if state.mark_goal_complete() then
                 dfhack.gui.showAnnouncement(
                     "[AP] Goal reached: Mountainhome! The monarch has arrived. Victory!",
@@ -97,7 +116,9 @@ local function on_unit_death(uid)
     -- ── Goal: megabeast kill ──────────────────────────────────────────────────
     if not state.is_goal_complete() and goal_setting("goal", -1) == 0 then
         local ok, is_mega = pcall(dfhack.units.isMegabeast, unit)
-        if ok and is_mega then
+        if ok and is_mega
+                and goal_setting("unlock/military_training", 0) >= 3
+                and goal_setting("unlock/immigration_waves", 0) >= 2 then
             if state.mark_goal_complete() then
                 local name = dfhack.TranslateName(dfhack.units.getVisibleName(unit))
                 dfhack.gui.showAnnouncement(
@@ -260,6 +281,30 @@ local function detect_trade_export()
     end
 end
 
+-- ── Locked milestone notifications ───────────────────────────────────────────
+-- When a wealth tier threshold is met in-game but the matching Merchant's Coffer
+-- hasn't arrived yet, announce it once so the player knows to look for it.
+-- Fires at most once per tier per session; skips tiers already checked.
+
+local function check_locked_notifications()
+    local coffers = goal_setting("unlock/wealth_coffers", 0)
+    local wealth  = checks.fortress_wealth()
+    for _, tier in ipairs(WEALTH_LOCK_TIERS) do
+        if not state.is_location_checked(tier.id)
+                and not _notified_locked[tier.id]
+                and wealth >= tier.threshold
+                and coffers < tier.coffers then
+            _notified_locked[tier.id] = true
+            dfhack.gui.showAnnouncement(
+                ("[AP] %s reached — waiting for Merchant's Coffer (%d/5)"):format(
+                    tier.name, coffers),
+                COLOR_YELLOW, true)
+            print(("[Dwarfipelago] Wealth milestone locked: %s (have %d/5 coffers)"):format(
+                tier.name, coffers))
+        end
+    end
+end
+
 -- Forward declaration so poll_checks can call ensure_trade_depot, which is
 -- defined later in the file (after the item event helpers).
 local ensure_trade_depot
@@ -284,6 +329,7 @@ local function poll_checks()
 
     apply_pending_recv_deathlinks()
     check_goal_by_poll()
+    check_locked_notifications()
     detect_caravans()
     detect_trade_export()
 

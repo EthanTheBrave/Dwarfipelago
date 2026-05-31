@@ -273,6 +273,49 @@ local function recv_lost_caravan()
     announce("Trap: A caravan has been lost on the road...")
 end
 
+-- ── Item handlers: progression locks ─────────────────────────────────────────
+
+local function recv_merchants_coffer()
+    local key = "dwarfipelago/unlock/wealth_coffers"
+    local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
+    dfhack.persistent.saveWorldDataString(key, tostring(n))
+    announce(("Merchant's Coffer received! Wealth tier %d/5 unlocked"):format(n))
+end
+
+local function recv_immigration_wave()
+    local key = "dwarfipelago/unlock/immigration_waves"
+    local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
+    dfhack.persistent.saveWorldDataString(key, tostring(n))
+    announce(("Immigration Wave received! Population tier %d/5 unlocked"):format(n))
+end
+
+local function recv_barons_charter()
+    dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/baron_charter", "1")
+    announce("Baron's Charter received! Baron appointment is now recognisable.")
+end
+
+local function recv_counts_charter()
+    dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/count_charter", "1")
+    announce("Count's Charter received! Count appointment is now recognisable.")
+end
+
+local function recv_dukes_charter()
+    dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/duke_charter", "1")
+    announce("Duke's Charter received! Duke appointment is now recognisable.")
+end
+
+local function recv_monarchs_invitation()
+    dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/monarch_invitation", "1")
+    announce("Monarch's Invitation received! The Monarch may now take residence.")
+end
+
+local function recv_military_training()
+    local key = "dwarfipelago/unlock/military_training"
+    local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
+    dfhack.persistent.saveWorldDataString(key, tostring(n))
+    announce(("Military Training received! Combat readiness %d/3"):format(n))
+end
+
 -- ── Dispatch table ────────────────────────────────────────────────────────────
 -- Maps AP item name → handler function.
 -- Names must match items.py exactly.
@@ -296,6 +339,14 @@ M.handlers = {
     ["Vermin Infestation"]   = recv_vermin_infestation,
     ["Tantrum Trigger"]      = recv_tantrum_trigger,
     ["Lost Caravan"]         = recv_lost_caravan,
+
+    ["Merchant's Coffer"]    = recv_merchants_coffer,
+    ["Immigration Wave"]     = recv_immigration_wave,
+    ["Baron's Charter"]      = recv_barons_charter,
+    ["Count's Charter"]      = recv_counts_charter,
+    ["Duke's Charter"]       = recv_dukes_charter,
+    ["Monarch's Invitation"] = recv_monarchs_invitation,
+    ["Military Training"]    = recv_military_training,
 }
 
 -- ── Blueprint items ───────────────────────────────────────────────────────────

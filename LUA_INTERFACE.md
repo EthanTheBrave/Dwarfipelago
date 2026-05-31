@@ -48,6 +48,13 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/trade/<flag>` | `"1"` or absent | Lua | Set when a trade/caravan milestone fires |
 | `dwarfipelago/craft_count/<flag>` | Integer string | Lua | Cumulative crafts completed for that flag |
 | `dwarfipelago/blueprint/<name>` | `"1"` or absent | Lua | Set when a blueprint item has been received |
+| `dwarfipelago/unlock/wealth_coffers` | Integer string | Lua | How many Merchant's Coffers received (0–5); gates wealth tier checks |
+| `dwarfipelago/unlock/immigration_waves` | Integer string | Lua | How many Immigration Waves received (0–5); gates title/population checks |
+| `dwarfipelago/unlock/baron_charter` | `"1"` or absent | Lua | Set when Baron's Charter received; gates Baron Appointed check |
+| `dwarfipelago/unlock/count_charter` | `"1"` or absent | Lua | Set when Count's Charter received; gates Count Appointed check |
+| `dwarfipelago/unlock/duke_charter` | `"1"` or absent | Lua | Set when Duke's Charter received; gates Duke Appointed check |
+| `dwarfipelago/unlock/monarch_invitation` | `"1"` or absent | Lua | Set when Monarch's Invitation received; gates Monarch Takes Residence check |
+| `dwarfipelago/unlock/military_training` | Integer string | Lua | How many Military Training items received (0–3); used by slay_megabeast goal |
 
 ### Config (written by Python, read by Lua)
 
