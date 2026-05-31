@@ -59,7 +59,7 @@ local function check_goal_by_poll()
 
     if goal == 1 then  -- legendary_wealth
         local target = goal_setting("wealth_goal", 100000)
-        if checks.fortress_wealth() >= target
+        if checks.coin_wealth() >= target
                 and goal_setting("unlock/wealth_coffers", 0) >= 5
                 and goal_setting("unlock/immigration_waves", 0) >= 3 then
             if state.mark_goal_complete() then
@@ -342,7 +342,7 @@ end
 
 local function check_locked_notifications()
     local coffers = goal_setting("unlock/wealth_coffers", 0)
-    local wealth  = checks.fortress_wealth()
+    local wealth  = checks.coin_wealth()
     for _, tier in ipairs(WEALTH_LOCK_TIERS) do
         if not state.is_location_checked(tier.id)
                 and not _notified_locked[tier.id]
