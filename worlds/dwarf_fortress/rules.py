@@ -78,4 +78,5 @@ def set_rules(world: "DwarfFortressWorld") -> None:
             or state.has("Artifact Weapon", player)
             or state.has("Artifact Armor", player)
         )
+    multiworld.completion_condition[player] = goal_location.access_rule
 
