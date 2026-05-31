@@ -34,15 +34,16 @@ local function fortress_wealth()
     return 0
 end
 
--- Returns the total calculated value of all minted coins currently in fortress
--- stocks (not carried by any unit, not belonging to traders).
+-- Returns the combined value of all minted coins (COIN) and cut gems (SMALLGEM)
+-- currently in fortress stocks — not carried by any unit, not belonging to traders.
 -- Value per stack = stack_size × material.material_value.
--- This replaces raw fortress wealth for the Legendary Wealth goal and milestone
--- checks, tying progression to active coin minting at the Screw Press.
-local function coin_wealth()
+-- Both item types require AP-gated blueprints (Screw Press and Jeweler's Workshop)
+-- and their material values vary widely, keeping embark-site luck meaningful.
+local function treasury_wealth()
     local total = 0
     for _, item in ipairs(df.global.world.items.all) do
-        if item:getType() == df.item_type.COIN
+        local itype = item:getType()
+        if (itype == df.item_type.COIN or itype == df.item_type.SMALLGEM)
                 and not item.flags.in_inventory
                 and not item.flags.trader then
             local ok, mat = pcall(dfhack.matinfo.decode, item.mat_type, item.mat_index)
@@ -108,13 +109,13 @@ local function has_fortress_title(pop_req, created_req, exported_req, waves_req)
 end
 
 M.checks = {
-    -- Wealth milestones — based on minted coin value, not total fortress wealth.
+    -- Wealth milestones — based on combined coin + cut-gem value in fortress stocks.
     -- Each tier requires the matching Merchant's Coffer count to have been received.
-    { id = 37370000, name = "Humble Beginnings",   fn = function() return unlock_count("wealth_coffers") >= 1 and coin_wealth() >= 1000    end },
-    { id = 37370001, name = "Growing Stronghold",  fn = function() return unlock_count("wealth_coffers") >= 2 and coin_wealth() >= 10000   end },
-    { id = 37370002, name = "Prosperous Fortress", fn = function() return unlock_count("wealth_coffers") >= 3 and coin_wealth() >= 50000   end },
-    { id = 37370003, name = "Rich Citadel",        fn = function() return unlock_count("wealth_coffers") >= 4 and coin_wealth() >= 100000  end },
-    { id = 37370004, name = "Legendary Vault",     fn = function() return unlock_count("wealth_coffers") >= 5 and coin_wealth() >= 500000  end },
+    { id = 37370000, name = "Humble Beginnings",   fn = function() return unlock_count("wealth_coffers") >= 1 and treasury_wealth() >= 1000    end },
+    { id = 37370001, name = "Growing Stronghold",  fn = function() return unlock_count("wealth_coffers") >= 2 and treasury_wealth() >= 10000   end },
+    { id = 37370002, name = "Prosperous Fortress", fn = function() return unlock_count("wealth_coffers") >= 3 and treasury_wealth() >= 50000   end },
+    { id = 37370003, name = "Rich Citadel",        fn = function() return unlock_count("wealth_coffers") >= 4 and treasury_wealth() >= 100000  end },
+    { id = 37370004, name = "Legendary Vault",     fn = function() return unlock_count("wealth_coffers") >= 5 and treasury_wealth() >= 500000  end },
 
     -- First production milestones
     -- These are tracked via a persistent counter set by the eventful job hook in main.lua.
@@ -254,8 +255,8 @@ function M.job_to_production_flag(job)
 end
 
 -- Expose wealth accessors so main.lua can use them without duplicating logic.
-M.fortress_wealth = fortress_wealth
-M.coin_wealth     = coin_wealth
+M.fortress_wealth  = fortress_wealth
+M.treasury_wealth  = treasury_wealth
 
 -- ── Job type → craft count flag mapping ──────────────────────────────────────
 -- Separate from JOB_TO_FLAG: maps jobs to the specific AP option names used in
