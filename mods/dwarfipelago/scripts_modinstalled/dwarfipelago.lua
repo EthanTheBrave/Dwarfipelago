@@ -33,6 +33,12 @@ local _notified_locked = {}
 -- Reset each script load so a fresh cleanup runs on every fortress load.
 local _megabeast_cleanup_done = false
 
+-- Per-tier announcement tracking for treasury job blocking.
+-- Prevents spam when standing orders keep retrying a blocked MintCoins/CutGems job.
+-- Keyed by coffer count (0 = no coffers yet, 1–4 = tier cap reached).
+-- Resets on each script load so the player gets a reminder after every reload.
+local _treasury_block_notified = {}
+
 local WEALTH_LOCK_TIERS = {
     { id = 37370000, threshold = 1000,   coffers = 1, name = "Humble Beginnings"   },
     { id = 37370001, threshold = 10000,  coffers = 2, name = "Growing Stronghold"  },
@@ -454,6 +460,53 @@ local function on_job_completed(job)
     end
 end
 
+-- ── Treasury job gating (MintCoins / CutGems) ────────────────────────────────
+-- Blocks coin minting and gem cutting when the current treasury wealth has reached
+-- the cap for the player's current Merchant's Coffer tier. Uses the same
+-- WEALTH_LOCK_TIERS table as the locked-notification system for consistency.
+
+local TREASURY_JOB_TYPES = {}
+local function tjmap(name)
+    local v = df.job_type[name]
+    if v ~= nil then TREASURY_JOB_TYPES[v] = true end
+end
+tjmap("MintCoins")
+tjmap("CutGems")
+
+local function check_treasury_job_gate(job)
+    if not TREASURY_JOB_TYPES[job.job_type] then return end
+
+    local coffers = goal_setting("unlock/wealth_coffers", 0)
+
+    -- No coffers yet — block all minting and cutting.
+    if coffers == 0 then
+        dfhack.job.removeJob(job)
+        if not _treasury_block_notified[0] then
+            _treasury_block_notified[0] = true
+            dfhack.gui.showAnnouncement(
+                "[AP] Cannot mint coins or cut gems — awaiting first Merchant's Coffer!",
+                COLOR_YELLOW, true)
+        end
+        return
+    end
+
+    -- All five coffers received — no cap, allow freely.
+    if coffers >= 5 then return end
+
+    -- Check whether current treasury has already reached this tier's ceiling.
+    local tier = WEALTH_LOCK_TIERS[coffers]
+    if checks.treasury_wealth() >= tier.threshold then
+        dfhack.job.removeJob(job)
+        if not _treasury_block_notified[coffers] then
+            _treasury_block_notified[coffers] = true
+            dfhack.gui.showAnnouncement(
+                ("[AP] %s reached — minting and gem cutting paused. Awaiting Merchant's Coffer (%d/5)."):format(
+                    tier.name, coffers),
+                COLOR_YELLOW, true)
+        end
+    end
+end
+
 -- ── Workshop / furnace / building blueprint enforcement ─────────────────────
 -- When a dwarf tries to build a locked structure, the job is cancelled.
 -- Unlocked blueprints are tracked in persistent storage by the AP client:
@@ -514,6 +567,8 @@ end
 -- Called via eventful.onJobInitiated — fires when a new job is created.
 local function on_job_initiated(job)
     if not state.is_enabled() then return end
+
+    check_treasury_job_gate(job)
 
     -- Only care about construction jobs.
     if job.job_type ~= df.job_type.ConstructBuilding then return end
