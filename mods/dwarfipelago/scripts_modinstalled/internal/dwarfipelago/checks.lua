@@ -546,7 +546,7 @@ function M.job_to_craft_flag(job)
         elseif flag == "LARMOR_SUBTYPE" then
             flag = LARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
         end
-        if flag == "ash" or flag == "charcoal" or flag == "metal_bars" or flag == "coke_bars"
+        if flag == "beds" or flag == "ash" or flag == "charcoal" or flag == "metal_bars" or flag == "coke_bars"
             or flag == "pearlash" or flag == "gypsum_plaster" or flag == "quicklime" or flag == "glass"
             or flag == "leather" or flag == "sheet" or flag == "cloth" or flag == "alcohol" 
             or flag == "lye" or flag == "Potash" or flag == "milk_of_lime" or flag == "prepared_meal"
