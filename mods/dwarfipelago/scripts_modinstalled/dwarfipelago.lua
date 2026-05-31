@@ -29,6 +29,10 @@ local applying_recv_deathlink = false
 -- Keyed by AP location ID; prevents repeating the same announcement every poll.
 local _notified_locked = {}
 
+-- Set to true once natural megabeasts have been cleared for the slay_megabeast goal.
+-- Reset each script load so a fresh cleanup runs on every fortress load.
+local _megabeast_cleanup_done = false
+
 local WEALTH_LOCK_TIERS = {
     { id = 37370000, threshold = 1000,   coffers = 1, name = "Humble Beginnings"   },
     { id = 37370001, threshold = 10000,  coffers = 2, name = "Growing Stronghold"  },
@@ -119,13 +123,20 @@ local function on_unit_death(uid)
         if ok and is_mega
                 and goal_setting("unlock/military_training", 0) >= 3
                 and goal_setting("unlock/immigration_waves", 0) >= 2 then
-            if state.mark_goal_complete() then
-                local name = dfhack.TranslateName(dfhack.units.getVisibleName(unit))
-                dfhack.gui.showAnnouncement(
-                    ("[AP] Goal reached: %s has been slain! Victory!"):format(
-                        name ~= "" and name or "The megabeast"),
-                    COLOR_CYAN, true)
-                print("[Dwarfipelago] Goal complete: Megabeast slain!")
+            -- Only count the AP-summoned target; ignore any stray megabeasts.
+            -- If no target ID is stored (fallback), any megabeast kill counts.
+            local target_id = tonumber(
+                dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/target_id"))
+            local is_target = (not target_id) or (unit.id == target_id)
+            if is_target then
+                if state.mark_goal_complete() then
+                    local name = dfhack.TranslateName(dfhack.units.getVisibleName(unit))
+                    dfhack.gui.showAnnouncement(
+                        ("[AP] Goal reached: %s has been slain! Victory!"):format(
+                            name ~= "" and name or "The megabeast"),
+                        COLOR_CYAN, true)
+                    print("[Dwarfipelago] Goal complete: Megabeast slain!")
+                end
             end
         end
     end
@@ -281,6 +292,49 @@ local function detect_trade_export()
     end
 end
 
+-- ── Megabeast goal: remove natural megabeasts ────────────────────────────────
+-- For the slay_megabeast goal, all naturally-spawned megabeasts are silently
+-- removed when the fortress loads. The AP-controlled target is summoned via
+-- Military Training items instead, keeping the encounter on the multiworld's
+-- terms. Natural megabeasts that were already killed in a previous session are
+-- simply absent — this scan is fast and safe to repeat on each reload.
+
+local function cleanup_natural_megabeasts()
+    if _megabeast_cleanup_done then return end
+
+    local goal = goal_setting("goal", -1)
+    if goal == -1 then return end  -- slot data not yet synced from Python; retry next tick
+
+    _megabeast_cleanup_done = true
+    if goal ~= 0 then return end  -- only relevant for slay_megabeast
+
+    -- Don't remove the AP-summoned target if it already exists this world.
+    local target_id = tonumber(
+        dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/target_id"))
+
+    local cleaned = 0
+    for _, unit in ipairs(df.global.world.units.all) do
+        local ok, alive = pcall(dfhack.units.isAlive, unit)
+        if ok and alive then
+            local ok2, is_mega = pcall(dfhack.units.isMegabeast, unit)
+            if ok2 and is_mega and unit.id ~= target_id then
+                pcall(function()
+                    if dfhack.units.kill then
+                        dfhack.units.kill(unit)
+                    else
+                        unit.body.blood_count = 0
+                    end
+                end)
+                cleaned = cleaned + 1
+            end
+        end
+    end
+
+    if cleaned > 0 then
+        print(("[Dwarfipelago] Cleared %d natural megabeast(s) — AP target arrives via Military Training"):format(cleaned))
+    end
+end
+
 -- ── Locked milestone notifications ───────────────────────────────────────────
 -- When a wealth tier threshold is met in-game but the matching Merchant's Coffer
 -- hasn't arrived yet, announce it once so the player knows to look for it.
@@ -322,6 +376,8 @@ local function poll_checks()
     -- All AP checks are gated on a trade depot existing.  ensure_trade_depot
     -- retries every poll tick (every POLL_TICKS game ticks) until it succeeds,
     -- so it naturally defers until units and map data are fully loaded.
+    cleanup_natural_megabeasts()
+
     if dfhack.persistent.getWorldDataString("dwarfipelago/depot_built") ~= "1" then
         ensure_trade_depot()
         return
