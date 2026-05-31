@@ -387,6 +387,7 @@ class DwarfFortressContext(CommonContext):
     def __init__(self, server_address: str, password: Optional[str] = None):
         super().__init__(server_address, password)
         self.dfhack = DFHackConnection()
+        self.dfhack_task = False
         self._poll_interval = 5.0        # seconds between fortress state polls
         self._received_index = 0         # last applied item index
         self._slot_data_synced = False   # Loaded the correct saved world
@@ -435,21 +436,19 @@ class DwarfFortressContext(CommonContext):
                     ),
                 )
                 world_loaded = bool(result and result.strip() == "1")
-
                 if not world_loaded:
                     if self._world_loaded:
                         # Transition: player returned to the main menu / world gen.
                         self._world_loaded = False
                         self._mod_started = False
                         self._slot_data_synced = False
-                        logger.info("Map unloaded — pausing fortress polling until a save is loaded")
+                        logger.info("Map unloaded — AP operations paused until a save is loaded")
                     await asyncio.sleep(self._poll_interval)
                     continue
 
                 if not self._world_loaded:
                     self._world_loaded = True
-                    logger.info("Map loaded — resuming fortress polling")
-
+                    logger.info("Map loaded — resuming AP operations")
                 # ── Auto-start mod ────────────────────────────────────────────
                 # 'dwarfipelago start' is safe to call on an already-running mod;
                 # it just re-registers hooks. We do it once per world load.
@@ -459,8 +458,7 @@ class DwarfFortressContext(CommonContext):
                         lambda: self.dfhack.run_command("dwarfipelago", "start"),
                     )
                     self._mod_started = True
-                    logger.info("Auto-started dwarfipelago Lua mod")
-
+                    logger.info("Auto-started dwarfipelago mod")
                 # ── Fortress operations (map guaranteed loaded) ───────────────
                 await self._sync_slot_data()
                 if self._slot_data_synced:
@@ -721,6 +719,7 @@ class DwarfFortressContext(CommonContext):
 
     async def _crafting_location_checks(self):
         """Read new crafting location checks from persistent storage and report them to AP."""
+        print("Running Craftsanity")
         local_checks = []
         last_item = ""
         last_material = ""
@@ -740,7 +739,12 @@ class DwarfFortressContext(CommonContext):
                 else:
                     storage_name += self._crafting_locations[crafts]["item"] + "_"+self._crafting_locations[crafts]["material"]
                 storage_name = storage_name.lower()
-                amount_crafted_str = self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("{storage_name}"))')
+                amount_crafted_str = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: self.dfhack.run_command(
+                            "lua",
+                            f'print(dfhack.persistent.getWorldDataString("{storage_name}"))'),
+                )
                 last_item = self._crafting_locations[crafts]["item"]
                 last_material = self._crafting_locations[crafts]["material"]
                 if amount_crafted_str == "nil" or amount_crafted_str == "0":
@@ -763,9 +767,10 @@ class DwarfFortressContext(CommonContext):
         for location in local_checks:
             location_str = str(location)
             self._completed_crafting_locations.append(location_str)
-            self.setAPKeyValue("Dwarfipelago/"+str(self.seed)+"/completed_locations", self._completed_crafting_locations)
+            await self.setAPKeyValue("Dwarfipelago/"+str(self.seed)+"/completed_locations", self._completed_crafting_locations)
             location_name = self._crafting_locations[location_str]["location_name"]
             self.dfhack.run_command("lua", f'dfhack.gui.showAnnouncement("{location_name} Completed!", COLOR_GREEN)')
+        print("done checking Craftsanity")
 
     async def setAPKeyValue(self, key:str, value:list[int]):
         await self.send_msgs([{
@@ -805,7 +810,6 @@ class DwarfFortressContext(CommonContext):
             # concurrent asyncio tasks so neither blocks the other.
             self.slot_data: dict[str, Any] = args.get("slot_data", {})
             self.dfhack_task = asyncio.create_task(self.dfhack_poll_loop(), name="DFHack poll")
-            self.server_task = asyncio.create_task(server_loop(self), name="server loop")
         if cmd == "Retrieved":
             if "Dwarfipelago/"+str(self.seed)+"/completed_locations" in args['keys']:
                 if args['keys']["Dwarfipelago/"+str(self.seed)+"/completed_locations"] != None:
