@@ -337,6 +337,20 @@ local function carve_breach(cx, cy, cz)
     if b then dfhack.maps.enableBlockUpdates(b, true) end
 end
 
+-- Map a spawn tile position to a compass direction relative to the embark centre.
+-- Returns one of 8 directional strings, or "depths" if very close to centre.
+local function get_spawn_direction(sx, sy)
+    local map = df.global.world.map
+    local dx  = sx - (map.x_count / 2)
+    local dy  = sy - (map.y_count / 2)  -- positive y = south in DF
+    if math.abs(dx) < 4 and math.abs(dy) < 4 then return "depths" end
+    local angle = (math.deg(math.atan2(dy, dx)) + 360) % 360
+    -- 0=E 45=SE 90=S 135=SW 180=W 225=NW 270=N 315=NE
+    local dirs = { "eastern", "southeastern", "southern", "southwestern",
+                   "western", "northwestern", "northern", "northeastern" }
+    return dirs[math.floor((angle + 22.5) / 45) % 8 + 1]
+end
+
 -- Scan creature raws for a random megabeast type present in this world.
 local function pick_megabeast_type()
     local candidates = {}
@@ -426,14 +440,14 @@ local function spawn_target_megabeast()
         end
     end
 
-    carve_breach(x, y, z)
     dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/spawned", "1")
 
     local display = beast_type:gsub("_", " "):lower():gsub("^%l", string.upper)
+    local dir     = get_spawn_direction(x, y)
     dfhack.gui.showAnnouncement(
-        ("[AP] A %s has broken through from the depths! Your military stands ready."):format(display),
+        ("[AP] A deep tremor rolls through the %s stone... a %s has awakened. Hunt it down."):format(dir, display),
         COLOR_RED, true)
-    print(("[Dwarfipelago] Megabeast spawned: %s at %d,%d,%d"):format(beast_type, x, y, z))
+    print(("[Dwarfipelago] Megabeast spawned: %s at %d,%d,%d (direction: %s)"):format(beast_type, x, y, z, dir))
 end
 
 -- ── Item handlers: progression locks ─────────────────────────────────────────
