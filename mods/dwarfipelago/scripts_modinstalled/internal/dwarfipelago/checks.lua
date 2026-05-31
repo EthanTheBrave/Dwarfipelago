@@ -34,6 +34,18 @@ local function fortress_wealth()
     return 0
 end
 
+-- ── Progression lock helpers ──────────────────────────────────────────────────
+-- Read how many copies of a progressive unlock item have been received, or
+-- whether a single-copy unlock has arrived.  Keys written by items.lua handlers.
+
+local function unlock_count(key)
+    return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/unlock/" .. key)) or 0
+end
+
+local function unlock_flag(key)
+    return dfhack.persistent.getWorldDataString("dwarfipelago/unlock/" .. key) == "1"
+end
+
 -- ── Fortress title helpers ────────────────────────────────────────────────────
 -- Titles require population AND (created wealth OR exported wealth).
 -- https://dwarffortresswiki.org/index.php/Fortress
@@ -64,20 +76,22 @@ local function exported_wealth()
     return 0
 end
 
-local function has_fortress_title(pop_req, created_req, exported_req)
+local function has_fortress_title(pop_req, created_req, exported_req, waves_req)
+    waves_req = waves_req or 0
     return function()
+        if unlock_count("immigration_waves") < waves_req then return false end
         if citizen_count() < pop_req then return false end
         return fortress_wealth() >= created_req or exported_wealth() >= exported_req
     end
 end
 
 M.checks = {
-    -- Wealth milestones
-    { id = 37370000, name = "Humble Beginnings",   fn = function() return fortress_wealth() >= 1000    end },
-    { id = 37370001, name = "Growing Stronghold",  fn = function() return fortress_wealth() >= 10000   end },
-    { id = 37370002, name = "Prosperous Fortress", fn = function() return fortress_wealth() >= 50000   end },
-    { id = 37370003, name = "Rich Citadel",        fn = function() return fortress_wealth() >= 100000  end },
-    { id = 37370004, name = "Legendary Vault",     fn = function() return fortress_wealth() >= 500000  end },
+    -- Wealth milestones (each tier requires the matching Merchant's Coffer count)
+    { id = 37370000, name = "Humble Beginnings",   fn = function() return unlock_count("wealth_coffers") >= 1 and fortress_wealth() >= 1000    end },
+    { id = 37370001, name = "Growing Stronghold",  fn = function() return unlock_count("wealth_coffers") >= 2 and fortress_wealth() >= 10000   end },
+    { id = 37370002, name = "Prosperous Fortress", fn = function() return unlock_count("wealth_coffers") >= 3 and fortress_wealth() >= 50000   end },
+    { id = 37370003, name = "Rich Citadel",        fn = function() return unlock_count("wealth_coffers") >= 4 and fortress_wealth() >= 100000  end },
+    { id = 37370004, name = "Legendary Vault",     fn = function() return unlock_count("wealth_coffers") >= 5 and fortress_wealth() >= 500000  end },
 
     -- First production milestones
     -- These are tracked via a persistent counter set by the eventful job hook in main.lua.
@@ -112,22 +126,23 @@ M.checks = {
     -- Fortress status / noble appointments
     -- Position codes match vanilla DF entity_default.txt. KING covers both king
     -- and queen (DF stores a single position code with gendered display names).
-    { id = 37370300, name = "Mayor Elected",           fn = function() return has_noble_role("MAYOR")             end },
-    { id = 37370301, name = "Baron Appointed",         fn = function() return has_noble_role("BARON")             end },
-    { id = 37370302, name = "Count Appointed",         fn = function() return has_noble_role("COUNT")             end },
-    { id = 37370303, name = "Duke Appointed",          fn = function() return has_noble_role("DUKE")              end },
+    -- Baron/Count/Duke/Monarch checks additionally require the matching charter.
+    { id = 37370300, name = "Mayor Elected",           fn = function() return has_noble_role("MAYOR") end },
+    { id = 37370301, name = "Baron Appointed",         fn = function() return unlock_flag("baron_charter")       and has_noble_role("BARON") end },
+    { id = 37370302, name = "Count Appointed",         fn = function() return unlock_flag("count_charter")       and has_noble_role("COUNT") end },
+    { id = 37370303, name = "Duke Appointed",          fn = function() return unlock_flag("duke_charter")        and has_noble_role("DUKE")  end },
     { id = 37370304, name = "Monarch Takes Residence", fn = function()
-        -- Try KING first (vanilla code); fall back to QUEEN in case a modded
-        -- civ uses a separate code for the female ruler.
+        if not unlock_flag("monarch_invitation") then return false end
         return has_noble_role("KING") or has_noble_role("QUEEN")
     end },
 
     -- Fortress title milestones (population + created OR exported wealth)
-    { id = 37370400, name = "Hamlet Established",     fn = has_fortress_title(20,   5000,    500) },
-    { id = 37370401, name = "Village Established",    fn = has_fortress_title(50,  25000,   2500) },
-    { id = 37370402, name = "Town Established",       fn = has_fortress_title(80, 100000,  10000) },
-    { id = 37370403, name = "City Established",       fn = has_fortress_title(110, 200000, 20000) },
-    { id = 37370404, name = "Metropolis Established", fn = has_fortress_title(140, 300000, 30000) },
+    -- Each tier also requires the matching Immigration Wave count.
+    { id = 37370400, name = "Hamlet Established",     fn = has_fortress_title(20,   5000,    500, 1) },
+    { id = 37370401, name = "Village Established",    fn = has_fortress_title(50,  25000,   2500, 2) },
+    { id = 37370402, name = "Town Established",       fn = has_fortress_title(80, 100000,  10000, 3) },
+    { id = 37370403, name = "City Established",       fn = has_fortress_title(110, 200000, 20000, 4) },
+    { id = 37370404, name = "Metropolis Established", fn = has_fortress_title(140, 300000, 30000, 5) },
 }
 
 -- ── Production flag helpers ───────────────────────────────────────────────────

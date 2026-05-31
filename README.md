@@ -49,14 +49,14 @@ When you load a fortress with Dwarfipelago active, the mod automatically places 
 
 ## Win Conditions
 
-Configurable per-slot in your options YAML:
+Configurable per-slot in your options YAML. Every goal also requires a minimum number of **Immigration Waves** (see Progression below).
 
-| Goal | Description |
-|------|-------------|
-| `population_boom` | Grow your fortress to a configurable population (default: 300 dwarves) *(default)* |
-| `legendary_wealth` | Reach a configurable fortress wealth target (default: 100,000☼) |
-| `slay_megabeast` | Kill a dragon, titan, or other megabeast |
-| `mountainhome` | Achieve Mountainhome status — the monarch takes residence in your fortress (very difficult) |
+| Goal | Description | Waves required |
+|------|-------------|---------------|
+| `population_boom` | Grow your fortress to a configurable population (default: 300 dwarves) *(default)* | 5 |
+| `legendary_wealth` | Reach a configurable fortress wealth target (default: 100,000☼) | 3 |
+| `slay_megabeast` | Kill a dragon, titan, or other megabeast | 2 |
+| `mountainhome` | Achieve Mountainhome status — the monarch takes residence in your fortress (very difficult) | 5 |
 
 ## Locations (Checks)
 
@@ -72,12 +72,15 @@ Completing these milestones sends items to other players:
 
 | Type | Examples |
 |------|---------|
-| Workshop blueprints | 26 blueprints that unlock workshops, furnaces, and farm plots — **progression items** (see Progression section below) |
+| Workshop blueprints | 29 blueprints that unlock workshops, furnaces, and farm plots — **progression items** (see Progression section below) |
+| Progression locks | Merchant's Coffer (×5), Immigration Wave (×5), Noble Ladder charters (×4), Military Training (×3) — gate milestone checks and goal completion |
 | Trade goods | Cut gems, gold/silver/steel bars, masterwork crafts |
 | Resources | Food bundles, wood bundles, iron ore, coal |
 | Traps | Goblin ambush, cave bear incursion, vermin infestation, tantrum trigger |
 
 ## Progression
+
+### Workshop Blueprints
 
 Workshop blueprints are the core Archipelago mechanic. Other players find your blueprints at their locations and send them to you, unlocking the matching structure in your fortress. Until you receive a blueprint, attempting to build that structure will be cancelled with a notification.
 
@@ -88,6 +91,53 @@ Workshop blueprints are the core Archipelago mechanic. Other players find your b
 **Gated buildings:** Farm Plot
 
 **Always available:** Carpenter's Workshop, Mason's Workshop, Still (dwarves need ale to survive)
+
+### Progression Locks
+
+Four systems of **progression lock items** gate milestone checks and goal completion. These items are found by your multiworld partners and sent to you; each one received unlocks the next tier of checks or advances your goal progress. All progression lock items are always present in the multiworld pool regardless of which goal you selected.
+
+#### Merchant's Coffer (×5) — Wealth Tiers
+
+Five coffers gate the five wealth milestone checks. Your fortress wealth may grow freely, but the AP check for each tier won't fire until the matching coffer arrives. If you reach a wealth tier without the coffer, a yellow announcement will remind you to look for it.
+
+| Coffers received | Wealth check unlocked | Wealth threshold |
+|---|---|---|
+| 1 | Humble Beginnings | 1,000☼ |
+| 2 | Growing Stronghold | 10,000☼ |
+| 3 | Prosperous Fortress | 50,000☼ |
+| 4 | Rich Citadel | 100,000☼ |
+| 5 | Legendary Vault | 500,000☼ |
+
+The **Legendary Wealth** goal also requires all 5 coffers to complete.
+
+#### Immigration Wave (×5) — Population Growth
+
+Five waves gate the five fortress title checks (Hamlet through Metropolis) and scale up the population requirement for every goal's completion condition.
+
+| Waves received | Title check unlocked | Also gates |
+|---|---|---|
+| 1 | Hamlet Established (pop 20) | — |
+| 2 | Village Established (pop 50) | Slay Megabeast goal completion |
+| 3 | Town Established (pop 80) | Legendary Wealth goal completion |
+| 4 | City Established (pop 110) | — |
+| 5 | Metropolis Established (pop 140) | Population Boom & Mountainhome goal completion |
+
+#### Noble Ladder — Mountainhome
+
+Four charter items gate the four upper noble appointment checks. The mayor is always accessible; higher ranks require the matching charter to have arrived from the multiworld.
+
+| Item received | Check unlocked |
+|---|---|
+| Baron's Charter | Baron Appointed |
+| Count's Charter | Count Appointed |
+| Duke's Charter | Duke Appointed |
+| Monarch's Invitation | Monarch Takes Residence |
+
+The **Mountainhome** goal additionally requires the Monarch's Invitation before victory is recognised.
+
+#### Military Training (×3) — Slay Megabeast
+
+Three training items gate the megabeast slaying goal. Killing a megabeast without all three training items won't trigger victory — your military isn't considered ready yet.
 
 ## DeathLink
 
@@ -124,6 +174,7 @@ A running list of ideas, planned features, and things that still need doing. No 
 - [x] Wire up caravan detection (merchant/diplomat unit scanning, exported-wealth tracking for trade/export flags)
 - [x] Fortress title location checks — Hamlet / Village / Town / City / Metropolis (population + wealth thresholds)
 - [x] Mountainhome win condition — achieve Mountainhome status (monarch takes residence)
+- [x] Progression lock items — Merchant's Coffer, Immigration Wave, Noble Ladder, Military Training gate milestone checks and goal completion
 - [~] Validate `df.job_type` enum values against a live DFHack console for all production checks
 - [~] Validate `createitem` material strings against DF raws (gem types, metal bar identifiers)
 - [x] Write end-to-end test instructions in `docs/`
