@@ -1,4 +1,4 @@
-from typing import Any, ClassVar
+from typing import Any, ClassVar, List
 from BaseClasses import Region, Location, Item, ItemClassification, Tutorial
 from worlds.AutoWorld import World, WebWorld
 from worlds.LauncherComponents import Component, icon_paths, components, Type, launch_subprocess
@@ -66,16 +66,27 @@ class DwarfFortressWorld(World):
 
     item_name_to_id = ITEM_TABLE
     location_name_to_id = LOCATION_TABLE
-    dynamic_locations = []
 
+    dynamic_locations = []
+    dynamic_locations_names = []
     web = DwarfFortressWebWorld()
 
     def generate_early(self) -> None:
-        self.dynamic_locations = generate_location_data(self)
-        for locations in self.dynamic_locations:
-            self.location_name_to_id[locations.name] = locations.ap_id
+        #populates dynamic_locations and d_l_names
+        generate_location_data(self)
+        remove_list = []
+        for location in self.location_name_to_id:
+            if "Crafting" in location and location not in self.dynamic_locations_names:
+                remove_list.append(location)
+        for location in remove_list:
+            del self.location_name_to_id[location] #remove unused locations for caculations and creations
+        ## PRINT LOCATIONS
+        # for locations in self.dynamic_locations:
+        #     print(f'LocationData("{locations.name}", {locations.ap_id}, "Fortress", False, "{locations.material_type}", "{locations.df_item}", {locations.threshold}),')
+    
 
     # ── Generation lifecycle ──────────────────────────────────────────────────
+
 
     def create_regions(self) -> None:
         menu = Region("Menu", self.player, self.multiworld)
@@ -99,7 +110,7 @@ class DwarfFortressWorld(World):
         self.multiworld.regions += [menu, fortress]
 
     def create_items(self) -> None:
-        location_count = len(ALL_LOCATIONS) + len(self.dynamic_locations)
+        location_count = len(self.location_name_to_id)
         trap_weight = self.options.trap_item_weight.value / 100.0
 
         # Separate required (progression) items from optional ones.

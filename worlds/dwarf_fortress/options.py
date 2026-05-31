@@ -110,7 +110,7 @@ class VariableItemCreationMaxAmount(Range):
     """
     display_name = "Max Craftable location amount"
     range_start = 10
-    range_end = 100
+    range_end = 500
     default = 15
 
 class VariableItemCreationThreshold(Range):
@@ -120,7 +120,7 @@ class VariableItemCreationThreshold(Range):
     """
     display_name = "Craftable Location Check Threshold"
     range_start = 5
-    range_end = 100
+    range_end = 500
     default = 5
 
 class StartingDefaultDFInventory(StartInventory):
