@@ -704,7 +704,11 @@ class DwarfFortressContext(CommonContext):
             logger.info("Goal complete — sent ClientStatus.CLIENT_GOAL to AP server")
 
     def init_crafting_locations(self):
+        last_item = ""
+        last_material = ""
         for crafts in self._crafting_locations:
+            if self._crafting_locations[crafts]["item"] == last_item and self._crafting_locations[crafts]["material"] == last_material:
+                continue
             storage_name ="dwarfipelago/craft_count/"
             if self._crafting_locations[crafts]["material"] == "": #material type doesn't matter, add them all
                 storage_name += self._crafting_locations[crafts]["item"].replace(" ", "_")
@@ -712,33 +716,47 @@ class DwarfFortressContext(CommonContext):
                 storage_name += self._crafting_locations[crafts]["item"].replace(" ", "_") + "_"+self._crafting_locations[crafts]["material"]
             storage_name = storage_name.lower()
             self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("{storage_name}", "0")')
+            last_item = self._crafting_locations[crafts]["item"]
+            last_material = self._crafting_locations[crafts]["material"]
 
     async def _crafting_location_checks(self):
         """Read new crafting location checks from persistent storage and report them to AP."""
         local_checks = []
+        last_item = ""
+        last_material = ""
+        last_count = 0
         if len(self._completed_crafting_locations) == 0: #not inialized yet
             return
         for crafts in self._crafting_locations:
-            storage_name ="dwarfipelago/craft_count/"
-            if crafts in self._completed_crafting_locations: #this check is already completed
-                continue
-            if self._crafting_locations[crafts]["material"] == "": #material type doesn't matter, add them all
-                storage_name += self._crafting_locations[crafts]["item"]
+            if self._crafting_locations[crafts]["item"] == "Beds":
+                print("")
+            if self._crafting_locations[crafts]["item"] == last_item and self._crafting_locations[crafts]["material"] == last_material:
+                amount_crafted = last_count
             else:
-                storage_name += self._crafting_locations[crafts]["item"] + "_"+self._crafting_locations[crafts]["material"]
-            storage_name = storage_name.lower()
-            amount_crafted_str = self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("{storage_name}"))')
-            if amount_crafted_str == "nil" or amount_crafted_str == "0":
-                continue
-            else:
-                amount_crafted = int(amount_crafted_str)
-                if amount_crafted >= self._crafting_max_value: #got the last threshold
-                    local_checks.append(int(crafts))
+                last_count = 0
+                storage_name ="dwarfipelago/craft_count/"
+                if crafts in self._completed_crafting_locations: #this check is already completed
+                    continue
+                if self._crafting_locations[crafts]["material"] == "": #material type doesn't matter, add them all
+                    storage_name += self._crafting_locations[crafts]["item"]
+                else:
+                    storage_name += self._crafting_locations[crafts]["item"] + "_"+self._crafting_locations[crafts]["material"]
+                storage_name = storage_name.lower()
+                amount_crafted_str = self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("{storage_name}"))')
+                last_item = self._crafting_locations[crafts]["item"]
+                last_material = self._crafting_locations[crafts]["material"]
+                if amount_crafted_str == "nil" or amount_crafted_str == "0":
                     continue
                 else:
-                    if amount_crafted / self._crafting_threshold >= self._crafting_locations[crafts]["threshold"]: #threshold met
-                        local_checks.append(int(crafts))
-                        continue
+                    amount_crafted = int(amount_crafted_str)
+                    last_count = amount_crafted
+            if amount_crafted >= self._crafting_max_value: #got the last threshold
+                local_checks.append(int(crafts))
+                continue
+            else:
+                if amount_crafted / self._crafting_threshold >= self._crafting_locations[crafts]["threshold"]: #threshold met
+                    local_checks.append(int(crafts))
+                    continue
         if local_checks:
             await self.send_msgs([{
                 "cmd": "LocationChecks",
