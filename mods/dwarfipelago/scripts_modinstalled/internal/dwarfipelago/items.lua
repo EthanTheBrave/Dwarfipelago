@@ -357,6 +357,10 @@ local function spawn_precursor_threat()
     if not x then
         local sx, sy, sz = get_fort_spawn_pos()
         x, y, z = tonumber(sx), tonumber(sy), tonumber(sz)
+        dfhack.gui.showAnnouncement(
+            "[AP] Warning: no underground tile found — precursor spawned at surface instead.",
+            COLOR_YELLOW, true)
+        dfhack.printerr("[Dwarfipelago] spawn_precursor_threat: underground search failed, falling back to surface")
     end
     local ok, err = pcall(function()
         dfhack.run_script("modtools/create-unit",
@@ -364,6 +368,9 @@ local function spawn_precursor_threat()
             "-location", "[", tostring(x), tostring(y), tostring(z), "]")
     end)
     if not ok then
+        dfhack.gui.showAnnouncement(
+            "[AP] Error: precursor creature could not be spawned. Check the DFHack console.",
+            COLOR_RED, true)
         dfhack.printerr("[Dwarfipelago] precursor spawn failed: " .. tostring(err))
     end
 end
@@ -380,6 +387,10 @@ local function spawn_target_megabeast()
     if not x then
         local sx, sy, sz = get_fort_spawn_pos()
         x, y, z = tonumber(sx), tonumber(sy), tonumber(sz)
+        dfhack.gui.showAnnouncement(
+            "[AP] Warning: no underground tile found — megabeast spawned at surface level.",
+            COLOR_YELLOW, true)
+        dfhack.printerr("[Dwarfipelago] spawn_target_megabeast: underground search failed, falling back to surface")
     end
 
     local beast_type = pick_megabeast_type()
@@ -392,6 +403,12 @@ local function spawn_target_megabeast()
             "-location", "[", tostring(x), tostring(y), tostring(z), "]")
     end)
     if not ok then
+        dfhack.gui.showAnnouncement(
+            "[AP] CRITICAL: Megabeast could not be spawned — the Slay Megabeast goal cannot be completed.",
+            COLOR_RED, true)
+        dfhack.gui.showAnnouncement(
+            "[AP] This is likely a DFHack or mod compatibility issue. Consider regenerating your world.",
+            COLOR_RED, true)
         dfhack.printerr("[Dwarfipelago] megabeast spawn failed: " .. tostring(err))
         return
     end
