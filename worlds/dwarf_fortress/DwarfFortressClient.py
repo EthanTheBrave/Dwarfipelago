@@ -728,8 +728,6 @@ class DwarfFortressContext(CommonContext):
         if len(self._completed_crafting_locations) == 0: #not inialized yet
             return
         for crafts in self._crafting_locations:
-            if self._crafting_locations[crafts]["item"] == "Beds":
-                print("")
             if self._crafting_locations[crafts]["item"] == last_item and self._crafting_locations[crafts]["material"] == last_material:
                 amount_crafted = last_count
             else:
