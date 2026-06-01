@@ -489,17 +489,6 @@ larmor_subtype(14, "lower_body_clothing")
 larmor_subtype(15, "lower_body_armor")
 larmor_subtype(16, "lower_body_clothing")
 
--- Jobs where the flag depends on the job's primary material (stone/bone/wood).
-local NEEDS_MAT_CHECK = {}
-local function matjob(name)
-    local v = df.job_type[name]
-    if v ~= nil then NEEDS_MAT_CHECK[v] = true end
-end
-matjob("MakeCrafts")
-matjob("CarveBone")
-matjob("CarveStatue")
-matjob("CarveFurniture")
-
 local function mat_craft_flag(job)
     local ok, mat = pcall(dfhack.matinfo.decode, job.mat_type, job.mat_index)
     if not ok or not mat then return nil end
@@ -558,7 +547,7 @@ function M.job_to_craft_flag(job)
             or flag == "bee_wax" or flag == "dye" or flag == "soap" then
                 return flag
         end
-        local need_mat = dfhack.persistent.getWorldDataString('dwarfipelago/crafting_materials')
+        local need_mat = dfhack.persistent.getWorldDataString('dwarfipelago/craftsanity_materials')
         if tonumber(need_mat) == 1 then
             local material_used = mat_craft_flag(job) -- shouldn't return nil here
             return tostring(flag) .. "_" .. tostring(material_used) 
