@@ -398,8 +398,8 @@ class DwarfFortressContext(CommonContext):
         self._mod_started = False        # True once dwarfipelago/main start has succeeded
         self._world_loaded = False       # True while DF has an active world loaded
         self._crafting_locations = {}    # Dict of all crafting locations
-        self._crafting_max_value = 0     # max items to produce
-        self._crafting_threshold = 0     # crafting thresholds
+        self._craftsanity_max_value = 0     # max items to produce
+        self._craftsanity_threshold = 0     # crafting thresholds
         self._completed_crafting_locations = [] #completed locations so we don't keep sending
         self.seed = 0                    # your "identity"
 
@@ -562,10 +562,10 @@ class DwarfFortressContext(CommonContext):
         dl_percentage  = slot_data.get("deathlink_percentage", 0)
         self.seed         = slot_data.get("seed", 0)
         self._crafting_locations = slot_data.get("crafting_locations")
-        self._crafting_max_value = slot_data.get("craftable_max_amount")
-        self._crafting_threshold = slot_data.get("craftable_threshold")
-        crafting_enabled = slot_data.get("craftable_enabled") # 0 off, 1 on, 2 storage
-        materials_enabled = slot_data.get("craftable_materials")
+        self._craftsanity_max_value = slot_data.get("craftsanity_max_amount")
+        self._craftsanity_threshold = slot_data.get("craftsanity_threshold")
+        craftsanity_enabled = slot_data.get("craftsanity_enabled") # 0 off, 1 on, 2 storage
+        materials_enabled = slot_data.get("craftsanity_materials")
         current_seed = self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("dwarfipelago/seed"))')
         self._deathlink_threshold  = int(dl_threshold)
         self._deathlink_percentage = bool(int(dl_percentage))
@@ -578,9 +578,8 @@ class DwarfFortressContext(CommonContext):
                     self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_threshold", "{dl_threshold}")')
                     self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_percentage", "{int(dl_percentage)}")')
                     self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/seed", "{self.seed}")')
-                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/crafting_max", "{self._crafting_threshold}")')
-                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/crafting_enabled", "{crafting_enabled}")')
-                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/crafting_materials", "{materials_enabled}")')
+                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_enabled", "{craftsanity_enabled}")')
+                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_materials", "{materials_enabled}")')
                 write()
                 self.init_crafting_locations()
             self._slot_data_synced = True
@@ -752,11 +751,13 @@ class DwarfFortressContext(CommonContext):
                 else:
                     amount_crafted = int(amount_crafted_str)
                     last_count = amount_crafted
-            if amount_crafted >= self._crafting_max_value: #got the last threshold
+            if amount_crafted >= self._craftsanity_max_value: #got the last threshold
                 local_checks.append(int(crafts))
                 continue
             else:
-                if amount_crafted / self._crafting_threshold >= self._crafting_locations[crafts]["threshold"]: #threshold met
+                if amount_crafted == 0:
+                    continue
+                if amount_crafted / self._craftsanity_threshold >= self._crafting_locations[crafts]["threshold"]: #threshold met
                     local_checks.append(int(crafts))
                     continue
         if local_checks:

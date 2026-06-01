@@ -74,6 +74,8 @@ class DwarfFortressWorld(World):
     def generate_early(self) -> None:
         #populates dynamic_locations and d_l_names
         generate_location_data(self)
+        ## FOR printing, uncomment below and set your yaml to the max! (enable all items, max location, lowest threshold, all materials)
+        #generate_location_data_PRINT_ONLY(self)
         remove_list = []
         for location in self.location_name_to_id:
             if "Crafting" in location and location not in self.dynamic_locations_names:
@@ -172,10 +174,10 @@ class DwarfFortressWorld(World):
             "seed": self.random.randint(12212, 15245354),
             "player_name": self.player_name,
             "crafting_locations": crafting_location_data,
-            "craftable_max_amount": self.options.craftable_max_amount.value,
-            "craftable_threshold": self.options.craftable_threshold.value,
-            "craftable_enabled": self.options.craftable_locations.value,
-            "craftable_materials": self.options.craftable_enable_materials.value
+            "craftsanity_max_amount": self.options.craftsanity_max_amount.value,
+            "craftsanity_threshold": self.options.craftsanity_threshold.value,
+            "craftsanity_enabled": self.options.craftsanity.value,
+            "craftsanity_materials": self.options.craftsanity_enable_materials.value
         }
 
     # ── Completion condition ──────────────────────────────────────────────────
