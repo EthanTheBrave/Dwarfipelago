@@ -1,5 +1,5 @@
 from BaseClasses import MultiWorld
-from worlds.dwarf_fortress.crafting_locations import DynamicCraftingLocationRules
+from worlds.dwarf_fortress.craftsanity import DynamicCraftingLocationRules
 from .options import DwarfFortressGoal
 
 
@@ -78,4 +78,5 @@ def set_rules(world: "DwarfFortressWorld") -> None:
             or state.has("Artifact Weapon", player)
             or state.has("Artifact Armor", player)
         )
+    multiworld.completion_condition[player] = goal_location.access_rule
 
