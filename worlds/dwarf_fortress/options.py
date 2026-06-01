@@ -57,9 +57,16 @@ class DeathLinkPercentage(Toggle):
     """
     display_name = "Death Link Percentage"
 
-class EnableItemCreationLocation(Choice):
+class TradesInLogic(Toggle):
     """
-    Enable Craftable locations where you are required to make X of Items.
+    Should trading resources be considered in logic?
+    EX: trades for metal bars instead of requiring a Smelter Blueprint
+    """
+    display_name = "Resource Trading in Logic"
+
+class EnableCraftsanity(Choice):
+    """
+    Enable Craftsanity where you are required to make X amount of Items.
     If option_storage is selected, the X amount needs to be present in storage.
     """
     display_name = "Enable Item Creation Locations"
@@ -67,18 +74,12 @@ class EnableItemCreationLocation(Choice):
     option_on = 1
     option_storage = 2
 
-class TradesInLogic(Toggle):
-    """
-    Should resource trading be considered in logic?
-    EX: trade for Metal Bars instead of requiring a Smelter Blueprint
-    """
-    display_name = "Resource Trading in Logic"
 
-class VariableItemCreationLocations(OptionList):
+class CraftsanityItems(OptionList):
     """
-    If Craftable locations are enabled, which items to craft X amount are checks.
+    If craftsanity is enabled, which items are checks?
     """
-    display_name = "Craftable X Items locations"
+    display_name = "craftsanity Items locations"
     valid_keys = {
         "Beds", "Corkscrew", "Blocks", "Spike", "Ball", "Altar", "Animal Trap", "Armor Stand",
         "Barrel", "Bin", "Bookcase", "Bucket", "Buckler", "Cabinet", "Cage", "Burial Container", "Chair",
@@ -97,38 +98,38 @@ class VariableItemCreationLocations(OptionList):
     }
     default = valid_keys.copy() 
 
-class VariableItemMaterialToggle(Toggle):
+class CraftsanityEnableMaterials(Toggle):
     """
-    If Craftable locations are enabled, Do you need to craft certian materials of that item?
-    Craft X amount of Y Item
+    If craftsanity is enabled, Do you want seperate crafting checks based on material type?
+    EX: Craft X amount of "Y" Item. Here is where "Y" matters if enabled 
     """
-    display_name = "Enable Item Creation Item Materials"
+    display_name = "Enable Craftsanity Material Type"
 
-class VariableItemTypeCreationLocations(OptionList):
+class CraftsanityMaterials(OptionList):
     """
-    Select which item types for craft X amount are required.
+    Select which material types for crafting X amount are required.
     """
-    display_name = "Craftable X Items Materials"
+    display_name = "Craftsanity Items Materials"
     valid_keys = {
         "Stone", "Wood", "Metal", "Glass", "Leather", "Cloth", "Bone", "Ceramic"
     }
     default = valid_keys.copy() 
 
-class VariableItemCreationMaxAmount(Range):
+class CraftsanityMaxAmount(Range):
     """
-    If Craftable locations are enabled, what is the max amount to need to make per item?
+    If Craftsanity is enabled, what is the max amount you need to make per item?
     """
-    display_name = "Max Craftable location amount"
+    display_name = "Max Craftsanity Amount"
     range_start = 10
     range_end = 500
     default = 15
 
-class VariableItemCreationThreshold(Range):
+class CraftsanityThreshold(Range):
     """
-    If Craftable locations are enabled, How many do you need to make per check?
+    If Craftsanity is enabled, How many items crafted is a check?
     ex: 10 = every 10 crafted items is a check 
     """
-    display_name = "Craftable Location Check Threshold"
+    display_name = "Craftsanity Check Threshold"
     range_start = 5
     range_end = 500
     default = 5
@@ -146,12 +147,12 @@ class DwarfFortressOptions(PerGameCommonOptions):
     goal: DwarfFortressGoal
     wealth_goal_amount: WealthGoalAmount
     population_goal_amount: PopulationGoalAmount
-    craftable_locations: EnableItemCreationLocation
     trades_inlogic: TradesInLogic
-    craftable_items: VariableItemCreationLocations
-    craftable_enable_materials: VariableItemMaterialToggle
-    craftable_materials: VariableItemTypeCreationLocations
-    craftable_max_amount: VariableItemCreationMaxAmount
-    craftable_threshold: VariableItemCreationThreshold
+    craftsanity: EnableCraftsanity
+    craftsanity_items: CraftsanityItems
+    craftsanity_enable_materials: CraftsanityEnableMaterials
+    craftsanity_materials: CraftsanityMaterials
+    craftsanity_max_amount: CraftsanityMaxAmount
+    craftsanity_threshold: CraftsanityThreshold
     trap_item_weight: TrapItemWeight
     start_inventory: StartingDefaultDFInventory

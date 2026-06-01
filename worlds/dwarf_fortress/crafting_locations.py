@@ -4,7 +4,7 @@ from typing import List, Set, Union, TYPE_CHECKING
 from dataclasses import dataclass
 from BaseClasses import ItemClassification, Location, LocationProgressType, CollectionState
 from worlds.generic.Rules import set_rule
-from .options import EnableItemCreationLocation
+from .options import EnableCraftsanity
 from .locations import BASE_ID, LocationData
 
 if TYPE_CHECKING:
@@ -22,19 +22,56 @@ class DynamicCraftingData:
 
 def generate_location_data(world: "DwarfFortressWorld"):
     dynamic_locations: list[LocationData] = []
-    new_location_base_id = 100000
-    if world.options.craftable_locations != EnableItemCreationLocation.option_off:
-        for item in world.options.craftable_items:
+    if world.options.craftsanity != EnableCraftsanity.option_off:
+        for item in world.options.craftsanity_items:
             new_location = DynamicCraftingData("", "", "", 0, 0, BASE_ID)
             new_location.item_name = item
             new_location.id = 0
-            new_location.base_location_id += new_location_base_id
-            new_location_base_id = loop_locations(world, new_location, dynamic_locations)
+            new_location.base_location_id += assign_locationid_block(new_location.item_name)
+            loop_locations(world, new_location, dynamic_locations)
+
+def generate_location_data_PRINT_ONLY(world: "DwarfFortressWorld"):
+    dynamic_locations: list[LocationData] = []
+    if world.options.craftsanity != EnableCraftsanity.option_off:
+        for item in world.options.craftsanity_items:
+            new_location = DynamicCraftingData("", "", "", 0, 0, BASE_ID)
+            new_location.item_name = item
+            new_location.id = 0
+            new_location.base_location_id += assign_locationid_block(new_location.item_name)
+            loop_locations_PRINT_ONLY(world, new_location, dynamic_locations)
 
 def loop_locations(world: "DwarfFortressWorld", new_location: DynamicCraftingData, dynamic_locations: list[LocationData]) -> int:
-    base_id = new_location.base_location_id
-    if world.options.craftable_enable_materials and not non_material_items(new_location.item_name):
-        for materials in world.options.craftable_materials: #iterate all selected Materials
+    if world.options.craftsanity_enable_materials and not non_material_items(new_location.item_name):
+        for materials in world.options.craftsanity_materials: #iterate all selected Materials
+            if valid_materialitem(materials, new_location.item_name) == False:
+                continue
+            new_location.type = materials
+            new_location.max_id = calulate_check_count(world)
+            for next_id in range(new_location.id, new_location.max_id):
+                if next_id == new_location.max_id - 1: #find ID for final Check
+                    new_location.check_name = "Crafting "+ new_location.type + " " + new_location.item_name + " Final Check"
+                    world.dynamic_locations.append(LocationData(new_location.check_name, world.location_name_to_id[new_location.check_name], "", False, new_location.type, new_location.item_name, next_id + 1))
+                else:
+                    new_location.check_name = "Crafting "+ new_location.type + " " + new_location.item_name + " Check "+ str(next_id + 1)
+                    new_location.base_location_id += 1
+                    world.dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, new_location.type, new_location.item_name, next_id + 1))
+                world.dynamic_locations_names.append(new_location.check_name)
+    else: # Materials doesn't matter
+        new_location.max_id = calulate_check_count(world)
+        for next_id in range(new_location.id, new_location.max_id):
+            if next_id == new_location.max_id - 1:
+                new_location.check_name = "Crafting " + new_location.item_name + " Final Check"
+                world.dynamic_locations.append(LocationData(new_location.check_name, world.location_name_to_id[new_location.check_name], "", False, new_location.type, new_location.item_name, next_id + 1))
+            else:
+                new_location.check_name = "Crafting " + new_location.item_name + " Check "+ str(next_id + 1)
+                new_location.base_location_id += 1
+                world.dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, "", new_location.item_name, next_id + 1))
+            world.dynamic_locations_names.append(new_location.check_name)
+    return
+
+def loop_locations_PRINT_ONLY(world: "DwarfFortressWorld", new_location: DynamicCraftingData, dynamic_locations: list[LocationData]) -> int:
+    if world.options.craftsanity_enable_materials and not non_material_items(new_location.item_name):
+        for materials in world.options.craftsanity_materials: #iterate all selected Materials
             if valid_materialitem(materials, new_location.item_name) == False:
                 continue
             new_location.type = materials
@@ -48,20 +85,17 @@ def loop_locations(world: "DwarfFortressWorld", new_location: DynamicCraftingDat
                     new_location.base_location_id += 1
                 world.dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, new_location.type, new_location.item_name, next_id + 1))
                 world.dynamic_locations_names.append(new_location.check_name)
-                base_id = new_location.base_location_id
         ##Also include Materials Doesn't Matter for Printing Only!
-        ## FOR printing, uncomment below and set your yaml to the max! (enable all items, max location, lowest threshold, all materials)
-        # new_location.type = ""
-        # new_location.max_id = calulate_check_count(world)
-        # for next_id in range(new_location.id, new_location.max_id):
-        #     if next_id == new_location.max_id - 1:
-        #         new_location.check_name = "Crafting " + new_location.item_name + " Final Check"
-        #         new_location.base_location_id += 1
-        #     else:
-        #         new_location.check_name = "Crafting " + new_location.item_name + " Check "+ str(next_id + 1)
-        #         new_location.base_location_id += 1
-        #     world.dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, "", new_location.item_name, next_id + 1))
-        #     base_id = new_location.base_location_id
+        new_location.type = ""
+        new_location.max_id = calulate_check_count(world)
+        for next_id in range(new_location.id, new_location.max_id):
+            if next_id == new_location.max_id - 1:
+                new_location.check_name = "Crafting " + new_location.item_name + " Final Check"
+                new_location.base_location_id += 1
+            else:
+                new_location.check_name = "Crafting " + new_location.item_name + " Check "+ str(next_id + 1)
+                new_location.base_location_id += 1
+            world.dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, "", new_location.item_name, next_id + 1))
     else: # Materials doesn't matter
         new_location.max_id = calulate_check_count(world)
         for next_id in range(new_location.id, new_location.max_id):
@@ -73,14 +107,13 @@ def loop_locations(world: "DwarfFortressWorld", new_location: DynamicCraftingDat
                 new_location.base_location_id += 1
             world.dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, "", new_location.item_name, next_id + 1))
             world.dynamic_locations_names.append(new_location.check_name)
-            base_id = new_location.base_location_id
-    return base_id
+    return
 
 def calulate_check_count(world: "DwarfFortressWorld"):
-    if world.options.craftable_threshold >= world.options.craftable_max_amount:
+    if world.options.craftsanity_threshold >= world.options.craftsanity_max_amount:
         return 1
     else:
-        checks = math.ceil(world.options.craftable_max_amount / world.options.craftable_threshold)
+        checks = math.ceil(world.options.craftsanity_max_amount / world.options.craftsanity_threshold)
         return checks
     
 def valid_materialitem(material: str, item: str) -> bool:
@@ -528,3 +561,109 @@ class DynamicCraftingLocationRules:
                     set_rule(loc, self.metal)
                 case "Soap":
                     set_rule(loc, self.soap)
+
+def assign_locationid_block(item: str) -> int:
+    match item:
+        case "Beds": return 100000  #20 Checks Max
+        case "Corkscrew": return 102000 #60
+        case "Blocks": return  104000 #100
+        case "Spike": return 106000 #60
+        case "Ball": return 108000 #60 
+        case "Altar": return 110000
+        case "Animal Trap": return 112000
+        case "Armor Stand": return 114000
+        case "Barrel": return 116000
+        case "Bin": return 118000
+        case "Bookcase": return 120000
+        case "Bucket": return 122000
+        case "Buckler": return 124000
+        case "Cabinet": return 126000
+        case "Cage": return 128000
+        case "Burial Container": return 130000
+        case "Chair": return 132000
+        case "Container": return 134000
+        case "Crutch": return 136000
+        case "Door": return 138000
+        case "Floodgate": return 140000
+        case "Grate": return 142000
+        case "Hatch Cover": return 144000
+        case "Minecart": return 146000
+        case "Pedestal": return 148000
+        case "Pipe Section": return 150000
+        case "Shield": return 152000
+        case "Splint": return 154000
+        case "Stepladder": return 156000
+        case "Table": return 158000
+        case "Training Axe": return 160000
+        case "Training Spear": return 162000
+        case "Training Sword": return 164000
+        case "Weapon Rack": return 166000
+        case "Wheelbarrow": return 168000
+        case "Crossbow": return 170000
+        case "Bolt": return 172000
+        case "Millstone": return 174000
+        case "Quern": return 176000
+        case "Slab": return 178000
+        case "Statue": return 180000
+        case "Mechanism": return 182000
+        case "Traction Bench": return 184000
+        case "Crafts": return 186000
+        case "Liquid Container": return 188000
+        case "Goblet": return 190000
+        case "Mug": return 192000
+        case "Cup": return 194000
+        case "Toy": return 196000
+        case "Totem": return 198000
+        case "Gauntlets": return 200000
+        case "Helm": return 202000
+        case "Ballista Parts": return 204000
+        case "Catapult Parts": return 206000
+        case "Ballista Arrows": return 208000
+        case "Ash": return 210000
+        case "Charcoal": return 212000
+        case "Metal Bars": return 214000
+        case "Coke Bars": return 216000
+        case "Pearlash": return 218000
+        case "Gypsum Plaster": return 220000
+        case "Jug": return 222000
+        case "Large Pot": return 224000
+        case "Hive": return 226000
+        case "Quicklime": return 228000
+        case "Glass": return 230000
+        case "Window": return 232000
+        case "Book Binding": return 234000
+        case "Scroll Roller": return 236000
+        case "Leather": return 238000
+        case "Sheet": return 240000
+        case "Cloth": return 242000
+        case "Alcohol": return 244000
+        case "Lye": return 246000
+        case "Potash": return 248000
+        case "Milk of Lime": return 250000
+        case "Prepared Meal": return 252000
+        case "Tallow": return 254000
+        case "Oil": return 256000
+        case "Press Cake": return 258000
+        case "Honey": return 260000
+        case "Bee Wax": return 262000
+        case "Headgear Clothing": return 264000
+        case "Upper Body Clothing": return 266000
+        case "Upper Body Armor": return 268000
+        case "Hand Clothing": return 270000
+        case "Lower Body Clothing": return 272000
+        case "Lower Body Armor": return 274000
+        case "Footwear": return 276000
+        case "Dye": return 278000
+        case "Bag": return 280000
+        case "Rope/Chain": return 282000
+        case "Battle Axe": return 284000
+        case "Mace": return 286000
+        case "Pick": return 288000
+        case "Short Sword": return 290000
+        case "Spear": return 292000
+        case "War Hammer": return 294000
+        case "Anvil": return 296000
+        case "Coins": return 298000
+        case "Soap": return 300000
+    print("Missing entry: "+item)
+    return 0
