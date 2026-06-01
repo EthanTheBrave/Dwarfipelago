@@ -1,5 +1,5 @@
 from BaseClasses import MultiWorld
-from worlds.dwarf_fortress.crafting_locations import DynamicCraftingLocationRules
+from worlds.dwarf_fortress.craftsanity import DynamicCraftingLocationRules
 from .options import DwarfFortressGoal
 
 

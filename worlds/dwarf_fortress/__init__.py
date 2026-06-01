@@ -10,7 +10,7 @@ from .items import (
     PROGRESSION_ITEMS, USEFUL_ITEMS
 )
 from .locations import LocationData, LOCATION_TABLE, ALL_LOCATIONS
-from .crafting_locations import generate_location_data
+from .craftsanity import generate_location_data
 from . import rules
 
 # Register the Archipelago launcher buttons (Dwarf Fortress + Dwarf Fortress Client).
