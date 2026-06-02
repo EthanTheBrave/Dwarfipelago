@@ -18,11 +18,11 @@ class LocationData:
 
 # ── Wealth Milestones ─────────────────────────────────────────────────────────
 WEALTH_LOCATIONS: list[LocationData] = [
-    LocationData("Humble Beginnings",    BASE_ID + 0,  "Fortress"),
-    LocationData("Growing Stronghold",   BASE_ID + 1,  "Fortress"),
-    LocationData("Prosperous Fortress",  BASE_ID + 2,  "Fortress"),
-    LocationData("Rich Citadel",         BASE_ID + 3,  "Fortress"),
-    LocationData("Legendary Vault",      BASE_ID + 4,  "Fortress"),
+    LocationData("Humble Beginnings (1,000☼)",    BASE_ID + 0,  "Fortress"),
+    LocationData("Growing Stronghold (10,000☼)",  BASE_ID + 1,  "Fortress"),
+    LocationData("Prosperous Fortress (50,000☼)", BASE_ID + 2,  "Fortress"),
+    LocationData("Rich Citadel (100,000☼)",       BASE_ID + 3,  "Fortress"),
+    LocationData("Legendary Vault (500,000☼)",    BASE_ID + 4,  "Fortress"),
 ]
 
 # ── First Production Milestones ───────────────────────────────────────────────

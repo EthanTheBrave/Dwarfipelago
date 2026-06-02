@@ -62,7 +62,7 @@ Configurable per-slot in your options YAML. Every goal also requires a minimum n
 
 Completing these milestones sends items to other players:
 
-- **Wealth milestones** — Humble Beginnings → Growing Stronghold → Prosperous Fortress → Rich Citadel → Legendary Vault
+- **Wealth milestones** — Humble Beginnings (1,000☼) → Growing Stronghold (10,000☼) → Prosperous Fortress (50,000☼) → Rich Citadel (100,000☼) → Legendary Vault (500,000☼)
 - **First production** — first weapon forged, armor crafted, meal prepared, brew completed, metal bar smelted, gem cut, and more (18 milestones)
 - **Trade & diplomacy** — first caravan trade, first export, dwarven/elven/human caravan visits, outpost liaison meeting
 - **Fortress status** — noble appointments and civilisation recognition milestones
@@ -100,13 +100,13 @@ Four systems of **progression lock items** gate milestone checks and goal comple
 
 Five coffers gate the five wealth milestone checks. Your fortress wealth may grow freely, but the AP check for each tier won't fire until the matching coffer arrives. If you reach a wealth tier without the coffer, a yellow announcement will remind you to look for it.
 
-| Coffers received | Wealth check unlocked | Wealth threshold |
-|---|---|---|
-| 1 | Humble Beginnings | 1,000☼ |
-| 2 | Growing Stronghold | 10,000☼ |
-| 3 | Prosperous Fortress | 50,000☼ |
-| 4 | Rich Citadel | 100,000☼ |
-| 5 | Legendary Vault | 500,000☼ |
+| Coffers received | Wealth check unlocked |
+|---|---|
+| 1 | Humble Beginnings (1,000☼) |
+| 2 | Growing Stronghold (10,000☼) |
+| 3 | Prosperous Fortress (50,000☼) |
+| 4 | Rich Citadel (100,000☼) |
+| 5 | Legendary Vault (500,000☼) |
 
 The **Legendary Wealth** goal also requires all 5 coffers to complete.
 

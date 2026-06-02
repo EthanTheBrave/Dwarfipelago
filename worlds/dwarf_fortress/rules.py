@@ -36,11 +36,11 @@ BLUEPRINT_RULES: dict[str, list[str]] = {
 
 # Wealth tier → how many Merchant's Coffers needed to unlock it.
 WEALTH_COFFER_RULES: list[tuple[str, int]] = [
-    ("Humble Beginnings",   1),
-    ("Growing Stronghold",  2),
-    ("Prosperous Fortress", 3),
-    ("Rich Citadel",        4),
-    ("Legendary Vault",     5),
+    ("Humble Beginnings (1,000☼)",    1),
+    ("Growing Stronghold (10,000☼)",  2),
+    ("Prosperous Fortress (50,000☼)", 3),
+    ("Rich Citadel (100,000☼)",       4),
+    ("Legendary Vault (500,000☼)",    5),
 ]
 
 # Population/title tier → how many Immigration Waves needed to unlock it.
@@ -106,7 +106,7 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     elif options.goal == DwarfFortressGoal.option_legendary_wealth:
         # Legendary Wealth requires the Blueprint, all five coffers, and a workforce.
         goal_location.access_rule = lambda state: (
-            state.has("Legendary Blueprint", player)
+            state.has("Master Builder's Codex", player)
             and state.count("Merchant's Coffer", player) >= 5
             and state.count("Immigration Wave", player) >= 3
         )
@@ -114,7 +114,7 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     elif options.goal == DwarfFortressGoal.option_mountainhome:
         # Mountainhome requires fortress prestige, armaments, a monarch, and a full city.
         goal_location.access_rule = lambda state: (
-            state.has("Legendary Blueprint", player)
+            state.has("Master Builder's Codex", player)
             and state.has("Artifact Weapon", player)
             and state.has("Monarch's Invitation", player)
             and state.count("Immigration Wave", player) >= 5
@@ -125,7 +125,7 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         goal_location.access_rule = lambda state: (
             state.count("Immigration Wave", player) >= 5
             and (
-                state.has("Legendary Blueprint", player)
+                state.has("Master Builder's Codex", player)
                 or state.has("Artifact Weapon", player)
                 or state.has("Artifact Armor", player)
             )
