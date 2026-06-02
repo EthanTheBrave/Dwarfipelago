@@ -171,6 +171,62 @@ local function recv_coal_bundle()
     announce("Received: Coal Bundle!")
 end
 
+-- ── Item handlers: filler items ──────────────────────────────────────────────
+-- These are items the DF world contributes to the multiworld pool. The DF
+-- player may receive them back if the AP server places them at DF locations.
+
+local function recv_dwarven_ale()
+    spawn_item("DRINK", "PLANT_MAT:MUSHROOM_HELMET_PLUMP:DRINK", 3)
+    announce("Received: Dwarven Ale! A cask of plump helmet brew.")
+end
+
+local function recv_stone_trinket()
+    spawn_item("FIGURINE", "INORGANIC:MARBLE")
+    announce("Received: Stone Trinket! A finely carved marble figurine.")
+end
+
+local function recv_bone_crafts()
+    spawn_item("FIGURINE", "CREATURE_MAT:BEAR:BONE")
+    announce("Received: Bone Crafts! Skillfully carved bone pieces.")
+end
+
+local function recv_raw_ore()
+    spawn_item("BOULDER", "INORGANIC:MAGNETITE", 3)
+    announce("Received: Raw Ore! Magnetite boulders ready for smelting.")
+end
+
+local function recv_wooden_cup()
+    spawn_item("GOBLET", "PLANT_MAT:OAK:WOOD")
+    announce("Received: Wooden Cup!")
+end
+
+-- ── Item handlers: useful items ───────────────────────────────────────────────
+
+local function recv_masterwork_crafts()
+    spawn_item("FIGURINE", "INORGANIC:OBSIDIAN")
+    announce("Received: Masterwork Crafts! A masterwork obsidian figurine.")
+end
+
+local function recv_dwarven_steel_sword()
+    -- Try to spawn an actual short sword; fall back to steel bars if the item
+    -- token is not recognised by this DF version's createitem.
+    local ok = pcall(spawn_item, "ITEM_WEAPON_SWORD_SHORT", "INORGANIC:STEEL")
+    if not ok then
+        spawn_item("BAR", "INORGANIC:STEEL", 3)
+    end
+    announce("Received: Dwarven Steel Sword!")
+end
+
+local function recv_fine_cloth()
+    spawn_item("CLOTH", "PLANT_MAT:ROPE_REED:THREAD", 3)
+    announce("Received: Fine Cloth!")
+end
+
+local function recv_adamantine_fiber()
+    spawn_item("CLOTH", "INORGANIC:ADAMANTINE", 2)
+    announce("Received: Adamantine Fiber!")
+end
+
 -- ── Item handlers: progression gate items ────────────────────────────────────
 -- These items are purely flag-based — receiving them writes a persistent key
 -- that the goal-completion checks in dwarfipelago.lua read back.
@@ -557,10 +613,25 @@ end
 -- Names must match items.py exactly.
 
 M.handlers = {
+    -- Filler items
+    ["Dwarven Ale"]          = recv_dwarven_ale,
+    ["Stone Trinket"]        = recv_stone_trinket,
+    ["Bone Crafts"]          = recv_bone_crafts,
+    ["Raw Ore"]              = recv_raw_ore,
+    ["Wooden Cup"]           = recv_wooden_cup,
+
+    -- Useful items
+    ["Masterwork Crafts"]    = recv_masterwork_crafts,
+    ["Dwarven Steel Sword"]  = recv_dwarven_steel_sword,
+    ["Fine Cloth"]           = recv_fine_cloth,
+    ["Adamantine Fiber"]     = recv_adamantine_fiber,
+
+    -- Progression items
     ["Artifact Weapon"]        = recv_artifact_weapon,
     ["Artifact Armor"]         = recv_artifact_armor,
     ["Master Builder's Codex"] = recv_master_builders_codex,
 
+    -- Junk trap items (filler traps sent back to DF)
     ["Cave Fisher Silk"]       = recv_cave_fisher_silk,
     ["Dwarf Bones"]            = recv_dwarf_bones,
     ["Goblin Trophy"]          = recv_goblin_trophy,
