@@ -404,22 +404,22 @@ class DynamicCraftingLocationRules:
                 case "Corkscrew" | "Spike" | "Ball" | "Animal Trap" | "Barrel" |\
                     "Bin" | "Bucket" | "Crutch" | "Minecart" | "Splint" |\
                     "Stepladder" | "Wheelbarrow":
-                    if location.type == "Wood":
+                    if location.material_type == "Wood":
                         set_rule(loc, self.wood)
-                    elif location.type == "Metal":
+                    elif location.material_type == "Metal":
                         set_rule(loc, self.metal)
                     else:
                         set_rule(loc, self.wood_or_metal)
                 case "Blocks" | "Jug" | "Large Pot" | "Hive":
-                    if location.type == "Wood":
+                    if location.material_type == "Wood":
                         set_rule(loc, self.wood)
-                    elif location.type == "Stone":
+                    elif location.material_type == "Stone":
                         set_rule(loc, self.stone)
-                    elif location.type == "Metal":
+                    elif location.material_type == "Metal":
                         set_rule(loc, self.metal)
-                    elif location.type == "Glass":
+                    elif location.material_type == "Glass":
                         set_rule(loc, self.glass)
-                    elif location.type == "Ceramic":
+                    elif location.material_type == "Ceramic":
                         set_rule(loc, self.ceramic)
                     else:
                         set_rule(loc, self.wood_or_stone_or_metal_or_glass_or_ceramic)
@@ -427,45 +427,45 @@ class DynamicCraftingLocationRules:
                     "Chair" | "Container" | "Door" | "Floodgate"| "Grate"|\
                     "Hatch Cover" | "Pedestal" | "Table" | "Weapon Rack" | "Statue" |\
                     "Book Binding" | "Scroll Roller":
-                    if location.type == "Wood":
+                    if location.material_type == "Wood":
                         set_rule(loc, self.wood)
-                    elif location.type == "Stone":
+                    elif location.material_type == "Stone":
                         set_rule(loc, self.stone)
-                    elif location.type == "Metal":
+                    elif location.material_type == "Metal":
                         set_rule(loc, self.metal)
-                    elif location.type == "Glass":
+                    elif location.material_type == "Glass":
                         set_rule(loc, self.glass)
                     else:
                         set_rule(loc, self.wood_or_stone_or_metal_or_glass)
                 case "Buckler" | "Shield":
-                    if location.type == "Wood":
+                    if location.material_type == "Wood":
                         set_rule(loc, self.wood)
-                    elif location.type == "Metal":
+                    elif location.material_type == "Metal":
                         set_rule(loc, self.metal)
-                    elif location.type == "Leather":
+                    elif location.material_type == "Leather":
                         set_rule(loc, self.leather_works)
                     else:
                         set_rule(loc, self.wood_or_leather_or_metal)
                 case "Cage" | "Pipe Section":
-                    if location.type == "Wood":
+                    if location.material_type == "Wood":
                         set_rule(loc, self.wood)
-                    elif location.type == "Metal":
+                    elif location.material_type == "Metal":
                         set_rule(loc, self.metal)
-                    elif location.type == "Glass":
+                    elif location.material_type == "Glass":
                         set_rule(loc, self.glass)
                     else:
                         set_rule(loc, self.wood_or_metal_or_glass)
                 case "Crossbow":
                     if type in {"Wood", "Bone"}:
                         set_rule(loc, self.bowyer_workshop)
-                    elif location.type == "Metal":
+                    elif location.material_type == "Metal":
                         set_rule(loc, self.metal)
                     else:
                         set_rule(loc, self.bowyer_or_metal)
                 case "Bolt":
                     if type in {"Wood", "Bone"}:
                         set_rule(loc, self.craftdwarf_workshop)
-                    elif location.type == "Metal":
+                    elif location.material_type == "Metal":
                         set_rule(loc, self.metal)
                     else:
                         set_rule(loc, self.craftdwarf_or_metal)
@@ -474,22 +474,22 @@ class DynamicCraftingLocationRules:
                 case "Mechanism":
                     set_rule(loc, self.mechanic_workshop)
                 case "Traction Bench":
-                    if location.type == "Wood":
+                    if location.material_type == "Wood":
                         set_rule(loc, self.wooden_traction_bench)
-                    elif location.type == "Stone":
+                    elif location.material_type == "Stone":
                         set_rule(loc, self.stone_traction_bench)
-                    elif location.type == "Metal":
+                    elif location.material_type == "Metal":
                         set_rule(loc, self.metal_traction_bench)
-                    elif location.type == "Glass":
+                    elif location.material_type == "Glass":
                         set_rule(loc, self.glass_traction_bench)
                     else:
                         set_rule(loc, self.any_traction_bench)
                 case "Liquid Container":
-                    if location.type == "Metal":
+                    if location.material_type == "Metal":
                         set_rule(loc, self.metal)
-                    elif location.type == "Glass":
+                    elif location.material_type == "Glass":
                         set_rule(loc, self.glass)
-                    elif location.type == "Leather":
+                    elif location.material_type == "Leather":
                         set_rule(loc, self.leather_works)
                     else:
                         set_rule(loc, self.metal_or_glass_or_leather)
@@ -500,20 +500,20 @@ class DynamicCraftingLocationRules:
                 case "Totem":
                     set_rule(loc, self.craftdwarf_and_butchery)
                 case "Helm" | "Lower Body Armor":
-                    if location.type == "Metal":
+                    if location.material_type == "Metal":
                         set_rule(loc, self.metal)
-                    elif location.type == "Bone":
+                    elif location.material_type == "Bone":
                         set_rule(loc, self.craftdwarf_workshop)
-                    elif location.type == "Leather":
+                    elif location.material_type == "Leather":
                         set_rule(loc, self.leather_works)
                     else:
                         set_rule(loc, self.metal_or_bone_or_leather)
                 case "Ballista Parts" | "Catapult Parts":
                     set_rule(loc, self.seige_workshop)
                 case "Ballista Arrows":
-                    if location.type == "Wood":
+                    if location.material_type == "Wood":
                         set_rule(loc, self.seige_workshop)
-                    elif location.type == "Metal":
+                    elif location.material_type == "Metal":
                         set_rule(loc, self.seige_and_metal)
                     else:
                         set_rule(loc, self.seige_workshop)
@@ -545,48 +545,48 @@ class DynamicCraftingLocationRules:
                     set_rule(loc, self.screw_press)
                 case "Headgear Clothing" | "Upper Body Clothing" | "Hand Clothing"|\
                     "Lower Body Clothing":
-                    if location.type == "Cloth":
+                    if location.material_type == "Cloth":
                         set_rule(loc, self.clothier_workshop)
-                    elif location.type == "Leather":
+                    elif location.material_type == "Leather":
                         set_rule(loc, self.leather_works)
                     else:
                         set_rule(loc, self.leather_or_cloth)
                 case "Upper Body Armor":
-                    if location.type == "Metal":
+                    if location.material_type == "Metal":
                         set_rule(loc, self.metal)
-                    elif location.type == "Leather":
+                    elif location.material_type == "Leather":
                         set_rule(loc, self.leather_works)
                     else:
                         set_rule(loc, self.metal_or_leather)
                 case "Gauntlets":
-                    if location.type == "Metal":
+                    if location.material_type == "Metal":
                         set_rule(loc, self.metal)
-                    elif location.type == "Bone":
+                    elif location.material_type == "Bone":
                         set_rule(loc, self.craftdwarf_workshop)
                     else:
                         set_rule(loc, self.metal_or_bone)  
                 case "Footwear":
-                    if location.type == "Metal":
+                    if location.material_type == "Metal":
                         set_rule(loc, self.metal)
-                    elif location.type == "Cloth":
+                    elif location.material_type == "Cloth":
                         set_rule(loc, self.clothier_workshop)
-                    elif location.type == "Leather":
+                    elif location.material_type == "Leather":
                         set_rule(loc, self.leather_works)
                     else:
                         set_rule(loc, self.metal_or_cloth_or_leather)
                 case "Dye":
                     set_rule(loc, self.dye)
                 case "Bag":
-                    if location.type == "Cloth":
+                    if location.material_type == "Cloth":
                         set_rule(loc, self.clothier_workshop)
-                    elif location.type == "Leather":
+                    elif location.material_type == "Leather":
                         set_rule(loc, self.leather_works)
                     else:
                         set_rule(loc, self.leather_or_cloth)
                 case "Rope/Chain":
-                    if location.type == "Cloth":
+                    if location.material_type == "Cloth":
                         set_rule(loc, self.clothier_workshop)
-                    elif location.type == "Metal":
+                    elif location.material_type == "Metal":
                         set_rule(loc, self.metal)
                     else:
                         set_rule(loc, self.metal_or_cloth)
