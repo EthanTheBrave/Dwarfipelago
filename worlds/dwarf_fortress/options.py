@@ -73,6 +73,7 @@ class EnableCraftsanity(Choice):
     option_off = 0
     option_on = 1
     option_storage = 2
+    default = 1
 
 
 class CraftsanityItemGroup(Choice):
