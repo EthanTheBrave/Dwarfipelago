@@ -63,6 +63,17 @@ Dwarf Fortress:
   trap_item_weight: 20              # 0–100, percentage of filler slots that are traps
   deathlink: false                  # enable DeathLink
   deathlink_threshold: 5            # dwarf deaths per outgoing DeathLink (1–20)
+
+  # Craftsanity — optional crafting milestone checks
+  craftsanity: off                  # off | on | storage
+  craftsanity_item_group: medium    # easy | medium | hard | craftsanity | choose
+  craftsanity_enable_materials: false  # split checks by material type (Stone Blocks vs Metal Blocks)
+  craftsanity_max_amount: 15        # total items to produce per check group
+  craftsanity_threshold: 5          # items crafted per individual check
+  # craftsanity_items:              # only used when craftsanity_item_group is 'choose'
+  #   - Beds
+  #   - Blocks
+  #   - Cloth
 ```
 
 ### 4. Launch and Connect
