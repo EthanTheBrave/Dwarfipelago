@@ -405,9 +405,6 @@ end
 
 function unlock_blueprint(blueprint_name)
     dfhack.persistent.saveWorldDataString("dwarfipelago/blueprint/" .. blueprint_name, "1")
-    dfhack.gui.showAnnouncement(
-        ("[AP] Blueprint received: %s"):format(blueprint_name),
-        COLOR_GREEN, true)
     print(("[Dwarfipelago] Blueprint unlocked: %s"):format(blueprint_name))
 end
 
