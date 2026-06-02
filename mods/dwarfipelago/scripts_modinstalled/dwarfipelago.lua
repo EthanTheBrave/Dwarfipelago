@@ -25,6 +25,28 @@ local POLL_TICKS  = 100  -- poll wealth/trade/goal checks every N ticks
 -- hook does not count those kills toward our own outgoing DeathLink threshold.
 local applying_recv_deathlink = false
 
+-- Per-session tracking for "milestone reached but locked" notifications.
+-- Keyed by AP location ID; prevents repeating the same announcement every poll.
+local _notified_locked = {}
+
+-- Set to true once natural megabeasts have been cleared for the slay_megabeast goal.
+-- Reset each script load so a fresh cleanup runs on every fortress load.
+local _megabeast_cleanup_done = false
+
+-- Per-tier announcement tracking for treasury job blocking.
+-- Prevents spam when standing orders keep retrying a blocked MintCoins/CutGems job.
+-- Keyed by coffer count (0 = no coffers yet, 1–4 = tier cap reached).
+-- Resets on each script load so the player gets a reminder after every reload.
+local _treasury_block_notified = {}
+
+local WEALTH_LOCK_TIERS = {
+    { id = 37370000, threshold = 1000,   coffers = 1, name = "Humble Beginnings (1,000☼)"    },
+    { id = 37370001, threshold = 10000,  coffers = 2, name = "Growing Stronghold (10,000☼)"  },
+    { id = 37370002, threshold = 50000,  coffers = 3, name = "Prosperous Fortress (50,000☼)" },
+    { id = 37370003, threshold = 100000, coffers = 4, name = "Rich Citadel (100,000☼)"       },
+    { id = 37370004, threshold = 500000, coffers = 5, name = "Legendary Vault (500,000☼)"    },
+}
+
 -- ── Goal settings helpers ─────────────────────────────────────────────────────
 -- The Python client writes these to persistent storage after connecting.
 -- goal: 0 = slay_megabeast, 1 = legendary_wealth, 2 = population_boom, 3 = mountainhome
@@ -43,7 +65,10 @@ local function check_goal_by_poll()
 
     if goal == 1 then  -- legendary_wealth
         local target = goal_setting("wealth_goal", 100000)
-        if checks.fortress_wealth() >= target then
+        if checks.treasury_wealth() >= target
+                and goal_setting("unlock/wealth_coffers", 0) >= 5
+                and goal_setting("unlock/immigration_waves", 0) >= 3
+                and goal_setting("unlock/master_builders_codex", 0) == 1 then
             if state.mark_goal_complete() then
                 dfhack.gui.showAnnouncement(
                     "[AP] Goal reached: Legendary Wealth! Victory is yours.",
@@ -60,7 +85,12 @@ local function check_goal_by_poll()
                 count = count + 1
             end
         end
-        if count >= target then
+        local has_prestige = goal_setting("unlock/master_builders_codex", 0) == 1
+                          or goal_setting("unlock/artifact_weapon", 0) == 1
+                          or goal_setting("unlock/artifact_armor", 0) == 1
+        if count >= target
+                and goal_setting("unlock/immigration_waves", 0) >= 5
+                and has_prestige then
             if state.mark_goal_complete() then
                 dfhack.gui.showAnnouncement(
                     ("[AP] Goal reached: Population Boom! (%d dwarves). Victory!"):format(count),
@@ -68,13 +98,19 @@ local function check_goal_by_poll()
                 print("[Dwarfipelago] Goal complete: Population Boom!")
             end
         end
+
     elseif goal == 3 then  -- mountainhome
-        -- Mountainhome is achieved when the monarch (king/queen) takes residence.
+        -- Mountainhome is achieved when the monarch (king/queen) takes residence
+        -- and the Monarch's Invitation has been received from the multiworld.
         local ok_k, has_king  = pcall(dfhack.units.getUnitsByNobleRole, "KING")
         local ok_q, has_queen = pcall(dfhack.units.getUnitsByNobleRole, "QUEEN")
         local has_monarch = (ok_k and has_king and #has_king > 0)
                          or (ok_q and has_queen and #has_queen > 0)
-        if has_monarch then
+        if has_monarch
+                and goal_setting("unlock/monarch_invitation", 0) == 1
+                and goal_setting("unlock/immigration_waves", 0) >= 5
+                and goal_setting("unlock/master_builders_codex", 0) == 1
+                and goal_setting("unlock/artifact_weapon", 0) == 1 then
             if state.mark_goal_complete() then
                 dfhack.gui.showAnnouncement(
                     "[AP] Goal reached: Mountainhome! The monarch has arrived. Victory!",
@@ -97,14 +133,24 @@ local function on_unit_death(uid)
     -- ── Goal: megabeast kill ──────────────────────────────────────────────────
     if not state.is_goal_complete() and goal_setting("goal", -1) == 0 then
         local ok, is_mega = pcall(dfhack.units.isMegabeast, unit)
-        if ok and is_mega then
-            if state.mark_goal_complete() then
-                local name = dfhack.TranslateName(dfhack.units.getVisibleName(unit))
-                dfhack.gui.showAnnouncement(
-                    ("[AP] Goal reached: %s has been slain! Victory!"):format(
-                        name ~= "" and name or "The megabeast"),
-                    COLOR_CYAN, true)
-                print("[Dwarfipelago] Goal complete: Megabeast slain!")
+        if ok and is_mega
+                and goal_setting("unlock/military_training", 0) >= 3
+                and goal_setting("unlock/immigration_waves", 0) >= 2
+                and goal_setting("unlock/artifact_weapon", 0) == 1 then
+            -- Only count the AP-summoned target; ignore any stray megabeasts.
+            -- If no target ID is stored (fallback), any megabeast kill counts.
+            local target_id = tonumber(
+                dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/target_id"))
+            local is_target = (not target_id) or (unit.id == target_id)
+            if is_target then
+                if state.mark_goal_complete() then
+                    local name = dfhack.TranslateName(dfhack.units.getVisibleName(unit))
+                    dfhack.gui.showAnnouncement(
+                        ("[AP] Goal reached: %s has been slain! Victory!"):format(
+                            name ~= "" and name or "The megabeast"),
+                        COLOR_CYAN, true)
+                    print("[Dwarfipelago] Goal complete: Megabeast slain!")
+                end
             end
         end
     end
@@ -260,6 +306,73 @@ local function detect_trade_export()
     end
 end
 
+-- ── Megabeast goal: remove natural megabeasts ────────────────────────────────
+-- For the slay_megabeast goal, all naturally-spawned megabeasts are silently
+-- removed when the fortress loads. The AP-controlled target is summoned via
+-- Military Training items instead, keeping the encounter on the multiworld's
+-- terms. Natural megabeasts that were already killed in a previous session are
+-- simply absent — this scan is fast and safe to repeat on each reload.
+
+local function cleanup_natural_megabeasts()
+    if _megabeast_cleanup_done then return end
+
+    local goal = goal_setting("goal", -1)
+    if goal == -1 then return end  -- slot data not yet synced from Python; retry next tick
+
+    _megabeast_cleanup_done = true
+    if goal ~= 0 then return end  -- only relevant for slay_megabeast
+
+    -- Don't remove the AP-summoned target if it already exists this world.
+    local target_id = tonumber(
+        dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/target_id"))
+
+    local cleaned = 0
+    for _, unit in ipairs(df.global.world.units.all) do
+        local ok, alive = pcall(dfhack.units.isAlive, unit)
+        if ok and alive then
+            local ok2, is_mega = pcall(dfhack.units.isMegabeast, unit)
+            if ok2 and is_mega and unit.id ~= target_id then
+                pcall(function()
+                    if dfhack.units.kill then
+                        dfhack.units.kill(unit)
+                    else
+                        unit.body.blood_count = 0
+                    end
+                end)
+                cleaned = cleaned + 1
+            end
+        end
+    end
+
+    if cleaned > 0 then
+        print(("[Dwarfipelago] Cleared %d natural megabeast(s) — AP target arrives via Military Training"):format(cleaned))
+    end
+end
+
+-- ── Locked milestone notifications ───────────────────────────────────────────
+-- When a wealth tier threshold is met in-game but the matching Merchant's Coffer
+-- hasn't arrived yet, announce it once so the player knows to look for it.
+-- Fires at most once per tier per session; skips tiers already checked.
+
+local function check_locked_notifications()
+    local coffers = goal_setting("unlock/wealth_coffers", 0)
+    local wealth  = checks.treasury_wealth()
+    for _, tier in ipairs(WEALTH_LOCK_TIERS) do
+        if not state.is_location_checked(tier.id)
+                and not _notified_locked[tier.id]
+                and wealth >= tier.threshold
+                and coffers < tier.coffers then
+            _notified_locked[tier.id] = true
+            dfhack.gui.showAnnouncement(
+                ("[AP] %s reached — waiting for Merchant's Coffer (%d/5)"):format(
+                    tier.name, coffers),
+                COLOR_YELLOW, true)
+            print(("[Dwarfipelago] Wealth milestone locked: %s (have %d/5 coffers)"):format(
+                tier.name, coffers))
+        end
+    end
+end
+
 -- Forward declaration so poll_checks can call ensure_trade_depot, which is
 -- defined later in the file (after the item event helpers).
 local ensure_trade_depot
@@ -277,6 +390,8 @@ local function poll_checks()
     -- All AP checks are gated on a trade depot existing.  ensure_trade_depot
     -- retries every poll tick (every POLL_TICKS game ticks) until it succeeds,
     -- so it naturally defers until units and map data are fully loaded.
+    cleanup_natural_megabeasts()
+
     if dfhack.persistent.getWorldDataString("dwarfipelago/depot_built") ~= "1" then
         ensure_trade_depot()
         return
@@ -284,6 +399,7 @@ local function poll_checks()
 
     apply_pending_recv_deathlinks()
     check_goal_by_poll()
+    check_locked_notifications()
     detect_caravans()
     detect_trade_export()
 
@@ -352,6 +468,53 @@ local function on_job_completed(job)
     end
 end
 
+-- ── Treasury job gating (MintCoins / CutGems) ────────────────────────────────
+-- Blocks coin minting and gem cutting when the current treasury wealth has reached
+-- the cap for the player's current Merchant's Coffer tier. Uses the same
+-- WEALTH_LOCK_TIERS table as the locked-notification system for consistency.
+
+local TREASURY_JOB_TYPES = {}
+local function tjmap(name)
+    local v = df.job_type[name]
+    if v ~= nil then TREASURY_JOB_TYPES[v] = true end
+end
+tjmap("MintCoins")
+tjmap("CutGems")
+
+local function check_treasury_job_gate(job)
+    if not TREASURY_JOB_TYPES[job.job_type] then return end
+
+    local coffers = goal_setting("unlock/wealth_coffers", 0)
+
+    -- No coffers yet — block all minting and cutting.
+    if coffers == 0 then
+        dfhack.job.removeJob(job)
+        if not _treasury_block_notified[0] then
+            _treasury_block_notified[0] = true
+            dfhack.gui.showAnnouncement(
+                "[AP] Cannot mint coins or cut gems — awaiting first Merchant's Coffer!",
+                COLOR_YELLOW, true)
+        end
+        return
+    end
+
+    -- All five coffers received — no cap, allow freely.
+    if coffers >= 5 then return end
+
+    -- Check whether current treasury has already reached this tier's ceiling.
+    local tier = WEALTH_LOCK_TIERS[coffers]
+    if checks.treasury_wealth() >= tier.threshold then
+        dfhack.job.removeJob(job)
+        if not _treasury_block_notified[coffers] then
+            _treasury_block_notified[coffers] = true
+            dfhack.gui.showAnnouncement(
+                ("[AP] %s reached — minting and gem cutting paused. Awaiting Merchant's Coffer (%d/5)."):format(
+                    tier.name, coffers),
+                COLOR_YELLOW, true)
+        end
+    end
+end
+
 -- ── Workshop / furnace / building blueprint enforcement ─────────────────────
 -- When a dwarf tries to build a locked structure, the job is cancelled.
 -- Unlocked blueprints are tracked in persistent storage by the AP client:
@@ -412,6 +575,8 @@ end
 -- Called via eventful.onJobInitiated — fires when a new job is created.
 local function on_job_initiated(job)
     if not state.is_enabled() then return end
+
+    check_treasury_job_gate(job)
 
     -- Only care about construction jobs.
     if job.job_type ~= df.job_type.ConstructBuilding then return end
