@@ -602,10 +602,15 @@ local function on_job_initiated(job)
     if not blueprint_name then return end  -- ungated building, allow it
 
     if not is_blueprint_unlocked(blueprint_name) then
-        dfhack.job.removeJob(job)
+        -- Announce immediately so the player sees feedback right away.
         dfhack.gui.showAnnouncement(
             ("[AP] Cannot build: %s not yet received!"):format(blueprint_name),
             COLOR_YELLOW, true)
+        -- Defer deconstruction by one tick — removing a job inline during
+        -- onJobInitiated crashes DF because the engine is mid-update.
+        dfhack.timeout(1, "ticks", function()
+            pcall(function() dfhack.buildings.deconstruct(bld) end)
+        end)
     end
 end
 
