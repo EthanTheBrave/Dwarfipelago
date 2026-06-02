@@ -55,6 +55,11 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/unlock/duke_charter` | `"1"` or absent | Lua | Set when Duke's Charter received; gates Duke Appointed check |
 | `dwarfipelago/unlock/monarch_invitation` | `"1"` or absent | Lua | Set when Monarch's Invitation received; gates Monarch Takes Residence check |
 | `dwarfipelago/unlock/military_training` | Integer string | Lua | How many Military Training items received (0–3); used by slay_megabeast goal |
+| `dwarfipelago/unlock/artifact_weapon` | `"1"` or absent | Lua | Set when Artifact Weapon received; gates slay_megabeast and mountainhome goals |
+| `dwarfipelago/unlock/artifact_armor` | `"1"` or absent | Lua | Set when Artifact Armor received; gates population_boom prestige requirement |
+| `dwarfipelago/unlock/master_builders_codex` | `"1"` or absent | Lua | Set when Master Builder's Codex received; gates legendary_wealth, mountainhome, and population_boom goals |
+| `dwarfipelago/depot_built` | `"1"` or absent | Lua | Set once the starting trade depot has been placed or adopted |
+| `dwarfipelago/megabeast/target_id` | Integer string | Lua | Unit ID of the AP-summoned megabeast; prevents natural megabeast kills counting as goal completion |
 
 ### Config (written by Python, read by Lua)
 
@@ -65,10 +70,9 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/pop_goal` | Integer string | Python | Population target for population_boom goal |
 | `dwarfipelago/deathlink_threshold` | Integer string | Python | Dwarves (or % of pop) per DeathLink send/receive; option max is 50 |
 | `dwarfipelago/deathlink_percentage` | `"0"` or `"1"` | Python | When `"1"`, threshold is treated as % of current population instead of a flat count |
-| `dwarfipelago/seed` | Integer string | Python | your "identity" for your world and AP |
-| `dwarfipelago/crafting_max` | Integer string | Python | max count for item crafts |
-| `dwarfipelago/crafting_enabled` | Integer string | Python | crafting location feature enabled |
-| `dwarfipelago/crafting_materials` | Integer string | Python | crafting location materials enabled |
+| `dwarfipelago/seed` | Integer string | Python | World identity — used to scope AP storage keys and detect wrong-world loads |
+| `dwarfipelago/craftsanity_enabled` | `"0"`, `"1"`, or `"2"` | Python | Craftsanity mode: 0=off, 1=on (crafted), 2=storage |
+| `dwarfipelago/craftsanity_materials` | `"0"` or `"1"` | Python | When `"1"`, craft counts are split by material type (e.g. `Barrel_Wood` vs `Barrel_Metal`) |
 
 ---
 
@@ -113,11 +117,11 @@ Initialized by Python to create the persistent storage for Lua to count the craf
 Example:
 
 | Key | Description |
-|-----|--------|------------|-------------|
-| `dwarfipelago/craft_count/Barrel_Metal` | total count for Metal Barrels created / stored based on the `dwarfipelago/crafting_enabled` setting |
-| `dwarfipelago/craft_count/Barrel_Wood` | total count for Wooden Barrels created / stored based on the `dwarfipelago/crafting_enabled` setting |
-| `dwarfipelago/craft_count/Barrel` | total count any type of Barrels created / stored based on the `dwarfipelago/crafting_enabled` setting and if `dwarfipelago/crafting_enabled` is disabled|
-| `dwarfipelago/craft_count/Glass` | Since Glass has only 1 type, its stored in this format based on the `dwarfipelago/crafting_enabled` setting |
+|-----|-------------|
+| `dwarfipelago/craft_count/Barrel_Metal` | Total Metal Barrels crafted/stored (when `craftsanity_materials` is `"1"`) |
+| `dwarfipelago/craft_count/Barrel_Wood` | Total Wooden Barrels crafted/stored (when `craftsanity_materials` is `"1"`) |
+| `dwarfipelago/craft_count/Barrel` | Total Barrels of any material (when `craftsanity_materials` is `"0"`) |
+| `dwarfipelago/craft_count/Glass` | Total Glass items (Glass has only one material type, so always stored without suffix) |
 
 
 #### Craft item flags (items crafted at a workshop)
@@ -145,7 +149,7 @@ Example:
 | `leather` | TanHide |
 | `metal` | SmeltOre, MeltMetalObject |
 | `glass` | MakeGlass |
-| `ceramics` | MakeCeramicItem (Kiln) |
+| `ceramic` | MakeCeramicItem (Kiln) |
 | `stone` | MakeCrafts / CarveFurniture / CarveStatue with inorganic non-metal material |
 | `wood` | MakeCrafts / CarveFurniture with plant material |
 | `bone` | MakeCrafts / CarveBone with creature material |

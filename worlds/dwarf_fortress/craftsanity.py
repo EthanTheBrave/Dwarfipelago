@@ -4,11 +4,31 @@ from typing import List, Set, Union, TYPE_CHECKING
 from dataclasses import dataclass
 from BaseClasses import ItemClassification, Location, LocationProgressType, CollectionState
 from worlds.generic.Rules import set_rule
-from .options import EnableCraftsanity
+from .options import EnableCraftsanity, CraftsanityItemGroup, CraftsanityItems
 from .locations import BASE_ID, LocationData
 
 if TYPE_CHECKING:
     from . import DwarfFortressWorld
+
+
+CRAFTSANITY_EASY: set = {
+    "Beds", "Blocks", "Alcohol", "Chair", "Table", "Door",
+    "Barrel", "Bucket", "Container", "Cloth",
+}
+
+CRAFTSANITY_MEDIUM: set = CRAFTSANITY_EASY | {
+    "Crafts", "Mechanism", "Cage", "Leather", "Prepared Meal",
+    "Bin", "Cabinet", "Floodgate", "Animal Trap", "Statue",
+    "Armor Stand", "Pedestal", "Weapon Rack", "Corkscrew", "Bookcase",
+}
+
+CRAFTSANITY_HARD: set = CRAFTSANITY_MEDIUM | {
+    "Metal Bars", "Glass", "Ash", "Charcoal", "Helm",
+    "Upper Body Armor", "Gauntlets", "Lower Body Armor",
+    "Crossbow", "Bolt", "Battle Axe", "Short Sword",
+    "War Hammer", "Anvil", "Rope/Chain", "Coins", "Goblet",
+    "Tallow", "Oil", "Dye",
+}
 
 
 @dataclass
@@ -20,10 +40,24 @@ class DynamicCraftingData:
     max_id: int # Max number of checks
     base_location_id: int = BASE_ID
 
+def _craftsanity_items_for_group(world: "DwarfFortressWorld") -> set:
+    group = world.options.craftsanity_item_group
+    if group == CraftsanityItemGroup.option_easy:
+        return CRAFTSANITY_EASY
+    elif group == CraftsanityItemGroup.option_medium:
+        return CRAFTSANITY_MEDIUM
+    elif group == CraftsanityItemGroup.option_hard:
+        return CRAFTSANITY_HARD
+    elif group == CraftsanityItemGroup.option_craftsanity:
+        return CraftsanityItems.valid_keys
+    else:  # option_choose
+        return set(world.options.craftsanity_items)
+
+
 def generate_location_data(world: "DwarfFortressWorld"):
     dynamic_locations: list[LocationData] = []
     if world.options.craftsanity != EnableCraftsanity.option_off:
-        for item in world.options.craftsanity_items:
+        for item in _craftsanity_items_for_group(world):
             new_location = DynamicCraftingData("", "", "", 0, 0, BASE_ID)
             new_location.item_name = item
             new_location.id = 0

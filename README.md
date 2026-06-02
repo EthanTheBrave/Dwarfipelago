@@ -67,6 +67,61 @@ Completing these milestones sends items to other players:
 - **Trade & diplomacy** — first caravan trade, first export, dwarven/elven/human caravan visits, outpost liaison meeting
 - **Fortress status** — noble appointments and civilisation recognition milestones
 - **Fortress titles** — Hamlet, Village, Town, City, Metropolis (population + wealth thresholds)
+- **Craftsanity** — optional crafting milestone checks (see below)
+
+## Craftsanity
+
+Craftsanity adds location checks for producing crafted items in bulk. When enabled, crafting **N** of a given item (or item + material combination) sends a check to the AP server. The client polls DFHack's persistent craft counters and fires checks as thresholds are crossed.
+
+### Enabling Craftsanity
+
+Set `craftsanity` in your options YAML:
+
+| Value | Behaviour |
+|-------|-----------|
+| `off` | No crafting checks (default) |
+| `on` | Check fires when N items have been **crafted** |
+| `storage` | Check fires when N items are **present in a stockpile** |
+
+### Item Group
+
+`craftsanity_item_group` selects which items generate checks. Choose a preset that matches your desired playtime, or pick `choose` and hand-pick items manually.
+
+| Group | Items included | Good for |
+|-------|---------------|----------|
+| `easy` | 10 items — Beds, Blocks, Alcohol, Chair, Table, Door, Barrel, Bucket, Container, Cloth | Short sessions or casual runs |
+| `medium` *(default)* | 25 items — Easy set plus Crafts, Cage, Leather, Mechanism, Prepared Meal, Bookcase, Cabinet, Floodgate, Animal Trap, Statue, Armor Stand, Pedestal, Weapon Rack, Corkscrew, Bin | Balanced early-game variety |
+| `hard` | ~45 items — Medium set plus metalwork, glass, armour, weapons, food processing, and more | Extended runs with late-game crafting |
+| `craftsanity` | All ~100 craftable items | Maximum locations; pairs well with materials enabled |
+| `choose` | Manual — use the `craftsanity_items` list in your YAML | Full control over exactly which items are checks |
+
+### Materials
+
+`craftsanity_enable_materials: true` splits each item check into per-material variants — crafting **N Stone Blocks** and **N Metal Blocks** are separate checks. Use `craftsanity_materials` to restrict which material types are included (Stone, Wood, Metal, Glass, Leather, Cloth, Bone, Ceramic).
+
+### Threshold and Amount
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `craftsanity_max_amount` | Total items to produce per item (or item+material) for all checks combined | 15 |
+| `craftsanity_threshold` | How many crafted items equals one check (e.g. `5` = a check every 5 produced) | 5 |
+
+A `max_amount` of 15 with a `threshold` of 5 produces **3 checks** per item: at 5, 10, and a final check at 15.
+
+### Example YAML
+
+```yaml
+craftsanity: on
+craftsanity_item_group: medium       # easy | medium | hard | craftsanity | choose
+craftsanity_enable_materials: false  # true to split checks by material type
+craftsanity_max_amount: 15
+craftsanity_threshold: 5
+# Only used when craftsanity_item_group is 'choose':
+# craftsanity_items:
+#   - Beds
+#   - Blocks
+#   - Cloth
+```
 
 ## Items Received
 
@@ -188,6 +243,7 @@ A running list of ideas, planned features, and things that still need doing. No 
 - [ ] **Overlay UI** — DFHack overlay panel showing current AP connection status and recent items
 - [ ] **Multi-fortress support** — allow switching between saves without resetting AP state
 - [ ] **DeathLink targeting** — option to target specific skill types when applying received DeathLink deaths
+- [x] **Craftsanity item group presets** — Easy / Medium / Hard / Craftsanity / Choose dropdown replaces the raw item list for most players
 - [ ] **Random Option for Crafting Check** — selects a specified number of random item checks to have included in AP gen
 - [ ] **Rival Beast When MegaBeast is Victory** — finds a named beast during world gen and spawns them in when a specific check is sent
 

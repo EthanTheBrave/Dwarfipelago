@@ -75,9 +75,28 @@ class EnableCraftsanity(Choice):
     option_storage = 2
 
 
+class CraftsanityItemGroup(Choice):
+    """
+    Selects which items count as craftsanity location checks.
+    Easy: 10 basic items craftable from the very start.
+    Medium: 25 early-game items across common workshops.
+    Hard: ~45 items spanning early and late game production.
+    Craftsanity: Every craftable item becomes a check.
+    Choose: Pick items manually using the 'Craftsanity Items Locations' list below.
+    """
+    display_name = "Craftsanity Item Group"
+    option_easy = 0
+    option_medium = 1
+    option_hard = 2
+    option_craftsanity = 3
+    option_choose = 4
+    default = 1
+
+
 class CraftsanityItems(OptionList):
     """
-    If craftsanity is enabled, which items are checks?
+    Manual item selection for craftsanity checks.
+    Only active when Craftsanity Item Group is set to 'Choose'.
     """
     display_name = "craftsanity Items locations"
     valid_keys = {
@@ -149,6 +168,7 @@ class DwarfFortressOptions(PerGameCommonOptions):
     population_goal_amount: PopulationGoalAmount
     trades_inlogic: TradesInLogic
     craftsanity: EnableCraftsanity
+    craftsanity_item_group: CraftsanityItemGroup
     craftsanity_items: CraftsanityItems
     craftsanity_enable_materials: CraftsanityEnableMaterials
     craftsanity_materials: CraftsanityMaterials
