@@ -40,11 +40,11 @@ local _megabeast_cleanup_done = false
 local _treasury_block_notified = {}
 
 local WEALTH_LOCK_TIERS = {
-    { id = 37370000, threshold = 1000,   coffers = 1, name = "Humble Beginnings"   },
-    { id = 37370001, threshold = 10000,  coffers = 2, name = "Growing Stronghold"  },
-    { id = 37370002, threshold = 50000,  coffers = 3, name = "Prosperous Fortress" },
-    { id = 37370003, threshold = 100000, coffers = 4, name = "Rich Citadel"        },
-    { id = 37370004, threshold = 500000, coffers = 5, name = "Legendary Vault"     },
+    { id = 37370000, threshold = 1000,   coffers = 1, name = "Humble Beginnings (1,000☼)"    },
+    { id = 37370001, threshold = 10000,  coffers = 2, name = "Growing Stronghold (10,000☼)"  },
+    { id = 37370002, threshold = 50000,  coffers = 3, name = "Prosperous Fortress (50,000☼)" },
+    { id = 37370003, threshold = 100000, coffers = 4, name = "Rich Citadel (100,000☼)"       },
+    { id = 37370004, threshold = 500000, coffers = 5, name = "Legendary Vault (500,000☼)"    },
 }
 
 -- ── Goal settings helpers ─────────────────────────────────────────────────────

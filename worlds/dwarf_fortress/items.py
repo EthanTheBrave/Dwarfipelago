@@ -62,7 +62,7 @@ BLUEPRINT_ITEMS: list[ItemData] = [
 PROGRESSION_ITEMS: list[ItemData] = [
     ItemData("Artifact Weapon",        BASE_ID + 500, ItemClassification.progression),
     ItemData("Artifact Armor",         BASE_ID + 501, ItemClassification.progression),
-    ItemData("Legendary Blueprint",    BASE_ID + 502, ItemClassification.progression),
+    ItemData("Master Builder's Codex", BASE_ID + 502, ItemClassification.progression),
 ]
 
 # Progressive lock items — gate milestone checks behind received items.
