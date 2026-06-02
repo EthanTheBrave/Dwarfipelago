@@ -9,6 +9,7 @@ DFHack remote API listens on 127.0.0.1:5000 by default.
 """
 
 import asyncio
+import copy
 import json
 import logging
 import os
@@ -811,13 +812,49 @@ class DwarfFortressContext(CommonContext):
             # concurrent asyncio tasks so neither blocks the other.
             self.slot_data: dict[str, Any] = args.get("slot_data", {})
             self.dfhack_task = asyncio.create_task(self.dfhack_poll_loop(), name="DFHack poll")
-        if cmd == "Retrieved":
+        elif cmd == "Retrieved":
             if "Dwarfipelago/"+str(self.seed)+"/completed_locations" in args['keys']:
                 if args['keys']["Dwarfipelago/"+str(self.seed)+"/completed_locations"] != None:
                     self._completed_crafting_locations = args['keys']["Dwarfipelago/"+str(self.seed)+"/completed_locations"]
                 else:
                     self._completed_crafting_locations.append(0)
             #response from the Get Command
+
+    def on_print_json(self, args: dict[Any, Any]):
+        if self.ui:
+            self.ui.print_json(copy.deepcopy(args["data"]))
+            self.send_notification_to_dwarffortress(args)
+        else:
+            text = self.jsontotextparser(copy.deepcopy(args["data"]))
+            logger.info(text)
+            self.send_notification_to_dwarffortress(args)
+
+    def send_notification_to_dwarffortress(self, args: dict[Any, Any]):
+            datatype = args.get("type")
+            if datatype == "ItemSend":
+                item = args["item"]
+                if not self.slot_concerns_self(args["receiving"]): # You found someone else's item
+                    if self.slot_concerns_self(item.player):
+                        to_player = self.player_names[int(args["data"][0]["text"])]
+                        item_name = self.item_names.lookup_in_slot(int(args["data"][2]["text"]), int(args["data"][0]["text"]))
+                        self.dfhack.run_command("lua", f'dfhack.gui.showAnnouncement("You found {to_player} their {item_name}.", COLOR_YELLOW)')
+                elif self.slot_concerns_self(args["receiving"]): # This is your item
+                    player = self.player_names[int(args["data"][0]["text"])]
+                    to_player = self.player_names[args["receiving"]]
+                    item_name = self.item_names.lookup_in_slot(int(args["data"][2]["text"]))
+                    if player == to_player: # you found your own item
+                        self.dfhack.run_command("lua", f'dfhack.gui.showAnnouncement("You found your {item_name}.", COLOR_GREEN)')
+                    else:
+                        self.dfhack.run_command("lua", f'dfhack.gui.showAnnouncement("{player} found your {item_name}.", COLOR_GREEN)')
+            elif datatype == "ItemCheat":
+                if self.slot_concerns_self(args["receiving"]): # its your item
+                    item = args["item"]
+                    item_name = self.item_names.lookup_in_slot(item.item)
+                    self.dfhack.run_command("lua", f'dfhack.gui.showAnnouncement("You received your {item_name}.", COLOR_GREEN)')
+            elif datatype == "Goal": 
+                if self.slot_concerns_self(args["slot"]):
+                    self.dfhack.run_command("lua", f'dfhack.gui.showPopupAnnouncement("Congratulations! You achieved your goal!", COLOR_BLUE)')
+
 
     async def disconnect(self, allow_autoreconnect: bool = False):
         self.dfhack.disconnect()
