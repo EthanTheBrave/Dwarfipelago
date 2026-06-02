@@ -81,6 +81,10 @@ class DwarfFortressWorld(World):
         generate_location_data(self)
         ## FOR printing, uncomment below and set your yaml to the max! (enable all items, max location, lowest threshold, all materials)
         #generate_location_data_PRINT_ONLY(self)
+        # Register material-specific dynamic locations that are not in the static table.
+        for loc in self.dynamic_locations:
+            if loc.name not in self.location_name_to_id:
+                self.location_name_to_id[loc.name] = loc.ap_id
         remove_list = []
         for location in self.location_name_to_id:
             if "Crafting" in location and location not in self.dynamic_locations_names:
