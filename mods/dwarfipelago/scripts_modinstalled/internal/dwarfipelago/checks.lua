@@ -204,12 +204,23 @@ local function map(name, flag)
     if v ~= nil then JOB_TO_FLAG[v] = flag end
 end
 
--- Crafting
+-- Crafting — any Craftsdwarf's Workshop output counts as a "crafted item"
 map("MakeCrafts",              "crafted_item")
 map("CarveStatue",             "crafted_item")  -- pre-50 name
 map("CarveFurniture",          "crafted_item")  -- DF 50+ name
 map("MakeTotem",               "crafted_item")
 map("ForgeAnvil",              "crafted_item")
+map("MakeFigurine",            "crafted_item")
+map("MakeAmulet",              "crafted_item")
+map("MakeScepter",             "crafted_item")
+map("MakeCrown",               "crafted_item")
+map("MakeRing",                "crafted_item")
+map("MakeEarring",             "crafted_item")
+map("MakeBracelet",            "crafted_item")
+map("MakeToy",                 "crafted_item")
+map("MakeFlask",               "crafted_item")
+map("MakeGoblet",              "crafted_item")
+map("ConstructStatue",         "crafted_item")
 -- Weapons / armor
 map("MakeWeapon",              "weapon")
 map("MakeAmmo",                "weapon")
@@ -219,18 +230,26 @@ map("MakeGloves",              "armor")
 map("MakeBoots",               "armor")
 map("MakePants",               "armor")
 map("MakeShield",              "armor")
--- Furniture
+-- Furniture — both Make* (pre-50/Classic) and Construct* (DF50+ Steam) variants
 map("MakeTable",               "table")
+map("ConstructTable",          "table")
 map("MakeChair",               "furniture")
+map("ConstructThrone",         "furniture")   -- DF50+ name for chair
 map("MakeChest",               "chest")
+map("ConstructChest",          "chest")
 map("MakeCabinet",             "furniture")
+map("ConstructCabinet",        "furniture")
 map("MakeBed",                 "bed")
+map("ConstructBed",            "bed")
 map("MakeDoor",                "furniture")
+map("ConstructDoor",           "furniture")
 map("MakeFloodgate",           "furniture")
+map("ConstructFloodgate",      "furniture")
 map("MakeBarrel",              "barrel")
 map("MakeBucket",              "furniture")
 map("MakeCage",                "cage")
 map("MakeMechanism",           "mechanism")
+map("ConstructMechanisms",     "mechanism")
 -- Food / drink
 map("PrepareMeal",             "meal")
 map("BrewDrink",               "brew")
@@ -238,6 +257,7 @@ map("BrewDrink",               "brew")
 map("SmeltOre",                "metal_bar")
 map("MeltMetalObject",         "metal_bar")
 map("CutBlock",                "stone_block")
+map("ConstructBlocks",         "stone_block")  -- DF50+ name for cutting blocks
 map("WeaveCloth",              "cloth")
 map("ProcessPlants",           "cloth")   -- also produces thread
 map("TanHide",                 "leather")
