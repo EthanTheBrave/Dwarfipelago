@@ -34,6 +34,41 @@ local function fortress_wealth()
     return 0
 end
 
+-- Returns the combined value of all minted coins (COIN) and cut gems (SMALLGEM)
+-- currently in fortress stocks — not carried by any unit, not belonging to traders.
+-- Value per stack = stack_size × material.material_value.
+-- Both item types require AP-gated blueprints (Screw Press and Jeweler's Workshop)
+-- and their material values vary widely, keeping embark-site luck meaningful.
+local function treasury_wealth()
+    local total = 0
+    for _, item in ipairs(df.global.world.items.all) do
+        local itype = item:getType()
+        if (itype == df.item_type.COIN or itype == df.item_type.SMALLGEM)
+                and not item.flags.in_inventory
+                and not item.flags.trader then
+            local ok, mat = pcall(dfhack.matinfo.decode, item.mat_type, item.mat_index)
+            local mat_value = 1
+            if ok and mat and mat.material then
+                mat_value = mat.material.material_value or 1
+            end
+            total = total + (item.stack_size or 1) * mat_value
+        end
+    end
+    return total
+end
+
+-- ── Progression lock helpers ──────────────────────────────────────────────────
+-- Read how many copies of a progressive unlock item have been received, or
+-- whether a single-copy unlock has arrived.  Keys written by items.lua handlers.
+
+local function unlock_count(key)
+    return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/unlock/" .. key)) or 0
+end
+
+local function unlock_flag(key)
+    return dfhack.persistent.getWorldDataString("dwarfipelago/unlock/" .. key) == "1"
+end
+
 -- ── Fortress title helpers ────────────────────────────────────────────────────
 -- Titles require population AND (created wealth OR exported wealth).
 -- https://dwarffortresswiki.org/index.php/Fortress
@@ -64,20 +99,23 @@ local function exported_wealth()
     return 0
 end
 
-local function has_fortress_title(pop_req, created_req, exported_req)
+local function has_fortress_title(pop_req, created_req, exported_req, waves_req)
+    waves_req = waves_req or 0
     return function()
+        if unlock_count("immigration_waves") < waves_req then return false end
         if citizen_count() < pop_req then return false end
         return fortress_wealth() >= created_req or exported_wealth() >= exported_req
     end
 end
 
 M.checks = {
-    -- Wealth milestones
-    { id = 37370000, name = "Humble Beginnings",   fn = function() return fortress_wealth() >= 1000    end },
-    { id = 37370001, name = "Growing Stronghold",  fn = function() return fortress_wealth() >= 10000   end },
-    { id = 37370002, name = "Prosperous Fortress", fn = function() return fortress_wealth() >= 50000   end },
-    { id = 37370003, name = "Rich Citadel",        fn = function() return fortress_wealth() >= 100000  end },
-    { id = 37370004, name = "Legendary Vault",     fn = function() return fortress_wealth() >= 500000  end },
+    -- Wealth milestones — based on combined coin + cut-gem value in fortress stocks.
+    -- Each tier requires the matching Merchant's Coffer count to have been received.
+    { id = 37370000, name = "Humble Beginnings (1,000☼)",    fn = function() return unlock_count("wealth_coffers") >= 1 and treasury_wealth() >= 1000    end },
+    { id = 37370001, name = "Growing Stronghold (10,000☼)",  fn = function() return unlock_count("wealth_coffers") >= 2 and treasury_wealth() >= 10000   end },
+    { id = 37370002, name = "Prosperous Fortress (50,000☼)", fn = function() return unlock_count("wealth_coffers") >= 3 and treasury_wealth() >= 50000   end },
+    { id = 37370003, name = "Rich Citadel (100,000☼)",       fn = function() return unlock_count("wealth_coffers") >= 4 and treasury_wealth() >= 100000  end },
+    { id = 37370004, name = "Legendary Vault (500,000☼)",    fn = function() return unlock_count("wealth_coffers") >= 5 and treasury_wealth() >= 500000  end },
 
     -- First production milestones
     -- These are tracked via a persistent counter set by the eventful job hook in main.lua.
@@ -112,22 +150,23 @@ M.checks = {
     -- Fortress status / noble appointments
     -- Position codes match vanilla DF entity_default.txt. KING covers both king
     -- and queen (DF stores a single position code with gendered display names).
-    { id = 37370300, name = "Mayor Elected",           fn = function() return has_noble_role("MAYOR")             end },
-    { id = 37370301, name = "Baron Appointed",         fn = function() return has_noble_role("BARON")             end },
-    { id = 37370302, name = "Count Appointed",         fn = function() return has_noble_role("COUNT")             end },
-    { id = 37370303, name = "Duke Appointed",          fn = function() return has_noble_role("DUKE")              end },
+    -- Baron/Count/Duke/Monarch checks additionally require the matching charter.
+    { id = 37370300, name = "Mayor Elected",           fn = function() return has_noble_role("MAYOR") end },
+    { id = 37370301, name = "Baron Appointed",         fn = function() return unlock_flag("baron_charter")       and has_noble_role("BARON") end },
+    { id = 37370302, name = "Count Appointed",         fn = function() return unlock_flag("count_charter")       and has_noble_role("COUNT") end },
+    { id = 37370303, name = "Duke Appointed",          fn = function() return unlock_flag("duke_charter")        and has_noble_role("DUKE")  end },
     { id = 37370304, name = "Monarch Takes Residence", fn = function()
-        -- Try KING first (vanilla code); fall back to QUEEN in case a modded
-        -- civ uses a separate code for the female ruler.
+        if not unlock_flag("monarch_invitation") then return false end
         return has_noble_role("KING") or has_noble_role("QUEEN")
     end },
 
     -- Fortress title milestones (population + created OR exported wealth)
-    { id = 37370400, name = "Hamlet Established",     fn = has_fortress_title(20,   5000,    500) },
-    { id = 37370401, name = "Village Established",    fn = has_fortress_title(50,  25000,   2500) },
-    { id = 37370402, name = "Town Established",       fn = has_fortress_title(80, 100000,  10000) },
-    { id = 37370403, name = "City Established",       fn = has_fortress_title(110, 200000, 20000) },
-    { id = 37370404, name = "Metropolis Established", fn = has_fortress_title(140, 300000, 30000) },
+    -- Each tier also requires the matching Immigration Wave count.
+    { id = 37370400, name = "Hamlet Established",     fn = has_fortress_title(20,   5000,    500, 1) },
+    { id = 37370401, name = "Village Established",    fn = has_fortress_title(50,  25000,   2500, 2) },
+    { id = 37370402, name = "Town Established",       fn = has_fortress_title(80, 100000,  10000, 3) },
+    { id = 37370403, name = "City Established",       fn = has_fortress_title(110, 200000, 20000, 4) },
+    { id = 37370404, name = "Metropolis Established", fn = has_fortress_title(140, 300000, 30000, 5) },
 }
 
 -- ── Production flag helpers ───────────────────────────────────────────────────
@@ -215,9 +254,9 @@ function M.job_to_production_flag(job)
     return nil
 end
 
--- Expose wealth accessor so main.lua can use it for the goal check
--- without duplicating the DF50 / Classic fallback logic.
-M.fortress_wealth = fortress_wealth
+-- Expose wealth accessors so main.lua can use them without duplicating logic.
+M.fortress_wealth  = fortress_wealth
+M.treasury_wealth  = treasury_wealth
 
 -- ── Job type → craft count flag mapping ──────────────────────────────────────
 -- Separate from JOB_TO_FLAG: maps jobs to the specific AP option names used in
@@ -497,12 +536,14 @@ local function mat_craft_flag(job)
         local raw = mat.inorganic
         if raw and raw.flags.IS_METAL then return "metal" end
         if token:find("GLASS") then return "glass" end
-        if token:find("CLAY") or token:find("PORCELAIN") or token:find("KAOLINITE") then return "ceramics" end
+        if token:find("CLAY") or token:find("PORCELAIN") or token:find("KAOLINITE") then return "ceramic" end
         return "stone"
     elseif mat.mode == "plant" then
-        return "wood"
+        if token:find(":WOOD") then return "wood" end
+        return "cloth"  -- plant fiber / thread
     elseif mat.mode == "creature" then
         if token:find("LEATHER") then return "leather" end
+        if token:find(":SILK") then return "cloth" end
         return "bone"
     end
     return nil

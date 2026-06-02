@@ -735,9 +735,9 @@ class DwarfFortressContext(CommonContext):
                 if crafts in self._completed_crafting_locations: #this check is already completed
                     continue
                 if self._crafting_locations[crafts]["material"] == "": #material type doesn't matter, add them all
-                    storage_name += self._crafting_locations[crafts]["item"]
+                    storage_name += self._crafting_locations[crafts]["item"].replace(" ", "_")
                 else:
-                    storage_name += self._crafting_locations[crafts]["item"] + "_"+self._crafting_locations[crafts]["material"]
+                    storage_name += self._crafting_locations[crafts]["item"].replace(" ", "_") + "_"+self._crafting_locations[crafts]["material"]
                 storage_name = storage_name.lower()
                 amount_crafted_str = await asyncio.get_event_loop().run_in_executor(
                     None,
