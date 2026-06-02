@@ -62,7 +62,7 @@ Configurable per-slot in your options YAML. Every goal also requires a minimum n
 | Goal | Description | Waves required |
 |------|-------------|---------------|
 | `population_boom` | Grow your fortress to a configurable population (default: 300 dwarves) *(default)* | 5 |
-| `legendary_wealth` | Reach a configurable fortress wealth target (default: 100,000☼) | 3 |
+| `legendary_wealth` | Accumulate a configurable treasury value in **minted coins and cut gems** (default: 100,000☼) | 3 |
 | `slay_megabeast` | Kill a dragon, titan, or other megabeast | 2 |
 | `mountainhome` | Achieve Mountainhome status - the monarch takes residence in your fortress (very difficult) | 5 |
 
@@ -75,7 +75,7 @@ Configurable per-slot in your options YAML. Every goal also requires a minimum n
 
 Completing these milestones sends items to other players:
 
-- **Wealth milestones** - Humble Beginnings (1,000☼) - Growing Stronghold (10,000☼) - Prosperous Fortress (50,000☼) - Rich Citadel (100,000☼) - Legendary Vault (500,000☼)
+- **Treasury milestones** - Humble Beginnings (1,000☼) through Legendary Vault (500,000☼) — based on the combined value of **minted coins and cut gems** in fortress stocks, not total fortress wealth
 - **First production** - first weapon forged, armor crafted, meal prepared, brew completed, metal bar smelted, gem cut, and more (18 milestones)
 - **Trade & diplomacy** - first caravan trade, first export, dwarven/elven/human caravan visits, outpost liaison meeting
 - **Fortress status** - noble appointments and civilisation recognition milestones
@@ -179,9 +179,9 @@ Workshop blueprints are the core Archipelago mechanic. Other players find your b
 
 Four systems of **progression lock items** gate milestone checks and goal completion. These items are found by your multiworld partners and sent to you; each one received unlocks the next tier of checks or advances your goal progress. All progression lock items are always present in the multiworld pool regardless of which goal you selected.
 
-#### Merchant's Coffer (x5) - Wealth Tiers
+#### Merchant's Coffer (x5) - Treasury Tiers
 
-Five coffers gate the five wealth milestone checks. Your fortress wealth may grow freely, but the AP check for each tier won't fire until the matching coffer arrives. If you reach a wealth tier without the coffer, a yellow announcement will remind you to look for it.
+Five coffers gate the five treasury milestone checks. These thresholds measure the **combined value of minted coins and cut gems** held in your fortress stocks - not total fortress wealth. Your treasury may grow freely, but the AP check for each tier won't fire until the matching coffer arrives. If you reach a tier without the coffer, a yellow announcement will remind you to look for it.
 
 | Coffers received | Wealth check unlocked |
 |---|---|
@@ -191,7 +191,7 @@ Five coffers gate the five wealth milestone checks. Your fortress wealth may gro
 | 4 | Rich Citadel (100,000☼) |
 | 5 | Legendary Vault (500,000☼) |
 
-The **Legendary Wealth** goal also requires all 5 coffers to complete.
+The **Legendary Wealth** goal also requires all 5 coffers and a treasury value at or above your configured `wealth_goal_amount` to complete.
 
 #### Immigration Wave (x5) - Population Growth
 

@@ -58,7 +58,7 @@ game: Dwarf Fortress
 
 Dwarf Fortress:
   goal: population_boom             # population_boom | legendary_wealth | slay_megabeast | mountainhome
-  wealth_goal_amount: 100000        # target wealth (legendary_wealth goal only)
+  wealth_goal_amount: 100000        # target treasury value in minted coins + cut gems (legendary_wealth goal only)
   population_goal_amount: 300       # target population (population_boom goal only, range 20–500)
   trap_item_weight: 20              # 0–100, percentage of filler slots that are traps
   deathlink: false                  # enable DeathLink
