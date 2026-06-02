@@ -22,7 +22,7 @@ local CRAFT_FLAGS = {
     "altar", "door", "cage", "bin", "blocks", "wheelbarrow", "grate",
     "corkscrew", "animal_trap", "ball", "armor_stand", "pedestal", "bucket", "spike",
     -- craftable_materials
-    "cloth", "stone", "leather", "ceramics", "metal", "bone", "wood", "glass",
+    "cloth", "stone", "leather", "ceramic", "metal", "bone", "wood", "glass",
 }
 
 -- ── Internal helpers ──────────────────────────────────────────────────────────
