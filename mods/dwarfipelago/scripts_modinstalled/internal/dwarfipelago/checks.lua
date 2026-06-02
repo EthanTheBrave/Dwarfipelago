@@ -536,12 +536,14 @@ local function mat_craft_flag(job)
         local raw = mat.inorganic
         if raw and raw.flags.IS_METAL then return "metal" end
         if token:find("GLASS") then return "glass" end
-        if token:find("CLAY") or token:find("PORCELAIN") or token:find("KAOLINITE") then return "ceramics" end
+        if token:find("CLAY") or token:find("PORCELAIN") or token:find("KAOLINITE") then return "ceramic" end
         return "stone"
     elseif mat.mode == "plant" then
-        return "wood"
+        if token:find(":WOOD") then return "wood" end
+        return "cloth"  -- plant fiber / thread
     elseif mat.mode == "creature" then
         if token:find("LEATHER") then return "leather" end
+        if token:find(":SILK") then return "cloth" end
         return "bone"
     end
     return nil
