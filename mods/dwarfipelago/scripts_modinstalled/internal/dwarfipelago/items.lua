@@ -186,8 +186,8 @@ local function recv_stone_trinket()
 end
 
 local function recv_bone_crafts()
-    spawn_item("FIGURINE", "CREATURE_MAT:BEAR:BONE")
-    announce("Received: Bone Crafts! Skillfully carved bone pieces.")
+    spawn_item("FIGURINE", "CREATURE_MAT:DWARF:BONE")
+    announce("Received: Bone Crafts!")
 end
 
 local function recv_raw_ore()
@@ -223,7 +223,11 @@ local function recv_fine_cloth()
 end
 
 local function recv_adamantine_fiber()
-    spawn_item("CLOTH", "INORGANIC:ADAMANTINE", 2)
+    -- Adamantine cloth material token may vary by DF version; fall back to fine cloth.
+    local ok = pcall(spawn_item, "CLOTH", "INORGANIC:ADAMANTINE", 2)
+    if not ok then
+        spawn_item("CLOTH", "PLANT_MAT:ROPE_REED:THREAD", 3)
+    end
     announce("Received: Adamantine Fiber!")
 end
 
