@@ -72,6 +72,11 @@ class DwarfFortressWorld(World):
     web = DwarfFortressWebWorld()
 
     def generate_early(self) -> None:
+        # Make per-instance copies of the class-level shared containers so that
+        # multiple DF players in the same multiworld don't corrupt each other's state.
+        self.location_name_to_id = dict(LOCATION_TABLE)
+        self.dynamic_locations = []
+        self.dynamic_locations_names = []
         #populates dynamic_locations and d_l_names
         generate_location_data(self)
         ## FOR printing, uncomment below and set your yaml to the max! (enable all items, max location, lowest threshold, all materials)
@@ -177,15 +182,9 @@ class DwarfFortressWorld(World):
             "craftsanity_max_amount": self.options.craftsanity_max_amount.value,
             "craftsanity_threshold": self.options.craftsanity_threshold.value,
             "craftsanity_enabled": self.options.craftsanity.value,
-            "craftsanity_materials": self.options.craftsanity_enable_materials.value
+            "craftsanity_materials": self.options.craftsanity_enable_materials.value,
+            "deathlink_percentage": self.options.deathlink_percentage.value,
         }
-
-    # ── Completion condition ──────────────────────────────────────────────────
-
-    def set_completion_condition(self) -> None:
-        self.multiworld.completion_condition[self.player] = (
-            lambda state: state.has("Victory", self.player)
-        )
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
