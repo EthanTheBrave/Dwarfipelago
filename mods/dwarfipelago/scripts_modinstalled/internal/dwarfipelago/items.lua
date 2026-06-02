@@ -171,6 +171,50 @@ local function recv_coal_bundle()
     announce("Received: Coal Bundle!")
 end
 
+-- ── Item handlers: progression gate items ────────────────────────────────────
+-- These items are purely flag-based — receiving them writes a persistent key
+-- that the goal-completion checks in dwarfipelago.lua read back.
+
+local function recv_artifact_weapon()
+    dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/artifact_weapon", "1")
+    dfhack.gui.showAnnouncement(
+        "[AP] An Artifact Weapon has been commissioned for your fortress! Your champions stand ready.",
+        COLOR_GREEN, true)
+    print("[Dwarfipelago] Progression item received: Artifact Weapon")
+end
+
+local function recv_artifact_armor()
+    dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/artifact_armor", "1")
+    dfhack.gui.showAnnouncement(
+        "[AP] Artifact Armor has been forged for your soldiers! Your defenders are emboldened.",
+        COLOR_GREEN, true)
+    print("[Dwarfipelago] Progression item received: Artifact Armor")
+end
+
+local function recv_master_builders_codex()
+    dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/master_builders_codex", "1")
+    dfhack.gui.showAnnouncement(
+        "[AP] A Master Builder's Codex has arrived! Ancient construction secrets are now yours.",
+        COLOR_GREEN, true)
+    print("[Dwarfipelago] Progression item received: Master Builder's Codex")
+end
+
+-- ── Item handlers: junk traps (AP filler trap items sent back to DF) ─────────
+-- These items land back in the DF player's inventory as padding. They have no
+-- meaningful in-game effect — just a flavour announcement.
+
+local function recv_cave_fisher_silk()
+    announce("A bundle of cave fisher silk has been deposited at your trade depot.")
+end
+
+local function recv_dwarf_bones()
+    announce("A grim package of dwarf bones has arrived. An ill omen...")
+end
+
+local function recv_goblin_trophy()
+    announce("A goblin trophy has been delivered. Someone out there is mocking you.")
+end
+
 -- ── Item handlers: traps ──────────────────────────────────────────────────────
 
 local function recv_goblin_ambush()
@@ -513,6 +557,14 @@ end
 -- Names must match items.py exactly.
 
 M.handlers = {
+    ["Artifact Weapon"]        = recv_artifact_weapon,
+    ["Artifact Armor"]         = recv_artifact_armor,
+    ["Master Builder's Codex"] = recv_master_builders_codex,
+
+    ["Cave Fisher Silk"]       = recv_cave_fisher_silk,
+    ["Dwarf Bones"]            = recv_dwarf_bones,
+    ["Goblin Trophy"]          = recv_goblin_trophy,
+
     ["Cut Sapphire"]         = recv_cut_sapphire,
     ["Cut Ruby"]             = recv_cut_ruby,
     ["Cut Diamond"]          = recv_cut_diamond,

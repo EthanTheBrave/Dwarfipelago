@@ -67,7 +67,8 @@ local function check_goal_by_poll()
         local target = goal_setting("wealth_goal", 100000)
         if checks.treasury_wealth() >= target
                 and goal_setting("unlock/wealth_coffers", 0) >= 5
-                and goal_setting("unlock/immigration_waves", 0) >= 3 then
+                and goal_setting("unlock/immigration_waves", 0) >= 3
+                and goal_setting("unlock/master_builders_codex", 0) == 1 then
             if state.mark_goal_complete() then
                 dfhack.gui.showAnnouncement(
                     "[AP] Goal reached: Legendary Wealth! Victory is yours.",
@@ -84,8 +85,12 @@ local function check_goal_by_poll()
                 count = count + 1
             end
         end
+        local has_prestige = goal_setting("unlock/master_builders_codex", 0) == 1
+                          or goal_setting("unlock/artifact_weapon", 0) == 1
+                          or goal_setting("unlock/artifact_armor", 0) == 1
         if count >= target
-                and goal_setting("unlock/immigration_waves", 0) >= 5 then  -- population_boom
+                and goal_setting("unlock/immigration_waves", 0) >= 5
+                and has_prestige then
             if state.mark_goal_complete() then
                 dfhack.gui.showAnnouncement(
                     ("[AP] Goal reached: Population Boom! (%d dwarves). Victory!"):format(count),
@@ -103,7 +108,9 @@ local function check_goal_by_poll()
                          or (ok_q and has_queen and #has_queen > 0)
         if has_monarch
                 and goal_setting("unlock/monarch_invitation", 0) == 1
-                and goal_setting("unlock/immigration_waves", 0) >= 5 then
+                and goal_setting("unlock/immigration_waves", 0) >= 5
+                and goal_setting("unlock/master_builders_codex", 0) == 1
+                and goal_setting("unlock/artifact_weapon", 0) == 1 then
             if state.mark_goal_complete() then
                 dfhack.gui.showAnnouncement(
                     "[AP] Goal reached: Mountainhome! The monarch has arrived. Victory!",
@@ -128,7 +135,8 @@ local function on_unit_death(uid)
         local ok, is_mega = pcall(dfhack.units.isMegabeast, unit)
         if ok and is_mega
                 and goal_setting("unlock/military_training", 0) >= 3
-                and goal_setting("unlock/immigration_waves", 0) >= 2 then
+                and goal_setting("unlock/immigration_waves", 0) >= 2
+                and goal_setting("unlock/artifact_weapon", 0) == 1 then
             -- Only count the AP-summoned target; ignore any stray megabeasts.
             -- If no target ID is stored (fallback), any megabeast kill counts.
             local target_id = tonumber(
