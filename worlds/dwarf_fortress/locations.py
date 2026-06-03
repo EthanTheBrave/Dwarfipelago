@@ -45,6 +45,9 @@ PRODUCTION_LOCATIONS: list[LocationData] = [
     LocationData("First Chest Made",         BASE_ID + 115, "Fortress"),
     LocationData("First Table Made",         BASE_ID + 116, "Fortress"),
     LocationData("First Bed Made",           BASE_ID + 117, "Fortress"),
+    LocationData("First Anvil Made",         BASE_ID + 118, "Fortress"),
+    LocationData("First Millstone Made",     BASE_ID + 119, "Fortress"),
+    LocationData("First Minecart Made",      BASE_ID + 120, "Fortress"),
 ]
 
 # ── Trade / Export Milestones ─────────────────────────────────────────────────
