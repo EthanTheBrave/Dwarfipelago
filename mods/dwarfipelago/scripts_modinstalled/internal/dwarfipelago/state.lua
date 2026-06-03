@@ -13,6 +13,17 @@ local KEY_GOAL_COMPLETE  = "dwarfipelago/goal_complete"
 local KEY_DEATH_COUNT    = "dwarfipelago/death_count"    -- cumulative citizen deaths
 local KEY_DL_SENT        = "dwarfipelago/deathlinks_sent" -- deathlinks dispatched to AP
 local KEY_DL_RECV        = "dwarfipelago/pending_recv"   -- incoming deathlinks to apply
+local KEY_DEPOT_BUILT    = "dwarfipelago/depot_built"    -- starting trade depot placed
+
+-- All craft-count flag names (match AP craftable_items / craftable_materials options).
+-- Must stay in sync with JOB_TO_CRAFT_FLAG and NEEDS_MAT_CHECK in checks.lua.
+local CRAFT_FLAGS = {
+    -- craftable_items
+    "altar", "door", "cage", "bin", "blocks", "wheelbarrow", "grate",
+    "corkscrew", "animal_trap", "ball", "armor_stand", "pedestal", "bucket", "spike",
+    -- craftable_materials
+    "cloth", "stone", "leather", "ceramic", "metal", "bone", "wood", "glass",
+}
 
 -- ── Internal helpers ──────────────────────────────────────────────────────────
 
@@ -138,7 +149,14 @@ function M.dump()
     print("[Dwarfipelago] Citizen deaths:", M.get_death_count())
     print("[Dwarfipelago] DeathLinks sent:", M.get_deathlinks_sent())
     print("[Dwarfipelago] Pending recv DeathLinks:", M.get_pending_recv())
+    print("[Dwarfipelago] Trade depot placed:", dfhack.persistent.getWorldDataString(KEY_DEPOT_BUILT) == "1")
     print("[Dwarfipelago] Enabled:", M.is_enabled())
+    local craft_counts = {}
+    for _, flag in ipairs(CRAFT_FLAGS) do
+        local n = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/craft_count/" .. flag)) or 0
+        if n > 0 then craft_counts[flag] = n end
+    end
+    print("[Dwarfipelago] Craft counts:", json.encode(craft_counts))
 end
 
 function M.reset()
@@ -149,6 +167,10 @@ function M.reset()
     dfhack.persistent.saveWorldDataString(KEY_DEATH_COUNT, "")
     dfhack.persistent.saveWorldDataString(KEY_DL_SENT, "")
     dfhack.persistent.saveWorldDataString(KEY_DL_RECV, "")
+    dfhack.persistent.saveWorldDataString(KEY_DEPOT_BUILT, "")
+    for _, flag in ipairs(CRAFT_FLAGS) do
+        dfhack.persistent.saveWorldDataString("dwarfipelago/craft_count/" .. flag, "")
+    end
     print("[Dwarfipelago] State reset.")
 end
 
