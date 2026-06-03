@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from typing import Optional
-
+from typing import List, Optional
+from .crafting_locations import CRAFTING_LOCATIONS
 
 BASE_ID = 37370000
 
@@ -11,15 +11,18 @@ class LocationData:
     ap_id: int
     region: str = "Fortress"
     goal_only: bool = False  # if True, only relevant for a specific goal
+    material_type: str = ""
+    df_item: str = ""
+    threshold: int = 0
 
 
 # ── Wealth Milestones ─────────────────────────────────────────────────────────
 WEALTH_LOCATIONS: list[LocationData] = [
-    LocationData("Humble Beginnings",    BASE_ID + 0,  "Fortress"),
-    LocationData("Growing Stronghold",   BASE_ID + 1,  "Fortress"),
-    LocationData("Prosperous Fortress",  BASE_ID + 2,  "Fortress"),
-    LocationData("Rich Citadel",         BASE_ID + 3,  "Fortress"),
-    LocationData("Legendary Vault",      BASE_ID + 4,  "Fortress"),
+    LocationData("Humble Beginnings (1,000)",    BASE_ID + 0,  "Fortress"),
+    LocationData("Growing Stronghold (10,000)",  BASE_ID + 1,  "Fortress"),
+    LocationData("Prosperous Fortress (50,000)", BASE_ID + 2,  "Fortress"),
+    LocationData("Rich Citadel (100,000)",       BASE_ID + 3,  "Fortress"),
+    LocationData("Legendary Vault (500,000)",    BASE_ID + 4,  "Fortress"),
 ]
 
 # ── First Production Milestones ───────────────────────────────────────────────
@@ -42,6 +45,9 @@ PRODUCTION_LOCATIONS: list[LocationData] = [
     LocationData("First Chest Made",         BASE_ID + 115, "Fortress"),
     LocationData("First Table Made",         BASE_ID + 116, "Fortress"),
     LocationData("First Bed Made",           BASE_ID + 117, "Fortress"),
+    LocationData("First Anvil Made",         BASE_ID + 118, "Fortress"),
+    LocationData("First Millstone Made",     BASE_ID + 119, "Fortress"),
+    LocationData("First Minecart Made",      BASE_ID + 120, "Fortress"),
 ]
 
 # ── Trade / Export Milestones ─────────────────────────────────────────────────
@@ -77,9 +83,9 @@ TITLE_LOCATIONS: list[LocationData] = [
     LocationData("Metropolis Established",  BASE_ID + 404, "Fortress"),
 ]
 
+
 ALL_LOCATIONS: list[LocationData] = (
     WEALTH_LOCATIONS + PRODUCTION_LOCATIONS + TRADE_LOCATIONS
-    + STATUS_LOCATIONS + TITLE_LOCATIONS
+    + STATUS_LOCATIONS + TITLE_LOCATIONS + CRAFTING_LOCATIONS
 )
-
 LOCATION_TABLE: dict[str, int] = {loc.name: loc.ap_id for loc in ALL_LOCATIONS}

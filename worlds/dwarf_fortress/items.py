@@ -50,12 +50,36 @@ BLUEPRINT_ITEMS: list[ItemData] = [
     ItemData("Magma Glass Furnace Blueprint",    BASE_ID + 564, ItemClassification.progression),
     # Buildings
     ItemData("Farm Plot Blueprint",              BASE_ID + 565, ItemClassification.progression),
+    # Normally Start with
+    ItemData("Carpenter's Workshop Blueprint",   BASE_ID + 566, ItemClassification.progression),
+    ItemData("Stoneworker's Workshop Blueprint", BASE_ID + 567, ItemClassification.progression),
+    ItemData("Still Blueprint",                  BASE_ID + 568, ItemClassification.progression),
+    
+    ItemData("Leather Works Blueprint",          BASE_ID + 569, ItemClassification.progression),
+
 ]
 
 PROGRESSION_ITEMS: list[ItemData] = [
     ItemData("Artifact Weapon",        BASE_ID + 500, ItemClassification.progression),
     ItemData("Artifact Armor",         BASE_ID + 501, ItemClassification.progression),
-    ItemData("Legendary Blueprint",    BASE_ID + 502, ItemClassification.progression),
+    ItemData("Master Builder's Codex", BASE_ID + 502, ItemClassification.progression),
+]
+
+# Progressive lock items — gate milestone checks behind received items.
+# quantity > 1 means that many copies enter the pool; Lua counts how many
+# the DF player has received and uses the count as the unlock tier.
+PROGRESSION_LOCK_ITEMS: list[ItemData] = [
+    # Legendary Wealth: 5 coffers → unlock wealth tiers 1–5
+    ItemData("Merchant's Coffer",    BASE_ID + 630, ItemClassification.progression, quantity=5),
+    # Population Boom: 5 waves → unlock title/population tiers 1–5
+    ItemData("Immigration Wave",     BASE_ID + 631, ItemClassification.progression, quantity=5),
+    # Mountainhome: one charter per noble rank
+    ItemData("Baron's Charter",      BASE_ID + 632, ItemClassification.progression),
+    ItemData("Count's Charter",      BASE_ID + 633, ItemClassification.progression),
+    ItemData("Duke's Charter",       BASE_ID + 634, ItemClassification.progression),
+    ItemData("Monarch's Invitation", BASE_ID + 635, ItemClassification.progression),
+    # Slay Megabeast: 3 training items gate megabeast goal
+    ItemData("Military Training",    BASE_ID + 636, ItemClassification.progression, quantity=3),
 ]
 
 USEFUL_ITEMS: list[ItemData] = [
@@ -123,6 +147,7 @@ RECEIVED_TRAPS: list[ItemData] = [
 AP_ITEM_POOL: list[ItemData] = \
     BLUEPRINT_ITEMS \
     + PROGRESSION_ITEMS \
+    + PROGRESSION_LOCK_ITEMS \
     + USEFUL_ITEMS \
     + FILLER_ITEMS \
     + TRAP_ITEMS \

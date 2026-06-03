@@ -34,6 +34,41 @@ local function fortress_wealth()
     return 0
 end
 
+-- Returns the combined value of all minted coins (COIN) and cut gems (SMALLGEM)
+-- currently in fortress stocks — not carried by any unit, not belonging to traders.
+-- Value per stack = stack_size × material.material_value.
+-- Both item types require AP-gated blueprints (Screw Press and Jeweler's Workshop)
+-- and their material values vary widely, keeping embark-site luck meaningful.
+local function treasury_wealth()
+    local total = 0
+    for _, item in ipairs(df.global.world.items.all) do
+        local itype = item:getType()
+        if (itype == df.item_type.COIN or itype == df.item_type.SMALLGEM)
+                and not item.flags.in_inventory
+                and not item.flags.trader then
+            local ok, mat = pcall(dfhack.matinfo.decode, item.mat_type, item.mat_index)
+            local mat_value = 1
+            if ok and mat and mat.material then
+                mat_value = mat.material.material_value or 1
+            end
+            total = total + (item.stack_size or 1) * mat_value
+        end
+    end
+    return total
+end
+
+-- ── Progression lock helpers ──────────────────────────────────────────────────
+-- Read how many copies of a progressive unlock item have been received, or
+-- whether a single-copy unlock has arrived.  Keys written by items.lua handlers.
+
+local function unlock_count(key)
+    return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/unlock/" .. key)) or 0
+end
+
+local function unlock_flag(key)
+    return dfhack.persistent.getWorldDataString("dwarfipelago/unlock/" .. key) == "1"
+end
+
 -- ── Fortress title helpers ────────────────────────────────────────────────────
 -- Titles require population AND (created wealth OR exported wealth).
 -- https://dwarffortresswiki.org/index.php/Fortress
@@ -64,20 +99,23 @@ local function exported_wealth()
     return 0
 end
 
-local function has_fortress_title(pop_req, created_req, exported_req)
+local function has_fortress_title(pop_req, created_req, exported_req, waves_req)
+    waves_req = waves_req or 0
     return function()
+        if unlock_count("immigration_waves") < waves_req then return false end
         if citizen_count() < pop_req then return false end
         return fortress_wealth() >= created_req or exported_wealth() >= exported_req
     end
 end
 
 M.checks = {
-    -- Wealth milestones
-    { id = 37370000, name = "Humble Beginnings",   fn = function() return fortress_wealth() >= 1000    end },
-    { id = 37370001, name = "Growing Stronghold",  fn = function() return fortress_wealth() >= 10000   end },
-    { id = 37370002, name = "Prosperous Fortress", fn = function() return fortress_wealth() >= 50000   end },
-    { id = 37370003, name = "Rich Citadel",        fn = function() return fortress_wealth() >= 100000  end },
-    { id = 37370004, name = "Legendary Vault",     fn = function() return fortress_wealth() >= 500000  end },
+    -- Wealth milestones — based on combined coin + cut-gem value in fortress stocks.
+    -- Each tier requires the matching Merchant's Coffer count to have been received.
+    { id = 37370000, name = "Humble Beginnings (1,000)",    fn = function() return unlock_count("wealth_coffers") >= 1 and treasury_wealth() >= 1000    end },
+    { id = 37370001, name = "Growing Stronghold (10,000)",  fn = function() return unlock_count("wealth_coffers") >= 2 and treasury_wealth() >= 10000   end },
+    { id = 37370002, name = "Prosperous Fortress (50,000)", fn = function() return unlock_count("wealth_coffers") >= 3 and treasury_wealth() >= 50000   end },
+    { id = 37370003, name = "Rich Citadel (100,000)",       fn = function() return unlock_count("wealth_coffers") >= 4 and treasury_wealth() >= 100000  end },
+    { id = 37370004, name = "Legendary Vault (500,000)",    fn = function() return unlock_count("wealth_coffers") >= 5 and treasury_wealth() >= 500000  end },
 
     -- First production milestones
     -- These are tracked via a persistent counter set by the eventful job hook in main.lua.
@@ -100,6 +138,9 @@ M.checks = {
     { id = 37370115, name = "First Chest Made",        fn = function() return M.production_flag("chest")          end },
     { id = 37370116, name = "First Table Made",        fn = function() return M.production_flag("table")          end },
     { id = 37370117, name = "First Bed Made",          fn = function() return M.production_flag("bed")            end },
+    { id = 37370118, name = "First Anvil Forged",      fn = function() return M.production_flag("anvil")          end },
+    { id = 37370119, name = "First Millstone Made",    fn = function() return M.production_flag("millstone")      end },
+    { id = 37370120, name = "First Minecart Made",     fn = function() return M.production_flag("minecart")       end },
 
     -- Trade / export milestones
     { id = 37370200, name = "First Trade Completed",    fn = function() return M.trade_flag("trade_completed")    end },
@@ -112,22 +153,23 @@ M.checks = {
     -- Fortress status / noble appointments
     -- Position codes match vanilla DF entity_default.txt. KING covers both king
     -- and queen (DF stores a single position code with gendered display names).
-    { id = 37370300, name = "Mayor Elected",           fn = function() return has_noble_role("MAYOR")             end },
-    { id = 37370301, name = "Baron Appointed",         fn = function() return has_noble_role("BARON")             end },
-    { id = 37370302, name = "Count Appointed",         fn = function() return has_noble_role("COUNT")             end },
-    { id = 37370303, name = "Duke Appointed",          fn = function() return has_noble_role("DUKE")              end },
+    -- Baron/Count/Duke/Monarch checks additionally require the matching charter.
+    { id = 37370300, name = "Mayor Elected",           fn = function() return has_noble_role("MAYOR") end },
+    { id = 37370301, name = "Baron Appointed",         fn = function() return unlock_flag("baron_charter")       and has_noble_role("BARON") end },
+    { id = 37370302, name = "Count Appointed",         fn = function() return unlock_flag("count_charter")       and has_noble_role("COUNT") end },
+    { id = 37370303, name = "Duke Appointed",          fn = function() return unlock_flag("duke_charter")        and has_noble_role("DUKE")  end },
     { id = 37370304, name = "Monarch Takes Residence", fn = function()
-        -- Try KING first (vanilla code); fall back to QUEEN in case a modded
-        -- civ uses a separate code for the female ruler.
+        if not unlock_flag("monarch_invitation") then return false end
         return has_noble_role("KING") or has_noble_role("QUEEN")
     end },
 
     -- Fortress title milestones (population + created OR exported wealth)
-    { id = 37370400, name = "Hamlet Established",     fn = has_fortress_title(20,   5000,    500) },
-    { id = 37370401, name = "Village Established",    fn = has_fortress_title(50,  25000,   2500) },
-    { id = 37370402, name = "Town Established",       fn = has_fortress_title(80, 100000,  10000) },
-    { id = 37370403, name = "City Established",       fn = has_fortress_title(110, 200000, 20000) },
-    { id = 37370404, name = "Metropolis Established", fn = has_fortress_title(140, 300000, 30000) },
+    -- Each tier also requires the matching Immigration Wave count.
+    { id = 37370400, name = "Hamlet Established",     fn = has_fortress_title(20,   5000,    500, 1) },
+    { id = 37370401, name = "Village Established",    fn = has_fortress_title(50,  25000,   2500, 2) },
+    { id = 37370402, name = "Town Established",       fn = has_fortress_title(80, 100000,  10000, 3) },
+    { id = 37370403, name = "City Established",       fn = has_fortress_title(110, 200000, 20000, 4) },
+    { id = 37370404, name = "Metropolis Established", fn = has_fortress_title(140, 300000, 30000, 5) },
 }
 
 -- ── Production flag helpers ───────────────────────────────────────────────────
@@ -165,11 +207,22 @@ local function map(name, flag)
     if v ~= nil then JOB_TO_FLAG[v] = flag end
 end
 
--- Crafting
+-- Crafting — any Craftsdwarf's Workshop output counts as a "crafted item"
 map("MakeCrafts",              "crafted_item")
 map("CarveStatue",             "crafted_item")  -- pre-50 name
 map("CarveFurniture",          "crafted_item")  -- DF 50+ name
 map("MakeTotem",               "crafted_item")
+map("MakeFigurine",            "crafted_item")
+map("MakeAmulet",              "crafted_item")
+map("MakeScepter",             "crafted_item")
+map("MakeCrown",               "crafted_item")
+map("MakeRing",                "crafted_item")
+map("MakeEarring",             "crafted_item")
+map("MakeBracelet",            "crafted_item")
+map("MakeToy",                 "crafted_item")
+map("MakeFlask",               "crafted_item")
+map("MakeGoblet",              "crafted_item")
+map("ConstructStatue",         "crafted_item")
 -- Weapons / armor
 map("MakeWeapon",              "weapon")
 map("MakeAmmo",                "weapon")
@@ -179,18 +232,26 @@ map("MakeGloves",              "armor")
 map("MakeBoots",               "armor")
 map("MakePants",               "armor")
 map("MakeShield",              "armor")
--- Furniture
+-- Furniture — both Make* (pre-50/Classic) and Construct* (DF50+ Steam) variants
 map("MakeTable",               "table")
+map("ConstructTable",          "table")
 map("MakeChair",               "furniture")
+map("ConstructThrone",         "furniture")   -- DF50+ name for chair
 map("MakeChest",               "chest")
+map("ConstructChest",          "chest")
 map("MakeCabinet",             "furniture")
+map("ConstructCabinet",        "furniture")
 map("MakeBed",                 "bed")
+map("ConstructBed",            "bed")
 map("MakeDoor",                "furniture")
+map("ConstructDoor",           "furniture")
 map("MakeFloodgate",           "furniture")
+map("ConstructFloodgate",      "furniture")
 map("MakeBarrel",              "barrel")
 map("MakeBucket",              "furniture")
 map("MakeCage",                "cage")
 map("MakeMechanism",           "mechanism")
+map("ConstructMechanisms",     "mechanism")
 -- Food / drink
 map("PrepareMeal",             "meal")
 map("BrewDrink",               "brew")
@@ -198,6 +259,7 @@ map("BrewDrink",               "brew")
 map("SmeltOre",                "metal_bar")
 map("MeltMetalObject",         "metal_bar")
 map("CutBlock",                "stone_block")
+map("ConstructBlocks",         "stone_block")  -- DF50+ name for cutting blocks
 map("WeaveCloth",              "cloth")
 map("ProcessPlants",           "cloth")   -- also produces thread
 map("TanHide",                 "leather")
@@ -206,17 +268,388 @@ map("EncrustedWithGems",       "gem")
 -- Traps
 map("ConstructTrap",           "trap")
 map("LinkBuildingToTrigger",   "trap")
+-- Standalone production checks
+map("ForgeAnvil",              "anvil")
+map("ConstructMillstone",      "millstone")
+map("MakeMillstone",           "millstone")   -- pre-50 name if it exists
+map("MakeTool",                "TOOL_FIRST")  -- subtype dispatch below
+
+-- Minecart subtype: MakeTool item_subtype 16
+local TOOL_FIRST_FLAG = { [16] = "minecart" }
 
 function M.job_to_production_flag(job)
     if job and job.job_type then
-        return JOB_TO_FLAG[job.job_type]
+        local flag = JOB_TO_FLAG[job.job_type]
+        if flag == "TOOL_FIRST" then
+            return TOOL_FIRST_FLAG[tonumber(job.item_subtype)]
+        end
+        return flag
     end
     return nil
 end
 
--- Expose wealth accessor so main.lua can use it for the goal check
--- without duplicating the DF50 / Classic fallback logic.
-M.fortress_wealth = fortress_wealth
+-- Expose wealth accessors so main.lua can use them without duplicating logic.
+M.fortress_wealth  = fortress_wealth
+M.treasury_wealth  = treasury_wealth
+
+-- ── Job type → craft count flag mapping ──────────────────────────────────────
+-- Separate from JOB_TO_FLAG: maps jobs to the specific AP option names used in
+-- craftable_items and craftable_materials (lowercase, underscored).
+-- The AP client writes these same strings into the dwarfipelago/craft_checks
+-- config so Lua counts and AP thresholds use identical flag names.
+
+local JOB_TO_CRAFT_FLAG = {}
+local function cmap(name, flag)
+    local v = df.job_type[name]
+    if v ~= nil then JOB_TO_CRAFT_FLAG[v] = flag end
+end
+
+-- craftable_items
+cmap("MakeTool",                "TOOL_SUBTYPE")
+cmap("ConstructDoor",           "door")
+cmap("MakeCage",                "cage")
+cmap("ConstructBin",            "bin")
+cmap("ConstructBlocks",         "blocks")
+cmap("ConstructGrate",          "grate")
+cmap("MakeTrapComponent",       "TRAP_SUBTYPE")
+cmap("ConstructBed",            "beds")
+cmap("MakeAnimalTrap",          "animal_trap")
+cmap("ConstructArmorStand",     "armor_stand")
+cmap("MakePedestal",            "pedestal")
+cmap("MakeBucket",              "bucket")
+cmap("MakeBarrel",              "barrel")
+cmap("MakeShield",              "SHIELD_SUBTYPE")
+cmap("ConstructCabinet",        "cabinet")
+cmap("ConstructCoffin",         "burial_container")
+cmap("ConstructThrone",         "chair")
+cmap("ConstructChest",          "container")
+cmap("ConstructCrutch",         "crutch")
+cmap("ConstructFloodgate",      "floodgate")
+cmap("ConstructGrate",          "grate")
+cmap("ConstructHatchCover",     "hatch_cover")
+cmap("MakePipeSection",         "pipe_section")
+cmap("ConstructSplint",         "splint")
+cmap("ConstructTable",          "table")
+cmap("MakeWeapon",              "WEAPON_SUBTYPE")
+cmap("ConstructWeaponRack",     "weapon_rack")
+cmap("MakeAmmo",                "bolt")
+cmap("ConstructMillstone",      "millstone")
+cmap("ConstructQuern",          "quern")
+cmap("ConstructSlab",           "slab")
+cmap("ConstructStatue",         "statue")
+cmap("ConstructMechanisms",     "mechanism")
+cmap("ConstructTractionBench",  "traction_bench")
+cmap("MakeFigurine",            "crafts")
+cmap("MakeAmulet",              "crafts")
+cmap("MakeScepter",             "crafts")
+cmap("MakeCrown",               "crafts")
+cmap("MakeRing",                "crafts")
+cmap("MakeEarring",             "crafts")
+cmap("MakeBracelet",            "crafts")
+cmap("MakeCrafts",              "crafts")
+cmap("MakeFlask",               "liquid_container")
+cmap("MakeGoblet",              "GOBLET_SUBTYPE")
+cmap("MakeToy",                 "toy")
+cmap("MakeTotem",               "totem")
+cmap("MakeHelm",                "HELM_SUBTYPE")
+cmap("ConstructBallistaParts",  "ballista_parts")
+cmap("ConstructCatapultParts",  "catapult_parts")
+cmap("AssembleSiegeAmmo",       "ballista_arrows")
+cmap("MakeAsh",                 "ash")
+cmap("MakeCharcoal",            "charcoal")
+cmap("SmeltOre",                "metal_bars")
+cmap("MeltMetalObject",         "metal_bars")
+cmap("CustomReaction",          "REACTION_SUBTYPE")
+cmap("MakeRawGlass",            "glass")
+cmap("MakeWindow",              "window")
+cmap("TanHide",                 "leather")
+cmap("WeaveCloth",              "cloth")
+cmap("MakeLye",                 "lye")
+cmap("MakePotashFromLye",       "potash")
+cmap("MakePotashFromAsh",       "potash")
+cmap("PrepareMeal",             "prepared_meal")
+cmap("MakeArmor",               "UARMOR_SUBTYPE")
+cmap("MakeGloves",              "GARMOR_SUBTYPE")
+cmap("MakePants",               "LARMOR_SUBTYPE")
+cmap("MakeShoes",               "footwear")
+cmap("ConstructBag",            "bag")
+cmap("MintCoins",               "coin")
+cmap("MakeChain",               "rope/chain")
+cmap("ForgeAnvil",              "anvil")
+
+
+
+local TOOL_SUBTYPE_FLAG = {}
+local function tools_subtype(subtype_id, flag)
+    TOOL_SUBTYPE_FLAG[subtype_id] = flag
+end
+-- tools subtype
+tools_subtype(28,        "altar")
+tools_subtype(11,        "jug")
+tools_subtype(12,        "large_pot")
+tools_subtype(13,        "hive")
+--tools_subtype(14,        "honeycomb")
+tools_subtype(16,        "minecart")
+tools_subtype(17,        "wheelbarrow")
+tools_subtype(18,        "stepladder")
+tools_subtype(19,        "scroll_roller")
+tools_subtype(20,        "book_binding")
+tools_subtype(23,        "bookcase")
+tools_subtype(26,        "pedestal")
+tools_subtype(27,        "pedestal") --actually a display case
+
+local TRAP_SUBTYPE_FLAG = {}
+local function trap_subtype(subtype_id, flag)
+    TRAP_SUBTYPE_FLAG[subtype_id] = flag
+end
+trap_subtype(1, "corkscrew")
+trap_subtype(2, "ball")
+trap_subtype(4, "spike")
+
+local SHIELD_SUBTYPE_FLAG = {}
+local function shield_subtype(subtype_id, flag)
+    SHIELD_SUBTYPE_FLAG[subtype_id] = flag
+end
+shield_subtype(0, "shield")
+shield_subtype(1, "buckler")
+shield_subtype(2, "shield")
+shield_subtype(3, "shield")
+shield_subtype(4, "shield")
+shield_subtype(5, "shield")
+
+local WEAPON_SUBTYPE_FLAG = {}
+local function weapon_subtype(subtype_id, flag)
+    WEAPON_SUBTYPE_FLAG[subtype_id] = flag
+end
+weapon_subtype(1,   "battle_axe")
+weapon_subtype(2,   "war_hammer")
+weapon_subtype(3,   "short_sword")
+weapon_subtype(4,   "spear")
+weapon_subtype(5,   "mace")
+weapon_subtype(7,   "pick")
+weapon_subtype(21,  "training_axe")
+weapon_subtype(22,  "training_sword")
+weapon_subtype(23,  "training_spear")
+weapon_subtype(6,   "crossbow")
+weapon_subtype(33,  "crossbow")
+weapon_subtype(34,  "war_hammer")
+weapon_subtype(36,  "mace")
+weapon_subtype(37,  "crossbow")
+weapon_subtype(39,  "spear")
+weapon_subtype(41,   "crossbow")
+weapon_subtype(42,   "battle_axe")
+weapon_subtype(43,   "spear")
+
+
+
+
+local HELM_SUBTYPE_FLAG = {}
+local function helm_subtype(subtype_id, flag)
+    HELM_SUBTYPE_FLAG[subtype_id] = flag
+end
+helm_subtype(0, "helm")
+helm_subtype(1, "headgear_clothing")
+helm_subtype(2, "headgear_clothing")
+helm_subtype(3, "headgear_clothing")
+helm_subtype(4, "headgear_clothing")
+helm_subtype(5, "headgear_clothing")
+helm_subtype(6, "headgear_clothing")
+helm_subtype(7, "headgear_clothing")
+helm_subtype(8, "headgear_clothing")
+helm_subtype(9, "headgear_clothing")
+helm_subtype(10, "headgear_clothing")
+helm_subtype(11, "headgear_clothing")
+helm_subtype(12, "helm")
+helm_subtype(13, "headgear_clothing")
+helm_subtype(14, "headgear_clothing")
+helm_subtype(15, "headgear_clothing")
+
+
+local GOBLET_SUBTYPE_FLAG = {}
+local function goblet_subtype(name, flag)
+    local v = df.job_type[name]
+    if v ~= nil then GOBLET_SUBTYPE_FLAG[v] = flag end
+end
+goblet_subtype("wood",   "cup")
+goblet_subtype("stone",  "mug")
+goblet_subtype("metal",  "goblet")
+goblet_subtype("glass",   "goblet")
+
+local REACTION_SUBTYPE_FLAG = {}
+local function reaction_subtype(name, flag)
+    local v = df.job_type[name]
+    if v ~= nil then REACTION_SUBTYPE_FLAG[v] = flag end
+end
+reaction_subtype("LIGNITE_TO_COAL",                 "coke_bar")
+reaction_subtype("BITUMINOUS_COAL_TO_COAL",         "coke_bar")
+reaction_subtype("MAKE_PEARLASH",                   "pearlash")
+reaction_subtype("MAKE_PLASTER_POWDER",             "gypsum_plaster")
+reaction_subtype("MAKE_QUICKLIME",                  "quicklime")
+reaction_subtype("MAKE_PARCHMENT",                  "sheet")
+reaction_subtype("PRESS_PLANT_PAPER",               "sheet")
+reaction_subtype("MAKE_SHEET_FROM_PLANT",           "sheet")
+reaction_subtype("BREW_DRINK_FROM_PLANT",           "alcohol")
+reaction_subtype("BREW_DRINK_FROM_PLANT_GROWTH",    "alcohol")
+reaction_subtype("MAKE_MILK_OF_LIME",               "milk_of_lime")
+reaction_subtype("RENDER_FAT",                      "tallow")
+reaction_subtype("PRESS_OIL_FRUIT",                 "oil")
+reaction_subtype("PRESS_OIL",                       "oil")
+reaction_subtype("PRESS_HONEYCOMB",                 "honey")
+reaction_subtype("MAKE_SOAP_FROM_OIL",              "soap")
+reaction_subtype("MAKE_SOAP_FROM_TALLOW",           "soap")
+
+
+local UARMOR_SUBTYPE_FLAG = {}
+local function uarmor_subtype(subtype_id, flag)
+    UARMOR_SUBTYPE_FLAG[subtype_id] = flag
+end
+uarmor_subtype(0, "upper_body_armor")
+uarmor_subtype(1, "upper_body_clothing")
+uarmor_subtype(2, "upper_body_armor")
+uarmor_subtype(3, "upper_body_clothing")
+uarmor_subtype(4, "upper_body_clothing")
+uarmor_subtype(5, "upper_body_clothing")
+uarmor_subtype(6, "upper_body_clothing")
+uarmor_subtype(7, "upper_body_clothing")
+uarmor_subtype(8, "upper_body_clothing")
+uarmor_subtype(9, "upper_body_clothing")
+uarmor_subtype(10, "upper_body_clothing")
+uarmor_subtype(11, "upper_body_clothing")
+uarmor_subtype(12, "upper_body_armor")
+uarmor_subtype(13, "upper_body_clothing")
+uarmor_subtype(14, "upper_body_armor")
+uarmor_subtype(15, "upper_body_clothing")
+uarmor_subtype(16, "upper_body_armor")
+uarmor_subtype(17, "upper_body_clothing")
+uarmor_subtype(18, "upper_body_armor")
+uarmor_subtype(19, "upper_body_clothing")
+
+local GARMOR_SUBTYPE_FLAG = {}
+local function garmor_subtype(subtype_id, flag)
+    GARMOR_SUBTYPE_FLAG[subtype_id] = flag
+end
+garmor_subtype(0, "gauntlets")
+garmor_subtype(1, "hand_clothing")
+garmor_subtype(2, "hand_clothing")
+garmor_subtype(3, "gauntlets")
+garmor_subtype(4, "hand_clothing")
+garmor_subtype(5, "gauntlets")
+garmor_subtype(6, "hand_clothing")
+garmor_subtype(7, "gauntlets")
+garmor_subtype(8, "hand_clothing")
+garmor_subtype(9, "gauntlets")
+garmor_subtype(10, "hand_clothing")
+
+local LARMOR_SUBTYPE_FLAG = {}
+local function larmor_subtype(subtype_id, flag)
+    LARMOR_SUBTYPE_FLAG[subtype_id] = flag
+end
+larmor_subtype(0, "lower_body_clothing")
+larmor_subtype(1, "lower_body_armor")
+larmor_subtype(2, "lower_body_armor")
+larmor_subtype(3, "lower_body_clothing")
+larmor_subtype(4, "lower_body_clothing")
+larmor_subtype(5, "lower_body_clothing")
+larmor_subtype(6, "lower_body_clothing")
+larmor_subtype(7, "lower_body_clothing")
+larmor_subtype(8, "lower_body_clothing")
+larmor_subtype(9, "lower_body_armor")
+larmor_subtype(10, "lower_body_clothing")
+larmor_subtype(11, "lower_body_armor")
+larmor_subtype(12, "lower_body_clothing")
+larmor_subtype(13, "lower_body_armor")
+larmor_subtype(14, "lower_body_clothing")
+larmor_subtype(15, "lower_body_armor")
+larmor_subtype(16, "lower_body_clothing")
+
+local function mat_craft_flag(job)
+    local ok, mat = pcall(dfhack.matinfo.decode, job.mat_type, job.mat_index)
+    if not ok or not mat then return nil end
+    local token = mat:toString() or ""
+    if mat.mode == "inorganic" then
+        local raw = mat.inorganic
+        if raw and raw.flags.IS_METAL then return "metal" end
+        if token:find("GLASS") then return "glass" end
+        if token:find("CLAY") or token:find("PORCELAIN") or token:find("KAOLINITE") then return "ceramic" end
+        return "stone"
+    elseif mat.mode == "plant" then
+        if token:find(":WOOD") then return "wood" end
+        return "cloth"  -- plant fiber / thread
+    elseif mat.mode == "creature" then
+        if token:find("LEATHER") then return "leather" end
+        if token:find(":SILK") then return "cloth" end
+        return "bone"
+    end
+    return nil
+end
+
+-- Returns the AP craftable_items/materials flag for a completed job,
+-- or nil if the job type is not tracked for quantity checks.
+function M.job_to_craft_flag(job)
+    if not job or not job.job_type then return nil end
+    local flag = JOB_TO_CRAFT_FLAG[job.job_type]
+    if flag then
+        if flag == "TOOL_SUBTYPE" then
+            flag = TOOL_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+        elseif flag == "TRAP_SUBTYPE" then
+            flag = TRAP_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+        elseif flag == "SHIELD_SUBTYPE" then
+            flag = SHIELD_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+        elseif flag == "WEAPON_SUBTYPE" then
+            flag = WEAPON_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+        elseif flag == "HELM_SUBTYPE" then
+            flag = HELM_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+        elseif flag == "GOBLET_SUBTYPE" then
+            flag = GOBLET_SUBTYPE_FLAG[mat_craft_flag(job)]
+        elseif flag == "REACTION_SUBTYPE" then
+            if string.find(job.reaction_name, "DYE") then --too many DYES to add
+                flag = "dye"
+            else
+                flag = REACTION_SUBTYPE_FLAG[job.reaction_name]
+            end
+        elseif flag == "UARMOR_SUBTYPE" then
+            flag = UARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+        elseif flag == "GARMOR_SUBTYPE" then
+            flag = GARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+        elseif flag == "LARMOR_SUBTYPE" then
+            flag = LARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+        end
+        if flag == "beds" or flag == "ash" or flag == "charcoal" or flag == "metal_bars" or flag == "coke_bar"
+            or flag == "pearlash" or flag == "gypsum_plaster" or flag == "quicklime" or flag == "glass"
+            or flag == "leather" or flag == "sheet" or flag == "cloth" or flag == "alcohol"
+            or flag == "lye" or flag == "potash" or flag == "milk_of_lime" or flag == "prepared_meal"
+            or flag == "tallow" or flag == "oil" or flag == "press_cake" or flag == "honey"
+            or flag == "bee_wax" or flag == "dye" or flag == "soap" then
+                return flag
+        end
+        local need_mat = dfhack.persistent.getWorldDataString('dwarfipelago/craftsanity_materials')
+        if tonumber(need_mat) == 1 then
+            local material_used = mat_craft_flag(job) -- shouldn't return nil here
+            return tostring(flag) .. "_" .. tostring(material_used) 
+        end
+        return flag 
+    end
+    return nil
+end
+
+-- ── Craft count helpers ───────────────────────────────────────────────────────
+-- Cumulative counts of completed production jobs per flag, persisted in world
+-- data under "dwarfipelago/craft_count/<flag_name>".
+-- Incremented by the eventful job hook in dwarfipelago.lua.
+-- The AP client polls these directly to decide when a milestone threshold is met.
+
+local CRAFT_COUNT_PREFIX = "dwarfipelago/craft_count/"
+
+function M.increment_craft_count(flag)
+    local key = CRAFT_COUNT_PREFIX .. flag
+    local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
+    dfhack.persistent.saveWorldDataString(key, tostring(n))
+    return n
+end
+
+function M.get_craft_count(flag)
+    return tonumber(dfhack.persistent.getWorldDataString(CRAFT_COUNT_PREFIX .. flag)) or 0
+end
 
 -- reqscript returns the script's _ENV, not the explicit return value.
 -- Copy all module exports into _ENV so callers can access them as globals.
