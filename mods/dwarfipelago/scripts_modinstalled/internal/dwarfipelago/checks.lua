@@ -111,11 +111,11 @@ end
 M.checks = {
     -- Wealth milestones — based on combined coin + cut-gem value in fortress stocks.
     -- Each tier requires the matching Merchant's Coffer count to have been received.
-    { id = 37370000, name = "Humble Beginnings (1,000☼)",    fn = function() return unlock_count("wealth_coffers") >= 1 and treasury_wealth() >= 1000    end },
-    { id = 37370001, name = "Growing Stronghold (10,000☼)",  fn = function() return unlock_count("wealth_coffers") >= 2 and treasury_wealth() >= 10000   end },
-    { id = 37370002, name = "Prosperous Fortress (50,000☼)", fn = function() return unlock_count("wealth_coffers") >= 3 and treasury_wealth() >= 50000   end },
-    { id = 37370003, name = "Rich Citadel (100,000☼)",       fn = function() return unlock_count("wealth_coffers") >= 4 and treasury_wealth() >= 100000  end },
-    { id = 37370004, name = "Legendary Vault (500,000☼)",    fn = function() return unlock_count("wealth_coffers") >= 5 and treasury_wealth() >= 500000  end },
+    { id = 37370000, name = "Humble Beginnings (1,000)",    fn = function() return unlock_count("wealth_coffers") >= 1 and treasury_wealth() >= 1000    end },
+    { id = 37370001, name = "Growing Stronghold (10,000)",  fn = function() return unlock_count("wealth_coffers") >= 2 and treasury_wealth() >= 10000   end },
+    { id = 37370002, name = "Prosperous Fortress (50,000)", fn = function() return unlock_count("wealth_coffers") >= 3 and treasury_wealth() >= 50000   end },
+    { id = 37370003, name = "Rich Citadel (100,000)",       fn = function() return unlock_count("wealth_coffers") >= 4 and treasury_wealth() >= 100000  end },
+    { id = 37370004, name = "Legendary Vault (500,000)",    fn = function() return unlock_count("wealth_coffers") >= 5 and treasury_wealth() >= 500000  end },
 
     -- First production milestones
     -- These are tracked via a persistent counter set by the eventful job hook in main.lua.
@@ -138,6 +138,9 @@ M.checks = {
     { id = 37370115, name = "First Chest Made",        fn = function() return M.production_flag("chest")          end },
     { id = 37370116, name = "First Table Made",        fn = function() return M.production_flag("table")          end },
     { id = 37370117, name = "First Bed Made",          fn = function() return M.production_flag("bed")            end },
+    { id = 37370118, name = "First Anvil Forged",      fn = function() return M.production_flag("anvil")          end },
+    { id = 37370119, name = "First Millstone Made",    fn = function() return M.production_flag("millstone")      end },
+    { id = 37370120, name = "First Minecart Made",     fn = function() return M.production_flag("minecart")       end },
 
     -- Trade / export milestones
     { id = 37370200, name = "First Trade Completed",    fn = function() return M.trade_flag("trade_completed")    end },
@@ -209,7 +212,6 @@ map("MakeCrafts",              "crafted_item")
 map("CarveStatue",             "crafted_item")  -- pre-50 name
 map("CarveFurniture",          "crafted_item")  -- DF 50+ name
 map("MakeTotem",               "crafted_item")
-map("ForgeAnvil",              "crafted_item")
 map("MakeFigurine",            "crafted_item")
 map("MakeAmulet",              "crafted_item")
 map("MakeScepter",             "crafted_item")
@@ -266,10 +268,22 @@ map("EncrustedWithGems",       "gem")
 -- Traps
 map("ConstructTrap",           "trap")
 map("LinkBuildingToTrigger",   "trap")
+-- Standalone production checks
+map("ForgeAnvil",              "anvil")
+map("ConstructMillstone",      "millstone")
+map("MakeMillstone",           "millstone")   -- pre-50 name if it exists
+map("MakeTool",                "TOOL_FIRST")  -- subtype dispatch below
+
+-- Minecart subtype: MakeTool item_subtype 16
+local TOOL_FIRST_FLAG = { [16] = "minecart" }
 
 function M.job_to_production_flag(job)
     if job and job.job_type then
-        return JOB_TO_FLAG[job.job_type]
+        local flag = JOB_TO_FLAG[job.job_type]
+        if flag == "TOOL_FIRST" then
+            return TOOL_FIRST_FLAG[tonumber(job.item_subtype)]
+        end
+        return flag
     end
     return nil
 end
