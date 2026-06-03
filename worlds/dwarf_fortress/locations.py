@@ -18,11 +18,11 @@ class LocationData:
 
 # ── Wealth Milestones ─────────────────────────────────────────────────────────
 WEALTH_LOCATIONS: list[LocationData] = [
-    LocationData("Humble Beginnings (1,000☼)",    BASE_ID + 0,  "Fortress"),
-    LocationData("Growing Stronghold (10,000☼)",  BASE_ID + 1,  "Fortress"),
-    LocationData("Prosperous Fortress (50,000☼)", BASE_ID + 2,  "Fortress"),
-    LocationData("Rich Citadel (100,000☼)",       BASE_ID + 3,  "Fortress"),
-    LocationData("Legendary Vault (500,000☼)",    BASE_ID + 4,  "Fortress"),
+    LocationData("Humble Beginnings (1,000)",    BASE_ID + 0,  "Fortress"),
+    LocationData("Growing Stronghold (10,000)",  BASE_ID + 1,  "Fortress"),
+    LocationData("Prosperous Fortress (50,000)", BASE_ID + 2,  "Fortress"),
+    LocationData("Rich Citadel (100,000)",       BASE_ID + 3,  "Fortress"),
+    LocationData("Legendary Vault (500,000)",    BASE_ID + 4,  "Fortress"),
 ]
 
 # ── First Production Milestones ───────────────────────────────────────────────
@@ -45,6 +45,9 @@ PRODUCTION_LOCATIONS: list[LocationData] = [
     LocationData("First Chest Made",         BASE_ID + 115, "Fortress"),
     LocationData("First Table Made",         BASE_ID + 116, "Fortress"),
     LocationData("First Bed Made",           BASE_ID + 117, "Fortress"),
+    LocationData("First Anvil Made",         BASE_ID + 118, "Fortress"),
+    LocationData("First Millstone Made",     BASE_ID + 119, "Fortress"),
+    LocationData("First Minecart Made",      BASE_ID + 120, "Fortress"),
 ]
 
 # ── Trade / Export Milestones ─────────────────────────────────────────────────
