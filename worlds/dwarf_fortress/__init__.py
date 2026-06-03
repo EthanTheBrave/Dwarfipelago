@@ -10,7 +10,7 @@ from .items import (
     PROGRESSION_ITEMS, USEFUL_ITEMS
 )
 from .locations import LocationData, LOCATION_TABLE, ALL_LOCATIONS
-from .craftsanity import generate_location_data
+from .craftsanity import generate_location_data, generate_location_data_PRINT_ONLY
 from . import rules
 
 # Register the Archipelago launcher buttons (Dwarf Fortress + Dwarf Fortress Client).
@@ -88,8 +88,11 @@ class DwarfFortressWorld(World):
         for location in remove_list:
             del self.location_name_to_id[location] #remove unused locations for caculations and creations
         ## PRINT LOCATIONS
-        # for locations in self.dynamic_locations:
-        #     print(f'LocationData("{locations.name}", {locations.ap_id}, "Fortress", False, "{locations.material_type}", "{locations.df_item}", {locations.threshold}),')
+        #for locations in self.dynamic_locations:
+        #    print(f'LocationData("{locations.name}", {locations.ap_id}, "Fortress", False, "{locations.material_type}", "{locations.df_item}", {locations.threshold}),')
+
+        #if self.options.goal == DwarfFortressGoal.option_slay_megabeast:
+
     
 
     # ── Generation lifecycle ──────────────────────────────────────────────────
@@ -132,6 +135,20 @@ class DwarfFortressWorld(World):
             d for d in AP_ITEM_POOL
             if d.classification != ItemClassification.progression
         ]
+
+        for item_data in AP_ITEM_POOL:
+            if self.options.goal == DwarfFortressGoal.option_slay_megabeast and \
+                item_data.name in {"Merchant's Coffer", "Baron's Charter",  "Count's Charter", "Duke's Charter", "Monarch's Invitation"}:
+                    required.remove(item_data)
+            elif self.options.goal == DwarfFortressGoal.option_legendary_wealth and \
+                item_data.name in {"Baron's Charter",  "Count's Charter", "Duke's Charter", "Monarch's Invitation", "Military Training", "Artifact Weapon", "Artifact Armor"}:
+                    required.remove(item_data)
+            elif self.options.goal == DwarfFortressGoal.option_mountainhome and \
+                item_data.name in {"Military Training","Artifact Armor", "Merchant's Coffer"}:
+                    required.remove(item_data)
+            elif self.options.goal == DwarfFortressGoal.option_population_boom and \
+                item_data.name in {"Merchant's Coffer", "Baron's Charter",  "Count's Charter", "Duke's Charter", "Monarch's Invitation", "Military Training"}:
+                    required.remove(item_data)
 
         item_pool: list[DwarfFortressItem] = []
 
