@@ -9,13 +9,6 @@ BLUEPRINT_RULES: dict[str, list[str]] = {
     "Craftsdwarf's Workshop Blueprint": [
         "First Crafted Item",
     ],
-    "Forge Blueprint": [
-        "First Weapon Forged",
-        "First Armor Crafted",
-    ],
-    "Smelter Blueprint": [
-        "First Metal Bar Smelted",
-    ],
     "Kitchen Blueprint": [
         "First Prepared Meal",
     ],
@@ -32,15 +25,29 @@ BLUEPRINT_RULES: dict[str, list[str]] = {
         "First Mechanism Made",
         "First Trap Built",
     ],
+    "Stoneworker's Workshop Blueprint": [
+        "First Millstone Made"
+    ]
+}
+
+BLUEPRINT_COMPLEX_RULES = {
+    "metal": [
+        "First Weapon Forged",  
+        "First Armor Crafted",
+        "First Anvil Made",
+    ],
+    "smelting": [
+        "First Metal Bar Smelted",
+    ]
 }
 
 # Wealth tier → how many Merchant's Coffers needed to unlock it.
 WEALTH_COFFER_RULES: list[tuple[str, int]] = [
-    ("Humble Beginnings (1,000☼)",    1),
-    ("Growing Stronghold (10,000☼)",  2),
-    ("Prosperous Fortress (50,000☼)", 3),
-    ("Rich Citadel (100,000☼)",       4),
-    ("Legendary Vault (500,000☼)",    5),
+    ("Humble Beginnings (1,000)",    1),
+    ("Growing Stronghold (10,000)",  2),
+    ("Prosperous Fortress (50,000)", 3),
+    ("Rich Citadel (100,000)",       4),
+    ("Legendary Vault (500,000)",    5),
 ]
 
 # Population/title tier → how many Immigration Waves needed to unlock it.
@@ -65,6 +72,7 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     multiworld: MultiWorld = world.multiworld
     player: int = world.player
     options = world.options
+    dynamic_rules = DynamicCraftingLocationRules(world)
 
     # ── Workshop blueprint gates ──────────────────────────────────────────────
     for blueprint_name, location_names in BLUEPRINT_RULES.items():
@@ -72,10 +80,21 @@ def set_rules(world: "DwarfFortressWorld") -> None:
             loc = multiworld.get_location(loc_name, player)
             loc.access_rule = lambda state, bp=blueprint_name: state.has(bp, player)
 
+    for item_type, location_names in BLUEPRINT_COMPLEX_RULES.items():
+        if item_type == "metal":
+            for loc_name in location_names:
+                loc = multiworld.get_location(loc_name, player)
+                loc.access_rule = lambda state: dynamic_rules.metal(state)
+        elif item_type == "smelting":
+            for loc_name in location_names:
+                loc = multiworld.get_location(loc_name, player)
+                loc.access_rule = lambda state: dynamic_rules.needs_make_metal(state)
+
     # ── Progressive Coffer gates (wealth tier locations) ──────────────────────
-    for loc_name, coffers_needed in WEALTH_COFFER_RULES:
-        loc = multiworld.get_location(loc_name, player)
-        loc.access_rule = lambda state, n=coffers_needed: state.count("Merchant's Coffer", player) >= n
+    if options.goal == DwarfFortressGoal.option_legendary_wealth:
+        for loc_name, coffers_needed in WEALTH_COFFER_RULES:
+            loc = multiworld.get_location(loc_name, player)
+            loc.access_rule = lambda state, n=coffers_needed: state.count("Merchant's Coffer", player) >= n
 
     # ── Immigration Wave gates (population / title tier locations) ────────────
     for loc_name, waves_needed in TITLE_WAVE_RULES:
@@ -83,14 +102,18 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         loc.access_rule = lambda state, n=waves_needed: state.count("Immigration Wave", player) >= n
 
     # ── Noble Ladder gates (noble rank locations) ─────────────────────────────
-    for loc_name, charter_name in NOBLE_CHARTER_RULES:
-        loc = multiworld.get_location(loc_name, player)
-        loc.access_rule = lambda state, charter=charter_name: state.has(charter, player)
+    if options.goal == DwarfFortressGoal.option_mountainhome :
+        for loc_name, charter_name in NOBLE_CHARTER_RULES:
+            loc = multiworld.get_location(loc_name, player)
+            loc.access_rule = lambda state, charter=charter_name: state.has(charter, player)
 
     # -- Dynamic location requirements -----------------------------------------
     if len(world.dynamic_locations) > 0:
-        dynamic_rules = DynamicCraftingLocationRules(world)
         dynamic_rules.set_dynamic_rules()
+
+
+    loc = multiworld.get_location("First Minecart Made", player)
+    loc.access_rule = lambda state: state.has("Carpenter's Workshop Blueprint", player) or state.has("Forge Blueprint", player)
 
     # ── Goal condition ────────────────────────────────────────────────────────
     goal_location = multiworld.get_location("Goal", player)

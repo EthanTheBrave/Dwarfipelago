@@ -212,22 +212,6 @@ def non_material_items(item: str) -> bool:
     
 class DynamicCraftingLocationRules:
     world: "DwarfFortressWorld"
-    metal_working_list: List[str] = [
-        "Forge Blueprint",
-        "Magma Forge Blueprint"
-    ]
-    smelter_list: List[str] = [
-        "Smelter Blueprint",
-        "Magma Smelter Blueprint"
-    ]
-    glass_working_list: List[str] = [
-        "Glass Furnace Blueprint",
-        "Magma Glass Furnace Blueprint"
-    ]
-    ceramic_working_list: List[str] = [
-        "Magma Kiln Blueprint",
-        "Kiln Blueprint"
-    ]
 
     def __init__(self, world: "DwarfFortressWorld") -> None:
         self.player = world.player
@@ -239,21 +223,39 @@ class DynamicCraftingLocationRules:
     
     def metal(self, state:CollectionState) -> bool:
         if self.world.options.trades_inlogic:
-            return state.has_any(self.metal_working_list, self.player)
+            return state.has("Forge Blueprint", self.player) or state.has("Magma Smelter Blueprint", self.player)
         else:
-            return state.has_any(self.smelter_list, self.player) and state.has_any(self.metal_working_list, self.player)
+            return self.process_resource(state, "metal") and (state.has("Forge Blueprint", self.player) or \
+            state.has("Magma Forge Blueprint", self.player))
+        
+    def process_resource(self, state:CollectionState, resource) -> bool: #glass, metal, ceramic
+        if resource == "metal":
+            return (state.has("Wood Furnace Blueprint", self.player) and state.has("Forge Blueprint", self.player)) or \
+            state.has("Magma Smelter Blueprint", self.player)
+        elif resource == "glass":
+            return (state.has("Wood Furnace Blueprint", self.player) and state.has("Glass Furnace Blueprint", self.player)) or \
+            state.has("Magma Glass Furnace Blueprint", self.player)
+        elif resource == "ceramic":
+            return (state.has("Wood Furnace Blueprint", self.player) and state.has("Kiln Blueprint", self.player)) or \
+            state.has("Magma Kiln Blueprint", self.player)
+        else:
+            print("Missing Resource Type for process_resource function")
+            return False
         
     def make_metal(self, state:CollectionState) -> bool:
         if self.world.options.trades_inlogic:
             return True
         else:
-            return state.has_any(self.smelter_list, self.player)
+            return self.process_resource(state, "metal")
+        
+    def needs_make_metal(self, state:CollectionState) -> bool:
+        return self.process_resource(state, "metal")
         
     def ceramic(self, state:CollectionState) -> bool:
-        return state.has_any(self.ceramic_working_list, self.player)
+        return self.process_resource(state, "ceramic")
     
     def glass(self, state:CollectionState) -> bool:
-        return state.has_any(self.glass_working_list, self.player)
+        return self.process_resource(state, "glass")
     
     def stone(self, state:CollectionState) -> bool:
         return state.has("Stoneworker's Workshop Blueprint", self.player)
