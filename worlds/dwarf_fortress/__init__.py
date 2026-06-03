@@ -81,6 +81,17 @@ class DwarfFortressWorld(World):
         generate_location_data(self)
         ## FOR printing, uncomment below and set your yaml to the max! (enable all items, max location, lowest threshold, all materials)
         #generate_location_data_PRINT_ONLY(self)
+        # CHANGED — NEEDS REVIEW:
+        # Material-specific location names (e.g. "Crafting Bone Gauntlets Check 1") are
+        # not pre-registered in crafting_locations.py (only the generic
+        # "Crafting Gauntlets Check 1" is). Without this loop those names never enter
+        # location_name_to_id, so create_regions never creates them in the multiworld,
+        # and set_dynamic_rules raises a KeyError when it tries to look them up.
+        # This is a workaround — ideally crafting_locations.py should be regenerated
+        # to include all material-specific variants, or IDs should be assigned here.
+        for loc in self.dynamic_locations:
+            if loc.name not in self.location_name_to_id:
+                self.location_name_to_id[loc.name] = loc.ap_id
         remove_list = []
         for location in self.location_name_to_id:
             if "Crafting" in location and location not in self.dynamic_locations_names:
