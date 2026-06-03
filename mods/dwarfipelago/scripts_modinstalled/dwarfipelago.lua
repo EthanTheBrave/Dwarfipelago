@@ -19,6 +19,7 @@ local eventful   = require("plugins.eventful")
 local repeatUtil = require("repeat-util")
 
 local SCRIPT_NAME = "dwarfipelago"
+local SCRIPT_VERSION = "1.0.1"
 local POLL_TICKS  = 100  -- poll wealth/trade/goal checks every N ticks
 
 -- Set to true while we are applying a received DeathLink so that the death
@@ -857,7 +858,7 @@ end
 
 local function start()
     state.set_enabled(true)
-
+    dfhack.persistent.saveWorldDataString("dwarfipelago/version", SCRIPT_VERSION)
     -- Register hooks
     eventful.onJobCompleted[SCRIPT_NAME]        = on_job_completed
     eventful.onUnitDeath[SCRIPT_NAME]           = on_unit_death

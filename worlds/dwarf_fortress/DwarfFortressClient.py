@@ -403,6 +403,7 @@ class DwarfFortressContext(CommonContext):
         self._craftsanity_threshold = 0     # crafting thresholds
         self._completed_crafting_locations = [] #completed locations so we don't keep sending
         self.seed = 0                    # your "identity"
+        self.version = 0                 # apworld version
 
     # ── DFHack polling ────────────────────────────────────────────────────────
 
@@ -566,26 +567,31 @@ class DwarfFortressContext(CommonContext):
         self._craftsanity_max_value = slot_data.get("craftsanity_max_amount")
         self._craftsanity_threshold = slot_data.get("craftsanity_threshold")
         craftsanity_enabled = slot_data.get("craftsanity_enabled") # 0 off, 1 on, 2 storage
+        self.version = slot_data.get("version")
         materials_enabled = slot_data.get("craftsanity_materials")
         current_seed = self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("dwarfipelago/seed"))')
         self._deathlink_threshold  = int(dl_threshold)
         self._deathlink_percentage = bool(int(dl_percentage))
         if current_seed == 'nil' or current_seed == str(self.seed):
-            if current_seed == 'nil':
-                def write():
-                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/goal", "{goal}")')
-                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/wealth_goal", "{wealth_goal}")')
-                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/pop_goal", "{pop_goal}")')
-                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_threshold", "{dl_threshold}")')
-                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_percentage", "{int(dl_percentage)}")')
-                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/seed", "{self.seed}")')
-                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_enabled", "{craftsanity_enabled}")')
-                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_materials", "{materials_enabled}")')
-                write()
-                self.init_crafting_locations()
-            self._slot_data_synced = True
-            await self.getAPKeyValue("Dwarfipelago/"+str(self.seed)+"/completed_locations")
-            logger.info(f"Synced slot data → goal={goal}, wealth_goal={wealth_goal}, pop_goal={pop_goal}, dl_threshold={dl_threshold}")
+            script_version = self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("dwarfipelago/version"))')
+            if self.version == script_version:
+                if current_seed == 'nil':
+                    def write():
+                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/goal", "{goal}")')
+                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/wealth_goal", "{wealth_goal}")')
+                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/pop_goal", "{pop_goal}")')
+                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_threshold", "{dl_threshold}")')
+                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_percentage", "{int(dl_percentage)}")')
+                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/seed", "{self.seed}")')
+                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_enabled", "{craftsanity_enabled}")')
+                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_materials", "{materials_enabled}")')
+                    write()
+                    self.init_crafting_locations()
+                self._slot_data_synced = True
+                await self.getAPKeyValue("Dwarfipelago/"+str(self.seed)+"/completed_locations")
+                logger.info(f"Synced slot data → goal={goal}, wealth_goal={wealth_goal}, pop_goal={pop_goal}, dl_threshold={dl_threshold}")
+            else:
+                logger.error(f'Your APworld and DF mod do not match: APworld verison: {self.version}  Mod version: {script_version}. Please correct this issue before playing.')
         else:
             logger.error(f'This saved world does not match this slot. Please load the correct world or create a new one.')
 
