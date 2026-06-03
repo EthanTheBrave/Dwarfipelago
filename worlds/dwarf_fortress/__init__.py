@@ -212,6 +212,7 @@ class DwarfFortressWorld(World):
             "craftsanity_enabled": self.options.craftsanity.value,
             "craftsanity_materials": self.options.craftsanity_enable_materials.value,
             "deathlink_percentage": self.options.deathlink_percentage.value,
+            "version": f"{self.world_version.as_simple_string()}",
         }
 
     # ── Helpers ───────────────────────────────────────────────────────────────
