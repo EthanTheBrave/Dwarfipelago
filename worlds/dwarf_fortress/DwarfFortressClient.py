@@ -312,6 +312,11 @@ class DFHackConnection:
         """
         if not self._sock:
             return None
+        # Human-readable description of this call for error logs. Long arguments
+        # (e.g. inline Lua) are truncated so the log stays readable.
+        def _fmt(s: str, limit: int = 300) -> str:
+            return s if len(s) <= limit else s[:limit] + f"...(+{len(s) - limit} chars)"
+        call_desc = " ".join([command, *(_fmt(a) for a in args)])
         # Hold the lock for the entire request→reply exchange so no other call
         # can read or write the socket in between (which would cross replies and
         # desync the stream).
@@ -330,7 +335,7 @@ class DFHackConnection:
                         "dfproto.EmptyMessage",
                     )
                     if self._run_cmd_id < 0:
-                        logger.error("Failed to bind RunCommand")
+                        logger.error(f"Failed to bind RunCommand | call: {call_desc!r}")
                         return None
 
                 # Encode CoreRunCommandRequest { command(1), arguments(2 repeated) }
@@ -356,18 +361,20 @@ class DFHackConnection:
                     elif reply_id == RPC_REPLY_RESULT:
                         break
                     elif reply_id == RPC_REPLY_FAIL:
-                        logger.warning(f"DFHack RunCommand failed (id={reply_id}): {data!r}")
+                        logger.warning(f"DFHack RunCommand failed (id={reply_id}): {data!r} "
+                                       f"| call: {call_desc!r}")
                         return None
                     else:
                         logger.error(f"DFHack RunCommand: unexpected reply id={reply_id} "
-                                     f"(stream desynced) — resetting connection")
+                                     f"(stream desynced) — resetting connection "
+                                     f"| call: {call_desc!r}")
                         self.disconnect()
                         return None
 
                 return "".join(output_parts)
 
             except Exception as e:
-                logger.warning(f"DFHack run_command error: {e}")
+                logger.warning(f"DFHack run_command error: {e} | call: {call_desc!r}")
                 self.disconnect()
                 return None
 
