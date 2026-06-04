@@ -650,12 +650,16 @@ class DwarfFortressContext(CommonContext):
         self.version = slot_data.get("version")
         materials_enabled = slot_data.get("craftsanity_materials")
         current_seed = self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("dwarfipelago/seed"))')
+        current_seed = (current_seed or "").strip()
+        # A blank/"nil" stored seed means this world has no AP identity yet (fresh,
+        # or cleared via "dwarfipelago resetseed"), so adopt this slot's seed.
+        seed_is_fresh = current_seed in ("nil", "", "None")
         self._deathlink_threshold  = int(dl_threshold)
         self._deathlink_percentage = bool(int(dl_percentage))
-        if current_seed == 'nil' or current_seed == str(self.seed):
+        if seed_is_fresh or current_seed == str(self.seed):
             script_version = self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("dwarfipelago/version"))')
             if self.version == script_version:
-                if current_seed == 'nil':
+                if seed_is_fresh:
                     def write():
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/goal", "{goal}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/wealth_goal", "{wealth_goal}")')

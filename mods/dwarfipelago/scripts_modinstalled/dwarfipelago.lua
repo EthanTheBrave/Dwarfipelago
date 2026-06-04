@@ -4,6 +4,7 @@
 --   dwarfipelago stop               -- disable and unregister hooks
 --   dwarfipelago status             -- show current state
 --   dwarfipelago reset              -- wipe persistent state (use with care)
+--   dwarfipelago resetseed          -- clear AP seed lock so this world can join a new slot
 --   dwarfipelago receive <item>     -- manually deliver an item (for testing)
 
 -- Internal modules live under internal/dwarfipelago/ to keep them out of the
@@ -972,6 +973,20 @@ elseif cmd == "status" then
 elseif cmd == "reset" then
     stop()
     state.reset()
+elseif cmd == "resetseed" then
+    -- Clear the stored AP world identity so this DF save can be reconnected to a
+    -- freshly generated AP slot (new seed) without the client rejecting it with
+    -- "This saved world does not match this slot." Lets you keep a test world
+    -- across regenerations. Other AP state (checks, unlocks, craft counts) is
+    -- left intact — use "dwarfipelago reset" for a full wipe.
+    local ok = pcall(function()
+        dfhack.persistent.deleteWorldData("dwarfipelago/seed")
+    end)
+    if not ok then
+        -- Older API without deleteWorldData: blank it (client treats "" as fresh).
+        dfhack.persistent.saveWorldDataString("dwarfipelago/seed", "")
+    end
+    print("[Dwarfipelago] Seed expectation cleared. Reconnect the AP client to adopt the new slot's seed.")
 elseif cmd == "panel" then
     reqscript("dwarfipelago-panel").open_panel()
 elseif cmd == "receive" then
@@ -982,5 +997,5 @@ elseif cmd == "receive" then
         items.receive(item_name)
     end
 else
-    print("Usage: dwarfipelago [start|stop|status|reset|panel|receive <item>]")
+    print("Usage: dwarfipelago [start|stop|status|reset|resetseed|panel|receive <item>]")
 end

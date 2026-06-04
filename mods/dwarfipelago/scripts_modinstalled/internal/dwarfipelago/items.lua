@@ -501,65 +501,37 @@ local function spawn_precursor_threat()
     end
 end
 
--- Spawn the AP-controlled megabeast target. Picks a random type from the world's
--- raws, finds an underground tile, spawns there, carves a breach, and stores the
--- new unit's ID so only that specific kill triggers victory.
+-- Summon the AP megabeast target via DFHack's 'force' command, which routes
+-- through the game's own event system. This is version-safe, unlike
+-- modtools/create-unit (broken on some DF builds: "world.arena_spawn not found").
+--
+-- We intentionally do NOT pin a target_id here: the goal hook in dwarfipelago.lua
+-- counts any megabeast kill when no target_id is stored, and natural megabeasts
+-- are cleared at world load, so the forced beast is the only one in play.
 local function spawn_target_megabeast()
     if dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/spawned") == "1" then
         return  -- already summoned this world (e.g. reloaded mid-session)
     end
 
-    local x, y, z = find_underground_spawn()
-    if not x then
-        local sx, sy, sz = get_fort_spawn_pos()
-        x, y, z = tonumber(sx), tonumber(sy), tonumber(sz)
-        dfhack.gui.showAnnouncement(
-            "[AP] Warning: no underground tile found — megabeast spawned at surface level.",
-            COLOR_YELLOW, true)
-        log.warn("spawn_target_megabeast: underground search failed, falling back to surface")
-    end
-
-    local beast_type = pick_megabeast_type()
-    dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/target_type", beast_type)
-
-    local pre_count = #df.global.world.units.all
     local ok, err = pcall(function()
-        dfhack.run_script("modtools/create-unit",
-            "-race", beast_type, "-civId", "-1", "-groupId", "-1",
-            "-location", "[", tostring(x), tostring(y), tostring(z), "]")
+        dfhack.run_command("force", "Megabeast")
     end)
     if not ok then
         dfhack.gui.showAnnouncement(
-            "[AP] CRITICAL: Megabeast could not be spawned — the Slay Megabeast goal cannot be completed.",
+            "[AP] CRITICAL: Could not force a megabeast — the Slay Megabeast goal cannot be completed.",
             COLOR_RED, true)
         dfhack.gui.showAnnouncement(
-            "[AP] This is likely a DFHack or mod compatibility issue. Consider regenerating your world.",
+            "[AP] This is likely a DFHack compatibility issue. Check the DFHack console / dwarfipelago.log.",
             COLOR_RED, true)
-        log.error("megabeast spawn failed: " .. tostring(err))
+        log.error("force Megabeast failed: " .. tostring(err))
         return
     end
 
-    -- Identify the newly added unit and persist its ID for targeted kill detection.
-    for i = pre_count, #df.global.world.units.all - 1 do
-        local u = df.global.world.units.all[i]
-        if u then
-            local ok2, is_mega = pcall(dfhack.units.isMegabeast, u)
-            if ok2 and is_mega then
-                dfhack.persistent.saveWorldDataString(
-                    "dwarfipelago/megabeast/target_id", tostring(u.id))
-                break
-            end
-        end
-    end
-
     dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/spawned", "1")
-
-    local display = beast_type:gsub("_", " "):lower():gsub("^%l", string.upper)
-    local dir     = get_spawn_direction(x, y)
     dfhack.gui.showAnnouncement(
-        ("[AP] A deep tremor rolls through the %s stone... a %s has awakened. Hunt it down."):format(dir, display),
+        "[AP] A great beast has been roused and now marches on your fortress. Slay it!",
         COLOR_RED, true)
-    print(("[Dwarfipelago] Megabeast spawned: %s at %d,%d,%d (direction: %s)"):format(beast_type, x, y, z, dir))
+    print("[Dwarfipelago] Megabeast summoned via DFHack 'force Megabeast'")
 end
 
 -- ── Item handlers: progression locks ─────────────────────────────────────────
