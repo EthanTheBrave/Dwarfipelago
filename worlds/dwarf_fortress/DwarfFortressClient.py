@@ -849,7 +849,7 @@ class DwarfFortressContext(CommonContext):
                 item = args["item"]
                 if not self.slot_concerns_self(args["receiving"]): # You found someone else's item
                     if self.slot_concerns_self(item.player):
-                        to_player = self.player_names[int(args["data"][0]["text"])]
+                        to_player = self.player_names[args["receiving"]]
                         item_name = self.item_names.lookup_in_slot(int(args["data"][2]["text"]), int(args["data"][0]["text"]))
                         self.dfhack.run_command("lua", f'dfhack.gui.showAnnouncement("You found {to_player} their {item_name}.", COLOR_YELLOW)')
                 elif self.slot_concerns_self(args["receiving"]): # This is your item
