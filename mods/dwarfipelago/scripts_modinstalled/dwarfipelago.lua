@@ -147,7 +147,18 @@ local function on_unit_death(uid)
             local is_target = (not target_id) or (unit.id == target_id)
             if is_target then
                 if state.mark_goal_complete() then
-                    local name = dfhack.TranslateName(dfhack.units.getVisibleName(unit))
+                    -- Version-safe name lookup (dfhack.TranslateName is absent in
+                    -- newer DFHack; getReadableName replaces it).
+                    local name = ""
+                    pcall(function()
+                        if dfhack.units.getReadableName then
+                            name = dfhack.units.getReadableName(unit) or ""
+                        elseif dfhack.translation and dfhack.translation.translateName then
+                            name = dfhack.translation.translateName(dfhack.units.getVisibleName(unit)) or ""
+                        elseif dfhack.TranslateName then
+                            name = dfhack.TranslateName(dfhack.units.getVisibleName(unit)) or ""
+                        end
+                    end)
                     dfhack.gui.showAnnouncement(
                         ("[AP] Goal reached: %s has been slain! Victory!"):format(
                             name ~= "" and name or "The megabeast"),
