@@ -547,6 +547,14 @@ wmap("Loom",             "Loom Blueprint")
 wmap("Dyers",            "Dyer's Workshop Blueprint")
 wmap("Butchers",         "Butcher's Shop Blueprint")
 wmap("Farmers",          "Farmer's Workshop Blueprint")
+-- These four are granted by the default start_inventory option, so under normal
+-- settings the player receives the blueprint at connect and can build them
+-- immediately. They MUST still be gated here so that removing them from
+-- start_inventory actually prevents building until the blueprint is received.
+wmap("Carpenters",       "Carpenter's Workshop Blueprint")
+wmap("Masons",           "Stoneworker's Workshop Blueprint")
+wmap("Still",            "Still Blueprint")
+wmap("Leatherworks",     "Leather Works Blueprint")
 
 -- Furnaces (df.furnace_type → blueprint name)
 local FURNACE_BLUEPRINTS = {}
