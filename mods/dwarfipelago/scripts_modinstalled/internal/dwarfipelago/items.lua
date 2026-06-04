@@ -264,14 +264,20 @@ end
 -- meaningful in-game effect — just a flavour announcement.
 
 local function recv_cave_fisher_silk()
+    -- Silk cloth woven from cave fisher silk. CLOTH item, creature silk material.
+    spawn_item("CLOTH", "CREATURE_MAT:CAVE_FISHER:SILK", 2)
     announce("A bundle of cave fisher silk has been deposited at your trade depot.")
 end
 
 local function recv_dwarf_bones()
+    -- A grim totem carved from dwarf bone. TOTEM item, creature bone material.
+    spawn_item("TOTEM", "CREATURE_MAT:DWARF:BONE")
     announce("A grim package of dwarf bones has arrived. An ill omen...")
 end
 
 local function recv_goblin_trophy()
+    -- A goblin-bone totem — the classic war trophy.
+    spawn_item("TOTEM", "CREATURE_MAT:GOBLIN:BONE")
     announce("A goblin trophy has been delivered. Someone out there is mocking you.")
 end
 
