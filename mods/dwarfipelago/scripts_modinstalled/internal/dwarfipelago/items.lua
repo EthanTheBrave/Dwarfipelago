@@ -65,6 +65,24 @@ local function announce(msg)
     dfhack.gui.showAnnouncement("[AP] " .. msg, COLOR_GREEN, true)
 end
 
+-- Version-safe unit display name. DFHack moved name translation across versions:
+--   newer: dfhack.units.getReadableName(unit) / dfhack.translation.translateName(name)
+--   older: dfhack.TranslateName(name)
+-- Returns "" if none are available.
+local function unit_display_name(unit)
+    local name = ""
+    pcall(function()
+        if dfhack.units.getReadableName then
+            name = dfhack.units.getReadableName(unit) or ""
+        elseif dfhack.translation and dfhack.translation.translateName then
+            name = dfhack.translation.translateName(dfhack.units.getVisibleName(unit)) or ""
+        elseif dfhack.TranslateName then
+            name = dfhack.TranslateName(dfhack.units.getVisibleName(unit)) or ""
+        end
+    end)
+    return name
+end
+
 -- Return the position of a living citizen as a spawn anchor (guaranteed walkable).
 -- Falls back to map centre if no citizens are found.
 local function get_fort_spawn_pos()
@@ -370,7 +388,7 @@ local function recv_tantrum_trigger()
     end
     if target and target.status.current_soul then
         target.status.current_soul.personality.stress = 500000
-        local name = dfhack.TranslateName(dfhack.units.getVisibleName(target))
+        local name = unit_display_name(target)
         announce("Trap: " .. (name ~= "" and name or "A dwarf") .. " has had enough!")
     else
         -- No eligible dwarf found (e.g. very early embark with no stress data).
