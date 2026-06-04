@@ -12,6 +12,7 @@
 local state  = reqscript("internal/dwarfipelago/state")
 local checks = reqscript("internal/dwarfipelago/checks")
 local items  = reqscript("internal/dwarfipelago/items")
+local log    = reqscript("internal/dwarfipelago/log")
 local json   = require('json')
 
 -- DFHack built-in plugins use the standard require().
@@ -135,7 +136,7 @@ local function on_unit_death(uid)
     if not state.is_goal_complete() and goal_setting("goal", -1) == 0 then
         local ok, is_mega = pcall(dfhack.units.isMegabeast, unit)
         if ok and is_mega
-                and goal_setting("unlock/military_training", 0) >= 3
+                and goal_setting("unlock/military_training", 0) >= 4
                 and goal_setting("unlock/immigration_waves", 0) >= 2
                 and goal_setting("unlock/artifact_weapon", 0) == 1 then
             -- Only count the AP-summoned target; ignore any stray megabeasts.
@@ -226,7 +227,7 @@ local function apply_pending_recv_deathlinks()
         if ok then
             killed = killed + 1
         else
-            dfhack.printerr("[Dwarfipelago] kill unit failed: " .. tostring(err))
+            log.error("kill unit failed: " .. tostring(err))
         end
     end
     applying_recv_deathlink = false
@@ -547,6 +548,14 @@ wmap("Loom",             "Loom Blueprint")
 wmap("Dyers",            "Dyer's Workshop Blueprint")
 wmap("Butchers",         "Butcher's Shop Blueprint")
 wmap("Farmers",          "Farmer's Workshop Blueprint")
+-- These four are granted by the default start_inventory option, so under normal
+-- settings the player receives the blueprint at connect and can build them
+-- immediately. They MUST still be gated here so that removing them from
+-- start_inventory actually prevents building until the blueprint is received.
+wmap("Carpenters",       "Carpenter's Workshop Blueprint")
+wmap("Masons",           "Stoneworker's Workshop Blueprint")
+wmap("Still",            "Still Blueprint")
+wmap("Leatherworks",     "Leather Works Blueprint")
 
 -- Furnaces (df.furnace_type → blueprint name)
 local FURNACE_BLUEPRINTS = {}
@@ -730,22 +739,40 @@ ensure_trade_depot = function()
         end
     end
     if not sx then
-        dfhack.printerr("[Dwarfipelago] ensure_trade_depot: no position found — will retry next load")
+        log.warn("ensure_trade_depot: no position found — will retry next load")
         return
     end
 
     -- Helper: clear a 5×5 area and attempt to place the depot there.
     -- Returns the constructed building on success, nil on failure.
     local map = df.global.world.map
-    local function try_place(tx, ty)
-        -- Clamp so the full 5×5 footprint stays inside the map.
+
+    -- Count liquid (water/magma) tiles in the clamped 5×5 footprint at (tx,ty).
+    -- A tile's liquid is in designation.flow_size (0 = dry, 1–7 = liquid depth),
+    -- independent of its shape — a shallow-water tile is still a "floor" shape,
+    -- which is why a shape-only check let the depot spawn on water. We use this
+    -- to prefer a dry candidate before resorting to draining/filling tiles.
+    local function footprint_liquid_count(tx, ty)
         tx = math.max(1, math.min(tx, map.x_count - 6))
         ty = math.max(1, math.min(ty, map.y_count - 6))
-        local x2, y2 = tx + 4, ty + 4
+        local count = 0
+        for dy = 0, 4 do
+            for dx = 0, 4 do
+                local bx, by = tx + dx, ty + dy
+                pcall(function()
+                    local block = dfhack.maps.getTileBlock(bx, by, sz)
+                    if block and block.designation[bx % 16][by % 16].flow_size > 0 then
+                        count = count + 1
+                    end
+                end)
+            end
+        end
+        return count
+    end
 
-        -- Flatten terrain: convert walls/ramps/trees to floor so the depot
-        -- can be placed.  findSimilarTileType picks the closest floor variant
-        -- for the existing material; the pcall guards against any API mismatch.
+    -- Prepare the 5×5 footprint: drain any liquid AND convert every tile to a
+    -- solid floor, so the depot never sits on water (or a wall/ramp/tree).
+    local function prepare_footprint(tx, ty)
         for dy = 0, 4 do
             for dx = 0, 4 do
                 pcall(function()
@@ -753,15 +780,35 @@ ensure_trade_depot = function()
                     local block = dfhack.maps.getTileBlock(bx, by, sz)
                     if not block then return end
                     local lx, ly = bx % 16, by % 16
+                    local desig = block.designation[lx][ly]
+                    -- Drain water/magma sitting on this tile.
+                    if desig.flow_size > 0 then
+                        desig.flow_size     = 0
+                        desig.flow_forbid   = false
+                        desig.liquid_static = false
+                    end
+                    -- Convert walls/ramps/trees/open tiles to a matching floor.
                     local new_tt = dfhack.maps.findSimilarTileType(
                         block.tiletype[lx][ly], df.tiletype_shape.FLOOR)
                     if new_tt and new_tt ~= 0 then
                         block.tiletype[lx][ly] = new_tt
-                        block.designation[lx][ly].hidden = false
                     end
+                    desig.hidden = false
+                    -- Ask the engine to recompute liquid flow around the change
+                    -- so neighbouring water doesn't immediately re-flood the tile.
+                    pcall(dfhack.maps.enableBlockUpdates, block, true, true)
                 end)
             end
         end
+    end
+
+    local function try_place(tx, ty)
+        -- Clamp so the full 5×5 footprint stays inside the map.
+        tx = math.max(1, math.min(tx, map.x_count - 6))
+        ty = math.max(1, math.min(ty, map.y_count - 6))
+        local x2, y2 = tx + 4, ty + 4
+
+        prepare_footprint(tx, ty)
 
         -- Clear buildings overlapping the footprint.
         local blds_to_remove = {}
@@ -803,25 +850,39 @@ ensure_trade_depot = function()
         return nil
     end
 
-    -- Try each cardinal direction (7 tiles out), west first.
+    -- Candidate placements 7 tiles out in each cardinal direction (west first).
+    -- Prefer the driest footprint so we only drain/fill tiles when no fully dry
+    -- spot exists; original direction order breaks ties.
     local candidates = {
         { sx - 7, sy     },  -- west
         { sx + 7, sy     },  -- east
         { sx,     sy - 7 },  -- north
         { sx,     sy + 7 },  -- south
     }
+    for idx, c in ipairs(candidates) do
+        c.order  = idx
+        c.liquid = footprint_liquid_count(c[1], c[2])
+    end
+    table.sort(candidates, function(a, b)
+        if a.liquid ~= b.liquid then return a.liquid < b.liquid end
+        return a.order < b.order
+    end)
+
     local bld, tx, ty
     for _, c in ipairs(candidates) do
         local b, px, py = try_place(c[1], c[2])
         if b then
             bld, tx, ty = b, px, py
+            if c.liquid > 0 then
+                log.info(("Trade depot footprint had %d liquid tile(s) — drained and filled before placing"):format(c.liquid))
+            end
             break
         end
-        print(("[Dwarfipelago] Depot placement failed at %d,%d — trying next direction"):format(c[1], c[2]))
+        log.warn(("Depot placement failed at %d,%d — trying next candidate"):format(c[1], c[2]))
     end
 
     if not bld then
-        dfhack.printerr("[Dwarfipelago] Failed to place trade depot in any direction")
+        log.error("Failed to place trade depot in any direction")
         return
     end
 
@@ -856,6 +917,7 @@ end
 local function start()
     state.set_enabled(true)
     dfhack.persistent.saveWorldDataString("dwarfipelago/version", SCRIPT_VERSION)
+    log.info(("Started (v%s). Log file: %s"):format(SCRIPT_VERSION, log.path()))
     -- Register hooks
     eventful.onJobCompleted[SCRIPT_NAME]        = on_job_completed
     eventful.onUnitDeath[SCRIPT_NAME]           = on_unit_death

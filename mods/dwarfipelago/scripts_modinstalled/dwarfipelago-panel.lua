@@ -97,7 +97,7 @@ function DwarfipelagoPanel:init()
                 widgets.Label{frame={t=5,  l=0}, text="Progression unlocks:"},
                 widgets.Label{frame={t=6,  l=2}, text={"Merchant's Coffers:   ", coffers, "/5"}},
                 widgets.Label{frame={t=7,  l=2}, text={"Immigration Waves:    ", waves,   "/5"}},
-                widgets.Label{frame={t=8,  l=2}, text={"Military Training:    ", military,"/3"}},
+                widgets.Label{frame={t=8,  l=2}, text={"Military Training:    ", military,"/4"}},
                 widgets.Label{frame={t=9,  l=2}, text={"Baron's Charter:      ", yn(baron)}},
                 widgets.Label{frame={t=10, l=2}, text={"Count's Charter:      ", yn(count_c)}},
                 widgets.Label{frame={t=11, l=2}, text={"Duke's Charter:       ", yn(duke)}},

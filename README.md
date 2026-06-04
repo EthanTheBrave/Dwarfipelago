@@ -151,7 +151,7 @@ craftsanity_threshold: 5
 | Type | Examples |
 |------|---------|
 | Workshop blueprints | 29 blueprints that unlock workshops, furnaces, and farm plots - **progression items** (see Progression section below) |
-| Progression locks | Merchant's Coffer (x5), Immigration Wave (x5), Noble Ladder charters (x4), Military Training (x3) - gate milestone checks and goal completion |
+| Progression locks | Merchant's Coffer (x5), Immigration Wave (x5), Noble Ladder charters (x4), Military Training (x4) - gate milestone checks and goal completion |
 | Trade goods | Cut gems, gold/silver/steel bars, masterwork crafts |
 | Resources | Food bundles, wood bundles, iron ore, coal |
 | Traps | Goblin ambush, cave bear incursion, vermin infestation, tantrum trigger |
@@ -173,11 +173,13 @@ Workshop blueprints are the core Archipelago mechanic. Other players find your b
 
 **Gated buildings:** Farm Plot
 
-**Always available:** Carpenter's Workshop, Mason's Workshop, Still (dwarves need ale to survive)
+**Granted at start by default:** Carpenter's Workshop, Mason's Workshop (Stoneworker's), Still, Leather Works — these blueprints are included in the default `start_inventory`, so you can build them immediately on a normal embark. They are still gated by the blueprint system: if you remove one from your `start_inventory`, that workshop becomes locked until you receive its blueprint from the multiworld.
 
 ### Progression Locks
 
-Four systems of **progression lock items** gate milestone checks and goal completion. These items are found by your multiworld partners and sent to you; each one received unlocks the next tier of checks or advances your goal progress. All progression lock items are always present in the multiworld pool regardless of which goal you selected.
+Four systems of **progression lock items** gate milestone checks and goal completion. These items are found by your multiworld partners and sent to you; each one received unlocks the next tier of checks or advances your goal progress.
+
+Progression locks are **filtered by your selected goal** — only the systems relevant to your goal are added to the multiworld pool, and lock-only locations that don't apply to your goal (e.g. the coffer-gated wealth tiers when you aren't playing Legendary Wealth) are omitted entirely.
 
 #### Merchant's Coffer (x5) - Treasury Tiers
 
@@ -195,7 +197,7 @@ The **Legendary Wealth** goal also requires all 5 coffers and a treasury value a
 
 #### Immigration Wave (x5) - Population Growth
 
-Five waves gate the five fortress title checks (Hamlet through Metropolis) and scale up the population requirement for every goal's completion condition.
+Five waves gate the five fortress title checks (Hamlet through Metropolis) and scale up the population requirement for every goal's completion condition. Each Immigration Wave received also brings a small group of dwarves into your fortress as new citizens, so receiving them genuinely grows your population.
 
 | Waves received | Title check unlocked | Also gates |
 |---|---|---|
@@ -218,9 +220,9 @@ Four charter items gate the four upper noble appointment checks. The mayor is al
 
 The **Mountainhome** goal additionally requires the Monarch's Invitation before victory is recognised.
 
-#### Military Training (x3) - Slay Megabeast
+#### Military Training (x4) - Slay Megabeast
 
-Three training items gate the megabeast slaying goal. Killing a megabeast without all three training items won't trigger victory - your military isn't considered ready yet.
+Four training items gate the megabeast slaying goal. The first three each **equip your fortress with escalating steel gear** (weapons, then armor, then full elite kit) to prepare your military. The **fourth** summons the target megabeast itself. Killing a megabeast before all four training items have arrived won't trigger victory - your military isn't considered ready yet, and the AP-summoned beast won't have appeared.
 
 </details>
 
@@ -247,7 +249,14 @@ Dwarfipelago supports Archipelago's DeathLink system with a configurable thresho
 - **Mod doesn't start automatically** - load a fortress first and wait ~5 seconds; you can also run `dwarfipelago start` manually in the DFHack console
 - **Items not arriving** - check the client log window; items are delivered via DFHack script calls when the client is connected
 
-For full setup details see [`worlds/dwarf_fortress/docs/setup_en.md`](worlds/dwarf_fortress/docs/setup_en.md).
+### Where to find errors
+
+There are two separate error logs:
+
+- **AP client window** - client, RPC, and network errors (with full tracebacks). This is the window opened by the **Dwarf Fortress Client** launcher button.
+- **`<Dwarf Fortress>/dwarfipelago.log`** - in-game mod errors (item spawn failures, trade depot placement, etc.). The exact path is printed to the DFHack console when the mod starts; you can also print it with `lua print(reqscript("internal/dwarfipelago/log").path())`.
+
+For full setup details see [`worlds/dwarf_fortress/docs/setup_en.md`](worlds/dwarf_fortress/docs/setup_en.md). For the Lua ↔ Python interface, see [`LUA_INTERFACE.md`](LUA_INTERFACE.md).
 
 </details>
 

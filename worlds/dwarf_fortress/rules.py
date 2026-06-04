@@ -122,7 +122,7 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         # Megabeast requires armaments, a battle-ready military, and a populated fortress.
         goal_location.access_rule = lambda state: (
             state.has("Artifact Weapon", player)
-            and state.count("Military Training", player) >= 3
+            and state.count("Military Training", player) >= 4
             and state.count("Immigration Wave", player) >= 2
         )
 
