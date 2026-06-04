@@ -81,17 +81,18 @@ class DwarfFortressWorld(World):
         generate_location_data(self)
         ## FOR printing, uncomment below and set your yaml to the max! (enable all items, max location, lowest threshold, all materials)
         #generate_location_data_PRINT_ONLY(self)
-        # CHANGED — NEEDS REVIEW:
-        # Material-specific location names (e.g. "Crafting Bone Gauntlets Check 1") are
-        # not pre-registered in crafting_locations.py (only the generic
-        # "Crafting Gauntlets Check 1" is). Without this loop those names never enter
-        # location_name_to_id, so create_regions never creates them in the multiworld,
-        # and set_dynamic_rules raises a KeyError when it tries to look them up.
-        # This is a workaround — ideally crafting_locations.py should be regenerated
-        # to include all material-specific variants, or IDs should be assigned here.
+        # The dynamically-generated craft locations are the single source of truth
+        # for their AP ids. We OVERRIDE any entry in location_name_to_id (the
+        # static crafting_locations.py ids are out of sync with the dynamic
+        # assign_locationid_block + per-check increment, e.g. "Crafting Table
+        # Check 1" is 37528401 statically but 37528001 dynamically). Because
+        # fill_slot_data sends the dynamic ap_id to the client, create_regions
+        # MUST register the same dynamic id here — otherwise the client checks an
+        # id the server never created and the check is silently ignored.
+        # This also covers material-specific names (e.g. "Crafting Bone Gauntlets
+        # Check 1") that aren't in the static table at all.
         for loc in self.dynamic_locations:
-            if loc.name not in self.location_name_to_id:
-                self.location_name_to_id[loc.name] = loc.ap_id
+            self.location_name_to_id[loc.name] = loc.ap_id
         remove_list = []
         for location in self.location_name_to_id:
             if "Crafting" in location and location not in self.dynamic_locations_names:
