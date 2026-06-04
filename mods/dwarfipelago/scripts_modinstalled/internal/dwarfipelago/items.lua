@@ -571,37 +571,23 @@ local function recv_merchants_coffer()
     announce(("Merchant's Coffer received! Wealth tier %d/5 unlocked"):format(n))
 end
 
-local IMMIGRATION_WAVE_SIZE = 4  -- dwarves brought in per received Immigration Wave
-
 local function recv_immigration_wave()
     local key = "dwarfipelago/unlock/immigration_waves"
     local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
     dfhack.persistent.saveWorldDataString(key, tostring(n))
 
-    -- Actually bring migrants into the fortress so the population grows.
-    -- -setUnitToFort makes each dwarf a real fortress citizen (counts toward
-    -- the population goal and works like a normal migrant).
-    local x, y, z = get_fort_spawn_pos()
-    local spawned = 0
-    for i = 1, IMMIGRATION_WAVE_SIZE do
-        local caste = (i % 2 == 0) and "FEMALE" or "MALE"
-        local ok, err = pcall(function()
-            dfhack.run_script("modtools/create-unit",
-                "-race",          "DWARF",
-                "-caste",         caste,
-                "-setUnitToFort",
-                "-location",      "[", x, y, z, "]"
-            )
-        end)
-        if ok then
-            spawned = spawned + 1
-        else
-            log.error("immigration_wave spawn failed: " .. tostring(err))
-        end
+    -- Trigger a real migration wave through the game's own system via DFHack's
+    -- 'force' command. This is version-safe, unlike modtools/create-unit, which
+    -- is broken on some DF builds ("Cannot read field world.arena_spawn").
+    local ok, err = pcall(function()
+        dfhack.run_command("force", "Migrants")
+    end)
+    if not ok then
+        log.error("immigration_wave: force Migrants failed: " .. tostring(err))
     end
 
-    announce(("Immigration Wave received! %d migrants have arrived. (tier %d/5)")
-        :format(spawned, n))
+    announce(("Immigration Wave received! A wave of migrants approaches. (tier %d/5)")
+        :format(n))
 end
 
 local function recv_barons_charter()
