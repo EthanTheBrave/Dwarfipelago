@@ -105,9 +105,21 @@ MINING_LOCATIONS: list[LocationData] = [
     LocationData("Reached the Magma Sea",        BASE_ID + 723, "Fortress"),
 ]
 
+# ── Farming Milestones ────────────────────────────────────────────────────────
+# Cumulative count of harvested crops (PLANT items created). IDs match checks.lua
+# (BASE_ID + 730).
+FARMING_LOCATIONS: list[LocationData] = [
+    LocationData("Harvest 50 Crops",    BASE_ID + 730, "Fortress"),
+    LocationData("Harvest 250 Crops",   BASE_ID + 731, "Fortress"),
+    LocationData("Harvest 1,000 Crops", BASE_ID + 732, "Fortress"),
+    LocationData("Harvest 2,500 Crops", BASE_ID + 733, "Fortress"),
+    LocationData("Harvest 5,000 Crops", BASE_ID + 734, "Fortress"),
+]
+
 
 ALL_LOCATIONS: list[LocationData] = (
     WEALTH_LOCATIONS + PRODUCTION_LOCATIONS + TRADE_LOCATIONS
-    + STATUS_LOCATIONS + TITLE_LOCATIONS + MINING_LOCATIONS + CRAFTING_LOCATIONS
+    + STATUS_LOCATIONS + TITLE_LOCATIONS + MINING_LOCATIONS
+    + FARMING_LOCATIONS + CRAFTING_LOCATIONS
 )
 LOCATION_TABLE: dict[str, int] = {loc.name: loc.ap_id for loc in ALL_LOCATIONS}

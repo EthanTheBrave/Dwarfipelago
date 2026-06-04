@@ -190,6 +190,13 @@ M.checks = {
     { id = 37370721, name = "Second Cavern Breached", fn = function() return M.mining_flag("cavern2") end },
     { id = 37370722, name = "Third Cavern Breached",  fn = function() return M.mining_flag("cavern3") end },
     { id = 37370723, name = "Reached the Magma Sea",  fn = function() return M.mining_flag("magma")   end },
+
+    -- Farming: cumulative harvested crops (PLANT items).
+    { id = 37370730, name = "Harvest 50 Crops",    fn = function() return M.crops_harvested() >= 50   end },
+    { id = 37370731, name = "Harvest 250 Crops",   fn = function() return M.crops_harvested() >= 250  end },
+    { id = 37370732, name = "Harvest 1,000 Crops", fn = function() return M.crops_harvested() >= 1000 end },
+    { id = 37370733, name = "Harvest 2,500 Crops", fn = function() return M.crops_harvested() >= 2500 end },
+    { id = 37370734, name = "Harvest 5,000 Crops", fn = function() return M.crops_harvested() >= 5000 end },
 }
 
 -- ── Production flag helpers ───────────────────────────────────────────────────
@@ -238,6 +245,11 @@ end
 -- matching feature (dwarfipelago/mining/cavern1|cavern2|cavern3|magma).
 function M.mining_flag(name)
     return dfhack.persistent.getWorldDataString("dwarfipelago/mining/" .. name) == "1"
+end
+
+-- Cumulative harvested crops (PLANT items), incremented by the onItemCreated hook.
+function M.crops_harvested()
+    return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/farming/crop_count")) or 0
 end
 
 -- ── Job type → production flag mapping ───────────────────────────────────────
