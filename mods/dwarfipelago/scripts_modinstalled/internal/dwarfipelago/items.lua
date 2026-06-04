@@ -610,13 +610,11 @@ local function grant_war_gear(tier)
         -- Arm the recruits: a pair of steel weapons + bars to spare.
         spawn_item("WEAPON:ITEM_WEAPON_AXE_BATTLE",  "INORGANIC:STEEL")
         spawn_item("WEAPON:ITEM_WEAPON_SWORD_SHORT", "INORGANIC:STEEL")
-        spawn_item("BAR", "INORGANIC:STEEL", 5)
     elseif tier == 2 then
         -- Armor the soldiers: torso, head, and shield.
         spawn_item("ARMOR:ITEM_ARMOR_BREASTPLATE", "INORGANIC:STEEL")
         spawn_item("HELM:ITEM_HELM_HELM",          "INORGANIC:STEEL")
         spawn_item("SHIELD:ITEM_SHIELD_SHIELD",    "INORGANIC:STEEL")
-        spawn_item("BAR", "INORGANIC:STEEL", 5)
     elseif tier == 3 then
         -- Outfit the elite: full limb protection + heavier weapons.
         spawn_item("GLOVES:ITEM_GLOVES_GAUNTLETS", "INORGANIC:STEEL")
