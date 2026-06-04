@@ -368,6 +368,9 @@ cmap("MakeLye",                 "lye")
 cmap("MakePotashFromLye",       "potash")
 cmap("MakePotashFromAsh",       "potash")
 cmap("PrepareMeal",             "prepared_meal")
+-- Vanilla brewing is the hardcoded BrewDrink job (not a CustomReaction), so map
+-- it directly to the alcohol craft flag.
+cmap("BrewDrink",               "alcohol")
 cmap("MakeArmor",               "UARMOR_SUBTYPE")
 cmap("MakeGloves",              "GARMOR_SUBTYPE")
 cmap("MakePants",               "LARMOR_SUBTYPE")
@@ -475,10 +478,13 @@ goblet_subtype("stone",  "mug")
 goblet_subtype("metal",  "goblet")
 goblet_subtype("glass",   "goblet")
 
+-- Keyed by the job's reaction_name STRING (job_to_craft_flag looks up
+-- REACTION_SUBTYPE_FLAG[job.reaction_name]). The previous version keyed by
+-- df.job_type[name], but these are reaction names (not job types), so every
+-- entry resolved to nil and the table was empty — breaking all reaction flags.
 local REACTION_SUBTYPE_FLAG = {}
 local function reaction_subtype(name, flag)
-    local v = df.job_type[name]
-    if v ~= nil then REACTION_SUBTYPE_FLAG[v] = flag end
+    REACTION_SUBTYPE_FLAG[name] = flag
 end
 reaction_subtype("LIGNITE_TO_COAL",                 "coke_bar")
 reaction_subtype("BITUMINOUS_COAL_TO_COAL",         "coke_bar")
