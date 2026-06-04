@@ -5,6 +5,8 @@
 
 local M = {}
 
+local log = reqscript("internal/dwarfipelago/log")
+
 -- ── Helpers ───────────────────────────────────────────────────────────────────
 
 -- Return the center tile of the first trade depot in the fortress, or nil.
@@ -42,7 +44,7 @@ local function spawn_item(item_type, material, quantity)
             end
         end
         if not anchored then
-            dfhack.printerr("[Dwarfipelago] spawn_item: no depot or citizen — cannot place " .. item_type)
+            log.error("spawn_item: no depot or citizen — cannot place " .. item_type)
             return
         end
     end
@@ -54,7 +56,7 @@ local function spawn_item(item_type, material, quantity)
             dfhack.run_command("createitem", item_type, material)
         end)
         if not ok then
-            dfhack.printerr("[Dwarfipelago] Failed to spawn " .. item_type .. ": " .. tostring(err))
+            log.error("Failed to spawn " .. item_type .. ": " .. tostring(err))
         end
     end
 end
@@ -303,7 +305,7 @@ local function recv_goblin_ambush()
         end
     end)
     if not ok then
-        dfhack.printerr("[Dwarfipelago] goblin_ambush spawn failed: " .. tostring(err))
+        log.error("goblin_ambush spawn failed: " .. tostring(err))
     end
 end
 
@@ -321,7 +323,7 @@ local function recv_cave_bear()
         )
     end)
     if not ok then
-        dfhack.printerr("[Dwarfipelago] cave_bear spawn failed: " .. tostring(err))
+        log.error("cave_bear spawn failed: " .. tostring(err))
     end
 end
 
@@ -345,7 +347,7 @@ local function recv_vermin_infestation()
         if ok then spawned = spawned + 1 end
     end
     if spawned == 0 then
-        dfhack.printerr("[Dwarfipelago] vermin_infestation: could not spawn any giant rats")
+        log.error("vermin_infestation: could not spawn any giant rats")
     end
 end
 
@@ -373,7 +375,7 @@ local function recv_tantrum_trigger()
     else
         -- No eligible dwarf found (e.g. very early embark with no stress data).
         announce("Trap: Something sinister stirs in the fortress...")
-        dfhack.printerr("[Dwarfipelago] tantrum_trigger: no eligible citizen found")
+        log.error("tantrum_trigger: no eligible citizen found")
     end
 end
 
@@ -484,7 +486,7 @@ local function spawn_precursor_threat()
         dfhack.gui.showAnnouncement(
             "[AP] Warning: no underground tile found — precursor spawned at surface instead.",
             COLOR_YELLOW, true)
-        dfhack.printerr("[Dwarfipelago] spawn_precursor_threat: underground search failed, falling back to surface")
+        log.warn("spawn_precursor_threat: underground search failed, falling back to surface")
     end
     local ok, err = pcall(function()
         dfhack.run_script("modtools/create-unit",
@@ -495,7 +497,7 @@ local function spawn_precursor_threat()
         dfhack.gui.showAnnouncement(
             "[AP] Error: precursor creature could not be spawned. Check the DFHack console.",
             COLOR_RED, true)
-        dfhack.printerr("[Dwarfipelago] precursor spawn failed: " .. tostring(err))
+        log.error("precursor spawn failed: " .. tostring(err))
     end
 end
 
@@ -514,7 +516,7 @@ local function spawn_target_megabeast()
         dfhack.gui.showAnnouncement(
             "[AP] Warning: no underground tile found — megabeast spawned at surface level.",
             COLOR_YELLOW, true)
-        dfhack.printerr("[Dwarfipelago] spawn_target_megabeast: underground search failed, falling back to surface")
+        log.warn("spawn_target_megabeast: underground search failed, falling back to surface")
     end
 
     local beast_type = pick_megabeast_type()
@@ -533,7 +535,7 @@ local function spawn_target_megabeast()
         dfhack.gui.showAnnouncement(
             "[AP] This is likely a DFHack or mod compatibility issue. Consider regenerating your world.",
             COLOR_RED, true)
-        dfhack.printerr("[Dwarfipelago] megabeast spawn failed: " .. tostring(err))
+        log.error("megabeast spawn failed: " .. tostring(err))
         return
     end
 
@@ -594,7 +596,7 @@ local function recv_immigration_wave()
         if ok then
             spawned = spawned + 1
         else
-            dfhack.printerr("[Dwarfipelago] immigration_wave spawn failed: " .. tostring(err))
+            log.error("immigration_wave spawn failed: " .. tostring(err))
         end
     end
 
@@ -761,7 +763,7 @@ function M.receive(item_name)
     if handler then
         handler()
     else
-        dfhack.printerr("[Dwarfipelago] Unknown item received: " .. tostring(item_name))
+        log.error("Unknown item received: " .. tostring(item_name))
     end
 end
 
