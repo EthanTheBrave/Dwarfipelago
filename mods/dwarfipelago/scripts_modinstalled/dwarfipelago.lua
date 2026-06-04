@@ -746,15 +746,33 @@ ensure_trade_depot = function()
     -- Helper: clear a 5×5 area and attempt to place the depot there.
     -- Returns the constructed building on success, nil on failure.
     local map = df.global.world.map
-    local function try_place(tx, ty)
-        -- Clamp so the full 5×5 footprint stays inside the map.
+
+    -- Count liquid (water/magma) tiles in the clamped 5×5 footprint at (tx,ty).
+    -- A tile's liquid is in designation.flow_size (0 = dry, 1–7 = liquid depth),
+    -- independent of its shape — a shallow-water tile is still a "floor" shape,
+    -- which is why a shape-only check let the depot spawn on water. We use this
+    -- to prefer a dry candidate before resorting to draining/filling tiles.
+    local function footprint_liquid_count(tx, ty)
         tx = math.max(1, math.min(tx, map.x_count - 6))
         ty = math.max(1, math.min(ty, map.y_count - 6))
-        local x2, y2 = tx + 4, ty + 4
+        local count = 0
+        for dy = 0, 4 do
+            for dx = 0, 4 do
+                local bx, by = tx + dx, ty + dy
+                pcall(function()
+                    local block = dfhack.maps.getTileBlock(bx, by, sz)
+                    if block and block.designation[bx % 16][by % 16].flow_size > 0 then
+                        count = count + 1
+                    end
+                end)
+            end
+        end
+        return count
+    end
 
-        -- Flatten terrain: convert walls/ramps/trees to floor so the depot
-        -- can be placed.  findSimilarTileType picks the closest floor variant
-        -- for the existing material; the pcall guards against any API mismatch.
+    -- Prepare the 5×5 footprint: drain any liquid AND convert every tile to a
+    -- solid floor, so the depot never sits on water (or a wall/ramp/tree).
+    local function prepare_footprint(tx, ty)
         for dy = 0, 4 do
             for dx = 0, 4 do
                 pcall(function()
@@ -762,15 +780,35 @@ ensure_trade_depot = function()
                     local block = dfhack.maps.getTileBlock(bx, by, sz)
                     if not block then return end
                     local lx, ly = bx % 16, by % 16
+                    local desig = block.designation[lx][ly]
+                    -- Drain water/magma sitting on this tile.
+                    if desig.flow_size > 0 then
+                        desig.flow_size     = 0
+                        desig.flow_forbid   = false
+                        desig.liquid_static = false
+                    end
+                    -- Convert walls/ramps/trees/open tiles to a matching floor.
                     local new_tt = dfhack.maps.findSimilarTileType(
                         block.tiletype[lx][ly], df.tiletype_shape.FLOOR)
                     if new_tt and new_tt ~= 0 then
                         block.tiletype[lx][ly] = new_tt
-                        block.designation[lx][ly].hidden = false
                     end
+                    desig.hidden = false
+                    -- Ask the engine to recompute liquid flow around the change
+                    -- so neighbouring water doesn't immediately re-flood the tile.
+                    pcall(dfhack.maps.enableBlockUpdates, block, true, true)
                 end)
             end
         end
+    end
+
+    local function try_place(tx, ty)
+        -- Clamp so the full 5×5 footprint stays inside the map.
+        tx = math.max(1, math.min(tx, map.x_count - 6))
+        ty = math.max(1, math.min(ty, map.y_count - 6))
+        local x2, y2 = tx + 4, ty + 4
+
+        prepare_footprint(tx, ty)
 
         -- Clear buildings overlapping the footprint.
         local blds_to_remove = {}
@@ -812,21 +850,35 @@ ensure_trade_depot = function()
         return nil
     end
 
-    -- Try each cardinal direction (7 tiles out), west first.
+    -- Candidate placements 7 tiles out in each cardinal direction (west first).
+    -- Prefer the driest footprint so we only drain/fill tiles when no fully dry
+    -- spot exists; original direction order breaks ties.
     local candidates = {
         { sx - 7, sy     },  -- west
         { sx + 7, sy     },  -- east
         { sx,     sy - 7 },  -- north
         { sx,     sy + 7 },  -- south
     }
+    for idx, c in ipairs(candidates) do
+        c.order  = idx
+        c.liquid = footprint_liquid_count(c[1], c[2])
+    end
+    table.sort(candidates, function(a, b)
+        if a.liquid ~= b.liquid then return a.liquid < b.liquid end
+        return a.order < b.order
+    end)
+
     local bld, tx, ty
     for _, c in ipairs(candidates) do
         local b, px, py = try_place(c[1], c[2])
         if b then
             bld, tx, ty = b, px, py
+            if c.liquid > 0 then
+                log.info(("Trade depot footprint had %d liquid tile(s) — drained and filled before placing"):format(c.liquid))
+            end
             break
         end
-        print(("[Dwarfipelago] Depot placement failed at %d,%d — trying next direction"):format(c[1], c[2]))
+        log.warn(("Depot placement failed at %d,%d — trying next candidate"):format(c[1], c[2]))
     end
 
     if not bld then
