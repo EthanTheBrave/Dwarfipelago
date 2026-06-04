@@ -80,6 +80,7 @@ Completing these milestones sends items to other players:
 - **Trade & diplomacy** - first caravan trade, first export, dwarven/elven/human caravan visits, outpost liaison meeting
 - **Fortress status** - noble appointments and civilisation recognition milestones
 - **Fortress titles** - Hamlet, Village, Town, City, Metropolis (population + wealth thresholds)
+- **Mining** - depth milestones (10/25/50/75/100 levels below the surface) and tiles excavated (100 → 10,000)
 - **Craftsanity** - optional crafting milestone checks (see below)
 
 </details>
