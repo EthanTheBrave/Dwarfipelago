@@ -121,6 +121,22 @@ class DwarfFortressWorld(World):
             for loc_name in WEALTH_TIER_LOCATIONS:
                 self.location_name_to_id.pop(loc_name, None)
 
+        # The noble-ladder checks are charter progression locks: each is gated in
+        # checks.lua behind its charter item, and those charters only exist in the
+        # pool for the mountainhome goal. For every other goal they'd be dead,
+        # uncompletable locations, so remove them. Mayor Elected stays (no charter,
+        # happens in any fortress) and the fortress titles stay (gated by
+        # Immigration Waves, which are in every goal's pool).
+        NOBLE_LADDER_LOCATIONS = [
+            "Baron Appointed",
+            "Count Appointed",
+            "Duke Appointed",
+            "Monarch Takes Residence",
+        ]
+        if self.options.goal != DwarfFortressGoal.option_mountainhome:
+            for loc_name in NOBLE_LADDER_LOCATIONS:
+                self.location_name_to_id.pop(loc_name, None)
+
 
     # ── Generation lifecycle ──────────────────────────────────────────────────
 
