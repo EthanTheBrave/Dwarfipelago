@@ -184,6 +184,12 @@ M.checks = {
     { id = 37370712, name = "Excavator III (2,000 tiles)", fn = function() return M.mining_count() >= 2000  end },
     { id = 37370713, name = "Excavator IV (5,000 tiles)",  fn = function() return M.mining_count() >= 5000  end },
     { id = 37370714, name = "Excavator V (10,000 tiles)",  fn = function() return M.mining_count() >= 10000 end },
+
+    -- Mining: cavern / magma sea breaches (detected via map feature on dig jobs).
+    { id = 37370720, name = "First Cavern Breached",  fn = function() return M.mining_flag("cavern1") end },
+    { id = 37370721, name = "Second Cavern Breached", fn = function() return M.mining_flag("cavern2") end },
+    { id = 37370722, name = "Third Cavern Breached",  fn = function() return M.mining_flag("cavern3") end },
+    { id = 37370723, name = "Reached the Magma Sea",  fn = function() return M.mining_flag("magma")   end },
 }
 
 -- ── Production flag helpers ───────────────────────────────────────────────────
@@ -226,6 +232,12 @@ end
 -- Cumulative tiles excavated.
 function M.mining_count()
     return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/mining/dig_count")) or 0
+end
+
+-- Cavern/magma breach flags, set by the mining hook when a dig job lands in the
+-- matching feature (dwarfipelago/mining/cavern1|cavern2|cavern3|magma).
+function M.mining_flag(name)
+    return dfhack.persistent.getWorldDataString("dwarfipelago/mining/" .. name) == "1"
 end
 
 -- ── Job type → production flag mapping ───────────────────────────────────────

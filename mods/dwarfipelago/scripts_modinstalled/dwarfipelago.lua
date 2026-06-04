@@ -39,6 +39,32 @@ for _, name in ipairs({
     if v ~= nil then MINING_JOBS[v] = true end
 end
 
+-- Reverse-map a block's global_feature id to the embark's map_feature object.
+-- World-independent: feature_global_idx maps each map_features[i] to its global
+-- id, so we scan it live (~11 entries) rather than hardcoding anything.
+local function feature_for_global(gf)
+    local feat
+    pcall(function()
+        for i, gid in ipairs(df.global.world.features.feature_global_idx) do
+            if gid == gf then
+                feat = df.global.world.features.map_features[i]
+                return
+            end
+        end
+    end)
+    return feat
+end
+
+-- Set a mining milestone flag once, announcing the first time it's reached.
+local function set_mining_milestone(key, msg)
+    local k = "dwarfipelago/mining/" .. key
+    if dfhack.persistent.getWorldDataString(k) ~= "1" then
+        dfhack.persistent.saveWorldDataString(k, "1")
+        dfhack.gui.showAnnouncement("[AP] " .. msg, COLOR_GREEN, true)
+        log.info("Mining milestone: " .. msg)
+    end
+end
+
 -- Per-session tracking for "milestone reached but locked" notifications.
 -- Keyed by AP location ID; prevents repeating the same announcement every poll.
 local _notified_locked = {}
@@ -494,6 +520,31 @@ local function on_job_completed(job)
             local cur = tonumber(dfhack.persistent.getWorldDataString(key_d))
             if not cur or jz < cur then
                 dfhack.persistent.saveWorldDataString(key_d, tostring(jz))
+            end
+        end
+
+        -- Cavern / magma sea breach detection via the dug tile's map feature.
+        local okb, blk = pcall(dfhack.maps.getTileBlock, job.pos.x, job.pos.y, job.pos.z)
+        if okb and blk then
+            local gf = blk.global_feature
+            if gf and gf >= 0 then
+                local feat = feature_for_global(gf)
+                if feat then
+                    local t = tostring(feat._type)
+                    if t:find("subterranean_from_layers") then
+                        local sd = 0
+                        pcall(function() sd = feat.start_depth end)
+                        if sd == 0 then
+                            set_mining_milestone("cavern1", "You have breached the first cavern!")
+                        elseif sd == 1 then
+                            set_mining_milestone("cavern2", "You have breached the second cavern!")
+                        elseif sd == 2 then
+                            set_mining_milestone("cavern3", "You have breached the third cavern!")
+                        end
+                    elseif t:find("magma_core") then
+                        set_mining_milestone("magma", "You have reached the Magma Sea!")
+                    end
+                end
             end
         end
     end

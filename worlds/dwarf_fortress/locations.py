@@ -99,6 +99,10 @@ MINING_LOCATIONS: list[LocationData] = [
     LocationData("Excavator III (2,000 tiles)", BASE_ID + 712, "Fortress"),
     LocationData("Excavator IV (5,000 tiles)",  BASE_ID + 713, "Fortress"),
     LocationData("Excavator V (10,000 tiles)",  BASE_ID + 714, "Fortress"),
+    LocationData("First Cavern Breached",        BASE_ID + 720, "Fortress"),
+    LocationData("Second Cavern Breached",       BASE_ID + 721, "Fortress"),
+    LocationData("Third Cavern Breached",        BASE_ID + 722, "Fortress"),
+    LocationData("Reached the Magma Sea",        BASE_ID + 723, "Fortress"),
 ]
 
 
