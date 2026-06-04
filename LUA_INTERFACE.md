@@ -54,7 +54,7 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/unlock/count_charter` | `"1"` or absent | Lua | Set when Count's Charter received; gates Count Appointed check |
 | `dwarfipelago/unlock/duke_charter` | `"1"` or absent | Lua | Set when Duke's Charter received; gates Duke Appointed check |
 | `dwarfipelago/unlock/monarch_invitation` | `"1"` or absent | Lua | Set when Monarch's Invitation received; gates Monarch Takes Residence check |
-| `dwarfipelago/unlock/military_training` | Integer string | Lua | How many Military Training items received (0–3); used by slay_megabeast goal |
+| `dwarfipelago/unlock/military_training` | Integer string | Lua | How many Military Training items received (0–4); tiers 1–3 grant escalating steel gear, tier 4 spawns the target megabeast; used by slay_megabeast goal |
 | `dwarfipelago/unlock/artifact_weapon` | `"1"` or absent | Lua | Set when Artifact Weapon received; gates slay_megabeast and mountainhome goals |
 | `dwarfipelago/unlock/artifact_armor` | `"1"` or absent | Lua | Set when Artifact Armor received; gates population_boom prestige requirement |
 | `dwarfipelago/unlock/master_builders_codex` | `"1"` or absent | Lua | Set when Master Builder's Codex received; gates legendary_wealth, mountainhome, and population_boom goals |

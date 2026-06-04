@@ -151,7 +151,7 @@ craftsanity_threshold: 5
 | Type | Examples |
 |------|---------|
 | Workshop blueprints | 29 blueprints that unlock workshops, furnaces, and farm plots - **progression items** (see Progression section below) |
-| Progression locks | Merchant's Coffer (x5), Immigration Wave (x5), Noble Ladder charters (x4), Military Training (x3) - gate milestone checks and goal completion |
+| Progression locks | Merchant's Coffer (x5), Immigration Wave (x5), Noble Ladder charters (x4), Military Training (x4) - gate milestone checks and goal completion |
 | Trade goods | Cut gems, gold/silver/steel bars, masterwork crafts |
 | Resources | Food bundles, wood bundles, iron ore, coal |
 | Traps | Goblin ambush, cave bear incursion, vermin infestation, tantrum trigger |
@@ -220,9 +220,9 @@ Four charter items gate the four upper noble appointment checks. The mayor is al
 
 The **Mountainhome** goal additionally requires the Monarch's Invitation before victory is recognised.
 
-#### Military Training (x3) - Slay Megabeast
+#### Military Training (x4) - Slay Megabeast
 
-Three training items gate the megabeast slaying goal. Killing a megabeast without all three training items won't trigger victory - your military isn't considered ready yet.
+Four training items gate the megabeast slaying goal. The first three each **equip your fortress with escalating steel gear** (weapons, then armor, then full elite kit) to prepare your military. The **fourth** summons the target megabeast itself. Killing a megabeast before all four training items have arrived won't trigger victory - your military isn't considered ready yet, and the AP-summoned beast won't have appeared.
 
 </details>
 

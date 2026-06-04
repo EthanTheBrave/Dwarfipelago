@@ -136,7 +136,7 @@ local function on_unit_death(uid)
     if not state.is_goal_complete() and goal_setting("goal", -1) == 0 then
         local ok, is_mega = pcall(dfhack.units.isMegabeast, unit)
         if ok and is_mega
-                and goal_setting("unlock/military_training", 0) >= 3
+                and goal_setting("unlock/military_training", 0) >= 4
                 and goal_setting("unlock/immigration_waves", 0) >= 2
                 and goal_setting("unlock/artifact_weapon", 0) == 1 then
             -- Only count the AP-summoned target; ignore any stray megabeasts.
