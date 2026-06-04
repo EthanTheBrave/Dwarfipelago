@@ -195,9 +195,21 @@ class DwarfFortressWorld(World):
 
         item_pool: list[DwarfFortressItem] = []
 
-        # 1. Always add every progression item.
+        # Items granted via start_inventory are auto-precollected by AP core.
+        # We must NOT also place them in the pool, or a duplicate ends up at a
+        # location and gets sent when that location is checked (e.g. starting
+        # with the Stoneworker's blueprint but still receiving it later).
+        start_inv = dict(self.options.start_inventory.value)
+
+        # 1. Add every progression item, minus copies already in start_inventory.
         for item_data in required:
-            for _ in range(item_data.quantity):
+            qty = item_data.quantity
+            granted = start_inv.get(item_data.name, 0)
+            if granted > 0:
+                skip = min(granted, qty)
+                qty -= skip
+                start_inv[item_data.name] = granted - skip
+            for _ in range(qty):
                 item_pool.append(self.create_item(item_data.name))
 
         # 2. Fill remaining slots from optional items (shuffled for variety).
