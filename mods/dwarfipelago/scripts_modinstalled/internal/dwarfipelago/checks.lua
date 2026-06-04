@@ -170,6 +170,20 @@ M.checks = {
     { id = 37370402, name = "Town Established",       fn = has_fortress_title(80, 100000,  10000, 3) },
     { id = 37370403, name = "City Established",       fn = has_fortress_title(110, 200000, 20000, 4) },
     { id = 37370404, name = "Metropolis Established", fn = has_fortress_title(140, 300000, 30000, 5) },
+
+    -- Mining: depth below the surface z-level (deepest mining job reached).
+    { id = 37370700, name = "Delved 10 Levels Deep",  fn = function() return M.mining_depth() >= 10  end },
+    { id = 37370701, name = "Delved 25 Levels Deep",  fn = function() return M.mining_depth() >= 25  end },
+    { id = 37370702, name = "Delved 50 Levels Deep",  fn = function() return M.mining_depth() >= 50  end },
+    { id = 37370703, name = "Delved 75 Levels Deep",  fn = function() return M.mining_depth() >= 75  end },
+    { id = 37370704, name = "Delved 100 Levels Deep", fn = function() return M.mining_depth() >= 100 end },
+
+    -- Mining: cumulative tiles excavated.
+    { id = 37370710, name = "Excavator I (100 tiles)",     fn = function() return M.mining_count() >= 100   end },
+    { id = 37370711, name = "Excavator II (500 tiles)",    fn = function() return M.mining_count() >= 500   end },
+    { id = 37370712, name = "Excavator III (2,000 tiles)", fn = function() return M.mining_count() >= 2000  end },
+    { id = 37370713, name = "Excavator IV (5,000 tiles)",  fn = function() return M.mining_count() >= 5000  end },
+    { id = 37370714, name = "Excavator V (10,000 tiles)",  fn = function() return M.mining_count() >= 10000 end },
 }
 
 -- ── Production flag helpers ───────────────────────────────────────────────────
@@ -192,6 +206,26 @@ end
 function M.trade_flag(flag)
     local val = dfhack.persistent.getWorldDataString("dwarfipelago/trade/" .. flag)
     return val == "1"
+end
+
+-- ── Mining helpers ────────────────────────────────────────────────────────────
+-- Mining state is written by the eventful job hook in dwarfipelago.lua:
+--   dwarfipelago/mining/surface_z  — z-level of the embark surface (captured once)
+--   dwarfipelago/mining/deepest_z  — lowest z any mining job has reached
+--   dwarfipelago/mining/dig_count  — cumulative count of mining jobs completed
+
+-- Levels dug below the surface (0 if not yet tracked or only dug upward).
+function M.mining_depth()
+    local surface = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/mining/surface_z"))
+    local deepest = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/mining/deepest_z"))
+    if not surface or not deepest then return 0 end
+    local depth = surface - deepest
+    return depth > 0 and depth or 0
+end
+
+-- Cumulative tiles excavated.
+function M.mining_count()
+    return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/mining/dig_count")) or 0
 end
 
 -- ── Job type → production flag mapping ───────────────────────────────────────
