@@ -753,11 +753,13 @@ class DwarfFortressContext(CommonContext):
                 )
                 last_item = self._crafting_locations[crafts]["item"]
                 last_material = self._crafting_locations[crafts]["material"]
-                if amount_crafted_str == "nil" or amount_crafted_str == "0":
+                if not amount_crafted_str or amount_crafted_str.strip() in ("nil", "0", ""):
                     continue
-                else:
-                    amount_crafted = int(amount_crafted_str)
-                    last_count = amount_crafted
+                try:
+                    amount_crafted = int(amount_crafted_str.strip())
+                except (ValueError, AttributeError):
+                    continue
+                last_count = amount_crafted
             if amount_crafted >= self._craftsanity_max_value: #got the last threshold
                 local_checks.append(int(crafts))
                 continue
