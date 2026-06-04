@@ -102,9 +102,24 @@ class DwarfFortressWorld(World):
         #for locations in self.dynamic_locations:
         #    print(f'LocationData("{locations.name}", {locations.ap_id}, "Fortress", False, "{locations.material_type}", "{locations.df_item}", {locations.threshold}),')
 
-        #if self.options.goal == DwarfFortressGoal.option_slay_megabeast:
+        # Goal-based location filtering — mirror of the item removal in
+        # create_items(). The wealth-tier checks are coffer progression locks:
+        # they are only gated (and the Merchant's Coffer items only exist) when
+        # the goal is legendary_wealth. For every other goal, remove these
+        # locations entirely so they don't appear as ungated bonus checks.
+        # rules.py only applies WEALTH_COFFER_RULES for the wealth goal, so it
+        # never looks these up after they're removed here.
+        WEALTH_TIER_LOCATIONS = [
+            "Humble Beginnings (1,000)",
+            "Growing Stronghold (10,000)",
+            "Prosperous Fortress (50,000)",
+            "Rich Citadel (100,000)",
+            "Legendary Vault (500,000)",
+        ]
+        if self.options.goal != DwarfFortressGoal.option_legendary_wealth:
+            for loc_name in WEALTH_TIER_LOCATIONS:
+                self.location_name_to_id.pop(loc_name, None)
 
-    
 
     # ── Generation lifecycle ──────────────────────────────────────────────────
 

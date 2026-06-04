@@ -314,6 +314,12 @@ class DFHackConnection:
             self._send_rpc(self._run_cmd_id, body)
 
             # Drain TextNotification packets until we receive a Result or Error.
+            # IMPORTANT: every reply code must either continue, break, or return.
+            # If an unexpected code falls through with no handling, the loop calls
+            # _recv_rpc() again with nothing left to read and blocks until the
+            # socket timeout fires ("run_command error: timed out"). This happened
+            # when replies got crossed on the shared socket (e.g. an item delivery
+            # running concurrently with another command).
             output_parts: list[str] = []
             while True:
                 reply_id, data = self._recv_rpc()
@@ -326,6 +332,11 @@ class DFHackConnection:
                 elif reply_id == RPC_REPLY_FAIL:
                     logger.warning(f"DFHack RunCommand failed (id={reply_id}): {data!r}")
                     return None
+                else:
+                    # Unexpected reply code — bail rather than block forever.
+                    logger.warning(f"DFHack RunCommand: unexpected reply id={reply_id}, "
+                                   f"treating call as complete")
+                    break
 
             return "".join(output_parts)
 
@@ -391,6 +402,7 @@ class DwarfFortressContext(CommonContext):
         self.dfhack_task = False
         self._poll_interval = 5.0        # seconds between fortress state polls
         self._received_index = 0         # last applied item index
+        self._received_index_loaded = False  # restored from world data this connection?
         self._slot_data_synced = False   # Loaded the correct saved world
         self._goal_complete = False
         self._deathlink_threshold = 5    # dwarves (or %) per DeathLink (overridden by slot data)
@@ -444,6 +456,7 @@ class DwarfFortressContext(CommonContext):
                         self._world_loaded = False
                         self._mod_started = False
                         self._slot_data_synced = False
+                        self._received_index_loaded = False
                         logger.info("Map unloaded — AP operations paused until a save is loaded")
                     await asyncio.sleep(self._poll_interval)
                     continue
@@ -489,11 +502,14 @@ class DwarfFortressContext(CommonContext):
                         logger.debug("Trade depot not yet established — holding checks and item delivery")
 
             except Exception as e:
-                logger.warning(f"DFHack poll error: {e}")
+                # Log the full traceback to the AP client so failures are
+                # actionable rather than a one-line summary.
+                logger.error(f"DFHack poll error: {e!r} — disconnecting and retrying", exc_info=True)
                 self.dfhack.disconnect()
                 self._slot_data_synced = False
                 self._mod_started = False
                 self._world_loaded = False
+                self._received_index_loaded = False
 
             await asyncio.sleep(self._poll_interval)
 
@@ -513,6 +529,29 @@ class DwarfFortressContext(CommonContext):
         """Apply any received AP items that haven't been delivered yet."""
         # self.items_received is populated by CommonClient when the server sends ReceivedItems.
         # We apply items in order starting from self._received_index.
+
+        # Restore the last-applied index from world data once per connection.
+        # Without this, _received_index resets to 0 on every client restart and
+        # every received item is re-delivered — which re-increments counter-based
+        # progression locks (Immigration Wave, Merchant's Coffer, Military
+        # Training) and re-spawns trade goods. The index is persisted per-save in
+        # DFHack world data, so it is the authoritative count of what's applied.
+        if not self._received_index_loaded:
+            raw = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: self.dfhack.run_command(
+                    "lua",
+                    'print(dfhack.persistent.getWorldDataString'
+                    '("dwarfipelago/received_index") or "0")',
+                ),
+            )
+            try:
+                self._received_index = int(raw.strip()) if raw and raw.strip() not in ("", "nil") else 0
+            except (ValueError, AttributeError):
+                self._received_index = 0
+            self._received_index_loaded = True
+            logger.info(f"Restored received item index from world data: {self._received_index}")
+
         pending = len(self.items_received) - self._received_index
         if pending > 0:
             logger.info(f"Applying {pending} pending item(s) starting at index {self._received_index}")
@@ -731,62 +770,84 @@ class DwarfFortressContext(CommonContext):
 
     async def _crafting_location_checks(self):
         """Read new crafting location checks from persistent storage and report them to AP."""
-        print("Running Craftsanity")
         local_checks = []
-        last_item = ""
-        last_material = ""
-        last_count = 0
-        if len(self._completed_crafting_locations) == 0: #not inialized yet
+        if len(self._completed_crafting_locations) == 0:  # not initialized yet
             return
+
+        # Build the set of unique storage keys we need to read, skipping
+        # already-completed locations.
+        key_to_pair: dict[str, tuple[str, str]] = {}
         for crafts in self._crafting_locations:
-            if self._crafting_locations[crafts]["item"] == last_item and self._crafting_locations[crafts]["material"] == last_material:
-                amount_crafted = last_count
-            else:
-                last_count = 0
-                storage_name ="dwarfipelago/craft_count/"
-                if crafts in self._completed_crafting_locations: #this check is already completed
-                    continue
-                if self._crafting_locations[crafts]["material"] == "": #material type doesn't matter, add them all
-                    storage_name += self._crafting_locations[crafts]["item"].replace(" ", "_")
-                else:
-                    storage_name += self._crafting_locations[crafts]["item"].replace(" ", "_") + "_"+self._crafting_locations[crafts]["material"]
-                storage_name = storage_name.lower()
-                amount_crafted_str = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    lambda: self.dfhack.run_command(
-                            "lua",
-                            f'print(dfhack.persistent.getWorldDataString("{storage_name}"))'),
-                )
-                last_item = self._crafting_locations[crafts]["item"]
-                last_material = self._crafting_locations[crafts]["material"]
-                if not amount_crafted_str or amount_crafted_str.strip() in ("nil", "0", ""):
-                    continue
-                try:
-                    amount_crafted = int(amount_crafted_str.strip())
-                except (ValueError, AttributeError):
-                    continue
-                last_count = amount_crafted
-            if amount_crafted >= self._craftsanity_max_value: #got the last threshold
-                local_checks.append(int(crafts))
+            if crafts in self._completed_crafting_locations:
                 continue
+            item     = self._crafting_locations[crafts]["item"]
+            material = self._crafting_locations[crafts]["material"]
+            pair     = (item, material)
+            if pair in key_to_pair.values():
+                continue
+            if material == "":
+                storage_name = "dwarfipelago/craft_count/" + item.replace(" ", "_").lower()
             else:
-                if amount_crafted == 0:
-                    continue
-                if amount_crafted / self._craftsanity_threshold >= self._crafting_locations[crafts]["threshold"]: #threshold met
-                    local_checks.append(int(crafts))
-                    continue
+                storage_name = "dwarfipelago/craft_count/" + (item.replace(" ", "_") + "_" + material).lower()
+            key_to_pair[storage_name] = pair
+
+        if not key_to_pair:
+            return
+
+        # Single batched RPC: read all keys in one Lua call and return JSON.
+        keys_lua = "{" + ",".join(f'"{k}"' for k in key_to_pair) + "}"
+        lua_code = (
+            f"local r={{}};for _,k in ipairs({keys_lua}) do "
+            f"r[k]=dfhack.persistent.getWorldDataString(k) or '0' end;"
+            f"print(require('json').encode(r))"
+        )
+        raw = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: self.dfhack.run_command("lua", lua_code)
+        )
+        if not raw or not raw.strip():
+            return
+        try:
+            counts = json.loads(raw.strip())
+        except json.JSONDecodeError:
+            logger.warning(f"_crafting_location_checks: failed to parse batch result: {raw!r}")
+            return
+
+        # Build (item, material) → count lookup.
+        count_lookup: dict[tuple[str, str], int] = {}
+        for storage_key, pair in key_to_pair.items():
+            val = counts.get(storage_key, "0")
+            try:
+                count_lookup[pair] = int(val) if val and val not in ("nil", "") else 0
+            except (ValueError, AttributeError):
+                count_lookup[pair] = 0
+
+        # Evaluate each location against the counts.
+        for crafts in self._crafting_locations:
+            if crafts in self._completed_crafting_locations:
+                continue
+            item     = self._crafting_locations[crafts]["item"]
+            material = self._crafting_locations[crafts]["material"]
+            amount_crafted = count_lookup.get((item, material), 0)
+            if amount_crafted == 0:
+                continue
+            if amount_crafted >= self._craftsanity_max_value:
+                local_checks.append(int(crafts))
+            elif amount_crafted / self._craftsanity_threshold >= self._crafting_locations[crafts]["threshold"]:
+                local_checks.append(int(crafts))
+
         if local_checks:
-            await self.send_msgs([{
-                "cmd": "LocationChecks",
-                "locations": local_checks,
-            }])
+            await self.send_msgs([{"cmd": "LocationChecks", "locations": local_checks}])
         for location in local_checks:
             location_str = str(location)
             self._completed_crafting_locations.append(location_str)
-            await self.setAPKeyValue("Dwarfipelago/"+str(self.seed)+"/completed_locations", self._completed_crafting_locations)
+            await self.setAPKeyValue(
+                "Dwarfipelago/" + str(self.seed) + "/completed_locations",
+                self._completed_crafting_locations,
+            )
             location_name = self._crafting_locations[location_str]["location_name"]
-            self.dfhack.run_command("lua", f'dfhack.gui.showAnnouncement("{location_name} Completed!", COLOR_GREEN)')
-        print("done checking Craftsanity")
+            self.dfhack.run_command(
+                "lua", f'dfhack.gui.showAnnouncement("{location_name} Completed!", COLOR_GREEN)'
+            )
 
     async def setAPKeyValue(self, key:str, value:list[int]):
         await self.send_msgs([{
