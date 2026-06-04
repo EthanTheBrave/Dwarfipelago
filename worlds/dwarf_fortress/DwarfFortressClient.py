@@ -502,11 +502,14 @@ class DwarfFortressContext(CommonContext):
                         logger.debug("Trade depot not yet established — holding checks and item delivery")
 
             except Exception as e:
-                logger.warning(f"DFHack poll error: {e}")
+                # Log the full traceback to the AP client so failures are
+                # actionable rather than a one-line summary.
+                logger.error(f"DFHack poll error: {e!r} — disconnecting and retrying", exc_info=True)
                 self.dfhack.disconnect()
                 self._slot_data_synced = False
                 self._mod_started = False
                 self._world_loaded = False
+                self._received_index_loaded = False
 
             await asyncio.sleep(self._poll_interval)
 

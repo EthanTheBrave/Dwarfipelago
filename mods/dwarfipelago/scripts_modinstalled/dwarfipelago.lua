@@ -12,6 +12,7 @@
 local state  = reqscript("internal/dwarfipelago/state")
 local checks = reqscript("internal/dwarfipelago/checks")
 local items  = reqscript("internal/dwarfipelago/items")
+local log    = reqscript("internal/dwarfipelago/log")
 local json   = require('json')
 
 -- DFHack built-in plugins use the standard require().
@@ -226,7 +227,7 @@ local function apply_pending_recv_deathlinks()
         if ok then
             killed = killed + 1
         else
-            dfhack.printerr("[Dwarfipelago] kill unit failed: " .. tostring(err))
+            log.error("kill unit failed: " .. tostring(err))
         end
     end
     applying_recv_deathlink = false
@@ -738,7 +739,7 @@ ensure_trade_depot = function()
         end
     end
     if not sx then
-        dfhack.printerr("[Dwarfipelago] ensure_trade_depot: no position found — will retry next load")
+        log.warn("ensure_trade_depot: no position found — will retry next load")
         return
     end
 
@@ -829,7 +830,7 @@ ensure_trade_depot = function()
     end
 
     if not bld then
-        dfhack.printerr("[Dwarfipelago] Failed to place trade depot in any direction")
+        log.error("Failed to place trade depot in any direction")
         return
     end
 
@@ -864,6 +865,7 @@ end
 local function start()
     state.set_enabled(true)
     dfhack.persistent.saveWorldDataString("dwarfipelago/version", SCRIPT_VERSION)
+    log.info(("Started (v%s). Log file: %s"):format(SCRIPT_VERSION, log.path()))
     -- Register hooks
     eventful.onJobCompleted[SCRIPT_NAME]        = on_job_completed
     eventful.onUnitDeath[SCRIPT_NAME]           = on_unit_death
