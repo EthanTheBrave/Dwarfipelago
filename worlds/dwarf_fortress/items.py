@@ -79,7 +79,7 @@ PROGRESSION_LOCK_ITEMS: list[ItemData] = [
     ItemData("Duke's Charter",       BASE_ID + 634, ItemClassification.progression),
     ItemData("Monarch's Invitation", BASE_ID + 635, ItemClassification.progression),
     # Slay Megabeast: 3 training items gate megabeast goal
-    ItemData("Military Training",    BASE_ID + 636, ItemClassification.progression, quantity=3),
+    ItemData("Military Training",    BASE_ID + 636, ItemClassification.progression, quantity=4),
 ]
 
 USEFUL_ITEMS: list[ItemData] = [

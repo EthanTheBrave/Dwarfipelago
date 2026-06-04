@@ -624,24 +624,51 @@ local function recv_monarchs_invitation()
     announce("Monarch's Invitation received! The Monarch may now take residence.")
 end
 
+-- Escalating combat gear granted by Military Training tiers 1-3. These are
+-- rewards that help the player prepare for the megabeast — not punishments.
+-- All spawns go through spawn_item, which is pcall-guarded and logs failures;
+-- each tier also includes steel bars so the player always gets usable material
+-- even if a particular weapon/armor token isn't accepted by this DF version.
+local function grant_war_gear(tier)
+    if tier == 1 then
+        -- Arm the recruits: a pair of steel weapons + bars to spare.
+        spawn_item("WEAPON:ITEM_WEAPON_AXE_BATTLE",  "INORGANIC:STEEL")
+        spawn_item("WEAPON:ITEM_WEAPON_SWORD_SHORT", "INORGANIC:STEEL")
+        spawn_item("BAR", "INORGANIC:STEEL", 5)
+    elseif tier == 2 then
+        -- Armor the soldiers: torso, head, and shield.
+        spawn_item("ARMOR:ITEM_ARMOR_BREASTPLATE", "INORGANIC:STEEL")
+        spawn_item("HELM:ITEM_HELM_HELM",          "INORGANIC:STEEL")
+        spawn_item("SHIELD:ITEM_SHIELD_SHIELD",    "INORGANIC:STEEL")
+        spawn_item("BAR", "INORGANIC:STEEL", 5)
+    elseif tier == 3 then
+        -- Outfit the elite: full limb protection + heavier weapons.
+        spawn_item("GLOVES:ITEM_GLOVES_GAUNTLETS", "INORGANIC:STEEL")
+        spawn_item("PANTS:ITEM_PANTS_GREAVES",     "INORGANIC:STEEL")
+        spawn_item("SHOES:ITEM_SHOES_BOOTS",       "INORGANIC:STEEL")
+        spawn_item("WEAPON:ITEM_WEAPON_SPEAR",     "INORGANIC:STEEL")
+        spawn_item("WEAPON:ITEM_WEAPON_HAMMER_WAR","INORGANIC:STEEL")
+        spawn_item("BAR", "INORGANIC:STEEL", 5)
+    end
+end
+
 local function recv_military_training()
     local key = "dwarfipelago/unlock/military_training"
     local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
     dfhack.persistent.saveWorldDataString(key, tostring(n))
 
     if n == 1 then
-        announce("Military Training received! Ancient combat techniques studied... (1/3)")
-        dfhack.gui.showAnnouncement(
-            "[AP] A deep rumbling echoes from below. Something has noticed your fortress.",
-            COLOR_YELLOW, true)
+        grant_war_gear(1)
+        announce("Military Training received! Your recruits are armed with steel weapons. (1/4)")
     elseif n == 2 then
-        announce("Military Training received! Your soldiers sharpen their blades... (2/3)")
-        dfhack.gui.showAnnouncement(
-            "[AP] A creature stirs in the tunnels — a precursor to something far worse.",
-            COLOR_YELLOW, true)
-        spawn_precursor_threat()
+        grant_war_gear(2)
+        announce("Military Training received! Your soldiers don steel armor. (2/4)")
+    elseif n == 3 then
+        grant_war_gear(3)
+        announce("Military Training received! Your elite are fully equipped — the beast nears. (3/4)")
     else
-        announce("Military Training received! Your military is ready — the beast awakens! (3/3)")
+        -- Tier 4: the military is ready; summon the target megabeast.
+        announce("Military Training received! Your military is ready — the beast awakens! (4/4)")
         spawn_target_megabeast()
     end
 end
