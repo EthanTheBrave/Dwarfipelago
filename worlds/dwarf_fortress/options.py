@@ -79,9 +79,15 @@ class EnableCraftsanity(Choice):
 class CraftsanityItemGroup(Choice):
     """
     Selects which items count as craftsanity location checks.
-    Easy: 10 basic items craftable from the very start.
-    Medium: 25 early-game items across common workshops.
-    Hard: ~45 items spanning early and late game production.
+    Easy: 10 basic items craftable from the very start. 
+    (Beds, Blocks, Alcohol, Chair, Table, Door, Barrel, Bucket, Container, Cloth)
+
+    Medium: 25 early-game items across common workshops. 
+    (Easy + Crafts, Mechanism, Cage, Leather, Prepared Meal, Bin, Cabinet, Floodgate, Animal Trap, Statue, Armor Stand, Pedestal, Weapon Rack, Corkscrew, Bookcase)
+
+    Hard: ~45 items spanning early and late game production. 
+    (Easy + Medium + Metal Bars, Glass, Ash, Charcoal, Helm, Upper Body Armor, Gauntlets, Lower Body Armor, Crossbow, Bolt, Battle Axe, Short Sword,
+    War Hammer, Anvil, Rope/Chain, Coins, Goblet, Tallow, Oil, Dye, Traction Bench)
     Craftsanity: Every craftable item becomes a check.
     Choose: Pick items manually using the 'Craftsanity Items Locations' list below.
     """
@@ -157,7 +163,7 @@ class CraftsanityThreshold(Range):
 class StartingDefaultDFInventory(StartInventory):
     """Starting Blueprints to make your starting game less "fun" """
     display_name = "Start Inventory"
-    default = {"Carpenter's Workshop Blueprint": 1, "Stoneworker's Workshop Blueprint": 1, "Still Blueprint": 1}
+    default = {"Carpenter's Workshop Blueprint": 1, "Stoneworker's Workshop Blueprint": 1, "Still Blueprint": 1, "Farm Plot Blueprint": 1}
 
 @dataclass
 class DwarfFortressOptions(PerGameCommonOptions):
