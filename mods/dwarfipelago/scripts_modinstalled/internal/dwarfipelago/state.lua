@@ -171,6 +171,10 @@ function M.reset()
     dfhack.persistent.saveWorldDataString("dwarfipelago/mining/surface_z", "")
     dfhack.persistent.saveWorldDataString("dwarfipelago/mining/deepest_z", "")
     dfhack.persistent.saveWorldDataString("dwarfipelago/mining/dig_count", "")
+    dfhack.persistent.saveWorldDataString("dwarfipelago/mining/cavern1", "")
+    dfhack.persistent.saveWorldDataString("dwarfipelago/mining/cavern2", "")
+    dfhack.persistent.saveWorldDataString("dwarfipelago/mining/cavern3", "")
+    dfhack.persistent.saveWorldDataString("dwarfipelago/mining/magma", "")
     for _, flag in ipairs(CRAFT_FLAGS) do
         dfhack.persistent.saveWorldDataString("dwarfipelago/craft_count/" .. flag, "")
     end
