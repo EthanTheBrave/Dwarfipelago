@@ -35,6 +35,7 @@ mods\dwarfipelago\
       dwarfipelago\
         checks.lua
         items.lua
+        log.lua
         state.lua
 ```
 
@@ -119,3 +120,8 @@ On the first poll tick after your fortress loads, the mod automatically places a
 | **Trade depot not appearing** | See the Trade Depot section above |
 | **Items not arriving** | Check the client log window; items are delivered via DFHack RPC once the depot is established |
 | **Checks fire immediately on world load** | Ensure you are running Archipelago 0.6.7 and the latest mod version |
+
+### Where to find errors
+
+- **AP client window** — client, RPC, and network errors, with full tracebacks.
+- **`<Dwarf Fortress>/dwarfipelago.log`** — in-game mod errors (item spawn failures, trade depot placement, etc.). The path is printed to the DFHack console on start; print it any time with `lua print(reqscript("internal/dwarfipelago/log").path())`.

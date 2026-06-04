@@ -71,6 +71,8 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/deathlink_threshold` | Integer string | Python | Dwarves (or % of pop) per DeathLink send/receive; option max is 50 |
 | `dwarfipelago/deathlink_percentage` | `"0"` or `"1"` | Python | When `"1"`, threshold is treated as % of current population instead of a flat count |
 | `dwarfipelago/seed` | Integer string | Python | World identity — used to scope AP storage keys and detect wrong-world loads |
+| `dwarfipelago/received_index` | Integer string | Python | Count of received AP items already applied in-game; restored on reconnect so items aren't re-delivered (and counter-based progression items aren't double-counted) |
+| `dwarfipelago/version` | Version string | Lua | Mod version recorded on `start()` |
 | `dwarfipelago/craftsanity_enabled` | `"0"`, `"1"`, or `"2"` | Python | Craftsanity mode: 0=off, 1=on (crafted), 2=storage |
 | `dwarfipelago/craftsanity_materials` | `"0"` or `"1"` | Python | When `"1"`, craft counts are split by material type (e.g. `Barrel_Wood` vs `Barrel_Metal`) |
 
@@ -101,7 +103,7 @@ Produced by the `onItemCreated` eventful hook and by `StoreItemInStockpile` job 
 
 `material` is the `matinfo:toString()` format: `"inorganic/IRON"`, `"plant/OAK"`, `"creature/DWARF/SKIN"`, etc.
 
-Skipped types (never queued): `CORPSE`, `CORPSEPIECE`, `VERMIN`, `PLANT`, `PLANT_GROWTH`
+Skipped types (never queued): `CORPSE`, `CORPSEPIECE`, `REMAINS`, `VERMIN`, `PLANT`, `PLANT_GROWTH`, `FISH_RAW`, `BODY_PARTS`
 
 Queue is capped at 500 entries — if Python falls behind, oldest events are dropped.
 
@@ -124,35 +126,33 @@ Example:
 | `dwarfipelago/craft_count/Glass` | Total Glass items (Glass has only one material type, so always stored without suffix) |
 
 
-#### Craft item flags (items crafted at a workshop)
-| Flag | Job type(s) |
-|------|-------------|
-| `altar` | MakeTotem |
-| `door` | MakeDoor |
-| `cage` | MakeCage |
-| `bin` | MakeBox |
-| `blocks` | CutBlock |
-| `wheelbarrow` | MakeWheelbarrow |
-| `grate` | MakeGrate |
-| `corkscrew` | MakeCorkscrew |
-| `animal_trap` | MakeAnimalTrap |
-| `ball` | MakeBall |
-| `armor_stand` | MakeArmorStand |
-| `pedestal` | MakePedestal |
-| `bucket` | MakeBucket |
-| `spike` | MakeSpike |
+#### How a completed job becomes a flag
 
-#### Craft material flags (determined by job + primary material)
-| Flag | How it's triggered |
-|------|--------------------|
-| `cloth` | WeaveCloth, ProcessPlants |
-| `leather` | TanHide |
-| `metal` | SmeltOre, MeltMetalObject |
-| `glass` | MakeGlass |
-| `ceramic` | MakeCeramicItem (Kiln) |
-| `stone` | MakeCrafts / CarveFurniture / CarveStatue with inorganic non-metal material |
-| `wood` | MakeCrafts / CarveFurniture with plant material |
-| `bone` | MakeCrafts / CarveBone with creature material |
+`checks.job_to_craft_flag(job)` (in `checks.lua`) maps a finished job to the
+craft-count flag it should increment. The authoritative mapping lives in
+`checks.lua` and is built from these tables — refer to the source rather than
+duplicating the full list here, as it spans ~100 item types:
+
+- **`JOB_TO_CRAFT_FLAG`** (`cmap` calls) — maps a `df.job_type` directly to a
+  flag, e.g. `ConstructDoor → "door"`, `MakeCage → "cage"`,
+  `ConstructBlocks → "blocks"`, `MakeCrafts → "crafts"`,
+  `SmeltOre → "metal_bars"`, `MakeRawGlass → "glass"`.
+- **Subtype dispatch** — some jobs resolve to a flag via the item's
+  `item_subtype` using the `TOOL_SUBTYPE_FLAG`, `TRAP_SUBTYPE_FLAG`,
+  `SHIELD_SUBTYPE_FLAG`, `WEAPON_SUBTYPE_FLAG`, `HELM_SUBTYPE_FLAG`,
+  `GOBLET_SUBTYPE_FLAG`, `REACTION_SUBTYPE_FLAG`, `UARMOR_SUBTYPE_FLAG`,
+  `GARMOR_SUBTYPE_FLAG`, and `LARMOR_SUBTYPE_FLAG` tables. For example a
+  `MakeWeapon` job resolves to `"battle_axe"`, `"short_sword"`, etc. by subtype.
+- **Material dispatch** — for `MakeCrafts`, `CarveBone`, `CarveStatue`, and
+  `CarveFurniture` (the `NEEDS_MAT_CHECK` set), the flag comes from the job's
+  primary material: inorganic-metal → `metal`, other inorganic → `stone`,
+  plant → `wood`, creature → `bone`.
+
+> **Note:** the flag strings produced here must match the storage-key suffixes
+> the Python client initializes in `init_crafting_locations` (derived from each
+> AP location's `item`/`material`, lowercased with spaces → underscores). If a
+> craft count never increments, a flag/key-name mismatch between `checks.lua`
+> and the AP location data is the first thing to check.
 
 ---
 
@@ -203,7 +203,8 @@ Load them from Python via `reqscript("internal/dwarfipelago/<module>")`.
 | `job_to_craft_flag(job)` | fn → string\|nil | Maps a completed job to its craft-count flag |
 | `increment_craft_count(flag)` | fn → int | Increment and persist a craft count, returns new total |
 | `get_craft_count(flag)` | fn → int | Read current craft count for a flag |
-| `fortress_wealth()` | fn → int | Current total fortress wealth |
+| `fortress_wealth()` | fn → int | Current total fortress wealth (items + buildings + stocks) |
+| `treasury_wealth()` | fn → int | Combined value of minted coins + cut gems in stocks (used by the legendary_wealth goal and wealth-tier checks) |
 
 ### `state`
 
@@ -220,6 +221,20 @@ Load them from Python via `reqscript("internal/dwarfipelago/<module>")`.
 | `mark_goal_complete()` | fn → bool | Set goal complete; returns true if first time |
 | `dump()` | fn | Print full state summary to DFHack console |
 | `reset()` | fn | Wipe all persistent state (use with care) |
+
+### `log`
+
+Levelled logging that writes to a file **and** mirrors to the DFHack console.
+The log file lives next to the DF executable: `<Dwarf Fortress>/dwarfipelago.log`
+(auto-rotated at 1 MB, keeping one `.old` backup). The exact path is printed to
+the console when the mod starts.
+
+| Symbol | Type | Description |
+|--------|------|-------------|
+| `info(msg)` | fn | Log at INFO; mirrors to console via `print` |
+| `warn(msg)` | fn | Log at WARN; mirrors to console via `printerr` |
+| `error(msg)` | fn | Log at ERROR; mirrors to console via `printerr` |
+| `path()` | fn → string | Absolute path to the active log file |
 
 ---
 
@@ -316,8 +331,17 @@ dwarfipelago receive "Gold Bar"
 # Peek at any storage key
 lua print(dfhack.persistent.getWorldDataString("dwarfipelago/pending_item_created"))
 lua print(dfhack.persistent.getWorldDataString("dwarfipelago/pending_checks"))
-lua print(dfhack.persistent.getWorldDataString("dwarfipelago/craft_checks"))
 
-# Print current craft counts
-lua reqscript("internal/dwarfipelago/checks").print_craft_counts()
+# Read a single craft count (use single quotes to avoid the console eating the string)
+lua print(dfhack.persistent.getWorldDataString('dwarfipelago/craft_count/door'))
+
+# Craft counts are included in the full status dump
+dwarfipelago status
+
+# Show where the mod log file is written
+lua print(reqscript("internal/dwarfipelago/log").path())
 ```
+
+> The mod log file (`<Dwarf Fortress>/dwarfipelago.log`) captures spawn failures,
+> depot placement, and other in-game errors. The AP client window captures
+> client/RPC/network errors with full tracebacks.

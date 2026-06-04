@@ -177,7 +177,9 @@ Workshop blueprints are the core Archipelago mechanic. Other players find your b
 
 ### Progression Locks
 
-Four systems of **progression lock items** gate milestone checks and goal completion. These items are found by your multiworld partners and sent to you; each one received unlocks the next tier of checks or advances your goal progress. All progression lock items are always present in the multiworld pool regardless of which goal you selected.
+Four systems of **progression lock items** gate milestone checks and goal completion. These items are found by your multiworld partners and sent to you; each one received unlocks the next tier of checks or advances your goal progress.
+
+Progression locks are **filtered by your selected goal** — only the systems relevant to your goal are added to the multiworld pool, and lock-only locations that don't apply to your goal (e.g. the coffer-gated wealth tiers when you aren't playing Legendary Wealth) are omitted entirely.
 
 #### Merchant's Coffer (x5) - Treasury Tiers
 
@@ -195,7 +197,7 @@ The **Legendary Wealth** goal also requires all 5 coffers and a treasury value a
 
 #### Immigration Wave (x5) - Population Growth
 
-Five waves gate the five fortress title checks (Hamlet through Metropolis) and scale up the population requirement for every goal's completion condition.
+Five waves gate the five fortress title checks (Hamlet through Metropolis) and scale up the population requirement for every goal's completion condition. Each Immigration Wave received also brings a small group of dwarves into your fortress as new citizens, so receiving them genuinely grows your population.
 
 | Waves received | Title check unlocked | Also gates |
 |---|---|---|
@@ -247,7 +249,14 @@ Dwarfipelago supports Archipelago's DeathLink system with a configurable thresho
 - **Mod doesn't start automatically** - load a fortress first and wait ~5 seconds; you can also run `dwarfipelago start` manually in the DFHack console
 - **Items not arriving** - check the client log window; items are delivered via DFHack script calls when the client is connected
 
-For full setup details see [`worlds/dwarf_fortress/docs/setup_en.md`](worlds/dwarf_fortress/docs/setup_en.md).
+### Where to find errors
+
+There are two separate error logs:
+
+- **AP client window** - client, RPC, and network errors (with full tracebacks). This is the window opened by the **Dwarf Fortress Client** launcher button.
+- **`<Dwarf Fortress>/dwarfipelago.log`** - in-game mod errors (item spawn failures, trade depot placement, etc.). The exact path is printed to the DFHack console when the mod starts; you can also print it with `lua print(reqscript("internal/dwarfipelago/log").path())`.
+
+For full setup details see [`worlds/dwarf_fortress/docs/setup_en.md`](worlds/dwarf_fortress/docs/setup_en.md). For the Lua ↔ Python interface, see [`LUA_INTERFACE.md`](LUA_INTERFACE.md).
 
 </details>
 
