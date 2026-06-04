@@ -84,8 +84,26 @@ TITLE_LOCATIONS: list[LocationData] = [
 ]
 
 
+# ── Mining Milestones ─────────────────────────────────────────────────────────
+# Depth = surface z-level minus the deepest z any mining job has reached.
+# Tiles = cumulative count of completed dig/channel/staircase/ramp jobs.
+# IDs match checks.lua (BASE_ID + 700 depth, +710 tiles).
+MINING_LOCATIONS: list[LocationData] = [
+    LocationData("Delved 10 Levels Deep",       BASE_ID + 700, "Fortress"),
+    LocationData("Delved 25 Levels Deep",       BASE_ID + 701, "Fortress"),
+    LocationData("Delved 50 Levels Deep",       BASE_ID + 702, "Fortress"),
+    LocationData("Delved 75 Levels Deep",       BASE_ID + 703, "Fortress"),
+    LocationData("Delved 100 Levels Deep",      BASE_ID + 704, "Fortress"),
+    LocationData("Excavator I (100 tiles)",     BASE_ID + 710, "Fortress"),
+    LocationData("Excavator II (500 tiles)",    BASE_ID + 711, "Fortress"),
+    LocationData("Excavator III (2,000 tiles)", BASE_ID + 712, "Fortress"),
+    LocationData("Excavator IV (5,000 tiles)",  BASE_ID + 713, "Fortress"),
+    LocationData("Excavator V (10,000 tiles)",  BASE_ID + 714, "Fortress"),
+]
+
+
 ALL_LOCATIONS: list[LocationData] = (
     WEALTH_LOCATIONS + PRODUCTION_LOCATIONS + TRADE_LOCATIONS
-    + STATUS_LOCATIONS + TITLE_LOCATIONS + CRAFTING_LOCATIONS
+    + STATUS_LOCATIONS + TITLE_LOCATIONS + MINING_LOCATIONS + CRAFTING_LOCATIONS
 )
 LOCATION_TABLE: dict[str, int] = {loc.name: loc.ap_id for loc in ALL_LOCATIONS}

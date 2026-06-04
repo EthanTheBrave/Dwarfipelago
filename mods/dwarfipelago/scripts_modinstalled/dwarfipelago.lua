@@ -28,6 +28,17 @@ local POLL_TICKS  = 100  -- poll wealth/trade/goal checks every N ticks
 -- hook does not count those kills toward our own outgoing DeathLink threshold.
 local applying_recv_deathlink = false
 
+-- Job types that count as "mining" for the depth / tiles-excavated milestones.
+-- Built defensively so names absent in a given DF version are skipped.
+local MINING_JOBS = {}
+for _, name in ipairs({
+    "Dig", "CarveUpwardStaircase", "CarveDownwardStaircase",
+    "CarveUpDownStaircase", "CarveRamp", "DigChannel",
+}) do
+    local v = df.job_type[name]
+    if v ~= nil then MINING_JOBS[v] = true end
+end
+
 -- Per-session tracking for "milestone reached but locked" notifications.
 -- Keyed by AP location ID; prevents repeating the same announcement every poll.
 local _notified_locked = {}
@@ -401,6 +412,17 @@ local function poll_checks()
     -- fully live and the simulation is running.
     if not dfhack.isMapLoaded() then return end
 
+    -- Capture the surface z-level once, early (before much digging), from a
+    -- living citizen's position. Used as the reference for mining-depth checks.
+    if not tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/mining/surface_z")) then
+        for _, unit in ipairs(df.global.world.units.active) do
+            if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+                dfhack.persistent.saveWorldDataString("dwarfipelago/mining/surface_z", tostring(unit.pos.z))
+                break
+            end
+        end
+    end
+
     -- All AP checks are gated on a trade depot existing.  ensure_trade_depot
     -- retries every poll tick (every POLL_TICKS game ticks) until it succeeds,
     -- so it naturally defers until units and map data are fully loaded.
@@ -456,6 +478,23 @@ local function on_job_completed(job)
             checks.increment_craft_count("bee_wax")
         elseif craft_flag == "oil" then
             checks.increment_craft_count("press_cake")
+        end
+    end
+
+    -- Mining tracking — count excavation jobs and record the deepest z reached.
+    -- Drives the depth and tiles-mined milestone checks (checks.lua).
+    if MINING_JOBS[job.job_type] then
+        local key_c = "dwarfipelago/mining/dig_count"
+        local n = (tonumber(dfhack.persistent.getWorldDataString(key_c)) or 0) + 1
+        dfhack.persistent.saveWorldDataString(key_c, tostring(n))
+
+        local ok, jz = pcall(function() return job.pos.z end)
+        if ok and jz then
+            local key_d = "dwarfipelago/mining/deepest_z"
+            local cur = tonumber(dfhack.persistent.getWorldDataString(key_d))
+            if not cur or jz < cur then
+                dfhack.persistent.saveWorldDataString(key_d, tostring(jz))
+            end
         end
     end
 
