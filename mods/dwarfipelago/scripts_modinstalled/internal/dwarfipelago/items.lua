@@ -238,15 +238,16 @@ local function recv_dwarven_steel_sword()
 end
 
 local function recv_fine_cloth()
-    spawn_item("CLOTH", "PLANT_MAT:ROPE_REED:THREAD", 3)
+    -- Pig tail is the iconic dwarven fibre crop; its thread material makes cloth.
+    spawn_item("CLOTH", "PLANT_MAT:GRASS_TAIL_PIG:THREAD", 3)
     announce("Received: Fine Cloth!")
 end
 
 local function recv_adamantine_fiber()
-    -- Adamantine cloth material token may vary by DF version; fall back to fine cloth.
+    -- Adamantine cloth material token may vary by DF version; fall back to cloth.
     local ok = pcall(spawn_item, "CLOTH", "INORGANIC:ADAMANTINE", 2)
     if not ok then
-        spawn_item("CLOTH", "PLANT_MAT:ROPE_REED:THREAD", 3)
+        spawn_item("CLOTH", "PLANT_MAT:GRASS_TAIL_PIG:THREAD", 3)
     end
     announce("Received: Adamantine Fiber!")
 end
