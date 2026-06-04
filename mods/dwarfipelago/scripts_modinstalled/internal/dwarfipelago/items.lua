@@ -302,70 +302,122 @@ local function recv_goblin_trophy()
 end
 
 -- ── Item handlers: traps ──────────────────────────────────────────────────────
+-- The hostile-spawn traps use modtools/create-unit, which is broken on some DF
+-- builds ("Cannot read field world.arena_spawn"). Each trap attempts the spawn
+-- (retrying once to clear the script's "untested version" warning) and falls
+-- back to a reliable non-spawn effect when spawning isn't available, so the trap
+-- always does *something*.
+
+-- Run modtools/create-unit, retrying once past the untested-version warning.
+-- Returns true if the call completed without error.
+local function try_create_unit(args)
+    for _ = 1, 2 do
+        local ok = pcall(function()
+            dfhack.run_script("modtools/create-unit", table.unpack(args))
+        end)
+        if ok then return true end
+    end
+    return false
+end
+
+-- Add `amount` stress to up to `count` random living citizens (all if count nil).
+-- Returns how many were affected.
+local function stress_citizens(amount, count)
+    local citizens = {}
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit)
+                and unit.status.current_soul then
+            table.insert(citizens, unit)
+        end
+    end
+    for i = #citizens, 2, -1 do
+        local j = math.random(i)
+        citizens[i], citizens[j] = citizens[j], citizens[i]
+    end
+    local n = count and math.min(count, #citizens) or #citizens
+    for i = 1, n do
+        local soul = citizens[i].status.current_soul
+        pcall(function()
+            soul.personality.stress = (soul.personality.stress or 0) + amount
+        end)
+    end
+    return n
+end
+
+-- Destroy up to `max_items` food/drink items (vermin eating stores). Collects
+-- first, then removes, so we never mutate the list mid-iteration.
+local FOOD_ITEM_TYPES = {
+    FOOD = true, MEAT = true, FISH = true, CHEESE = true, EGG = true,
+    PLANT = true, PLANT_GROWTH = true, DRINK = true, GLOB = true,
+}
+local function destroy_food(max_items)
+    local targets = {}
+    for _, item in ipairs(df.global.world.items.all) do
+        if #targets >= max_items then break end
+        local ok, tn = pcall(function() return df.item_type[item:getType()] end)
+        if ok and FOOD_ITEM_TYPES[tn] then table.insert(targets, item) end
+    end
+    local removed = 0
+    for _, item in ipairs(targets) do
+        if pcall(function() dfhack.items.remove(item) end) then removed = removed + 1 end
+    end
+    return removed
+end
 
 local function recv_goblin_ambush()
-    announce("Trap: Goblin Ambush incoming!")
-    -- Spawn 3 hostile goblins via modtools/create-unit.
-    -- -location is required; we anchor to a living citizen's tile.
-    -- Goblins are assigned to their civilisation's civ ID so they are treated as
-    -- enemies. -setUnitToFort is intentionally NOT used — that would make them
-    -- friendly fortress members instead of raiders.
-    local x, y, z   = get_fort_spawn_pos()
+    -- Goblins as enemies (civ ID set, NOT setUnitToFort which would make them
+    -- friendly fortress members).
+    local x, y, z    = get_fort_spawn_pos()
     local civ_id_str = tostring(find_goblin_civ_id())
-    local ok, err = pcall(function()
-        for _ = 1, 3 do
-            dfhack.run_script("modtools/create-unit",
-                "-race",     "GOBLIN",
-                "-civId",    civ_id_str,
-                "-groupId",  "-1",
-                "-location", "[", x, y, z, "]"
-            )
+    local spawned = 0
+    for _ = 1, 3 do
+        if try_create_unit({"-race", "GOBLIN", "-civId", civ_id_str,
+                            "-groupId", "-1", "-location", "[", x, y, z, "]"}) then
+            spawned = spawned + 1
         end
-    end)
-    if not ok then
-        log.error("goblin_ambush spawn failed: " .. tostring(err))
+    end
+    if spawned > 0 then
+        announce("Trap: Goblin Ambush! Raiders have breached the fortress!")
+    else
+        -- Fallback: the fear of a raid rattles the whole fortress.
+        local n = stress_citizens(60000)
+        log.warn("goblin_ambush: create-unit unavailable, applied raid-fear stress to " .. n .. " dwarves")
+        announce("Trap: A goblin ambush descends — panic grips your dwarves!")
     end
 end
 
 local function recv_cave_bear()
-    announce("Trap: A Cave Bear has found its way in!")
-    -- Wild (civId=-1) cave bear — wild animals attack dwarves on sight.
-    -- -setUnitToFort is intentionally NOT used as that would tame the bear.
     local x, y, z = get_fort_spawn_pos()
-    local ok, err = pcall(function()
-        dfhack.run_script("modtools/create-unit",
-            "-race",     "CAVE_BEAR",
-            "-civId",    "-1",
-            "-groupId",  "-1",
-            "-location", "[", x, y, z, "]"
-        )
-    end)
-    if not ok then
-        log.error("cave_bear spawn failed: " .. tostring(err))
+    if try_create_unit({"-race", "CAVE_BEAR", "-civId", "-1",
+                        "-groupId", "-1", "-location", "[", x, y, z, "]"}) then
+        announce("Trap: A Cave Bear has found its way in!")
+    else
+        -- Fallback: a beast in the dark badly shakes a few dwarves.
+        local n = stress_citizens(120000, 3)
+        log.warn("cave_bear: create-unit unavailable, applied beast-scare stress to " .. n .. " dwarves")
+        announce("Trap: Something large and angry stalks your tunnels...")
     end
 end
 
 local function recv_vermin_infestation()
-    announce("Trap: Vermin Infestation! Giant rats everywhere!")
-    -- RAT is a [VERMIN_SOIL] creature and cannot be spawned as a full unit.
-    -- GIANT_RAT is a proper hostile creature that serves the same narrative role.
-    -- Wild (civId=-1) so they attack dwarves. Spread across a 10-tile radius.
+    -- GIANT_RAT (a real hostile creature) stands in for vermin, spread over a
+    -- 10-tile radius.
     local x, y, z = get_fort_spawn_pos()
     local spawned = 0
     for _ = 1, 10 do
-        local ok = pcall(function()
-            dfhack.run_script("modtools/create-unit",
-                "-race",          "GIANT_RAT",
-                "-civId",         "-1",
-                "-groupId",       "-1",
-                "-location",      "[", x, y, z, "]",
-                "-locationRange", "[", "10", "10", "0", "]"
-            )
-        end)
-        if ok then spawned = spawned + 1 end
+        if try_create_unit({"-race", "GIANT_RAT", "-civId", "-1", "-groupId", "-1",
+                            "-location", "[", x, y, z, "]",
+                            "-locationRange", "[", "10", "10", "0", "]"}) then
+            spawned = spawned + 1
+        end
     end
-    if spawned == 0 then
-        log.error("vermin_infestation: could not spawn any giant rats")
+    if spawned > 0 then
+        announce("Trap: Vermin Infestation! Giant rats everywhere!")
+    else
+        -- Fallback: vermin devour part of your food and drink stores.
+        local eaten = destroy_food(20)
+        log.warn("vermin_infestation: create-unit unavailable, vermin ate " .. eaten .. " food/drink items")
+        announce(("Trap: Vermin Infestation! They have devoured %d of your stores."):format(eaten))
     end
 end
 
