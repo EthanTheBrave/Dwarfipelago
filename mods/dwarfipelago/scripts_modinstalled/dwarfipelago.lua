@@ -774,7 +774,20 @@ end
 
 local function on_item_created(item_id)
     if not state.is_enabled() then return end
-    local info = item_to_info(df.item.find(item_id))
+    local item = df.item.find(item_id)
+
+    -- Count harvested crops (PLANT items) for the farming milestone checks.
+    -- item_to_info skips PLANT for the event queue, so we count it here directly.
+    if item then
+        local ok, t = pcall(function() return df.item_type[item:getType()] end)
+        if ok and t == "PLANT" then
+            local key = "dwarfipelago/farming/crop_count"
+            local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
+            dfhack.persistent.saveWorldDataString(key, tostring(n))
+        end
+    end
+
+    local info = item_to_info(item)
     if info then
         queue_item_event("dwarfipelago/pending_item_created", info)
     end
