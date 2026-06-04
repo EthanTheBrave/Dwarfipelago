@@ -402,6 +402,7 @@ class DwarfFortressContext(CommonContext):
         self.dfhack_task = False
         self._poll_interval = 5.0        # seconds between fortress state polls
         self._received_index = 0         # last applied item index
+        self._received_index_loaded = False  # restored from world data this connection?
         self._slot_data_synced = False   # Loaded the correct saved world
         self._goal_complete = False
         self._deathlink_threshold = 5    # dwarves (or %) per DeathLink (overridden by slot data)
@@ -455,6 +456,7 @@ class DwarfFortressContext(CommonContext):
                         self._world_loaded = False
                         self._mod_started = False
                         self._slot_data_synced = False
+                        self._received_index_loaded = False
                         logger.info("Map unloaded — AP operations paused until a save is loaded")
                     await asyncio.sleep(self._poll_interval)
                     continue
@@ -524,6 +526,29 @@ class DwarfFortressContext(CommonContext):
         """Apply any received AP items that haven't been delivered yet."""
         # self.items_received is populated by CommonClient when the server sends ReceivedItems.
         # We apply items in order starting from self._received_index.
+
+        # Restore the last-applied index from world data once per connection.
+        # Without this, _received_index resets to 0 on every client restart and
+        # every received item is re-delivered — which re-increments counter-based
+        # progression locks (Immigration Wave, Merchant's Coffer, Military
+        # Training) and re-spawns trade goods. The index is persisted per-save in
+        # DFHack world data, so it is the authoritative count of what's applied.
+        if not self._received_index_loaded:
+            raw = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: self.dfhack.run_command(
+                    "lua",
+                    'print(dfhack.persistent.getWorldDataString'
+                    '("dwarfipelago/received_index") or "0")',
+                ),
+            )
+            try:
+                self._received_index = int(raw.strip()) if raw and raw.strip() not in ("", "nil") else 0
+            except (ValueError, AttributeError):
+                self._received_index = 0
+            self._received_index_loaded = True
+            logger.info(f"Restored received item index from world data: {self._received_index}")
+
         pending = len(self.items_received) - self._received_index
         if pending > 0:
             logger.info(f"Applying {pending} pending item(s) starting at index {self._received_index}")
