@@ -23,6 +23,11 @@ end
 -- Spawn items at the trade depot (the designated AP delivery point).
 -- Falls back to a living citizen's tile if no depot exists yet.
 -- createitem places items at the keyboard cursor, so we set the cursor first.
+--
+-- Returns the number of items actually created. createitem PRINTS errors like
+-- "Unrecognized material!" instead of raising, so we capture its output via
+-- run_command_silent and treat any error marker as a failure. This lets callers
+-- reliably fall back to a different token (e.g. weapon -> steel bars).
 local function spawn_item(item_type, material, quantity)
     quantity = quantity or 1
 
@@ -45,20 +50,37 @@ local function spawn_item(item_type, material, quantity)
         end
         if not anchored then
             log.error("spawn_item: no depot or citizen — cannot place " .. item_type)
-            return
+            return 0
         end
     end
 
+    -- Prefer run_command_silent so we can read createitem's output and detect
+    -- bad-token failures; fall back to run_command (no detection) if it's absent.
+    local has_silent = type(dfhack.run_command_silent) == "function"
+    local created = 0
     for _ = 1, quantity do
-        -- createitem is a DFHack plugin command; use run_command, not run_script.
         -- e.g. createitem SMALLGEM INORGANIC:RUBY
-        local ok, err = pcall(function()
-            dfhack.run_command("createitem", item_type, material)
-        end)
-        if not ok then
-            log.error("Failed to spawn " .. item_type .. ": " .. tostring(err))
+        if has_silent then
+            local ok, r1, r2 = pcall(dfhack.run_command_silent, "createitem", item_type, material)
+            -- run_command_silent returns output + status (order-agnostic capture).
+            local out = (type(r1) == "string" and r1)
+                     or (type(r2) == "string" and r2) or ""
+            if (not ok) or out:find("nrecognized") then
+                log.error(("Failed to spawn %s [%s]: %s"):format(
+                    item_type, material, out ~= "" and out:gsub("%s+", " ") or "createitem error"))
+            else
+                created = created + 1
+            end
+        else
+            local ok = pcall(dfhack.run_command, "createitem", item_type, material)
+            if ok then
+                created = created + 1
+            else
+                log.error(("Failed to spawn %s [%s]"):format(item_type, material))
+            end
         end
     end
+    return created
 end
 
 local function announce(msg)
@@ -228,10 +250,9 @@ local function recv_masterwork_crafts()
 end
 
 local function recv_dwarven_steel_sword()
-    -- Try to spawn an actual short sword; fall back to steel bars if the item
-    -- token is not recognised by this DF version's createitem.
-    local ok = pcall(spawn_item, "ITEM_WEAPON_SWORD_SHORT", "INORGANIC:STEEL")
-    if not ok then
+    -- Try to spawn an actual short sword; fall back to steel bars if the weapon
+    -- token isn't accepted by this DF version's createitem.
+    if spawn_item("WEAPON:ITEM_WEAPON_SWORD_SHORT", "INORGANIC:STEEL") == 0 then
         spawn_item("BAR", "INORGANIC:STEEL", 3)
     end
     announce("Received: Dwarven Steel Sword!")
@@ -245,8 +266,7 @@ end
 
 local function recv_adamantine_fiber()
     -- Adamantine cloth material token may vary by DF version; fall back to cloth.
-    local ok = pcall(spawn_item, "CLOTH", "INORGANIC:ADAMANTINE", 2)
-    if not ok then
+    if spawn_item("CLOTH", "INORGANIC:ADAMANTINE", 2) == 0 then
         spawn_item("CLOTH", "PLANT_MAT:GRASS_TAIL_PIG:THREAD", 3)
     end
     announce("Received: Adamantine Fiber!")
