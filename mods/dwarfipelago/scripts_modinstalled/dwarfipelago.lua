@@ -871,6 +871,9 @@ local function start()
     -- Register poll loop
     repeatUtil.scheduleEvery(SCRIPT_NAME, POLL_TICKS, "ticks", poll_checks)
 
+    -- Enable the corner [AP] overlay button.
+    pcall(dfhack.run_command, "overlay", "enable", "dwarfipelago-panel.hotspot")
+
     print("[Dwarfipelago] Started. Listening for fortress milestones.")
     print("[Dwarfipelago] Make sure DwarfFortressClient.py is running.")
 end
@@ -886,6 +889,9 @@ local function stop()
         eventful.onItemCreated[SCRIPT_NAME] = nil
     end
     repeatUtil.cancel(SCRIPT_NAME)
+
+    -- Hide the corner [AP] overlay button.
+    pcall(dfhack.run_command, "overlay", "disable", "dwarfipelago-panel.hotspot")
 
     print("[Dwarfipelago] Stopped.")
 end
@@ -904,6 +910,8 @@ elseif cmd == "status" then
 elseif cmd == "reset" then
     stop()
     state.reset()
+elseif cmd == "panel" then
+    reqscript("dwarfipelago-panel").open_panel()
 elseif cmd == "receive" then
     local item_name = table.concat(args, " ", 2)
     if item_name == "" then
@@ -912,5 +920,5 @@ elseif cmd == "receive" then
         items.receive(item_name)
     end
 else
-    print("Usage: dwarfipelago [start|stop|status|reset|receive <item>]")
+    print("Usage: dwarfipelago [start|stop|status|reset|panel|receive <item>]")
 end

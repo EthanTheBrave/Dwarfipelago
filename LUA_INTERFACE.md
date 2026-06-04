@@ -223,6 +223,75 @@ Load them from Python via `reqscript("internal/dwarfipelago/<module>")`.
 
 ---
 
+## In-Game Panel (`dwarfipelago-panel.lua`)
+
+The in-game status and control panel lives in:
+```
+mods/dwarfipelago/scripts_modinstalled/dwarfipelago-panel.lua
+```
+
+It is a DFHack overlay widget + ZScreen popup. Open it three ways:
+- Click the `[AP]` button in the top-left corner of the fortress screen
+- Run `dwarfipelago panel` from the DFHack console
+- Run `dwarfipelago-panel` directly from the DFHack console
+
+### Adding a status field
+
+Status fields are `widgets.Label` views inside `DwarfipelagoPanel:init()`. Each one has a `frame = {t=N, l=0}` where `t` is the row offset inside the window (0-indexed from the top of the window's content area).
+
+Read plain persistent keys with the local `ps()` helper:
+```lua
+local my_value = ps("some/key", "default")
+```
+
+Read the enabled flag specifically via `state.is_enabled()` (not `ps()`) because it is stored as a JSON object, not a plain string.
+
+Example — adding a new status row at `t=3` (shift existing rows down by 1 to make room):
+```lua
+widgets.Label{
+    frame = {t=3, l=0},
+    text  = {"My label: ", ps("my/key", "unknown")},
+},
+```
+
+Color a value with the `yn()` helper (for boolean YES/no display) or inline pen:
+```lua
+{text="some text", pen=COLOR_GREEN}   -- always green
+yn(some_bool)                          -- YES (green) / no (dark gray)
+yn(some_bool, COLOR_CYAN, COLOR_RED)  -- custom colors
+```
+
+After adding a row, update the separator and all rows below it — increment each `t=` value by 1, and also update `local W, H = 44, 32` if the window needs to grow taller.
+
+### Adding a control button
+
+Buttons are `widgets.HotkeyLabel` views in the Controls section. Pick an unused key binding and add the view:
+```lua
+widgets.HotkeyLabel{
+    frame = {t=20, l=2},          -- t= row, l=2 indents it under "Controls:"
+    key   = "CUSTOM_SHIFT_X",     -- DFHack key binding name
+    label = "My action",
+    on_activate = function()
+        dfhack.run_command("dwarfipelago", "some-subcommand")
+        self:dismiss()            -- close the panel after acting
+    end,
+},
+```
+
+Available `CUSTOM_SHIFT_*` keys: A–Z. Avoid S (Restart/Start) and R (Reset) which are already taken.
+
+### Moving the `[AP]` hotspot button
+
+The corner button position is set in `DwarfipelagoHotspot.ATTRS`:
+```lua
+default_pos = {x=8, y=2},   -- x= column from left, y= row from top (1-indexed)
+```
+
+Negative values count from the bottom-right edge (e.g. `{x=-5, y=-2}`).
+The position only takes effect on first load — if DFHack has already saved a position for this widget, edit `dfhack-config/overlay.json` in your DF install and remove the `dwarfipelago-panel.hotspot` entry to reset it.
+
+---
+
 ## DFHack Console Debug Commands
 
 Run these from the DFHack console while a world is loaded:
@@ -231,9 +300,12 @@ Run these from the DFHack console while a world is loaded:
 # Full state dump
 dwarfipelago status
 
-# Manually start/stop the mod
+# Manually start/stop/restart the mod
 dwarfipelago start
 dwarfipelago stop
+
+# Open the in-game status panel
+dwarfipelago panel
 
 # Reset all persistent state
 dwarfipelago reset
