@@ -417,6 +417,22 @@ class DFHackConnection:
 
 # ── Archipelago Client ────────────────────────────────────────────────────────
 
+class DwarfFortressCommandProcessor(ClientCommandProcessor):
+    """Adds Dwarfipelago-specific client console commands."""
+
+    def _cmd_dfdebug(self, state: str = ""):
+        """Toggle Dwarfipelago debug logging (verbose craft counts, item delivery,
+        index/restore details). Usage: /dfdebug [on|off]"""
+        state = state.strip().lower()
+        if state in ("on", "true", "1"):
+            self.ctx.debug_mode = True
+        elif state in ("off", "false", "0"):
+            self.ctx.debug_mode = False
+        else:
+            self.ctx.debug_mode = not self.ctx.debug_mode
+        logger.info(f"Dwarfipelago debug logging {'ON' if self.ctx.debug_mode else 'OFF'}")
+
+
 class DwarfFortressContext(CommonContext):
     """
     Archipelago client context for Dwarf Fortress.
@@ -428,11 +444,13 @@ class DwarfFortressContext(CommonContext):
 
     game = "Dwarf Fortress"
     items_handling = 0b111  # receive all items (local + remote + starting inventory)
+    command_processor = DwarfFortressCommandProcessor
 
     def __init__(self, server_address: str, password: Optional[str] = None):
         super().__init__(server_address, password)
         self.dfhack = DFHackConnection()
         self.dfhack_task = False
+        self.debug_mode = False          # verbose diagnostics off by default; /dfdebug toggles
         self._poll_interval = 5.0        # seconds between fortress state polls
         self._received_index = 0         # last applied item index
         self._received_index_loaded = False  # restored from world data this connection?
@@ -450,6 +468,11 @@ class DwarfFortressContext(CommonContext):
         self._completed_locations_loaded = False  # True once the AP Get reply has populated the list
         self.seed = 0                    # your "identity"
         self.version = 0                 # apworld version
+
+    def debug(self, msg: str):
+        """Log only when debug mode is enabled (toggle with /dfdebug)."""
+        if self.debug_mode:
+            logger.info(f"[debug] {msg}")
 
     # ── DFHack polling ────────────────────────────────────────────────────────
 
@@ -585,11 +608,11 @@ class DwarfFortressContext(CommonContext):
             except (ValueError, AttributeError):
                 self._received_index = 0
             self._received_index_loaded = True
-            logger.info(f"Restored received item index from world data: {self._received_index}")
+            self.debug(f"Restored received item index from world data: {self._received_index}")
 
         pending = len(self.items_received) - self._received_index
         if pending > 0:
-            logger.info(f"Applying {pending} pending item(s) starting at index {self._received_index}")
+            self.debug(f"Applying {pending} pending item(s) starting at index {self._received_index}")
 
         for i in range(self._received_index, len(self.items_received)):
             network_item = self.items_received[i]
@@ -611,7 +634,7 @@ class DwarfFortressContext(CommonContext):
                 logger.warning(f"Item name lookup failed for id {network_item.item}: {e}")
                 item_name = str(network_item.item)
 
-            logger.info(f"Delivering item [{i}]: id={network_item.item} → name={item_name!r}")
+            self.debug(f"Delivering item [{i}]: id={network_item.item} → name={item_name!r}")
 
            
 
@@ -865,11 +888,12 @@ class DwarfFortressContext(CommonContext):
             except (ValueError, AttributeError):
                 count_lookup[pair] = 0
 
-        # Diagnostic: surface any nonzero craft counts so a key/flag mismatch
-        # (counts staying 0 forever) is easy to spot in the client log.
-        nonzero = {k: v for k, v in count_lookup.items() if v > 0}
-        if nonzero:
-            logger.info(f"Craft counts: {nonzero}  (threshold={self._craftsanity_threshold}, max={self._craftsanity_max_value})")
+        # Diagnostic (debug mode only): surface nonzero craft counts so a
+        # key/flag mismatch is easy to spot. Toggle with /dfdebug.
+        if self.debug_mode:
+            nonzero = {k: v for k, v in count_lookup.items() if v > 0}
+            if nonzero:
+                self.debug(f"Craft counts: {nonzero}  (threshold={self._craftsanity_threshold}, max={self._craftsanity_max_value})")
 
         threshold = self._craftsanity_threshold or 1  # guard against divide-by-zero
 
@@ -950,7 +974,7 @@ class DwarfFortressContext(CommonContext):
                 # Mark loaded so _crafting_location_checks can run even when the
                 # completed list is legitimately empty/[0].
                 self._completed_locations_loaded = True
-                logger.info(f"Loaded {len(self._completed_crafting_locations)} completed craft location(s) from AP storage")
+                self.debug(f"Loaded {len(self._completed_crafting_locations)} completed craft location(s) from AP storage")
             #response from the Get Command
 
     def on_print_json(self, args: dict[Any, Any]):
