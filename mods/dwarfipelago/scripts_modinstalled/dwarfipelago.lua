@@ -572,8 +572,10 @@ function unlock_blueprint(blueprint_name)
     print(("[Dwarfipelago] Blueprint unlocked: %s"):format(blueprint_name))
 end
 
--- Hook: cancel construction of locked workshops, furnaces, and farm plots.
--- Called via eventful.onJobInitiated — fires when a new job is created.
+-- Hook: remove designations for locked workshops, furnaces, and farm plots.
+-- Called via eventful.onBuildingCreated — fires the moment a player places a
+-- building designation, before any materials are claimed or jobs are queued.
+-- Deconstructing here gives immediate feedback and prevents dwarf retry spam.
 local function on_job_initiated(job)
     if not state.is_enabled() then return end
 
@@ -587,15 +589,10 @@ local function on_job_initiated(job)
 
     local blueprint_name = nil
 
-    -- Check workshops
     if df.building_workshopst:is_instance(bld) then
         blueprint_name = WORKSHOP_BLUEPRINTS[bld.type]
-
-    -- Check furnaces
     elseif df.building_furnacest:is_instance(bld) then
         blueprint_name = FURNACE_BLUEPRINTS[bld.type]
-
-    -- Check farm plots
     elseif df.building_farmplotst:is_instance(bld) then
         blueprint_name = "Farm Plot Blueprint"
     end
@@ -874,6 +871,9 @@ local function start()
     -- Register poll loop
     repeatUtil.scheduleEvery(SCRIPT_NAME, POLL_TICKS, "ticks", poll_checks)
 
+    -- Enable the corner [AP] overlay button.
+    pcall(dfhack.run_command, "overlay", "enable", "dwarfipelago-panel.hotspot")
+
     print("[Dwarfipelago] Started. Listening for fortress milestones.")
     print("[Dwarfipelago] Make sure DwarfFortressClient.py is running.")
 end
@@ -889,6 +889,9 @@ local function stop()
         eventful.onItemCreated[SCRIPT_NAME] = nil
     end
     repeatUtil.cancel(SCRIPT_NAME)
+
+    -- Hide the corner [AP] overlay button.
+    pcall(dfhack.run_command, "overlay", "disable", "dwarfipelago-panel.hotspot")
 
     print("[Dwarfipelago] Stopped.")
 end
@@ -907,6 +910,8 @@ elseif cmd == "status" then
 elseif cmd == "reset" then
     stop()
     state.reset()
+elseif cmd == "panel" then
+    reqscript("dwarfipelago-panel").open_panel()
 elseif cmd == "receive" then
     local item_name = table.concat(args, " ", 2)
     if item_name == "" then
@@ -915,5 +920,5 @@ elseif cmd == "receive" then
         items.receive(item_name)
     end
 else
-    print("Usage: dwarfipelago [start|stop|status|reset|receive <item>]")
+    print("Usage: dwarfipelago [start|stop|status|reset|panel|receive <item>]")
 end
