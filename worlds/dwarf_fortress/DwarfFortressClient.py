@@ -18,6 +18,7 @@ import struct
 import argparse
 import subprocess
 import sys
+import threading
 import time
 from typing import Any, Optional
 from CommonClient import CommonContext, server_loop, ClientCommandProcessor, logger
@@ -177,6 +178,11 @@ class DFHackConnection:
         self.host = host
         self.port = port
         self._sock: Optional[socket.socket] = None
+        # Serializes a full request→reply exchange on the shared socket. Without
+        # it, two run_command calls (e.g. one in an executor thread and one
+        # direct) can interleave their sends/reads, crossing replies and
+        # desyncing the byte stream ("BindMethod failed: reply_id=<garbage>").
+        self._lock = threading.RLock()
 
     def connect(self) -> bool:
         try:
@@ -274,7 +280,12 @@ class DFHackConnection:
         if reply_id == RPC_REPLY_RESULT:
             ids = _pb_decode(data).get(1, [-1])
             return ids[0] if ids else -1
-        logger.error(f"BindMethod failed for {method!r}: reply_id={reply_id}, data={data!r}")
+        # A non-RESULT reply here means the stream is misaligned (e.g. leftover
+        # bytes from a prior desynced command). Drop the socket so the caller
+        # reconnects and re-handshakes cleanly instead of compounding the desync.
+        logger.error(f"BindMethod failed for {method!r}: reply_id={reply_id}, data={data!r} "
+                     f"— resetting connection")
+        self.disconnect()
         return -1
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -294,56 +305,60 @@ class DFHackConnection:
         """
         if not self._sock:
             return None
-        try:
-            if not hasattr(self, "_run_cmd_id"):
-                # CoreBindRequest.input_msg and output_msg are proto2 *required*
-                # fields — must pass the fully-qualified proto type names.
-                self._run_cmd_id = self._bind_method(
-                    "RunCommand",
-                    "dfproto.CoreRunCommandRequest",
-                    "dfproto.EmptyMessage",
-                )
-                if self._run_cmd_id < 0:
-                    logger.error("Failed to bind RunCommand")
-                    return None
+        # Hold the lock for the entire request→reply exchange so no other call
+        # can read or write the socket in between (which would cross replies and
+        # desync the stream).
+        with self._lock:
+            try:
+                if not hasattr(self, "_run_cmd_id"):
+                    # CoreBindRequest.input_msg and output_msg are proto2 *required*
+                    # fields — must pass the fully-qualified proto type names.
+                    self._run_cmd_id = self._bind_method(
+                        "RunCommand",
+                        "dfproto.CoreRunCommandRequest",
+                        "dfproto.EmptyMessage",
+                    )
+                    if self._run_cmd_id < 0:
+                        logger.error("Failed to bind RunCommand")
+                        return None
 
-            # Encode CoreRunCommandRequest { command(1), arguments(2 repeated) }
-            body = _pb_string(1, command)
-            for arg in args:
-                body += _pb_string(2, arg)
-            self._send_rpc(self._run_cmd_id, body)
+                # Encode CoreRunCommandRequest { command(1), arguments(2 repeated) }
+                body = _pb_string(1, command)
+                for arg in args:
+                    body += _pb_string(2, arg)
+                self._send_rpc(self._run_cmd_id, body)
 
-            # Drain TextNotification packets until we receive a Result or Error.
-            # IMPORTANT: every reply code must either continue, break, or return.
-            # If an unexpected code falls through with no handling, the loop calls
-            # _recv_rpc() again with nothing left to read and blocks until the
-            # socket timeout fires ("run_command error: timed out"). This happened
-            # when replies got crossed on the shared socket (e.g. an item delivery
-            # running concurrently with another command).
-            output_parts: list[str] = []
-            while True:
-                reply_id, data = self._recv_rpc()
-                if reply_id == RPC_REPLY_TEXT:
-                    text = _extract_text_notification(data)
-                    text = text.replace("\n", "")
-                    output_parts.append(text)
-                elif reply_id == RPC_REPLY_RESULT:
-                    break
-                elif reply_id == RPC_REPLY_FAIL:
-                    logger.warning(f"DFHack RunCommand failed (id={reply_id}): {data!r}")
-                    return None
-                else:
-                    # Unexpected reply code — bail rather than block forever.
-                    logger.warning(f"DFHack RunCommand: unexpected reply id={reply_id}, "
-                                   f"treating call as complete")
-                    break
+                # Drain TextNotification packets until we receive a Result or Error.
+                # Valid reply codes during a command are only TEXT/RESULT/FAIL.
+                # Anything else means the byte stream is misaligned (a desync) —
+                # we must NOT just break (that leaves the real terminator in the
+                # buffer for the next call to misread as a header). Instead we
+                # tear down the socket so the next call reconnects and re-handshakes
+                # from a clean state.
+                output_parts: list[str] = []
+                while True:
+                    reply_id, data = self._recv_rpc()
+                    if reply_id == RPC_REPLY_TEXT:
+                        text = _extract_text_notification(data)
+                        text = text.replace("\n", "")
+                        output_parts.append(text)
+                    elif reply_id == RPC_REPLY_RESULT:
+                        break
+                    elif reply_id == RPC_REPLY_FAIL:
+                        logger.warning(f"DFHack RunCommand failed (id={reply_id}): {data!r}")
+                        return None
+                    else:
+                        logger.error(f"DFHack RunCommand: unexpected reply id={reply_id} "
+                                     f"(stream desynced) — resetting connection")
+                        self.disconnect()
+                        return None
 
-            return "".join(output_parts)
+                return "".join(output_parts)
 
-        except Exception as e:
-            logger.warning(f"DFHack run_command error: {e}")
-            self.disconnect()
-            return None
+            except Exception as e:
+                logger.warning(f"DFHack run_command error: {e}")
+                self.disconnect()
+                return None
 
     def pop_pending_checks(self) -> list[int]:
         """
