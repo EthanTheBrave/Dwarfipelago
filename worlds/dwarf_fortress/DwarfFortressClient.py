@@ -212,11 +212,18 @@ class DFHackConnection:
             return False
 
     def disconnect(self):
-        if self._sock:
-            self._sock.close()
-            self._sock = None
-        # Clear the cached method ID so BindMethod is re-issued on the next connection.
-        self.__dict__.pop("_run_cmd_id", None)
+        # Take the lock so we never close the socket while another thread is
+        # mid-read/write on it (which raises WinError 10038 / WSAENOTSOCK).
+        # RLock makes this safe to call from inside a locked run_command too.
+        with self._lock:
+            if self._sock:
+                try:
+                    self._sock.close()
+                except OSError:
+                    pass
+                self._sock = None
+            # Clear the cached method ID so BindMethod is re-issued next connection.
+            self.__dict__.pop("_run_cmd_id", None)
 
     def is_connected(self) -> bool:
         return self._sock is not None
@@ -309,6 +316,10 @@ class DFHackConnection:
         # can read or write the socket in between (which would cross replies and
         # desync the stream).
         with self._lock:
+            # Re-check inside the lock: a concurrent disconnect() may have closed
+            # the socket between the early check above and acquiring the lock.
+            if not self._sock:
+                return None
             try:
                 if not hasattr(self, "_run_cmd_id"):
                     # CoreBindRequest.input_msg and output_msg are proto2 *required*
