@@ -173,7 +173,7 @@ Workshop blueprints are the core Archipelago mechanic. Other players find your b
 
 **Gated buildings:** Farm Plot
 
-**Always available:** Carpenter's Workshop, Mason's Workshop, Still (dwarves need ale to survive)
+**Granted at start by default:** Carpenter's Workshop, Mason's Workshop (Stoneworker's), Still, Leather Works — these blueprints are included in the default `start_inventory`, so you can build them immediately on a normal embark. They are still gated by the blueprint system: if you remove one from your `start_inventory`, that workshop becomes locked until you receive its blueprint from the multiworld.
 
 ### Progression Locks
 
