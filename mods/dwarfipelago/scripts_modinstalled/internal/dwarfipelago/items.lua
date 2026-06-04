@@ -817,6 +817,9 @@ local BLUEPRINT_NAMES = {
     "Farm Plot Blueprint",
 }
 
+-- Exposed so the status command / panel can list blueprints and received state.
+M.BLUEPRINT_NAMES = BLUEPRINT_NAMES
+
 -- Register blueprint handlers dynamically.
 -- Write directly to persistent storage rather than calling unlock_blueprint()
 -- from dwarfipelago.lua, because each script has its own _ENV and cross-script

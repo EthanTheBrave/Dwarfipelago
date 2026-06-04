@@ -157,6 +157,38 @@ function M.dump()
         if n > 0 then craft_counts[flag] = n end
     end
     print("[Dwarfipelago] Craft counts:", json.encode(craft_counts))
+
+    -- ── Mining ──────────────────────────────────────────────────────────────
+    local function num(key) return tonumber(dfhack.persistent.getWorldDataString(key)) end
+    local dug      = num("dwarfipelago/mining/dig_count") or 0
+    local surface  = num("dwarfipelago/mining/surface_z")
+    local deepest  = num("dwarfipelago/mining/deepest_z")
+    local depth    = (surface and deepest) and math.max(surface - deepest, 0) or 0
+    print("[Dwarfipelago] Blocks dug:", dug)
+    print("[Dwarfipelago] Depth below surface:", depth)
+    print("[Dwarfipelago] Caverns breached:",
+        dfhack.persistent.getWorldDataString("dwarfipelago/mining/cavern1") == "1" and 1 or 0,
+        dfhack.persistent.getWorldDataString("dwarfipelago/mining/cavern2") == "1" and 2 or "-",
+        dfhack.persistent.getWorldDataString("dwarfipelago/mining/cavern3") == "1" and 3 or "-",
+        "| Magma sea:",
+        dfhack.persistent.getWorldDataString("dwarfipelago/mining/magma") == "1")
+
+    -- ── Farming ─────────────────────────────────────────────────────────────
+    print("[Dwarfipelago] Crops harvested:", num("dwarfipelago/farming/crop_count") or 0)
+
+    -- ── Blueprints received ─────────────────────────────────────────────────
+    local items = reqscript("internal/dwarfipelago/items")
+    local names = items.BLUEPRINT_NAMES or {}
+    local have = {}
+    for _, name in ipairs(names) do
+        if dfhack.persistent.getWorldDataString("dwarfipelago/blueprint/" .. name) == "1" then
+            table.insert(have, name)
+        end
+    end
+    print(("[Dwarfipelago] Blueprints received (%d/%d):"):format(#have, #names))
+    for _, name in ipairs(have) do
+        print("    - " .. name)
+    end
 end
 
 function M.reset()
