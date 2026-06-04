@@ -447,6 +447,7 @@ class DwarfFortressContext(CommonContext):
         self._craftsanity_max_value = 0     # max items to produce
         self._craftsanity_threshold = 0     # crafting thresholds
         self._completed_crafting_locations = [] #completed locations so we don't keep sending
+        self._completed_locations_loaded = False  # True once the AP Get reply has populated the list
         self.seed = 0                    # your "identity"
         self.version = 0                 # apworld version
 
@@ -490,6 +491,7 @@ class DwarfFortressContext(CommonContext):
                         self._mod_started = False
                         self._slot_data_synced = False
                         self._received_index_loaded = False
+                        self._completed_locations_loaded = False
                         logger.info("Map unloaded — AP operations paused until a save is loaded")
                     await asyncio.sleep(self._poll_interval)
                     continue
@@ -804,7 +806,12 @@ class DwarfFortressContext(CommonContext):
     async def _crafting_location_checks(self):
         """Read new crafting location checks from persistent storage and report them to AP."""
         local_checks = []
-        if len(self._completed_crafting_locations) == 0:  # not initialized yet
+        # Wait until the AP Get reply has populated the completed list. Using an
+        # explicit flag (not len()==0) so a legitimately-empty list doesn't block
+        # checks forever.
+        if not self._completed_locations_loaded:
+            return
+        if not self._crafting_locations:
             return
 
         # Build the set of unique storage keys we need to read, skipping
@@ -854,6 +861,14 @@ class DwarfFortressContext(CommonContext):
             except (ValueError, AttributeError):
                 count_lookup[pair] = 0
 
+        # Diagnostic: surface any nonzero craft counts so a key/flag mismatch
+        # (counts staying 0 forever) is easy to spot in the client log.
+        nonzero = {k: v for k, v in count_lookup.items() if v > 0}
+        if nonzero:
+            logger.info(f"Craft counts: {nonzero}  (threshold={self._craftsanity_threshold}, max={self._craftsanity_max_value})")
+
+        threshold = self._craftsanity_threshold or 1  # guard against divide-by-zero
+
         # Evaluate each location against the counts.
         for crafts in self._crafting_locations:
             if crafts in self._completed_crafting_locations:
@@ -865,7 +880,7 @@ class DwarfFortressContext(CommonContext):
                 continue
             if amount_crafted >= self._craftsanity_max_value:
                 local_checks.append(int(crafts))
-            elif amount_crafted / self._craftsanity_threshold >= self._crafting_locations[crafts]["threshold"]:
+            elif amount_crafted / threshold >= self._crafting_locations[crafts]["threshold"]:
                 local_checks.append(int(crafts))
 
         if local_checks:
@@ -921,11 +936,17 @@ class DwarfFortressContext(CommonContext):
             self.slot_data: dict[str, Any] = args.get("slot_data", {})
             self.dfhack_task = asyncio.create_task(self.dfhack_poll_loop(), name="DFHack poll")
         elif cmd == "Retrieved":
-            if "Dwarfipelago/"+str(self.seed)+"/completed_locations" in args['keys']:
-                if args['keys']["Dwarfipelago/"+str(self.seed)+"/completed_locations"] != None:
-                    self._completed_crafting_locations = args['keys']["Dwarfipelago/"+str(self.seed)+"/completed_locations"]
+            key = "Dwarfipelago/"+str(self.seed)+"/completed_locations"
+            if key in args['keys']:
+                stored = args['keys'][key]
+                if stored is not None:
+                    self._completed_crafting_locations = stored
                 else:
-                    self._completed_crafting_locations.append(0)
+                    self._completed_crafting_locations = [0]
+                # Mark loaded so _crafting_location_checks can run even when the
+                # completed list is legitimately empty/[0].
+                self._completed_locations_loaded = True
+                logger.info(f"Loaded {len(self._completed_crafting_locations)} completed craft location(s) from AP storage")
             #response from the Get Command
 
     def on_print_json(self, args: dict[Any, Any]):
