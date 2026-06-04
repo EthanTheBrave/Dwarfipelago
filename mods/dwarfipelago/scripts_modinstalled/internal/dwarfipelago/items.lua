@@ -569,11 +569,37 @@ local function recv_merchants_coffer()
     announce(("Merchant's Coffer received! Wealth tier %d/5 unlocked"):format(n))
 end
 
+local IMMIGRATION_WAVE_SIZE = 4  -- dwarves brought in per received Immigration Wave
+
 local function recv_immigration_wave()
     local key = "dwarfipelago/unlock/immigration_waves"
     local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
     dfhack.persistent.saveWorldDataString(key, tostring(n))
-    announce(("Immigration Wave received! Population tier %d/5 unlocked"):format(n))
+
+    -- Actually bring migrants into the fortress so the population grows.
+    -- -setUnitToFort makes each dwarf a real fortress citizen (counts toward
+    -- the population goal and works like a normal migrant).
+    local x, y, z = get_fort_spawn_pos()
+    local spawned = 0
+    for i = 1, IMMIGRATION_WAVE_SIZE do
+        local caste = (i % 2 == 0) and "FEMALE" or "MALE"
+        local ok, err = pcall(function()
+            dfhack.run_script("modtools/create-unit",
+                "-race",          "DWARF",
+                "-caste",         caste,
+                "-setUnitToFort",
+                "-location",      "[", x, y, z, "]"
+            )
+        end)
+        if ok then
+            spawned = spawned + 1
+        else
+            dfhack.printerr("[Dwarfipelago] immigration_wave spawn failed: " .. tostring(err))
+        end
+    end
+
+    announce(("Immigration Wave received! %d migrants have arrived. (tier %d/5)")
+        :format(spawned, n))
 end
 
 local function recv_barons_charter()
