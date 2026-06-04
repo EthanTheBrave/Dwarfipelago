@@ -520,6 +520,9 @@ class DwarfFortressContext(CommonContext):
         for i in range(self._received_index, len(self.items_received)):
             network_item = self.items_received[i]
 
+            if network_item.item == 37370530: # Cave Fisher Silk
+                continue
+
             # Resolve numeric item ID → human-readable name.
             # The Lookup API changed between AP versions; try each approach in order.
             item_name: str
@@ -535,6 +538,9 @@ class DwarfFortressContext(CommonContext):
                 item_name = str(network_item.item)
 
             logger.info(f"Delivering item [{i}]: id={network_item.item} → name={item_name!r}")
+
+           
+
             await asyncio.get_event_loop().run_in_executor(
                 None, self.dfhack.deliver_item, item_name
             )
