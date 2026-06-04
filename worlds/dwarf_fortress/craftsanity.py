@@ -27,7 +27,7 @@ CRAFTSANITY_HARD: set = CRAFTSANITY_MEDIUM | {
     "Upper Body Armor", "Gauntlets", "Lower Body Armor",
     "Crossbow", "Bolt", "Battle Axe", "Short Sword",
     "War Hammer", "Anvil", "Rope/Chain", "Coins", "Goblet",
-    "Tallow", "Oil", "Dye",
+    "Tallow", "Oil", "Dye", "Traction Bench"
 }
 
 
@@ -81,30 +81,22 @@ def loop_locations(world: "DwarfFortressWorld", new_location: DynamicCraftingDat
                 continue
             new_location.type = materials
             new_location.max_id = calulate_check_count(world)
-            # CHANGED — NEEDS REVIEW:
-            # base_location_id is now incremented at the top of every iteration so that
-            # the Final Check gets a sequential ID the same way all other checks do.
-            # Previously the Final Check used world.location_name_to_id[check_name] which
-            # raised a KeyError because material-specific names are never pre-registered
-            # in the static table. Verify that the resulting IDs don't collide with other
-            # location blocks when many materials are enabled simultaneously.
             for next_id in range(new_location.id, new_location.max_id):
                 new_location.base_location_id += 1
-                if next_id == new_location.max_id - 1: #find ID for final Check
+                if next_id == new_location.max_id - 1: #find ID for final Check ITS IMPORTANT!
                     new_location.check_name = "Crafting "+ new_location.type + " " + new_location.item_name + " Final Check"
-                    world.dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, new_location.type, new_location.item_name, next_id + 1))
+                    world.dynamic_locations.append(LocationData(new_location.check_name, world.location_name_to_id[new_location.check_name], "", False, new_location.type, new_location.item_name, next_id + 1))
                 else:
                     new_location.check_name = "Crafting "+ new_location.type + " " + new_location.item_name + " Check "+ str(next_id + 1)
                     world.dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, new_location.type, new_location.item_name, next_id + 1))
                 world.dynamic_locations_names.append(new_location.check_name)
     else: # Materials doesn't matter
         new_location.max_id = calulate_check_count(world)
-        # CHANGED — NEEDS REVIEW: same base_location_id fix as the materials branch above.
         for next_id in range(new_location.id, new_location.max_id):
             new_location.base_location_id += 1
-            if next_id == new_location.max_id - 1:
+            if next_id == new_location.max_id - 1: #find ID for final Check ITS IMPORTANT!
                 new_location.check_name = "Crafting " + new_location.item_name + " Final Check"
-                world.dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, new_location.type, new_location.item_name, next_id + 1))
+                world.dynamic_locations.append(LocationData(new_location.check_name, world.location_name_to_id[new_location.check_name], "", False, new_location.type, new_location.item_name, next_id + 1))
             else:
                 new_location.check_name = "Crafting " + new_location.item_name + " Check "+ str(next_id + 1)
                 world.dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, "", new_location.item_name, next_id + 1))
