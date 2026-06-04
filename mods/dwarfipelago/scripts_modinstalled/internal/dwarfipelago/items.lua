@@ -131,7 +131,7 @@ local function recv_cut_ruby()
 end
 
 local function recv_cut_diamond()
-    spawn_item("SMALLGEM", "INORGANIC:DIAMOND")
+    spawn_item("SMALLGEM", "INORGANIC:CLEAR_DIAMOND")
     announce("Received: Cut Diamond!")
 end
 
