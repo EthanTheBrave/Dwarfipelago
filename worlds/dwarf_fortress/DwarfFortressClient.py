@@ -18,6 +18,7 @@ import struct
 import argparse
 import subprocess
 import sys
+import threading
 import time
 from typing import Any, Optional
 from CommonClient import CommonContext, server_loop, ClientCommandProcessor, logger
@@ -177,6 +178,11 @@ class DFHackConnection:
         self.host = host
         self.port = port
         self._sock: Optional[socket.socket] = None
+        # Serializes a full request→reply exchange on the shared socket. Without
+        # it, two run_command calls (e.g. one in an executor thread and one
+        # direct) can interleave their sends/reads, crossing replies and
+        # desyncing the byte stream ("BindMethod failed: reply_id=<garbage>").
+        self._lock = threading.RLock()
 
     def connect(self) -> bool:
         try:
@@ -206,11 +212,18 @@ class DFHackConnection:
             return False
 
     def disconnect(self):
-        if self._sock:
-            self._sock.close()
-            self._sock = None
-        # Clear the cached method ID so BindMethod is re-issued on the next connection.
-        self.__dict__.pop("_run_cmd_id", None)
+        # Take the lock so we never close the socket while another thread is
+        # mid-read/write on it (which raises WinError 10038 / WSAENOTSOCK).
+        # RLock makes this safe to call from inside a locked run_command too.
+        with self._lock:
+            if self._sock:
+                try:
+                    self._sock.close()
+                except OSError:
+                    pass
+                self._sock = None
+            # Clear the cached method ID so BindMethod is re-issued next connection.
+            self.__dict__.pop("_run_cmd_id", None)
 
     def is_connected(self) -> bool:
         return self._sock is not None
@@ -274,7 +287,12 @@ class DFHackConnection:
         if reply_id == RPC_REPLY_RESULT:
             ids = _pb_decode(data).get(1, [-1])
             return ids[0] if ids else -1
-        logger.error(f"BindMethod failed for {method!r}: reply_id={reply_id}, data={data!r}")
+        # A non-RESULT reply here means the stream is misaligned (e.g. leftover
+        # bytes from a prior desynced command). Drop the socket so the caller
+        # reconnects and re-handshakes cleanly instead of compounding the desync.
+        logger.error(f"BindMethod failed for {method!r}: reply_id={reply_id}, data={data!r} "
+                     f"— resetting connection")
+        self.disconnect()
         return -1
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -294,56 +312,71 @@ class DFHackConnection:
         """
         if not self._sock:
             return None
-        try:
-            if not hasattr(self, "_run_cmd_id"):
-                # CoreBindRequest.input_msg and output_msg are proto2 *required*
-                # fields — must pass the fully-qualified proto type names.
-                self._run_cmd_id = self._bind_method(
-                    "RunCommand",
-                    "dfproto.CoreRunCommandRequest",
-                    "dfproto.EmptyMessage",
-                )
-                if self._run_cmd_id < 0:
-                    logger.error("Failed to bind RunCommand")
-                    return None
+        # Human-readable description of this call for error logs. Long arguments
+        # (e.g. inline Lua) are truncated so the log stays readable.
+        def _fmt(s: str, limit: int = 300) -> str:
+            return s if len(s) <= limit else s[:limit] + f"...(+{len(s) - limit} chars)"
+        call_desc = " ".join([command, *(_fmt(a) for a in args)])
+        # Hold the lock for the entire request→reply exchange so no other call
+        # can read or write the socket in between (which would cross replies and
+        # desync the stream).
+        with self._lock:
+            # Re-check inside the lock: a concurrent disconnect() may have closed
+            # the socket between the early check above and acquiring the lock.
+            if not self._sock:
+                return None
+            try:
+                if not hasattr(self, "_run_cmd_id"):
+                    # CoreBindRequest.input_msg and output_msg are proto2 *required*
+                    # fields — must pass the fully-qualified proto type names.
+                    self._run_cmd_id = self._bind_method(
+                        "RunCommand",
+                        "dfproto.CoreRunCommandRequest",
+                        "dfproto.EmptyMessage",
+                    )
+                    if self._run_cmd_id < 0:
+                        logger.error(f"Failed to bind RunCommand | call: {call_desc!r}")
+                        return None
 
-            # Encode CoreRunCommandRequest { command(1), arguments(2 repeated) }
-            body = _pb_string(1, command)
-            for arg in args:
-                body += _pb_string(2, arg)
-            self._send_rpc(self._run_cmd_id, body)
+                # Encode CoreRunCommandRequest { command(1), arguments(2 repeated) }
+                body = _pb_string(1, command)
+                for arg in args:
+                    body += _pb_string(2, arg)
+                self._send_rpc(self._run_cmd_id, body)
 
-            # Drain TextNotification packets until we receive a Result or Error.
-            # IMPORTANT: every reply code must either continue, break, or return.
-            # If an unexpected code falls through with no handling, the loop calls
-            # _recv_rpc() again with nothing left to read and blocks until the
-            # socket timeout fires ("run_command error: timed out"). This happened
-            # when replies got crossed on the shared socket (e.g. an item delivery
-            # running concurrently with another command).
-            output_parts: list[str] = []
-            while True:
-                reply_id, data = self._recv_rpc()
-                if reply_id == RPC_REPLY_TEXT:
-                    text = _extract_text_notification(data)
-                    text = text.replace("\n", "")
-                    output_parts.append(text)
-                elif reply_id == RPC_REPLY_RESULT:
-                    break
-                elif reply_id == RPC_REPLY_FAIL:
-                    logger.warning(f"DFHack RunCommand failed (id={reply_id}): {data!r}")
-                    return None
-                else:
-                    # Unexpected reply code — bail rather than block forever.
-                    logger.warning(f"DFHack RunCommand: unexpected reply id={reply_id}, "
-                                   f"treating call as complete")
-                    break
+                # Drain TextNotification packets until we receive a Result or Error.
+                # Valid reply codes during a command are only TEXT/RESULT/FAIL.
+                # Anything else means the byte stream is misaligned (a desync) —
+                # we must NOT just break (that leaves the real terminator in the
+                # buffer for the next call to misread as a header). Instead we
+                # tear down the socket so the next call reconnects and re-handshakes
+                # from a clean state.
+                output_parts: list[str] = []
+                while True:
+                    reply_id, data = self._recv_rpc()
+                    if reply_id == RPC_REPLY_TEXT:
+                        text = _extract_text_notification(data)
+                        text = text.replace("\n", "")
+                        output_parts.append(text)
+                    elif reply_id == RPC_REPLY_RESULT:
+                        break
+                    elif reply_id == RPC_REPLY_FAIL:
+                        logger.warning(f"DFHack RunCommand failed (id={reply_id}): {data!r} "
+                                       f"| call: {call_desc!r}")
+                        return None
+                    else:
+                        logger.error(f"DFHack RunCommand: unexpected reply id={reply_id} "
+                                     f"(stream desynced) — resetting connection "
+                                     f"| call: {call_desc!r}")
+                        self.disconnect()
+                        return None
 
-            return "".join(output_parts)
+                return "".join(output_parts)
 
-        except Exception as e:
-            logger.warning(f"DFHack run_command error: {e}")
-            self.disconnect()
-            return None
+            except Exception as e:
+                logger.warning(f"DFHack run_command error: {e} | call: {call_desc!r}")
+                self.disconnect()
+                return None
 
     def pop_pending_checks(self) -> list[int]:
         """
@@ -384,6 +417,22 @@ class DFHackConnection:
 
 # ── Archipelago Client ────────────────────────────────────────────────────────
 
+class DwarfFortressCommandProcessor(ClientCommandProcessor):
+    """Adds Dwarfipelago-specific client console commands."""
+
+    def _cmd_dfdebug(self, state: str = ""):
+        """Toggle Dwarfipelago debug logging (verbose craft counts, item delivery,
+        index/restore details). Usage: /dfdebug [on|off]"""
+        state = state.strip().lower()
+        if state in ("on", "true", "1"):
+            self.ctx.debug_mode = True
+        elif state in ("off", "false", "0"):
+            self.ctx.debug_mode = False
+        else:
+            self.ctx.debug_mode = not self.ctx.debug_mode
+        logger.info(f"Dwarfipelago debug logging {'ON' if self.ctx.debug_mode else 'OFF'}")
+
+
 class DwarfFortressContext(CommonContext):
     """
     Archipelago client context for Dwarf Fortress.
@@ -395,11 +444,13 @@ class DwarfFortressContext(CommonContext):
 
     game = "Dwarf Fortress"
     items_handling = 0b111  # receive all items (local + remote + starting inventory)
+    command_processor = DwarfFortressCommandProcessor
 
     def __init__(self, server_address: str, password: Optional[str] = None):
         super().__init__(server_address, password)
         self.dfhack = DFHackConnection()
         self.dfhack_task = False
+        self.debug_mode = False          # verbose diagnostics off by default; /dfdebug toggles
         self._poll_interval = 5.0        # seconds between fortress state polls
         self._received_index = 0         # last applied item index
         self._received_index_loaded = False  # restored from world data this connection?
@@ -414,8 +465,14 @@ class DwarfFortressContext(CommonContext):
         self._craftsanity_max_value = 0     # max items to produce
         self._craftsanity_threshold = 0     # crafting thresholds
         self._completed_crafting_locations = [] #completed locations so we don't keep sending
+        self._completed_locations_loaded = False  # True once the AP Get reply has populated the list
         self.seed = 0                    # your "identity"
         self.version = 0                 # apworld version
+
+    def debug(self, msg: str):
+        """Log only when debug mode is enabled (toggle with /dfdebug)."""
+        if self.debug_mode:
+            logger.info(f"[debug] {msg}")
 
     # ── DFHack polling ────────────────────────────────────────────────────────
 
@@ -457,6 +514,7 @@ class DwarfFortressContext(CommonContext):
                         self._mod_started = False
                         self._slot_data_synced = False
                         self._received_index_loaded = False
+                        self._completed_locations_loaded = False
                         logger.info("Map unloaded — AP operations paused until a save is loaded")
                     await asyncio.sleep(self._poll_interval)
                     continue
@@ -550,11 +608,11 @@ class DwarfFortressContext(CommonContext):
             except (ValueError, AttributeError):
                 self._received_index = 0
             self._received_index_loaded = True
-            logger.info(f"Restored received item index from world data: {self._received_index}")
+            self.debug(f"Restored received item index from world data: {self._received_index}")
 
         pending = len(self.items_received) - self._received_index
         if pending > 0:
-            logger.info(f"Applying {pending} pending item(s) starting at index {self._received_index}")
+            self.debug(f"Applying {pending} pending item(s) starting at index {self._received_index}")
 
         for i in range(self._received_index, len(self.items_received)):
             network_item = self.items_received[i]
@@ -576,7 +634,7 @@ class DwarfFortressContext(CommonContext):
                 logger.warning(f"Item name lookup failed for id {network_item.item}: {e}")
                 item_name = str(network_item.item)
 
-            logger.info(f"Delivering item [{i}]: id={network_item.item} → name={item_name!r}")
+            self.debug(f"Delivering item [{i}]: id={network_item.item} → name={item_name!r}")
 
            
 
@@ -615,12 +673,16 @@ class DwarfFortressContext(CommonContext):
         self.version = slot_data.get("version")
         materials_enabled = slot_data.get("craftsanity_materials")
         current_seed = self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("dwarfipelago/seed"))')
+        current_seed = (current_seed or "").strip()
+        # A blank/"nil" stored seed means this world has no AP identity yet (fresh,
+        # or cleared via "dwarfipelago resetseed"), so adopt this slot's seed.
+        seed_is_fresh = current_seed in ("nil", "", "None")
         self._deathlink_threshold  = int(dl_threshold)
         self._deathlink_percentage = bool(int(dl_percentage))
-        if current_seed == 'nil' or current_seed == str(self.seed):
+        if seed_is_fresh or current_seed == str(self.seed):
             script_version = self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("dwarfipelago/version"))')
             if self.version == script_version:
-                if current_seed == 'nil':
+                if seed_is_fresh:
                     def write():
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/goal", "{goal}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/wealth_goal", "{wealth_goal}")')
@@ -771,7 +833,12 @@ class DwarfFortressContext(CommonContext):
     async def _crafting_location_checks(self):
         """Read new crafting location checks from persistent storage and report them to AP."""
         local_checks = []
-        if len(self._completed_crafting_locations) == 0:  # not initialized yet
+        # Wait until the AP Get reply has populated the completed list. Using an
+        # explicit flag (not len()==0) so a legitimately-empty list doesn't block
+        # checks forever.
+        if not self._completed_locations_loaded:
+            return
+        if not self._crafting_locations:
             return
 
         # Build the set of unique storage keys we need to read, skipping
@@ -821,6 +888,15 @@ class DwarfFortressContext(CommonContext):
             except (ValueError, AttributeError):
                 count_lookup[pair] = 0
 
+        # Diagnostic (debug mode only): surface nonzero craft counts so a
+        # key/flag mismatch is easy to spot. Toggle with /dfdebug.
+        if self.debug_mode:
+            nonzero = {k: v for k, v in count_lookup.items() if v > 0}
+            if nonzero:
+                self.debug(f"Craft counts: {nonzero}  (threshold={self._craftsanity_threshold}, max={self._craftsanity_max_value})")
+
+        threshold = self._craftsanity_threshold or 1  # guard against divide-by-zero
+
         # Evaluate each location against the counts.
         for crafts in self._crafting_locations:
             if crafts in self._completed_crafting_locations:
@@ -832,7 +908,7 @@ class DwarfFortressContext(CommonContext):
                 continue
             if amount_crafted >= self._craftsanity_max_value:
                 local_checks.append(int(crafts))
-            elif amount_crafted / self._craftsanity_threshold >= self._crafting_locations[crafts]["threshold"]:
+            elif amount_crafted / threshold >= self._crafting_locations[crafts]["threshold"]:
                 local_checks.append(int(crafts))
 
         if local_checks:
@@ -888,11 +964,17 @@ class DwarfFortressContext(CommonContext):
             self.slot_data: dict[str, Any] = args.get("slot_data", {})
             self.dfhack_task = asyncio.create_task(self.dfhack_poll_loop(), name="DFHack poll")
         elif cmd == "Retrieved":
-            if "Dwarfipelago/"+str(self.seed)+"/completed_locations" in args['keys']:
-                if args['keys']["Dwarfipelago/"+str(self.seed)+"/completed_locations"] != None:
-                    self._completed_crafting_locations = args['keys']["Dwarfipelago/"+str(self.seed)+"/completed_locations"]
+            key = "Dwarfipelago/"+str(self.seed)+"/completed_locations"
+            if key in args['keys']:
+                stored = args['keys'][key]
+                if stored is not None:
+                    self._completed_crafting_locations = stored
                 else:
-                    self._completed_crafting_locations.append(0)
+                    self._completed_crafting_locations = [0]
+                # Mark loaded so _crafting_location_checks can run even when the
+                # completed list is legitimately empty/[0].
+                self._completed_locations_loaded = True
+                self.debug(f"Loaded {len(self._completed_crafting_locations)} completed craft location(s) from AP storage")
             #response from the Get Command
 
     def on_print_json(self, args: dict[Any, Any]):

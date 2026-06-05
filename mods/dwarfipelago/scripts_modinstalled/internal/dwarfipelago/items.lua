@@ -23,6 +23,11 @@ end
 -- Spawn items at the trade depot (the designated AP delivery point).
 -- Falls back to a living citizen's tile if no depot exists yet.
 -- createitem places items at the keyboard cursor, so we set the cursor first.
+--
+-- Returns the number of items actually created. createitem PRINTS errors like
+-- "Unrecognized material!" instead of raising, so we capture its output via
+-- run_command_silent and treat any error marker as a failure. This lets callers
+-- reliably fall back to a different token (e.g. weapon -> steel bars).
 local function spawn_item(item_type, material, quantity)
     quantity = quantity or 1
 
@@ -45,24 +50,59 @@ local function spawn_item(item_type, material, quantity)
         end
         if not anchored then
             log.error("spawn_item: no depot or citizen — cannot place " .. item_type)
-            return
+            return 0
         end
     end
 
+    -- Prefer run_command_silent so we can read createitem's output and detect
+    -- bad-token failures; fall back to run_command (no detection) if it's absent.
+    local has_silent = type(dfhack.run_command_silent) == "function"
+    local created = 0
     for _ = 1, quantity do
-        -- createitem is a DFHack plugin command; use run_command, not run_script.
         -- e.g. createitem SMALLGEM INORGANIC:RUBY
-        local ok, err = pcall(function()
-            dfhack.run_command("createitem", item_type, material)
-        end)
-        if not ok then
-            log.error("Failed to spawn " .. item_type .. ": " .. tostring(err))
+        if has_silent then
+            local ok, r1, r2 = pcall(dfhack.run_command_silent, "createitem", item_type, material)
+            -- run_command_silent returns output + status (order-agnostic capture).
+            local out = (type(r1) == "string" and r1)
+                     or (type(r2) == "string" and r2) or ""
+            if (not ok) or out:find("nrecognized") then
+                log.error(("Failed to spawn %s [%s]: %s"):format(
+                    item_type, material, out ~= "" and out:gsub("%s+", " ") or "createitem error"))
+            else
+                created = created + 1
+            end
+        else
+            local ok = pcall(dfhack.run_command, "createitem", item_type, material)
+            if ok then
+                created = created + 1
+            else
+                log.error(("Failed to spawn %s [%s]"):format(item_type, material))
+            end
         end
     end
+    return created
 end
 
 local function announce(msg)
     dfhack.gui.showAnnouncement("[AP] " .. msg, COLOR_GREEN, true)
+end
+
+-- Version-safe unit display name. DFHack moved name translation across versions:
+--   newer: dfhack.units.getReadableName(unit) / dfhack.translation.translateName(name)
+--   older: dfhack.TranslateName(name)
+-- Returns "" if none are available.
+local function unit_display_name(unit)
+    local name = ""
+    pcall(function()
+        if dfhack.units.getReadableName then
+            name = dfhack.units.getReadableName(unit) or ""
+        elseif dfhack.translation and dfhack.translation.translateName then
+            name = dfhack.translation.translateName(dfhack.units.getVisibleName(unit)) or ""
+        elseif dfhack.TranslateName then
+            name = dfhack.TranslateName(dfhack.units.getVisibleName(unit)) or ""
+        end
+    end)
+    return name
 end
 
 -- Return the position of a living citizen as a spawn anchor (guaranteed walkable).
@@ -113,7 +153,7 @@ local function recv_cut_ruby()
 end
 
 local function recv_cut_diamond()
-    spawn_item("SMALLGEM", "INORGANIC:DIAMOND")
+    spawn_item("SMALLGEM", "INORGANIC:CLEAR_DIAMOND")
     announce("Received: Cut Diamond!")
 end
 
@@ -210,25 +250,24 @@ local function recv_masterwork_crafts()
 end
 
 local function recv_dwarven_steel_sword()
-    -- Try to spawn an actual short sword; fall back to steel bars if the item
-    -- token is not recognised by this DF version's createitem.
-    local ok = pcall(spawn_item, "ITEM_WEAPON_SWORD_SHORT", "INORGANIC:STEEL")
-    if not ok then
+    -- Try to spawn an actual short sword; fall back to steel bars if the weapon
+    -- token isn't accepted by this DF version's createitem.
+    if spawn_item("WEAPON:ITEM_WEAPON_SWORD_SHORT", "INORGANIC:STEEL") == 0 then
         spawn_item("BAR", "INORGANIC:STEEL", 3)
     end
     announce("Received: Dwarven Steel Sword!")
 end
 
 local function recv_fine_cloth()
-    spawn_item("CLOTH", "PLANT_MAT:ROPE_REED:THREAD", 3)
+    -- Pig tail is the iconic dwarven fibre crop; its thread material makes cloth.
+    spawn_item("CLOTH", "PLANT_MAT:GRASS_TAIL_PIG:THREAD", 3)
     announce("Received: Fine Cloth!")
 end
 
 local function recv_adamantine_fiber()
-    -- Adamantine cloth material token may vary by DF version; fall back to fine cloth.
-    local ok = pcall(spawn_item, "CLOTH", "INORGANIC:ADAMANTINE", 2)
-    if not ok then
-        spawn_item("CLOTH", "PLANT_MAT:ROPE_REED:THREAD", 3)
+    -- Adamantine cloth material token may vary by DF version; fall back to cloth.
+    if spawn_item("CLOTH", "INORGANIC:ADAMANTINE", 2) == 0 then
+        spawn_item("CLOTH", "PLANT_MAT:GRASS_TAIL_PIG:THREAD", 3)
     end
     announce("Received: Adamantine Fiber!")
 end
@@ -284,70 +323,122 @@ local function recv_goblin_trophy()
 end
 
 -- ── Item handlers: traps ──────────────────────────────────────────────────────
+-- The hostile-spawn traps use modtools/create-unit, which is broken on some DF
+-- builds ("Cannot read field world.arena_spawn"). Each trap attempts the spawn
+-- (retrying once to clear the script's "untested version" warning) and falls
+-- back to a reliable non-spawn effect when spawning isn't available, so the trap
+-- always does *something*.
+
+-- Run modtools/create-unit, retrying once past the untested-version warning.
+-- Returns true if the call completed without error.
+local function try_create_unit(args)
+    for _ = 1, 2 do
+        local ok = pcall(function()
+            dfhack.run_script("modtools/create-unit", table.unpack(args))
+        end)
+        if ok then return true end
+    end
+    return false
+end
+
+-- Add `amount` stress to up to `count` random living citizens (all if count nil).
+-- Returns how many were affected.
+local function stress_citizens(amount, count)
+    local citizens = {}
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit)
+                and unit.status.current_soul then
+            table.insert(citizens, unit)
+        end
+    end
+    for i = #citizens, 2, -1 do
+        local j = math.random(i)
+        citizens[i], citizens[j] = citizens[j], citizens[i]
+    end
+    local n = count and math.min(count, #citizens) or #citizens
+    for i = 1, n do
+        local soul = citizens[i].status.current_soul
+        pcall(function()
+            soul.personality.stress = (soul.personality.stress or 0) + amount
+        end)
+    end
+    return n
+end
+
+-- Destroy up to `max_items` food/drink items (vermin eating stores). Collects
+-- first, then removes, so we never mutate the list mid-iteration.
+local FOOD_ITEM_TYPES = {
+    FOOD = true, MEAT = true, FISH = true, CHEESE = true, EGG = true,
+    PLANT = true, PLANT_GROWTH = true, DRINK = true, GLOB = true,
+}
+local function destroy_food(max_items)
+    local targets = {}
+    for _, item in ipairs(df.global.world.items.all) do
+        if #targets >= max_items then break end
+        local ok, tn = pcall(function() return df.item_type[item:getType()] end)
+        if ok and FOOD_ITEM_TYPES[tn] then table.insert(targets, item) end
+    end
+    local removed = 0
+    for _, item in ipairs(targets) do
+        if pcall(function() dfhack.items.remove(item) end) then removed = removed + 1 end
+    end
+    return removed
+end
 
 local function recv_goblin_ambush()
-    announce("Trap: Goblin Ambush incoming!")
-    -- Spawn 3 hostile goblins via modtools/create-unit.
-    -- -location is required; we anchor to a living citizen's tile.
-    -- Goblins are assigned to their civilisation's civ ID so they are treated as
-    -- enemies. -setUnitToFort is intentionally NOT used — that would make them
-    -- friendly fortress members instead of raiders.
-    local x, y, z   = get_fort_spawn_pos()
+    -- Goblins as enemies (civ ID set, NOT setUnitToFort which would make them
+    -- friendly fortress members).
+    local x, y, z    = get_fort_spawn_pos()
     local civ_id_str = tostring(find_goblin_civ_id())
-    local ok, err = pcall(function()
-        for _ = 1, 3 do
-            dfhack.run_script("modtools/create-unit",
-                "-race",     "GOBLIN",
-                "-civId",    civ_id_str,
-                "-groupId",  "-1",
-                "-location", "[", x, y, z, "]"
-            )
+    local spawned = 0
+    for _ = 1, 3 do
+        if try_create_unit({"-race", "GOBLIN", "-civId", civ_id_str,
+                            "-groupId", "-1", "-location", "[", x, y, z, "]"}) then
+            spawned = spawned + 1
         end
-    end)
-    if not ok then
-        log.error("goblin_ambush spawn failed: " .. tostring(err))
+    end
+    if spawned > 0 then
+        announce("Trap: Goblin Ambush! Raiders have breached the fortress!")
+    else
+        -- Fallback: the fear of a raid rattles the whole fortress.
+        local n = stress_citizens(60000)
+        log.warn("goblin_ambush: create-unit unavailable, applied raid-fear stress to " .. n .. " dwarves")
+        announce("Trap: A goblin ambush descends — panic grips your dwarves!")
     end
 end
 
 local function recv_cave_bear()
-    announce("Trap: A Cave Bear has found its way in!")
-    -- Wild (civId=-1) cave bear — wild animals attack dwarves on sight.
-    -- -setUnitToFort is intentionally NOT used as that would tame the bear.
     local x, y, z = get_fort_spawn_pos()
-    local ok, err = pcall(function()
-        dfhack.run_script("modtools/create-unit",
-            "-race",     "CAVE_BEAR",
-            "-civId",    "-1",
-            "-groupId",  "-1",
-            "-location", "[", x, y, z, "]"
-        )
-    end)
-    if not ok then
-        log.error("cave_bear spawn failed: " .. tostring(err))
+    if try_create_unit({"-race", "CAVE_BEAR", "-civId", "-1",
+                        "-groupId", "-1", "-location", "[", x, y, z, "]"}) then
+        announce("Trap: A Cave Bear has found its way in!")
+    else
+        -- Fallback: a beast in the dark badly shakes a few dwarves.
+        local n = stress_citizens(120000, 3)
+        log.warn("cave_bear: create-unit unavailable, applied beast-scare stress to " .. n .. " dwarves")
+        announce("Trap: Something large and angry stalks your tunnels...")
     end
 end
 
 local function recv_vermin_infestation()
-    announce("Trap: Vermin Infestation! Giant rats everywhere!")
-    -- RAT is a [VERMIN_SOIL] creature and cannot be spawned as a full unit.
-    -- GIANT_RAT is a proper hostile creature that serves the same narrative role.
-    -- Wild (civId=-1) so they attack dwarves. Spread across a 10-tile radius.
+    -- GIANT_RAT (a real hostile creature) stands in for vermin, spread over a
+    -- 10-tile radius.
     local x, y, z = get_fort_spawn_pos()
     local spawned = 0
     for _ = 1, 10 do
-        local ok = pcall(function()
-            dfhack.run_script("modtools/create-unit",
-                "-race",          "GIANT_RAT",
-                "-civId",         "-1",
-                "-groupId",       "-1",
-                "-location",      "[", x, y, z, "]",
-                "-locationRange", "[", "10", "10", "0", "]"
-            )
-        end)
-        if ok then spawned = spawned + 1 end
+        if try_create_unit({"-race", "GIANT_RAT", "-civId", "-1", "-groupId", "-1",
+                            "-location", "[", x, y, z, "]",
+                            "-locationRange", "[", "10", "10", "0", "]"}) then
+            spawned = spawned + 1
+        end
     end
-    if spawned == 0 then
-        log.error("vermin_infestation: could not spawn any giant rats")
+    if spawned > 0 then
+        announce("Trap: Vermin Infestation! Giant rats everywhere!")
+    else
+        -- Fallback: vermin devour part of your food and drink stores.
+        local eaten = destroy_food(20)
+        log.warn("vermin_infestation: create-unit unavailable, vermin ate " .. eaten .. " food/drink items")
+        announce(("Trap: Vermin Infestation! They have devoured %d of your stores."):format(eaten))
     end
 end
 
@@ -370,7 +461,7 @@ local function recv_tantrum_trigger()
     end
     if target and target.status.current_soul then
         target.status.current_soul.personality.stress = 500000
-        local name = dfhack.TranslateName(dfhack.units.getVisibleName(target))
+        local name = unit_display_name(target)
         announce("Trap: " .. (name ~= "" and name or "A dwarf") .. " has had enough!")
     else
         -- No eligible dwarf found (e.g. very early embark with no stress data).
@@ -501,65 +592,37 @@ local function spawn_precursor_threat()
     end
 end
 
--- Spawn the AP-controlled megabeast target. Picks a random type from the world's
--- raws, finds an underground tile, spawns there, carves a breach, and stores the
--- new unit's ID so only that specific kill triggers victory.
+-- Summon the AP megabeast target via DFHack's 'force' command, which routes
+-- through the game's own event system. This is version-safe, unlike
+-- modtools/create-unit (broken on some DF builds: "world.arena_spawn not found").
+--
+-- We intentionally do NOT pin a target_id here: the goal hook in dwarfipelago.lua
+-- counts any megabeast kill when no target_id is stored, and natural megabeasts
+-- are cleared at world load, so the forced beast is the only one in play.
 local function spawn_target_megabeast()
     if dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/spawned") == "1" then
         return  -- already summoned this world (e.g. reloaded mid-session)
     end
 
-    local x, y, z = find_underground_spawn()
-    if not x then
-        local sx, sy, sz = get_fort_spawn_pos()
-        x, y, z = tonumber(sx), tonumber(sy), tonumber(sz)
-        dfhack.gui.showAnnouncement(
-            "[AP] Warning: no underground tile found — megabeast spawned at surface level.",
-            COLOR_YELLOW, true)
-        log.warn("spawn_target_megabeast: underground search failed, falling back to surface")
-    end
-
-    local beast_type = pick_megabeast_type()
-    dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/target_type", beast_type)
-
-    local pre_count = #df.global.world.units.all
     local ok, err = pcall(function()
-        dfhack.run_script("modtools/create-unit",
-            "-race", beast_type, "-civId", "-1", "-groupId", "-1",
-            "-location", "[", tostring(x), tostring(y), tostring(z), "]")
+        dfhack.run_command("force", "Megabeast")
     end)
     if not ok then
         dfhack.gui.showAnnouncement(
-            "[AP] CRITICAL: Megabeast could not be spawned — the Slay Megabeast goal cannot be completed.",
+            "[AP] CRITICAL: Could not force a megabeast — the Slay Megabeast goal cannot be completed.",
             COLOR_RED, true)
         dfhack.gui.showAnnouncement(
-            "[AP] This is likely a DFHack or mod compatibility issue. Consider regenerating your world.",
+            "[AP] This is likely a DFHack compatibility issue. Check the DFHack console / dwarfipelago.log.",
             COLOR_RED, true)
-        log.error("megabeast spawn failed: " .. tostring(err))
+        log.error("force Megabeast failed: " .. tostring(err))
         return
     end
 
-    -- Identify the newly added unit and persist its ID for targeted kill detection.
-    for i = pre_count, #df.global.world.units.all - 1 do
-        local u = df.global.world.units.all[i]
-        if u then
-            local ok2, is_mega = pcall(dfhack.units.isMegabeast, u)
-            if ok2 and is_mega then
-                dfhack.persistent.saveWorldDataString(
-                    "dwarfipelago/megabeast/target_id", tostring(u.id))
-                break
-            end
-        end
-    end
-
     dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/spawned", "1")
-
-    local display = beast_type:gsub("_", " "):lower():gsub("^%l", string.upper)
-    local dir     = get_spawn_direction(x, y)
     dfhack.gui.showAnnouncement(
-        ("[AP] A deep tremor rolls through the %s stone... a %s has awakened. Hunt it down."):format(dir, display),
+        "[AP] A great beast has been roused and now marches on your fortress. Slay it!",
         COLOR_RED, true)
-    print(("[Dwarfipelago] Megabeast spawned: %s at %d,%d,%d (direction: %s)"):format(beast_type, x, y, z, dir))
+    print("[Dwarfipelago] Megabeast summoned via DFHack 'force Megabeast'")
 end
 
 -- ── Item handlers: progression locks ─────────────────────────────────────────
@@ -571,37 +634,23 @@ local function recv_merchants_coffer()
     announce(("Merchant's Coffer received! Wealth tier %d/5 unlocked"):format(n))
 end
 
-local IMMIGRATION_WAVE_SIZE = 4  -- dwarves brought in per received Immigration Wave
-
 local function recv_immigration_wave()
     local key = "dwarfipelago/unlock/immigration_waves"
     local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
     dfhack.persistent.saveWorldDataString(key, tostring(n))
 
-    -- Actually bring migrants into the fortress so the population grows.
-    -- -setUnitToFort makes each dwarf a real fortress citizen (counts toward
-    -- the population goal and works like a normal migrant).
-    local x, y, z = get_fort_spawn_pos()
-    local spawned = 0
-    for i = 1, IMMIGRATION_WAVE_SIZE do
-        local caste = (i % 2 == 0) and "FEMALE" or "MALE"
-        local ok, err = pcall(function()
-            dfhack.run_script("modtools/create-unit",
-                "-race",          "DWARF",
-                "-caste",         caste,
-                "-setUnitToFort",
-                "-location",      "[", x, y, z, "]"
-            )
-        end)
-        if ok then
-            spawned = spawned + 1
-        else
-            log.error("immigration_wave spawn failed: " .. tostring(err))
-        end
+    -- Trigger a real migration wave through the game's own system via DFHack's
+    -- 'force' command. This is version-safe, unlike modtools/create-unit, which
+    -- is broken on some DF builds ("Cannot read field world.arena_spawn").
+    local ok, err = pcall(function()
+        dfhack.run_command("force", "Migrants")
+    end)
+    if not ok then
+        log.error("immigration_wave: force Migrants failed: " .. tostring(err))
     end
 
-    announce(("Immigration Wave received! %d migrants have arrived. (tier %d/5)")
-        :format(spawned, n))
+    announce(("Immigration Wave received! A wave of migrants approaches. (tier %d/5)")
+        :format(n))
 end
 
 local function recv_barons_charter()
@@ -634,13 +683,11 @@ local function grant_war_gear(tier)
         -- Arm the recruits: a pair of steel weapons + bars to spare.
         spawn_item("WEAPON:ITEM_WEAPON_AXE_BATTLE",  "INORGANIC:STEEL")
         spawn_item("WEAPON:ITEM_WEAPON_SWORD_SHORT", "INORGANIC:STEEL")
-        spawn_item("BAR", "INORGANIC:STEEL", 5)
     elseif tier == 2 then
         -- Armor the soldiers: torso, head, and shield.
         spawn_item("ARMOR:ITEM_ARMOR_BREASTPLATE", "INORGANIC:STEEL")
         spawn_item("HELM:ITEM_HELM_HELM",          "INORGANIC:STEEL")
         spawn_item("SHIELD:ITEM_SHIELD_SHIELD",    "INORGANIC:STEEL")
-        spawn_item("BAR", "INORGANIC:STEEL", 5)
     elseif tier == 3 then
         -- Outfit the elite: full limb protection + heavier weapons.
         spawn_item("GLOVES:ITEM_GLOVES_GAUNTLETS", "INORGANIC:STEEL")
@@ -769,6 +816,9 @@ local BLUEPRINT_NAMES = {
     -- Buildings
     "Farm Plot Blueprint",
 }
+
+-- Exposed so the status command / panel can list blueprints and received state.
+M.BLUEPRINT_NAMES = BLUEPRINT_NAMES
 
 -- Register blueprint handlers dynamically.
 -- Write directly to persistent storage rather than calling unlock_blueprint()

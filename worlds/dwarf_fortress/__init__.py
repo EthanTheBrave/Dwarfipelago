@@ -81,17 +81,18 @@ class DwarfFortressWorld(World):
         generate_location_data(self)
         ## FOR printing, uncomment below and set your yaml to the max! (enable all items, max location, lowest threshold, all materials)
         #generate_location_data_PRINT_ONLY(self)
-        # CHANGED — NEEDS REVIEW:
-        # Material-specific location names (e.g. "Crafting Bone Gauntlets Check 1") are
-        # not pre-registered in crafting_locations.py (only the generic
-        # "Crafting Gauntlets Check 1" is). Without this loop those names never enter
-        # location_name_to_id, so create_regions never creates them in the multiworld,
-        # and set_dynamic_rules raises a KeyError when it tries to look them up.
-        # This is a workaround — ideally crafting_locations.py should be regenerated
-        # to include all material-specific variants, or IDs should be assigned here.
+        # The dynamically-generated craft locations are the single source of truth
+        # for their AP ids. We OVERRIDE any entry in location_name_to_id (the
+        # static crafting_locations.py ids are out of sync with the dynamic
+        # assign_locationid_block + per-check increment, e.g. "Crafting Table
+        # Check 1" is 37528401 statically but 37528001 dynamically). Because
+        # fill_slot_data sends the dynamic ap_id to the client, create_regions
+        # MUST register the same dynamic id here — otherwise the client checks an
+        # id the server never created and the check is silently ignored.
+        # This also covers material-specific names (e.g. "Crafting Bone Gauntlets
+        # Check 1") that aren't in the static table at all.
         for loc in self.dynamic_locations:
-            if loc.name not in self.location_name_to_id:
-                self.location_name_to_id[loc.name] = loc.ap_id
+            self.location_name_to_id[loc.name] = loc.ap_id
         remove_list = []
         for location in self.location_name_to_id:
             if "Crafting" in location and location not in self.dynamic_locations_names:
@@ -118,6 +119,22 @@ class DwarfFortressWorld(World):
         ]
         if self.options.goal != DwarfFortressGoal.option_legendary_wealth:
             for loc_name in WEALTH_TIER_LOCATIONS:
+                self.location_name_to_id.pop(loc_name, None)
+
+        # The noble-ladder checks are charter progression locks: each is gated in
+        # checks.lua behind its charter item, and those charters only exist in the
+        # pool for the mountainhome goal. For every other goal they'd be dead,
+        # uncompletable locations, so remove them. Mayor Elected stays (no charter,
+        # happens in any fortress) and the fortress titles stay (gated by
+        # Immigration Waves, which are in every goal's pool).
+        NOBLE_LADDER_LOCATIONS = [
+            "Baron Appointed",
+            "Count Appointed",
+            "Duke Appointed",
+            "Monarch Takes Residence",
+        ]
+        if self.options.goal != DwarfFortressGoal.option_mountainhome:
+            for loc_name in NOBLE_LADDER_LOCATIONS:
                 self.location_name_to_id.pop(loc_name, None)
 
 
@@ -178,9 +195,21 @@ class DwarfFortressWorld(World):
 
         item_pool: list[DwarfFortressItem] = []
 
-        # 1. Always add every progression item.
+        # Items granted via start_inventory are auto-precollected by AP core.
+        # We must NOT also place them in the pool, or a duplicate ends up at a
+        # location and gets sent when that location is checked (e.g. starting
+        # with the Stoneworker's blueprint but still receiving it later).
+        start_inv = dict(self.options.start_inventory.value)
+
+        # 1. Add every progression item, minus copies already in start_inventory.
         for item_data in required:
-            for _ in range(item_data.quantity):
+            qty = item_data.quantity
+            granted = start_inv.get(item_data.name, 0)
+            if granted > 0:
+                skip = min(granted, qty)
+                qty -= skip
+                start_inv[item_data.name] = granted - skip
+            for _ in range(qty):
                 item_pool.append(self.create_item(item_data.name))
 
         # 2. Fill remaining slots from optional items (shuffled for variety).

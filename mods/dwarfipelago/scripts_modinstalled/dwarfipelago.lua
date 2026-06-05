@@ -4,6 +4,7 @@
 --   dwarfipelago stop               -- disable and unregister hooks
 --   dwarfipelago status             -- show current state
 --   dwarfipelago reset              -- wipe persistent state (use with care)
+--   dwarfipelago resetseed          -- clear AP seed lock so this world can join a new slot
 --   dwarfipelago receive <item>     -- manually deliver an item (for testing)
 
 -- Internal modules live under internal/dwarfipelago/ to keep them out of the
@@ -20,12 +21,49 @@ local eventful   = require("plugins.eventful")
 local repeatUtil = require("repeat-util")
 
 local SCRIPT_NAME = "dwarfipelago"
-local SCRIPT_VERSION = "1.0.2"
+local SCRIPT_VERSION = "1.0.3"
 local POLL_TICKS  = 100  -- poll wealth/trade/goal checks every N ticks
 
 -- Set to true while we are applying a received DeathLink so that the death
 -- hook does not count those kills toward our own outgoing DeathLink threshold.
 local applying_recv_deathlink = false
+
+-- Job types that count as "mining" for the depth / tiles-excavated milestones.
+-- Built defensively so names absent in a given DF version are skipped.
+local MINING_JOBS = {}
+for _, name in ipairs({
+    "Dig", "CarveUpwardStaircase", "CarveDownwardStaircase",
+    "CarveUpDownStaircase", "CarveRamp", "DigChannel",
+}) do
+    local v = df.job_type[name]
+    if v ~= nil then MINING_JOBS[v] = true end
+end
+
+-- Reverse-map a block's global_feature id to the embark's map_feature object.
+-- World-independent: feature_global_idx maps each map_features[i] to its global
+-- id, so we scan it live (~11 entries) rather than hardcoding anything.
+local function feature_for_global(gf)
+    local feat
+    pcall(function()
+        for i, gid in ipairs(df.global.world.features.feature_global_idx) do
+            if gid == gf then
+                feat = df.global.world.features.map_features[i]
+                return
+            end
+        end
+    end)
+    return feat
+end
+
+-- Set a mining milestone flag once, announcing the first time it's reached.
+local function set_mining_milestone(key, msg)
+    local k = "dwarfipelago/mining/" .. key
+    if dfhack.persistent.getWorldDataString(k) ~= "1" then
+        dfhack.persistent.saveWorldDataString(k, "1")
+        dfhack.gui.showAnnouncement("[AP] " .. msg, COLOR_GREEN, true)
+        log.info("Mining milestone: " .. msg)
+    end
+end
 
 -- Per-session tracking for "milestone reached but locked" notifications.
 -- Keyed by AP location ID; prevents repeating the same announcement every poll.
@@ -146,7 +184,18 @@ local function on_unit_death(uid)
             local is_target = (not target_id) or (unit.id == target_id)
             if is_target then
                 if state.mark_goal_complete() then
-                    local name = dfhack.TranslateName(dfhack.units.getVisibleName(unit))
+                    -- Version-safe name lookup (dfhack.TranslateName is absent in
+                    -- newer DFHack; getReadableName replaces it).
+                    local name = ""
+                    pcall(function()
+                        if dfhack.units.getReadableName then
+                            name = dfhack.units.getReadableName(unit) or ""
+                        elseif dfhack.translation and dfhack.translation.translateName then
+                            name = dfhack.translation.translateName(dfhack.units.getVisibleName(unit)) or ""
+                        elseif dfhack.TranslateName then
+                            name = dfhack.TranslateName(dfhack.units.getVisibleName(unit)) or ""
+                        end
+                    end)
                     dfhack.gui.showAnnouncement(
                         ("[AP] Goal reached: %s has been slain! Victory!"):format(
                             name ~= "" and name or "The megabeast"),
@@ -389,6 +438,17 @@ local function poll_checks()
     -- fully live and the simulation is running.
     if not dfhack.isMapLoaded() then return end
 
+    -- Capture the surface z-level once, early (before much digging), from a
+    -- living citizen's position. Used as the reference for mining-depth checks.
+    if not tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/mining/surface_z")) then
+        for _, unit in ipairs(df.global.world.units.active) do
+            if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+                dfhack.persistent.saveWorldDataString("dwarfipelago/mining/surface_z", tostring(unit.pos.z))
+                break
+            end
+        end
+    end
+
     -- All AP checks are gated on a trade depot existing.  ensure_trade_depot
     -- retries every poll tick (every POLL_TICKS game ticks) until it succeeds,
     -- so it naturally defers until units and map data are fully loaded.
@@ -444,6 +504,48 @@ local function on_job_completed(job)
             checks.increment_craft_count("bee_wax")
         elseif craft_flag == "oil" then
             checks.increment_craft_count("press_cake")
+        end
+    end
+
+    -- Mining tracking — count excavation jobs and record the deepest z reached.
+    -- Drives the depth and tiles-mined milestone checks (checks.lua).
+    if MINING_JOBS[job.job_type] then
+        local key_c = "dwarfipelago/mining/dig_count"
+        local n = (tonumber(dfhack.persistent.getWorldDataString(key_c)) or 0) + 1
+        dfhack.persistent.saveWorldDataString(key_c, tostring(n))
+
+        local ok, jz = pcall(function() return job.pos.z end)
+        if ok and jz then
+            local key_d = "dwarfipelago/mining/deepest_z"
+            local cur = tonumber(dfhack.persistent.getWorldDataString(key_d))
+            if not cur or jz < cur then
+                dfhack.persistent.saveWorldDataString(key_d, tostring(jz))
+            end
+        end
+
+        -- Cavern / magma sea breach detection via the dug tile's map feature.
+        local okb, blk = pcall(dfhack.maps.getTileBlock, job.pos.x, job.pos.y, job.pos.z)
+        if okb and blk then
+            local gf = blk.global_feature
+            if gf and gf >= 0 then
+                local feat = feature_for_global(gf)
+                if feat then
+                    local t = tostring(feat._type)
+                    if t:find("subterranean_from_layers") then
+                        local sd = 0
+                        pcall(function() sd = feat.start_depth end)
+                        if sd == 0 then
+                            set_mining_milestone("cavern1", "You have breached the first cavern!")
+                        elseif sd == 1 then
+                            set_mining_milestone("cavern2", "You have breached the second cavern!")
+                        elseif sd == 2 then
+                            set_mining_milestone("cavern3", "You have breached the third cavern!")
+                        end
+                    elseif t:find("magma_core") then
+                        set_mining_milestone("magma", "You have reached the Magma Sea!")
+                    end
+                end
+            end
         end
     end
 
@@ -672,7 +774,20 @@ end
 
 local function on_item_created(item_id)
     if not state.is_enabled() then return end
-    local info = item_to_info(df.item.find(item_id))
+    local item = df.item.find(item_id)
+
+    -- Count harvested crops (PLANT items) for the farming milestone checks.
+    -- item_to_info skips PLANT for the event queue, so we count it here directly.
+    if item then
+        local ok, t = pcall(function() return df.item_type[item:getType()] end)
+        if ok and t == "PLANT" then
+            local key = "dwarfipelago/farming/crop_count"
+            local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
+            dfhack.persistent.saveWorldDataString(key, tostring(n))
+        end
+    end
+
+    local info = item_to_info(item)
     if info then
         queue_item_event("dwarfipelago/pending_item_created", info)
     end
@@ -972,6 +1087,20 @@ elseif cmd == "status" then
 elseif cmd == "reset" then
     stop()
     state.reset()
+elseif cmd == "resetseed" then
+    -- Clear the stored AP world identity so this DF save can be reconnected to a
+    -- freshly generated AP slot (new seed) without the client rejecting it with
+    -- "This saved world does not match this slot." Lets you keep a test world
+    -- across regenerations. Other AP state (checks, unlocks, craft counts) is
+    -- left intact — use "dwarfipelago reset" for a full wipe.
+    local ok = pcall(function()
+        dfhack.persistent.deleteWorldData("dwarfipelago/seed")
+    end)
+    if not ok then
+        -- Older API without deleteWorldData: blank it (client treats "" as fresh).
+        dfhack.persistent.saveWorldDataString("dwarfipelago/seed", "")
+    end
+    print("[Dwarfipelago] Seed expectation cleared. Reconnect the AP client to adopt the new slot's seed.")
 elseif cmd == "panel" then
     reqscript("dwarfipelago-panel").open_panel()
 elseif cmd == "receive" then
@@ -982,5 +1111,5 @@ elseif cmd == "receive" then
         items.receive(item_name)
     end
 else
-    print("Usage: dwarfipelago [start|stop|status|reset|panel|receive <item>]")
+    print("Usage: dwarfipelago [start|stop|status|reset|resetseed|panel|receive <item>]")
 end
