@@ -92,7 +92,8 @@ class DwarfFortressWorld(World):
         # This also covers material-specific names (e.g. "Crafting Bone Gauntlets
         # Check 1") that aren't in the static table at all.
         for loc in self.dynamic_locations:
-            self.location_name_to_id[loc.name] = loc.ap_id
+            if loc.name not in self.location_name_to_id:
+                self.location_name_to_id[loc.name] = loc.ap_id
         remove_list = []
         for location in self.location_name_to_id:
             if "Crafting" in location and location not in self.dynamic_locations_names:
