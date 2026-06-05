@@ -629,7 +629,13 @@ larmor_subtype(16, "lower_body_clothing")
 local function mat_craft_flag(job)
     local ok, mat = pcall(dfhack.matinfo.decode, job.mat_type, job.mat_index)
     if not ok or not mat then return nil end
-    local token = mat:toString() or ""
+    -- Match against the raw material TOKEN (e.g. "PLANT_MAT:OAK:WOOD",
+    -- "INORGANIC:GLASS_GREEN", "CREATURE_MAT:COW:LEATHER"), NOT toString() which
+    -- returns a readable name like "oak wood" that never matches the uppercase
+    -- substrings below — that bug made wood/glass/leather/cloth resolve wrongly.
+    local token = ""
+    pcall(function() token = mat:getToken() or "" end)
+    if token == "" then token = mat:toString() or "" end
     if mat.mode == "inorganic" then
         local raw = mat.inorganic
         if raw and raw.flags.IS_METAL then return "metal" end
