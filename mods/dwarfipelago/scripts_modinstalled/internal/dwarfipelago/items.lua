@@ -720,6 +720,27 @@ local function recv_military_training()
     end
 end
 
+-- ── Progression unlock definitions ───────────────────────────────────────────
+-- Single source of truth for all progression unlocks.
+-- The panel reads this to build its Unlocks tab automatically.
+-- Add new entries here when adding a new progression item handler.
+--   key  → suffix after "dwarfipelago/unlock/" in persistent storage
+--   label → display name shown in the panel
+--   max  → if set, treated as a counter (shows "n/max"); otherwise a boolean
+
+M.UNLOCK_DEFS = {
+    { key = "wealth_coffers",        label = "Merchant's Coffers",     max = 5 },
+    { key = "immigration_waves",     label = "Immigration Waves",      max = 5 },
+    { key = "military_training",     label = "Military Training",      max = 4 },
+    { key = "baron_charter",         label = "Baron's Charter" },
+    { key = "count_charter",         label = "Count's Charter" },
+    { key = "duke_charter",          label = "Duke's Charter" },
+    { key = "monarch_invitation",    label = "Monarch's Invitation" },
+    { key = "master_builders_codex", label = "Master Builder's Codex" },
+    { key = "artifact_weapon",       label = "Artifact Weapon" },
+    { key = "artifact_armor",        label = "Artifact Armor" },
+}
+
 -- ── Dispatch table ────────────────────────────────────────────────────────────
 -- Maps AP item name → handler function.
 -- Names must match items.py exactly.
