@@ -160,6 +160,21 @@ class CraftsanityThreshold(Range):
     range_end = 500
     default = 5
 
+class CraftingItems(Choice):
+    """
+    If Crafting Items is enabled, you cannot craft certian items until you got the appropriate AP item. 
+    When set to "on", The following crafts you can preform that do not AP items (comes with the workshop):
+    Beds, Charcoal, Leather, Cloth, Alcohol, Prepared Meal
+    When set to "all", the above are included and are required to obtain them
+    Craftsanity must be enabled to use this feature.
+    """
+    display_name = "Crafting Items"
+    option_off = 0
+    option_on = 1
+    option_all = 2
+    default = 0
+
+
 class StartingDefaultDFInventory(StartInventory):
     """Starting Blueprints to make your starting game less "fun" """
     display_name = "Start Inventory"
@@ -175,6 +190,7 @@ class DwarfFortressOptions(PerGameCommonOptions):
     population_goal_amount: PopulationGoalAmount
     trades_inlogic: TradesInLogic
     craftsanity: EnableCraftsanity
+    craftitems: CraftingItems
     craftsanity_item_group: CraftsanityItemGroup
     craftsanity_items: CraftsanityItems
     craftsanity_enable_materials: CraftsanityEnableMaterials

@@ -1,13 +1,14 @@
 from typing import Any, ClassVar, List
 from BaseClasses import Region, Location, Item, ItemClassification, Tutorial
 from worlds.AutoWorld import World, WebWorld
+from Options import OptionError
 from worlds.LauncherComponents import Component, icon_paths, components, Type, launch_subprocess
 
-from .options import DwarfFortressOptions, DwarfFortressGoal
+from .options import DwarfFortressOptions, DwarfFortressGoal, CraftingItems
 from .settings import DwarfFortressSettings
 from .items import (
     ItemData, ITEM_TABLE, AP_ITEM_POOL, FILLER_ITEMS, TRAP_ITEMS,
-    PROGRESSION_ITEMS, USEFUL_ITEMS
+    PROGRESSION_ITEMS, USEFUL_ITEMS, CRAFT_ITEMS
 )
 from .locations import LocationData, LOCATION_TABLE, ALL_LOCATIONS
 from .craftsanity import generate_location_data, generate_location_data_PRINT_ONLY
@@ -69,28 +70,22 @@ class DwarfFortressWorld(World):
 
     dynamic_locations = []
     dynamic_locations_names = []
+    ap_item_pool = AP_ITEM_POOL
     web = DwarfFortressWebWorld()
 
     def generate_early(self) -> None:
         # Make per-instance copies of the class-level shared containers so that
         # multiple DF players in the same multiworld don't corrupt each other's state.
         self.location_name_to_id = dict(LOCATION_TABLE)
+        self.ap_item_pool = AP_ITEM_POOL
         self.dynamic_locations = []
         self.dynamic_locations_names = []
-        #populates dynamic_locations and d_l_names
+        #populates dynamic_locations and names
         generate_location_data(self)
         ## FOR printing, uncomment below and set your yaml to the max! (enable all items, max location, lowest threshold, all materials)
         #generate_location_data_PRINT_ONLY(self)
-        # The dynamically-generated craft locations are the single source of truth
-        # for their AP ids. We OVERRIDE any entry in location_name_to_id (the
-        # static crafting_locations.py ids are out of sync with the dynamic
-        # assign_locationid_block + per-check increment, e.g. "Crafting Table
-        # Check 1" is 37528401 statically but 37528001 dynamically). Because
-        # fill_slot_data sends the dynamic ap_id to the client, create_regions
-        # MUST register the same dynamic id here — otherwise the client checks an
-        # id the server never created and the check is silently ignored.
-        # This also covers material-specific names (e.g. "Crafting Bone Gauntlets
-        # Check 1") that aren't in the static table at all.
+        
+        #remove unused crafting locations
         for loc in self.dynamic_locations:
             if loc.name not in self.location_name_to_id:
                 self.location_name_to_id[loc.name] = loc.ap_id
@@ -104,6 +99,39 @@ class DwarfFortressWorld(World):
         #for locations in self.dynamic_locations:
         #    print(f'LocationData("{locations.name}", {locations.ap_id}, "Fortress", False, "{locations.material_type}", "{locations.df_item}", {locations.threshold}),')
 
+        # remove the crafting items from the pool depending on the options
+        if self.options.craftitems == CraftingItems.option_off or not self.options.craftsanity:
+            remove_list = []
+            remove_ap_pool = []
+            for item in self.item_name_to_id:
+                match = [i for i in CRAFT_ITEMS if i.name == item]
+                if len(match) > 0:
+                    remove_list.append(item)
+                    remove_ap_pool.append(match[0])
+            for item in remove_list:
+                del self.item_name_to_id[item]
+            for item in remove_ap_pool:
+                self.ap_item_pool.remove(item)
+        elif self.options.craftitems == CraftingItems.option_on:
+            remove_list = ["Crafting Beds", "Crafting Charcoal", "Crafting Leather",
+                "Crafting Cloth", "Crafting Alcohol", "Crafting Prepared Meal"
+            ]
+            remove_ap_pool = []
+            for item in self.item_name_to_id:
+                if item in remove_list:
+                    match = [i for i in CRAFT_ITEMS if i.name == item]
+                    remove_ap_pool.append(match[0])
+            for item in remove_list:
+                del self.item_name_to_id[item]
+            for item in remove_ap_pool:
+                self.ap_item_pool.remove(item)
+        
+        if len(CRAFT_ITEMS) > len(self.dynamic_locations):
+            raise OptionError(
+                f"{self.player_name}: You do not have enough crafting locations enabled to use the crafting items feature."
+                f" To increase this, add more crafting item locations, increase the maximum amount or lower the threshold."
+                f" You need {len(CRAFT_ITEMS) - len(self.dynamic_locations)} more locations."
+            )
         # Goal-based location filtering — mirror of the item removal in
         # create_items(). The wealth-tier checks are coffer progression locks:
         # they are only gated (and the Merchant's Coffer items only exist) when
@@ -172,15 +200,15 @@ class DwarfFortressWorld(World):
         # always be included because rules.py gates locations behind them.  If they
         # were trimmed to fit the location count the accessibility check would fail.
         required: list[ItemData] = [
-            d for d in AP_ITEM_POOL
+            d for d in self.ap_item_pool
             if d.classification == ItemClassification.progression
         ]
         optional: list[ItemData] = [
-            d for d in AP_ITEM_POOL
+            d for d in self.ap_item_pool
             if d.classification != ItemClassification.progression
         ]
 
-        for item_data in AP_ITEM_POOL:
+        for item_data in self.ap_item_pool:
             if self.options.goal == DwarfFortressGoal.option_slay_megabeast and \
                 item_data.name in {"Merchant's Coffer", "Baron's Charter",  "Count's Charter", "Duke's Charter", "Monarch's Invitation"}:
                     required.remove(item_data)
@@ -264,7 +292,7 @@ class DwarfFortressWorld(World):
 
     def create_item(self, name: str) -> DwarfFortressItem:
         classification = ItemClassification.filler
-        for item_data in AP_ITEM_POOL:
+        for item_data in self.ap_item_pool:
             if item_data.name == name:
                 classification = item_data.classification
                 break
