@@ -88,7 +88,7 @@ def loop_locations(world: "DwarfFortressWorld", new_location: DynamicCraftingDat
                     world.dynamic_locations.append(LocationData(new_location.check_name, world.location_name_to_id[new_location.check_name], "", False, new_location.type, new_location.item_name, next_id + 1))
                 else:
                     new_location.check_name = "Crafting "+ new_location.type + " " + new_location.item_name + " Check "+ str(next_id + 1)
-                    world.dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, new_location.type, new_location.item_name, next_id + 1))
+                    world.dynamic_locations.append(LocationData(new_location.check_name, world.location_name_to_id[new_location.check_name], "", False, new_location.type, new_location.item_name, next_id + 1))
                 world.dynamic_locations_names.append(new_location.check_name)
     else: # Materials doesn't matter
         new_location.max_id = calulate_check_count(world)
@@ -99,7 +99,7 @@ def loop_locations(world: "DwarfFortressWorld", new_location: DynamicCraftingDat
                 world.dynamic_locations.append(LocationData(new_location.check_name, world.location_name_to_id[new_location.check_name], "", False, new_location.type, new_location.item_name, next_id + 1))
             else:
                 new_location.check_name = "Crafting " + new_location.item_name + " Check "+ str(next_id + 1)
-                world.dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, "", new_location.item_name, next_id + 1))
+                world.dynamic_locations.append(LocationData(new_location.check_name, world.location_name_to_id[new_location.check_name], "", False, "", new_location.item_name, next_id + 1))
             world.dynamic_locations_names.append(new_location.check_name)
     return
 
