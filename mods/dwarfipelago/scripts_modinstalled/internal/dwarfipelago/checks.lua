@@ -170,6 +170,33 @@ M.checks = {
     { id = 37370402, name = "Town Established",       fn = has_fortress_title(80, 100000,  10000, 3) },
     { id = 37370403, name = "City Established",       fn = has_fortress_title(110, 200000, 20000, 4) },
     { id = 37370404, name = "Metropolis Established", fn = has_fortress_title(140, 300000, 30000, 5) },
+
+    -- Mining: depth below the surface z-level (deepest mining job reached).
+    { id = 37370700, name = "Delved 10 Levels Deep",  fn = function() return M.mining_depth() >= 10  end },
+    { id = 37370701, name = "Delved 25 Levels Deep",  fn = function() return M.mining_depth() >= 25  end },
+    { id = 37370702, name = "Delved 50 Levels Deep",  fn = function() return M.mining_depth() >= 50  end },
+    { id = 37370703, name = "Delved 75 Levels Deep",  fn = function() return M.mining_depth() >= 75  end },
+    { id = 37370704, name = "Delved 100 Levels Deep", fn = function() return M.mining_depth() >= 100 end },
+
+    -- Mining: cumulative tiles excavated.
+    { id = 37370710, name = "Excavator I (100 tiles)",     fn = function() return M.mining_count() >= 100   end },
+    { id = 37370711, name = "Excavator II (500 tiles)",    fn = function() return M.mining_count() >= 500   end },
+    { id = 37370712, name = "Excavator III (2,000 tiles)", fn = function() return M.mining_count() >= 2000  end },
+    { id = 37370713, name = "Excavator IV (5,000 tiles)",  fn = function() return M.mining_count() >= 5000  end },
+    { id = 37370714, name = "Excavator V (10,000 tiles)",  fn = function() return M.mining_count() >= 10000 end },
+
+    -- Mining: cavern / magma sea breaches (detected via map feature on dig jobs).
+    { id = 37370720, name = "First Cavern Breached",  fn = function() return M.mining_flag("cavern1") end },
+    { id = 37370721, name = "Second Cavern Breached", fn = function() return M.mining_flag("cavern2") end },
+    { id = 37370722, name = "Third Cavern Breached",  fn = function() return M.mining_flag("cavern3") end },
+    { id = 37370723, name = "Reached the Magma Sea",  fn = function() return M.mining_flag("magma")   end },
+
+    -- Farming: cumulative harvested crops (PLANT items).
+    { id = 37370730, name = "Harvest 50 Crops",    fn = function() return M.crops_harvested() >= 50   end },
+    { id = 37370731, name = "Harvest 250 Crops",   fn = function() return M.crops_harvested() >= 250  end },
+    { id = 37370732, name = "Harvest 1,000 Crops", fn = function() return M.crops_harvested() >= 1000 end },
+    { id = 37370733, name = "Harvest 2,500 Crops", fn = function() return M.crops_harvested() >= 2500 end },
+    { id = 37370734, name = "Harvest 5,000 Crops", fn = function() return M.crops_harvested() >= 5000 end },
 }
 
 -- ── Production flag helpers ───────────────────────────────────────────────────
@@ -192,6 +219,37 @@ end
 function M.trade_flag(flag)
     local val = dfhack.persistent.getWorldDataString("dwarfipelago/trade/" .. flag)
     return val == "1"
+end
+
+-- ── Mining helpers ────────────────────────────────────────────────────────────
+-- Mining state is written by the eventful job hook in dwarfipelago.lua:
+--   dwarfipelago/mining/surface_z  — z-level of the embark surface (captured once)
+--   dwarfipelago/mining/deepest_z  — lowest z any mining job has reached
+--   dwarfipelago/mining/dig_count  — cumulative count of mining jobs completed
+
+-- Levels dug below the surface (0 if not yet tracked or only dug upward).
+function M.mining_depth()
+    local surface = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/mining/surface_z"))
+    local deepest = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/mining/deepest_z"))
+    if not surface or not deepest then return 0 end
+    local depth = surface - deepest
+    return depth > 0 and depth or 0
+end
+
+-- Cumulative tiles excavated.
+function M.mining_count()
+    return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/mining/dig_count")) or 0
+end
+
+-- Cavern/magma breach flags, set by the mining hook when a dig job lands in the
+-- matching feature (dwarfipelago/mining/cavern1|cavern2|cavern3|magma).
+function M.mining_flag(name)
+    return dfhack.persistent.getWorldDataString("dwarfipelago/mining/" .. name) == "1"
+end
+
+-- Cumulative harvested crops (PLANT items), incremented by the onItemCreated hook.
+function M.crops_harvested()
+    return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/farming/crop_count")) or 0
 end
 
 -- ── Job type → production flag mapping ───────────────────────────────────────
@@ -368,6 +426,9 @@ cmap("MakeLye",                 "lye")
 cmap("MakePotashFromLye",       "potash")
 cmap("MakePotashFromAsh",       "potash")
 cmap("PrepareMeal",             "prepared_meal")
+-- Vanilla brewing is the hardcoded BrewDrink job (not a CustomReaction), so map
+-- it directly to the alcohol craft flag.
+cmap("BrewDrink",               "alcohol")
 cmap("MakeArmor",               "UARMOR_SUBTYPE")
 cmap("MakeGloves",              "GARMOR_SUBTYPE")
 cmap("MakePants",               "LARMOR_SUBTYPE")
@@ -475,10 +536,13 @@ goblet_subtype("stone",  "mug")
 goblet_subtype("metal",  "goblet")
 goblet_subtype("glass",   "goblet")
 
+-- Keyed by the job's reaction_name STRING (job_to_craft_flag looks up
+-- REACTION_SUBTYPE_FLAG[job.reaction_name]). The previous version keyed by
+-- df.job_type[name], but these are reaction names (not job types), so every
+-- entry resolved to nil and the table was empty — breaking all reaction flags.
 local REACTION_SUBTYPE_FLAG = {}
 local function reaction_subtype(name, flag)
-    local v = df.job_type[name]
-    if v ~= nil then REACTION_SUBTYPE_FLAG[v] = flag end
+    REACTION_SUBTYPE_FLAG[name] = flag
 end
 reaction_subtype("LIGNITE_TO_COAL",                 "coke_bar")
 reaction_subtype("BITUMINOUS_COAL_TO_COAL",         "coke_bar")
