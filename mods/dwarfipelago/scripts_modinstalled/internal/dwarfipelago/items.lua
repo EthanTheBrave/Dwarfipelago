@@ -1128,12 +1128,63 @@ local function test_find(substr)
     for _, id in ipairs(matches) do print("    " .. id) end
 end
 
+-- Diagnose bag-of-sand creation step by step so we can see exactly where the
+-- nesting fails (bag not a real container, moveToContainer returning false, ...).
+local function test_sandbag()
+    if not dfhack.isMapLoaded() then print("[test] No fortress loaded."); return end
+    local unit
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then unit = u; break end
+    end
+    if not unit then print("[test] No living citizen."); return end
+
+    local function find_mat(tokens)
+        for _, t in ipairs(tokens) do
+            local mi = dfhack.matinfo.find(t)
+            if mi then return mi.type, mi.index, t end
+        end
+    end
+    local ct, ci, ctok = find_mat({ "CREATURE_MAT:COW:LEATHER", "PLANT_MAT:GRASS_TAIL_PIG:THREAD" })
+    local st, si, stok
+    for i, raw in ipairs(df.global.world.raws.inorganics) do
+        if raw.flags and raw.flags.SOIL_SAND then st, si, stok = 0, i, raw.id; break end
+    end
+    print(("[test] bag mat = %s | sand mat = %s"):format(tostring(ctok), tostring(stok)))
+    if not ct or not st then print("[test] missing material — aborting."); return end
+
+    local bag  = dfhack.items.createItem(unit, df.item_type.BOX, -1, ct, ci, false)
+    local sand = dfhack.items.createItem(unit, df.item_type.POWDER_MISC, -1, st, si, false)
+    local b = bag and bag[1]
+    local s = sand and sand[1]
+    print(("[test] bag created = %s | sand created = %s"):format(tostring(b ~= nil), tostring(s ~= nil)))
+    if b then
+        local is_bag, has_container = "?", "?"
+        pcall(function() is_bag = tostring(df.item_type[b:getType()]) end)
+        pcall(function() has_container = tostring(b.flags.container) end)
+        print(("[test] bag item_type=%s flags.container=%s desc=%s"):format(
+            is_bag, has_container, dfhack.items.getDescription(b, 0)))
+    end
+    if b and s then
+        local moved = dfhack.items.moveToContainer(s, b)
+        print("[test] moveToContainer returned: " .. tostring(moved))
+        local inside = false
+        pcall(function()
+            for _, g in ipairs(s.general_refs) do
+                if df.general_ref_contained_in_itemst:is_instance(g) then inside = true end
+            end
+        end)
+        print("[test] sand is now contained: " .. tostring(inside))
+    end
+end
+
 -- Ordered so 'dwarfipelago test' lists them predictably.
 local TEST_LIST = {
     { "spawn",     "Spawn 1 unit via dfhack.units API + report status (arg: RACE, default GIANT_RAT)",
                    function(rest) test_spawn(rest[1]) end },
     { "find",      "List creature tokens matching a substring (arg: SUBSTR, e.g. BEAR)",
                    function(rest) test_find(rest[1]) end },
+    { "sandbag",   "Diagnose bag-of-sand: create bag+sand and report each step",
+                   function() test_sandbag() end },
     { "goblin",    "Goblin Ambush trap (3 hostile goblins)",          function() recv_goblin_ambush() end },
     { "cavebear",  "Cave Bear Incursion trap",                        function() recv_cave_bear() end },
     { "vermin",    "Vermin Infestation trap (10 giant rats)",         function() recv_vermin_infestation() end },
