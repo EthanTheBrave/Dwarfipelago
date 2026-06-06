@@ -309,7 +309,7 @@ local function recv_bag_of_sand()
 
         local made = 0
         for _ = 1, 3 do
-            local bag  = dfhack.items.createItem(unit, df.item_type.BOX, -1, ct, ci, false)
+            local bag  = dfhack.items.createItem(unit, df.item_type.BAG, -1, ct, ci, false)
             local sand = dfhack.items.createItem(unit, df.item_type.POWDER_MISC, -1, st, si, false)
             if bag and bag[1] and sand and sand[1] then
                 dfhack.items.moveToContainer(sand[1], bag[1])
@@ -357,7 +357,7 @@ local function recv_bag_of_clay()
 
         local made = 0
         for _ = 1, 3 do
-            local bag  = dfhack.items.createItem(unit, df.item_type.BOX, -1, ct, ci, false)
+            local bag  = dfhack.items.createItem(unit, df.item_type.BAG, -1, ct, ci, false)
             local clay = dfhack.items.createItem(unit, df.item_type.POWDER_MISC, -1, clt, cli, false)
             if bag and bag[1] and clay and clay[1] then
                 dfhack.items.moveToContainer(clay[1], bag[1])
