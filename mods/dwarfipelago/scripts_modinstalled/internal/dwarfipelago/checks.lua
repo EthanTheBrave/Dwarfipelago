@@ -626,25 +626,97 @@ larmor_subtype(14, "lower_body_clothing")
 larmor_subtype(15, "lower_body_armor")
 larmor_subtype(16, "lower_body_clothing")
 
-local function mat_craft_flag(job)
-    local ok, mat = pcall(dfhack.matinfo.decode, job.mat_type, job.mat_index)
-    if not ok or not mat then return nil end
-    local token = mat:toString() or ""
-    if mat.mode == "inorganic" then
-        local raw = mat.inorganic
-        if raw and raw.flags.IS_METAL then return "metal" end
-        if token:find("GLASS") then return "glass" end
-        if token:find("CLAY") or token:find("PORCELAIN") or token:find("KAOLINITE") then return "ceramic" end
-        return "stone"
-    elseif mat.mode == "plant" then
-        if token:find(":WOOD") then return "wood" end
-        return "cloth"  -- plant fiber / thread
-    elseif mat.mode == "creature" then
-        if token:find("LEATHER") then return "leather" end
-        if token:find(":SILK") then return "cloth" end
-        return "bone"
+-- Construction jobs/orders that use a generic material category (e.g. "make
+-- wooden table") set mat_type/mat_index to -1 and instead flag
+-- material_category.wood / .stone / etc. Map those category fields to our flag.
+local MATCAT_TO_FLAG = {
+    wood = "wood",
+    metal = "metal", bar = "metal",
+    stone = "stone", rock = "stone",
+    glass = "glass", glass2 = "glass", glass3 = "glass",
+    leather = "leather",
+    cloth = "cloth", yarn = "cloth", silk = "cloth", plant_cloth = "cloth",
+    bone = "bone",
+}
+
+-- Classify a (mat_type, mat_index) pair into a craft material flag, or nil.
+-- Detection is TOKEN-driven rather than .mode-driven, because a generic "any
+-- stone" job stores mat_type=0/mat_index=-1, which decodes to a matinfo with no
+-- specific raw and a nil .mode (token "INORGANIC") that the old branches missed.
+local function classify_mat(mat_type, mat_index)
+    local ok, mat = pcall(dfhack.matinfo.decode, mat_type, mat_index)
+    if ok and mat then
+        -- Raw material TOKEN, e.g. "PLANT_MAT:OAK:WOOD", "INORGANIC:GLASS_GREEN",
+        -- "CREATURE_MAT:COW:LEATHER", or bare "INORGANIC" for generic stone.
+        local token = ""
+        pcall(function() token = mat:getToken() or "" end)
+        if token == "" then pcall(function() token = mat:toString() or "" end) end
+        local up = token:upper()
+
+        -- Metal is only reliable via the inorganic raw's IS_METAL flag.
+        local is_metal = false
+        pcall(function()
+            is_metal = (mat.inorganic and mat.inorganic.flags and mat.inorganic.flags.IS_METAL) or false
+        end)
+        if is_metal then return "metal" end
+
+        if mat.mode == "plant" then
+            if up:find(":WOOD") then return "wood" end
+            return "cloth"  -- plant fiber / thread
+        elseif mat.mode == "creature" then
+            if up:find("LEATHER") then return "leather" end
+            if up:find(":SILK") then return "cloth" end
+            return "bone"
+        end
+
+        -- Inorganic / builtin / generic (covers nil .mode when mat_index == -1).
+        if up:find("GLASS") then return "glass" end
+        if up:find("CLAY") or up:find("PORCELAIN") or up:find("KAOLINITE") then return "ceramic" end
+        if up:find("INORGANIC") then return "stone" end
+        if up:find(":WOOD") then return "wood" end
     end
+
+    -- Builtin mat_type fallback: 0 = INORGANIC base (generic stone),
+    -- 3..5 = builtin green/clear/crystal glass.
+    if mat_type == 0 then return "stone" end
+    if mat_type and mat_type >= 3 and mat_type <= 5 then return "glass" end
     return nil
+end
+
+local function mat_craft_flag(job)
+    -- 1. Material set directly on the job/order (mat_type/mat_index).
+    local flag = classify_mat(job.mat_type, job.mat_index)
+    if flag then return flag end
+
+    -- 2. Generic category material (mat_type unset): read material_category.
+    local cat_flag
+    pcall(function()
+        for k, v in pairs(job.material_category) do
+            if v == true and MATCAT_TO_FLAG[k] then
+                cat_flag = MATCAT_TO_FLAG[k]
+                return
+            end
+        end
+    end)
+    if cat_flag then return cat_flag end
+
+    -- 3. Material on the job's items. Manual workshop jobs (e.g. a stone table)
+    --    often leave mat_type=-1 and no material_category, carrying the material
+    --    only on the consumed/produced item. Manager orders have no .items, so
+    --    this is skipped for them (they resolve via step 1).
+    local item_flag
+    pcall(function()
+        if not job.items then return end
+        for _, ref in ipairs(job.items) do
+            local it = ref.item
+            if (not it) and ref.item_id then it = df.item.find(ref.item_id) end
+            if it then
+                local f = classify_mat(it.mat_type, it.mat_index)
+                if f then item_flag = f; return end
+            end
+        end
+    end)
+    return item_flag
 end
 
 -- Returns the AP craftable_items/materials flag for a completed job,

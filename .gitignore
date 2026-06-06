@@ -12,8 +12,12 @@ venv/
 # IDE
 .vscode/
 .idea/
+.vs/
 
 # OS
 .DS_Store
 Thumbs.db
 /mods.zip
+
+# Local dev scripts
+deploy.ps1
