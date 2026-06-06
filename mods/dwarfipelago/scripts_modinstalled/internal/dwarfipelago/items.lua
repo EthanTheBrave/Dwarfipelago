@@ -334,15 +334,27 @@ end
 --   opts.civ_id : civilisation id (-1 = wild); goblins use the goblin civ
 --   opts.invader: set invader/marauder flags so a civ unit actually attacks
 -- Returns the created unit, or nil on failure.
+-- Resolve a creature raw index from a token or list of candidate tokens. Returns
+-- index, matched_token or nil. Lets callers pass fallbacks (e.g. several bear
+-- species) so a token missing from this world's raws doesn't kill the spawn.
+local function resolve_race(race_token)
+    local tokens = (type(race_token) == "table") and race_token or { race_token }
+    for _, tok in ipairs(tokens) do
+        for i, cr in ipairs(df.global.world.raws.creatures.all) do
+            if cr.creature_id == tok then return i, tok end
+        end
+    end
+    return nil, tokens
+end
+
 local function create_unit(race_token, pos, opts)
     opts = opts or {}
     local result
     local ok, err = pcall(function()
-        local race_idx
-        for i, cr in ipairs(df.global.world.raws.creatures.all) do
-            if cr.creature_id == race_token then race_idx = i; break end
+        local race_idx, resolved = resolve_race(race_token)
+        if not race_idx then
+            error("no matching creature for " .. table.concat(resolved, "/"))
         end
-        if not race_idx then error("unknown creature " .. tostring(race_token)) end
 
         -- dfhack.units.create() builds the unit (body, soul, mind) and adds it to
         -- world.units.all, but NOT to world.units.active, and with no map position.
@@ -363,7 +375,8 @@ local function create_unit(race_token, pos, opts)
         result = unit
     end)
     if not ok then
-        log.error("create_unit(" .. tostring(race_token) .. "): " .. tostring(err))
+        local label = (type(race_token) == "table") and table.concat(race_token, "/") or tostring(race_token)
+        log.error("create_unit(" .. label .. "): " .. tostring(err))
         return nil
     end
     return result
@@ -438,7 +451,10 @@ end
 
 local function recv_cave_bear()
     local x, y, z = get_fort_spawn_pos()
-    if x and create_unit("CAVE_BEAR", {x = x, y = y, z = z}, {civ_id = -1}) then
+    -- "Cave bear" is flavor; CAVE_BEAR isn't a vanilla token. Fall back across the
+    -- real bear species so this resolves in any world (modded CAVE_BEAR tried first).
+    local BEARS = { "CAVE_BEAR", "BEAR_GRIZZLY", "BEAR_BLACK", "BEAR_POLAR", "BEAR_SLOTH" }
+    if x and create_unit(BEARS, {x = x, y = y, z = z}, {civ_id = -1}) then
         announce("Trap: A Cave Bear has found its way in!")
     else
         -- Fallback: a beast in the dark badly shakes a few dwarves.
@@ -452,9 +468,10 @@ local function recv_vermin_infestation()
     -- GIANT_RAT (a real hostile creature) stands in for vermin.
     local x, y, z = get_fort_spawn_pos()
     local spawned = 0
+    local RATS = { "GIANT_RAT", "RAT" }
     if x then
         for _ = 1, 10 do
-            if create_unit("GIANT_RAT", {x = x, y = y, z = z}, {civ_id = -1}) then
+            if create_unit(RATS, {x = x, y = y, z = z}, {civ_id = -1}) then
                 spawned = spawned + 1
             end
         end
@@ -606,7 +623,8 @@ local function spawn_precursor_threat()
             COLOR_YELLOW, true)
         log.warn("spawn_precursor_threat: underground search failed, falling back to surface")
     end
-    if not create_unit("GIANT_CAVE_SPIDER", {x = x, y = y, z = z}, {civ_id = -1}) then
+    if not create_unit({ "GIANT_CAVE_SPIDER", "CAVE_SPIDER_GIANT", "SPIDER_CAVE_GIANT" },
+                       {x = x, y = y, z = z}, {civ_id = -1}) then
         dfhack.gui.showAnnouncement(
             "[AP] Error: precursor creature could not be spawned. Check the DFHack console.",
             COLOR_RED, true)
@@ -913,10 +931,35 @@ local function test_spawn(race)
     print("[test] Watch it in-game (does it move/act?), then save+reload to confirm no crash.")
 end
 
+-- List creature tokens in this world's raws matching a substring, so valid race
+-- tokens can be discovered (e.g. "find BEAR" before using one in a spawn).
+local function test_find(substr)
+    if not substr or substr == "" then
+        print("[test] Usage: dwarfipelago test find <substring>   e.g. test find BEAR")
+        return
+    end
+    local needle = substr:upper()
+    local matches = {}
+    for _, cr in ipairs(df.global.world.raws.creatures.all) do
+        local id = cr.creature_id or ""
+        if id:upper():find(needle, 1, true) then
+            table.insert(matches, id)
+        end
+    end
+    if #matches == 0 then
+        print("[test] No creature tokens contain '" .. needle .. "'.")
+        return
+    end
+    print(("[test] %d creature token(s) matching '%s':"):format(#matches, needle))
+    for _, id in ipairs(matches) do print("    " .. id) end
+end
+
 -- Ordered so 'dwarfipelago test' lists them predictably.
 local TEST_LIST = {
     { "spawn",     "Spawn 1 unit via dfhack.units API + report status (arg: RACE, default GIANT_RAT)",
                    function(rest) test_spawn(rest[1]) end },
+    { "find",      "List creature tokens matching a substring (arg: SUBSTR, e.g. BEAR)",
+                   function(rest) test_find(rest[1]) end },
     { "goblin",    "Goblin Ambush trap (3 hostile goblins)",          function() recv_goblin_ambush() end },
     { "cavebear",  "Cave Bear Incursion trap",                        function() recv_cave_bear() end },
     { "vermin",    "Vermin Infestation trap (10 giant rats)",         function() recv_vermin_infestation() end },
