@@ -877,6 +877,78 @@ for _, bp_name in ipairs(BLUEPRINT_NAMES) do
     end
 end
 
+-- ── Test harness (dwarfipelago test <name>) ──────────────────────────────────
+-- Manual in-game verification of the spawn / effect mechanics. Each test prints
+-- what happened so a failure is obvious in the console.
+
+local function _unit_in_active(unit)
+    for _, u in ipairs(df.global.world.units.active) do
+        if u.id == unit.id then return true end
+    end
+    return false
+end
+
+-- Low-level spawn check: create one unit via the dfhack.units API and report the
+-- result. Isolates the API mechanic from the trap wrappers/fallbacks.
+local function test_spawn(race)
+    race = (race and race ~= "") and race:upper() or "GIANT_RAT"
+    if not dfhack.isMapLoaded() then
+        print("[test] No fortress loaded.")
+        return
+    end
+    local x, y, z = get_fort_spawn_pos()
+    if not x then
+        print("[test] No spawn anchor (need a living citizen or a trade depot).")
+        return
+    end
+    print(("[test] dfhack.units.create %s at (%d,%d,%d)..."):format(race, x, y, z))
+    local unit = create_unit(race, {x = x, y = y, z = z}, {civ_id = -1})
+    if not unit then
+        print("[test] FAIL: create_unit returned nil (check error above; unknown race token?).")
+        return
+    end
+    print(("[test] PASS: id=%d in_active=%s pos=(%d,%d,%d) civ=%d race=%d"):format(
+        unit.id, tostring(_unit_in_active(unit)),
+        unit.pos.x, unit.pos.y, unit.pos.z, unit.civ_id, unit.race))
+    print("[test] Watch it in-game (does it move/act?), then save+reload to confirm no crash.")
+end
+
+-- Ordered so 'dwarfipelago test' lists them predictably.
+local TEST_LIST = {
+    { "spawn",     "Spawn 1 unit via dfhack.units API + report status (arg: RACE, default GIANT_RAT)",
+                   function(rest) test_spawn(rest[1]) end },
+    { "goblin",    "Goblin Ambush trap (3 hostile goblins)",          function() recv_goblin_ambush() end },
+    { "cavebear",  "Cave Bear Incursion trap",                        function() recv_cave_bear() end },
+    { "vermin",    "Vermin Infestation trap (10 giant rats)",         function() recv_vermin_infestation() end },
+    { "spider",    "Precursor threat (giant cave spider, underground)", function() spawn_precursor_threat() end },
+    { "megabeast", "Force the goal megabeast (once per world)",        function() spawn_target_megabeast() end },
+    { "migrants",  "Force a migration wave",                           function() recv_immigration_wave() end },
+}
+
+-- Dispatch a named test. `rest` is an array of any extra args after the name.
+function M.run_test(name, rest)
+    rest = rest or {}
+    if not name or name == "" or name == "list" then
+        print("[Dwarfipelago] Tests — run as: dwarfipelago test <name> [args]")
+        for _, t in ipairs(TEST_LIST) do
+            print(("  %-10s %s"):format(t[1], t[2]))
+        end
+        return
+    end
+    name = name:lower()
+    for _, t in ipairs(TEST_LIST) do
+        if t[1] == name then
+            print("[Dwarfipelago] Running test: " .. name)
+            local ok, err = pcall(t[3], rest)
+            if not ok then
+                dfhack.printerr("[Dwarfipelago] test '" .. name .. "' raised: " .. tostring(err))
+            end
+            return
+        end
+    end
+    dfhack.printerr("[Dwarfipelago] Unknown test '" .. name .. "'. Run 'dwarfipelago test' to list.")
+end
+
 -- Called by main.lua when the client delivers an item by name.
 function M.receive(item_name)
     local handler = M.handlers[item_name]
