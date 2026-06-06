@@ -275,6 +275,58 @@ local function recv_tanned_leather()
     announce("Received: Tanned Leather!")
 end
 
+-- Bag of sand for glassmaking. Sand isn't a free-standing item — it lives inside
+-- a bag — so createitem (one item at a time) can't make it. We use the lower-level
+-- dfhack.items.createItem API (which returns handles): make a cloth bag (BOX) and
+-- a POWDER_MISC of a SOIL_SAND inorganic, then nest the sand in the bag. Falls
+-- back to limestone flux if anything in the chain isn't supported on this build.
+local function recv_bag_of_sand()
+    local ok, err = pcall(function()
+        local unit
+        for _, u in ipairs(df.global.world.units.active) do
+            if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then unit = u; break end
+        end
+        if not unit then error("no living citizen to anchor the spawn") end
+
+        local function find_mat(tokens)
+            for _, t in ipairs(tokens) do
+                local mi = dfhack.matinfo.find(t)
+                if mi then return mi.type, mi.index end
+            end
+        end
+        -- Bag fabric.
+        local ct, ci = find_mat({ "PLANT_MAT:GRASS_TAIL_PIG:THREAD", "CREATURE_MAT:COW:LEATHER" })
+        -- Sand: any inorganic flagged SOIL_SAND (what the glass furnace accepts).
+        local st, si
+        for i, raw in ipairs(df.global.world.raws.inorganics) do
+            if raw.flags and raw.flags.SOIL_SAND then st, si = 0, i; break end
+        end
+        if not st then
+            st, si = find_mat({ "INORGANIC:SAND_TAN", "INORGANIC:SAND_BLACK",
+                                "INORGANIC:SAND_YELLOW", "INORGANIC:SAND_WHITE", "INORGANIC:SAND_RED" })
+        end
+        if not ct or not st then error("could not resolve bag/sand material") end
+
+        local made = 0
+        for _ = 1, 3 do
+            local bag  = dfhack.items.createItem(unit, df.item_type.BOX, -1, ct, ci, false)
+            local sand = dfhack.items.createItem(unit, df.item_type.POWDER_MISC, -1, st, si, false)
+            if bag and bag[1] and sand and sand[1] then
+                dfhack.items.moveToContainer(sand[1], bag[1])
+                made = made + 1
+            end
+        end
+        if made == 0 then error("createItem produced no items") end
+    end)
+    if not ok then
+        log.error("bag_of_sand: " .. tostring(err))
+        spawn_item("BOULDER", "INORGANIC:LIMESTONE", 3)  -- useful fallback so the gift isn't wasted
+        announce("Received: a Sand shipment (delivered as flux — bag-of-sand spawn unavailable).")
+        return
+    end
+    announce("Received: Bags of Sand! Ready for the glass furnace.")
+end
+
 -- Low-grade (copper) tools/gear — useful recovery, intentionally rare.
 local function recv_copper_pick()
     if spawn_item("WEAPON:ITEM_WEAPON_PICK", "INORGANIC:COPPER") == 0 then
@@ -859,6 +911,7 @@ M.handlers = {
     ["Charcoal"]             = recv_charcoal,
     ["Cloth Bolt"]           = recv_cloth_bolt,
     ["Tanned Leather"]       = recv_tanned_leather,
+    ["Bag of Sand"]          = recv_bag_of_sand,
     ["Copper Pick"]          = recv_copper_pick,
     ["Copper Axe"]           = recv_copper_axe,
     ["Copper Short Sword"]   = recv_copper_short_sword,
