@@ -4,11 +4,75 @@ from typing import List, Set, Union, TYPE_CHECKING
 from dataclasses import dataclass
 from BaseClasses import ItemClassification, Location, LocationProgressType, CollectionState
 from worlds.generic.Rules import set_rule
-from .options import EnableCraftsanity, CraftsanityItemGroup, CraftsanityItems
+from .options import EnableCraftsanity, CraftsanityItemGroup, CraftsanityItems, CraftsanityMaterials
 from .locations import BASE_ID, LocationData
 
 if TYPE_CHECKING:
     from . import DwarfFortressWorld
+
+
+# ── Deterministic craft-location id scheme ────────────────────────────────────
+# Every craft check id is computed directly from (item, material, tier), so the
+# id is STABLE regardless of the yaml material order or Python set-iteration
+# order. This replaces the old static crafting_locations.py table, which drifted
+# out of sync with the per-slot generation and caused id collisions (a wooden
+# table check could land on a stone table's id).
+#
+#   id = BASE_ID + assign_locationid_block(item) + MATERIAL_SLOT * STRIDE + tier
+#
+# tier 0 is reserved for the "Final Check"; numbered "Check N" use tier N.
+# Item blocks are spaced 2000 apart; the worst case is slot 8 (Ceramic) at
+# 8*100 + 99 = 899, so every variant fits inside its item's block.
+CRAFT_TIER_STRIDE = 100
+CRAFT_MAX_NUMBERED = 99  # Check 1..99 (must stay < CRAFT_TIER_STRIDE)
+
+# Fixed, canonical slot per material. The no-material variant is slot 0. These
+# indices must never be reordered once seeds exist, or ids would shift.
+MATERIAL_SLOTS: dict[str, int] = {
+    "":        0,
+    "Stone":   1,
+    "Wood":    2,
+    "Metal":   3,
+    "Glass":   4,
+    "Leather": 5,
+    "Cloth":   6,
+    "Bone":    7,
+    "Ceramic": 8,
+}
+
+
+def craft_check_name(item: str, material: str, tier: int, is_final: bool) -> str:
+    prefix = "Crafting " + (material + " " if material else "") + item
+    return prefix + (" Final Check" if is_final else " Check " + str(tier))
+
+
+def craft_location_id(item: str, material: str, tier: int) -> int:
+    return BASE_ID + assign_locationid_block(item) + MATERIAL_SLOTS[material] * CRAFT_TIER_STRIDE + tier
+
+
+def build_craft_location_table() -> dict:
+    """Full name->id registry for every possible craft check.
+
+    The single source of truth for craft-location ids: the World's
+    location_name_to_id (the AP DataPackage) and the per-slot generation in
+    loop_locations both derive ids from craft_location_id(), so they can never
+    drift apart. Includes the no-material variant for every item (used when
+    materials are disabled) plus each valid material variant.
+    """
+    table: dict = {}
+
+    def add_variant(item: str, material: str) -> None:
+        table[craft_check_name(item, material, 0, True)] = craft_location_id(item, material, 0)
+        for n in range(1, CRAFT_MAX_NUMBERED + 1):
+            table[craft_check_name(item, material, n, False)] = craft_location_id(item, material, n)
+
+    for item in CraftsanityItems.valid_keys:
+        add_variant(item, "")
+        if not non_material_items(item):
+            for material in CraftsanityMaterials.valid_keys:
+                if material in MATERIAL_SLOTS and valid_materialitem(material, item):
+                    add_variant(item, material)
+    return table
 
 
 CRAFTSANITY_EASY: set = {
@@ -75,32 +139,28 @@ def generate_location_data_PRINT_ONLY(world: "DwarfFortressWorld"):
             loop_locations_PRINT_ONLY(world, new_location, dynamic_locations)
 
 def loop_locations(world: "DwarfFortressWorld", new_location: DynamicCraftingData, dynamic_locations: list[LocationData]) -> int:
-    if world.options.craftsanity_enable_materials and not non_material_items(new_location.item_name):
-        for materials in world.options.craftsanity_materials: #iterate all selected Materials
-            if valid_materialitem(materials, new_location.item_name) == False:
-                continue
-            new_location.type = materials
-            new_location.max_id = calulate_check_count(world)
-            for next_id in range(new_location.id, new_location.max_id):
-                new_location.base_location_id += 1
-                if next_id == new_location.max_id - 1: #find ID for final Check ITS IMPORTANT!
-                    new_location.check_name = "Crafting "+ new_location.type + " " + new_location.item_name + " Final Check"
-                    world.dynamic_locations.append(LocationData(new_location.check_name, world.location_name_to_id[new_location.check_name], "", False, new_location.type, new_location.item_name, next_id + 1))
-                else:
-                    new_location.check_name = "Crafting "+ new_location.type + " " + new_location.item_name + " Check "+ str(next_id + 1)
-                    world.dynamic_locations.append(LocationData(new_location.check_name, world.location_name_to_id[new_location.check_name], "", False, new_location.type, new_location.item_name, next_id + 1))
-                world.dynamic_locations_names.append(new_location.check_name)
-    else: # Materials doesn't matter
-        new_location.max_id = calulate_check_count(world)
-        for next_id in range(new_location.id, new_location.max_id):
-            new_location.base_location_id += 1
-            if next_id == new_location.max_id - 1: #find ID for final Check ITS IMPORTANT!
-                new_location.check_name = "Crafting " + new_location.item_name + " Final Check"
-                world.dynamic_locations.append(LocationData(new_location.check_name, world.location_name_to_id[new_location.check_name], "", False, new_location.type, new_location.item_name, next_id + 1))
-            else:
-                new_location.check_name = "Crafting " + new_location.item_name + " Check "+ str(next_id + 1)
-                world.dynamic_locations.append(LocationData(new_location.check_name, world.location_name_to_id[new_location.check_name], "", False, "", new_location.item_name, next_id + 1))
-            world.dynamic_locations_names.append(new_location.check_name)
+    item = new_location.item_name
+    max_id = calulate_check_count(world)
+
+    def emit(material: str) -> None:
+        # next_id runs 0..max_id-1; the last one is the Final Check (tier 0),
+        # the rest are numbered "Check N" (tier N). Ids come straight from the
+        # deterministic formula, so iteration order no longer affects them.
+        for next_id in range(0, max_id):
+            is_final = (next_id == max_id - 1)
+            tier = 0 if is_final else next_id + 1
+            name = craft_check_name(item, material, tier, is_final)
+            loc_id = craft_location_id(item, material, tier)
+            world.dynamic_locations.append(
+                LocationData(name, loc_id, "", False, material, item, next_id + 1))
+            world.dynamic_locations_names.append(name)
+
+    if world.options.craftsanity_enable_materials and not non_material_items(item):
+        for material in world.options.craftsanity_materials:  # player-selected materials
+            if material in MATERIAL_SLOTS and valid_materialitem(material, item):
+                emit(material)
+    else:  # material doesn't matter
+        emit("")
     return
 
 def loop_locations_PRINT_ONLY(world: "DwarfFortressWorld", new_location: DynamicCraftingData, dynamic_locations: list[LocationData]) -> int:
