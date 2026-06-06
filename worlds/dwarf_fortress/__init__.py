@@ -78,62 +78,49 @@ class DwarfFortressWorld(World):
 
     dynamic_locations = []
     dynamic_locations_names = []
+    active_location_names = []  # per-slot subset of location_name_to_id this slot creates
     web = DwarfFortressWebWorld()
 
     def generate_early(self) -> None:
-        # Make per-instance copies of the class-level shared containers so that
-        # multiple DF players in the same multiworld don't corrupt each other's state.
-        self.location_name_to_id = dict(_FULL_LOCATION_TABLE)
+        # location_name_to_id is the static, class-level DataPackage (every
+        # location any options combo could produce). It is a ClassVar — AP builds
+        # the shared package from it — so we must NOT mutate it per slot. Instead
+        # we build an explicit list of the location NAMES this slot actually uses;
+        # create_regions / create_items work off that list and look ids up from the
+        # untouched ClassVar. Craft ids are computed deterministically, so every
+        # name we select is guaranteed to already exist in location_name_to_id.
         self.dynamic_locations = []
         self.dynamic_locations_names = []
         #populates dynamic_locations and d_l_names
         generate_location_data(self)
-        # Craft ids are now computed deterministically (craftsanity.craft_location_id),
-        # so the per-slot generation and the DataPackage registry always agree —
-        # no override needed. We only need to PRUNE the craft locations this slot
-        # didn't generate (the registry contains every possible check), otherwise
-        # create_regions would create checks the player can never reach.
-        generated = set(self.dynamic_locations_names)
-        remove_list = [
-            name for name in self.location_name_to_id
-            if "Crafting" in name and name not in generated
-        ]
-        for location in remove_list:
-            del self.location_name_to_id[location] #remove unused locations for caculations and creations
 
-        # Goal-based location filtering — mirror of the item removal in
-        # create_items(). The wealth-tier checks are coffer progression locks:
-        # they are only gated (and the Merchant's Coffer items only exist) when
-        # the goal is legendary_wealth. For every other goal, remove these
-        # locations entirely so they don't appear as ungated bonus checks.
-        # rules.py only applies WEALTH_COFFER_RULES for the wealth goal, so it
-        # never looks these up after they're removed here.
-        WEALTH_TIER_LOCATIONS = [
+        # Active set = the static non-craft locations (LOCATION_TABLE) plus the
+        # craft subset this slot generated. Goal-based filtering then drops
+        # locations that don't apply to the chosen goal:
+        #   - wealth tiers are coffer progression locks (legendary_wealth only)
+        #   - the noble ladder is charter progression locks (mountainhome only)
+        # rules.py only references these for their matching goal, so dropping them
+        # leaves no dangling rule lookups. (Mirrors the item removal in create_items.)
+        active = set(LOCATION_TABLE.keys()) | set(self.dynamic_locations_names)
+        WEALTH_TIER_LOCATIONS = {
             "Humble Beginnings (1,000)",
             "Growing Stronghold (10,000)",
             "Prosperous Fortress (50,000)",
             "Rich Citadel (100,000)",
             "Legendary Vault (500,000)",
-        ]
-        if self.options.goal != DwarfFortressGoal.option_legendary_wealth:
-            for loc_name in WEALTH_TIER_LOCATIONS:
-                self.location_name_to_id.pop(loc_name, None)
-
-        # The noble-ladder checks are charter progression locks: each is gated in
-        # checks.lua behind its charter item, and those charters only exist in the
-        # pool for the mountainhome goal. For every other goal they'd be dead,
-        # uncompletable locations, so remove them. Mayor Elected stays (no charter,
-        # happens in any fortress) and the fortress titles stay (gated by
-        # Immigration Waves, which are in every goal's pool).
-        NOBLE_LADDER_LOCATIONS = [
+        }
+        NOBLE_LADDER_LOCATIONS = {
             "Baron Appointed",
             "Count Appointed",
             "Duke Appointed",
             "Monarch Takes Residence",
-        ]
+        }
+        if self.options.goal != DwarfFortressGoal.option_legendary_wealth:
+            active -= WEALTH_TIER_LOCATIONS
         if self.options.goal != DwarfFortressGoal.option_mountainhome:
-            for loc_name in NOBLE_LADDER_LOCATIONS:
-                self.location_name_to_id.pop(loc_name, None)
+            active -= NOBLE_LADDER_LOCATIONS
+        # Keep the registry's deterministic order for reproducible fill.
+        self.active_location_names = [n for n in _FULL_LOCATION_TABLE if n in active]
 
 
     # ── Generation lifecycle ──────────────────────────────────────────────────
@@ -145,9 +132,9 @@ class DwarfFortressWorld(World):
 
         menu.connect(fortress)
 
-        for loc_data in self.location_name_to_id:
+        for name in self.active_location_names:
             loc = DwarfFortressLocation(
-                self.player, loc_data, self.location_name_to_id[loc_data], fortress
+                self.player, name, self.location_name_to_id[name], fortress
             )
             fortress.locations.append(loc)
 
@@ -161,7 +148,7 @@ class DwarfFortressWorld(World):
         self.multiworld.regions += [menu, fortress]
 
     def create_items(self) -> None:
-        location_count = len(self.location_name_to_id)
+        location_count = len(self.active_location_names)
         trap_weight = self.options.trap_item_weight.value / 100.0
 
         # Separate required (progression) items from optional ones.
