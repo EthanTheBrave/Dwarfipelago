@@ -451,9 +451,9 @@ end
 
 local function recv_cave_bear()
     local x, y, z = get_fort_spawn_pos()
-    -- "Cave bear" is flavor; CAVE_BEAR isn't a vanilla token. Fall back across the
-    -- real bear species so this resolves in any world (modded CAVE_BEAR tried first).
-    local BEARS = { "CAVE_BEAR", "BEAR_GRIZZLY", "BEAR_BLACK", "BEAR_POLAR", "BEAR_SLOTH" }
+    -- BLIND_CAVE_BEAR is the actual underground bear (perfect for this trap);
+    -- fall back across the surface bear species so it resolves in any world.
+    local BEARS = { "BLIND_CAVE_BEAR", "CAVE_BEAR", "BEAR_GRIZZLY", "BEAR_BLACK", "BEAR_POLAR", "BEAR_SLOTH" }
     if x and create_unit(BEARS, {x = x, y = y, z = z}, {civ_id = -1}) then
         announce("Trap: A Cave Bear has found its way in!")
     else
