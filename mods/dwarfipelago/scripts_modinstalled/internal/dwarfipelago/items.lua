@@ -295,7 +295,7 @@ local function recv_bag_of_sand()
             end
         end
         -- Bag fabric.
-        local ct, ci = find_mat({ "PLANT_MAT:GRASS_TAIL_PIG:THREAD", "CREATURE_MAT:COW:LEATHER" })
+        local ct, ci = find_mat({ "CREATURE_MAT:COW:LEATHER", "PLANT_MAT:GRASS_TAIL_PIG:THREAD" })  -- leather: moveToContainer works (thread fails)
         -- Sand: any inorganic flagged SOIL_SAND (what the glass furnace accepts).
         local st, si
         for i, raw in ipairs(df.global.world.raws.inorganics) do
@@ -345,7 +345,7 @@ local function recv_bag_of_clay()
                 if mi then return mi.type, mi.index end
             end
         end
-        local ct, ci = find_mat({ "PLANT_MAT:GRASS_TAIL_PIG:THREAD", "CREATURE_MAT:COW:LEATHER" })
+        local ct, ci = find_mat({ "CREATURE_MAT:COW:LEATHER", "PLANT_MAT:GRASS_TAIL_PIG:THREAD" })  -- leather: moveToContainer works (thread fails)
         -- Prefer the proper potter's clays; else any inorganic whose token is a clay.
         local clt, cli = find_mat({ "INORGANIC:FIRE_CLAY", "INORGANIC:KAOLINITE" })
         if not clt then
