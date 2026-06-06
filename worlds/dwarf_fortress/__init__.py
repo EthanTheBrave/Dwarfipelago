@@ -206,11 +206,15 @@ class DwarfFortressWorld(World):
 
         # 3. Pad with filler/traps if still under location count
         #    (happens when progression items alone outnumber locations).
+        #    Filler is chosen by weight, so useful materials show up far more than
+        #    flavor trinkets and the rare low-grade tools.
+        filler_weights = [f.weight for f in FILLER_ITEMS]
         while len(item_pool) < location_count:
             if self.random.random() < trap_weight and TRAP_ITEMS:
                 item_pool.append(self.create_item(self.random.choice(TRAP_ITEMS).name))
             else:
-                item_pool.append(self.create_item(self.random.choice(FILLER_ITEMS).name))
+                choice = self.random.choices(FILLER_ITEMS, weights=filler_weights, k=1)[0]
+                item_pool.append(self.create_item(choice.name))
 
         self.multiworld.itempool += item_pool
 

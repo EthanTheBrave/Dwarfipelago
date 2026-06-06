@@ -242,6 +242,61 @@ local function recv_wooden_cup()
     announce("Received: Wooden Cup!")
 end
 
+-- New useful industry-material filler. Each falls back to a known-good spawn if
+-- the primary material/token isn't accepted by this DF version's createitem.
+local function recv_flux_stone()
+    spawn_item("BOULDER", "INORGANIC:LIMESTONE", 4)
+    announce("Received: Flux Stone! Limestone for steelmaking.")
+end
+
+local function recv_pig_iron_bar()
+    if spawn_item("BAR", "INORGANIC:PIG_IRON", 2) == 0 then
+        spawn_item("BAR", "INORGANIC:IRON", 2)
+    end
+    announce("Received: Pig Iron Bars!")
+end
+
+local function recv_charcoal()
+    if spawn_item("BAR", "COAL:CHARCOAL", 3) == 0 then
+        spawn_item("BAR", "COAL:COKE", 3)
+    end
+    announce("Received: Charcoal! Fuel for forges and furnaces.")
+end
+
+local function recv_cloth_bolt()
+    spawn_item("CLOTH", "PLANT_MAT:GRASS_TAIL_PIG:THREAD", 3)
+    announce("Received: Cloth Bolts! Ready for the loom or clothier.")
+end
+
+local function recv_tanned_leather()
+    if spawn_item("SKIN_TANNED", "CREATURE_MAT:COW:LEATHER", 3) == 0 then
+        spawn_item("CLOTH", "PLANT_MAT:GRASS_TAIL_PIG:THREAD", 3)
+    end
+    announce("Received: Tanned Leather!")
+end
+
+-- Low-grade (copper) tools/gear — useful recovery, intentionally rare.
+local function recv_copper_pick()
+    if spawn_item("WEAPON:ITEM_WEAPON_PICK", "INORGANIC:COPPER") == 0 then
+        spawn_item("BAR", "INORGANIC:COPPER", 2)
+    end
+    announce("Received: a Copper Pick. Crude, but it digs.")
+end
+
+local function recv_copper_axe()
+    if spawn_item("WEAPON:ITEM_WEAPON_AXE_BATTLE", "INORGANIC:COPPER") == 0 then
+        spawn_item("BAR", "INORGANIC:COPPER", 2)
+    end
+    announce("Received: a Copper Axe. Good for trees and trouble.")
+end
+
+local function recv_copper_short_sword()
+    if spawn_item("WEAPON:ITEM_WEAPON_SWORD_SHORT", "INORGANIC:COPPER") == 0 then
+        spawn_item("BAR", "INORGANIC:COPPER", 2)
+    end
+    announce("Received: a Copper Short Sword.")
+end
+
 -- ── Item handlers: useful items ───────────────────────────────────────────────
 
 local function recv_masterwork_crafts()
@@ -799,6 +854,14 @@ M.handlers = {
     ["Bone Crafts"]          = recv_bone_crafts,
     ["Raw Ore"]              = recv_raw_ore,
     ["Wooden Cup"]           = recv_wooden_cup,
+    ["Flux Stone"]           = recv_flux_stone,
+    ["Pig Iron Bar"]         = recv_pig_iron_bar,
+    ["Charcoal"]             = recv_charcoal,
+    ["Cloth Bolt"]           = recv_cloth_bolt,
+    ["Tanned Leather"]       = recv_tanned_leather,
+    ["Copper Pick"]          = recv_copper_pick,
+    ["Copper Axe"]           = recv_copper_axe,
+    ["Copper Short Sword"]   = recv_copper_short_sword,
 
     -- Useful items
     ["Masterwork Crafts"]    = recv_masterwork_crafts,
