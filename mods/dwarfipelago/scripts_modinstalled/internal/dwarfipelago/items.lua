@@ -1149,6 +1149,10 @@ local function test_sandbag()
     for i, raw in ipairs(df.global.world.raws.inorganics) do
         if raw.flags and raw.flags.SOIL_SAND then st, si, stok = 0, i, raw.id; break end
     end
+    if not st then
+        st, si, stok = find_mat({ "INORGANIC:SAND_TAN", "INORGANIC:SAND_BLACK",
+            "INORGANIC:SAND_YELLOW", "INORGANIC:SAND_WHITE", "INORGANIC:SAND_RED" })
+    end
     print(("[test] bag mat = %s | sand mat = %s"):format(tostring(ctok), tostring(stok)))
     if not ct or not st then print("[test] missing material — aborting."); return end
 
