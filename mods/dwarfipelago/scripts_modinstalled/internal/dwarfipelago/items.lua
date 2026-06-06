@@ -307,12 +307,16 @@ local function recv_bag_of_sand()
         end
         if not ct or not st then error("could not resolve bag/sand material") end
 
+        -- Deliver to the trade depot (the AP drop point), like spawn_item does.
+        local dx, dy, dz = find_trade_depot_center()
+
         local made = 0
         for _ = 1, 3 do
             local bag  = dfhack.items.createItem(unit, df.item_type.BAG, -1, ct, ci, false)
             local sand = dfhack.items.createItem(unit, df.item_type.POWDER_MISC, -1, st, si, false)
             if bag and bag[1] and sand and sand[1] then
                 dfhack.items.moveToContainer(sand[1], bag[1])
+                if dx then dfhack.items.moveToGround(bag[1], {x = dx, y = dy, z = dz}) end
                 made = made + 1
             end
         end
