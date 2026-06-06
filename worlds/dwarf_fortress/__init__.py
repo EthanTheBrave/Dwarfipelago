@@ -13,7 +13,6 @@ from .items import (
 from .locations import LocationData, LOCATION_TABLE, ALL_LOCATIONS
 from .craftsanity import (
     generate_location_data,
-    generate_location_data_PRINT_ONLY,
     build_craft_location_table,
 )
 from . import rules
@@ -81,6 +80,7 @@ class DwarfFortressWorld(World):
     dynamic_locations = []
     dynamic_locations_names = []
     ap_item_pool = AP_ITEM_POOL
+    starting_inventory = []
     web = DwarfFortressWebWorld()
 
     def generate_early(self) -> None:
@@ -92,8 +92,7 @@ class DwarfFortressWorld(World):
         self.dynamic_locations_names = []
         #populates dynamic_locations and names
         generate_location_data(self)
-        ## FOR printing, uncomment below and set your yaml to the max! (enable all items, max location, lowest threshold, all materials)
-        #generate_location_data_PRINT_ONLY(self)
+
         # Craft ids are now computed deterministically (craftsanity.craft_location_id),
         # so the per-slot generation and the DataPackage registry always agree —
         # no override needed. We only need to PRUNE the craft locations this slot
@@ -106,9 +105,6 @@ class DwarfFortressWorld(World):
         ]
         for location in remove_list:
             del self.location_name_to_id[location] #remove unused locations for caculations and creations
-        ## PRINT LOCATIONS
-        #for locations in self.dynamic_locations:
-        #    print(f'LocationData("{locations.name}", {locations.ap_id}, "Fortress", False, "{locations.material_type}", "{locations.df_item}", {locations.threshold}),')
 
         # remove the crafting items from the pool depending on the options
         if self.options.craftitems == CraftingItems.option_off or not self.options.craftsanity:
@@ -124,16 +120,14 @@ class DwarfFortressWorld(World):
             for item in remove_ap_pool:
                 self.ap_item_pool.remove(item)
         elif self.options.craftitems == CraftingItems.option_on:
-            remove_list = ["Crafting Beds", "Crafting Charcoal", "Crafting Leather",
+            self.starting_inventory = ["Crafting Beds", "Crafting Charcoal", "Crafting Leather",
                 "Crafting Cloth", "Crafting Alcohol", "Crafting Prepared Meal"
             ]
             remove_ap_pool = []
             for item in self.item_name_to_id:
-                if item in remove_list:
+                if item in self.starting_inventory:
                     match = [i for i in CRAFT_ITEMS if i.name == item]
                     remove_ap_pool.append(match[0])
-            for item in remove_list:
-                del self.item_name_to_id[item]
             for item in remove_ap_pool:
                 self.ap_item_pool.remove(item)
         
@@ -206,6 +200,10 @@ class DwarfFortressWorld(World):
         location_count = len(self.location_name_to_id)
         trap_weight = self.options.trap_item_weight.value / 100.0
 
+        #precollect starting items
+        for item_name in self.starting_inventory:
+            self.multiworld.push_precollected(self.create_item(item_name))
+            
         # Separate required (progression) items from optional ones.
         # Progression items — all blueprints plus Artifact/Legendary items — must
         # always be included because rules.py gates locations behind them.  If they

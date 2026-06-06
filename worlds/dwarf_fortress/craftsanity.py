@@ -4,7 +4,7 @@ from typing import List, Set, Union, TYPE_CHECKING
 from dataclasses import dataclass
 from BaseClasses import ItemClassification, Location, LocationProgressType, CollectionState
 from worlds.generic.Rules import set_rule
-from .options import EnableCraftsanity, CraftsanityItemGroup, CraftsanityItems, CraftsanityMaterials
+from .options import EnableCraftsanity, CraftsanityItemGroup, CraftsanityItems, CraftsanityMaterials, CraftingItems
 from .locations import BASE_ID, LocationData
 
 if TYPE_CHECKING:
@@ -128,16 +128,6 @@ def generate_location_data(world: "DwarfFortressWorld"):
             new_location.base_location_id += assign_locationid_block(new_location.item_name)
             loop_locations(world, new_location, dynamic_locations)
 
-def generate_location_data_PRINT_ONLY(world: "DwarfFortressWorld"):
-    dynamic_locations: list[LocationData] = []
-    if world.options.craftsanity != EnableCraftsanity.option_off:
-        for item in world.options.craftsanity_items:
-            new_location = DynamicCraftingData("", "", "", 0, 0, BASE_ID)
-            new_location.item_name = item
-            new_location.id = 0
-            new_location.base_location_id += assign_locationid_block(new_location.item_name)
-            loop_locations_PRINT_ONLY(world, new_location, dynamic_locations)
-
 def loop_locations(world: "DwarfFortressWorld", new_location: DynamicCraftingData, dynamic_locations: list[LocationData]) -> int:
     item = new_location.item_name
     max_id = calulate_check_count(world)
@@ -161,46 +151,6 @@ def loop_locations(world: "DwarfFortressWorld", new_location: DynamicCraftingDat
                 emit(material)
     else:  # material doesn't matter
         emit("")
-    return
-
-def loop_locations_PRINT_ONLY(world: "DwarfFortressWorld", new_location: DynamicCraftingData, dynamic_locations: list[LocationData]) -> int:
-    if world.options.craftsanity_enable_materials and not non_material_items(new_location.item_name):
-        for materials in world.options.craftsanity_materials: #iterate all selected Materials
-            if valid_materialitem(materials, new_location.item_name) == False:
-                continue
-            new_location.type = materials
-            new_location.max_id = calulate_check_count(world)
-            for next_id in range(new_location.id, new_location.max_id):
-                if next_id == new_location.max_id - 1:
-                    new_location.check_name = "Crafting "+ new_location.type + " " + new_location.item_name + " Final Check"
-                    new_location.base_location_id += 1
-                else:
-                    new_location.check_name = "Crafting "+ new_location.type + " " + new_location.item_name + " Check "+ str(next_id + 1)
-                    new_location.base_location_id += 1
-                world.dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, new_location.type, new_location.item_name, next_id + 1))
-                world.dynamic_locations_names.append(new_location.check_name)
-        ##Also include Materials Doesn't Matter for Printing Only!
-        new_location.type = ""
-        new_location.max_id = calulate_check_count(world)
-        for next_id in range(new_location.id, new_location.max_id):
-            if next_id == new_location.max_id - 1:
-                new_location.check_name = "Crafting " + new_location.item_name + " Final Check"
-                new_location.base_location_id += 1
-            else:
-                new_location.check_name = "Crafting " + new_location.item_name + " Check "+ str(next_id + 1)
-                new_location.base_location_id += 1
-            world.dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, "", new_location.item_name, next_id + 1))
-    else: # Materials doesn't matter
-        new_location.max_id = calulate_check_count(world)
-        for next_id in range(new_location.id, new_location.max_id):
-            if next_id == new_location.max_id - 1:
-                new_location.check_name = "Crafting " + new_location.item_name + " Final Check"
-                new_location.base_location_id += 1
-            else:
-                new_location.check_name = "Crafting " + new_location.item_name + " Check "+ str(next_id + 1)
-                new_location.base_location_id += 1
-            world.dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, "", new_location.item_name, next_id + 1))
-            world.dynamic_locations_names.append(new_location.check_name)
     return
 
 def calulate_check_count(world: "DwarfFortressWorld"):
@@ -455,40 +405,1050 @@ class DynamicCraftingLocationRules:
         return self.ashery(state) and self.wood_furnace(state) \
             and state.has("Soap Maker's Workshop Blueprint", self.player) \
             and (self.kitchen(state) and self.butcher_workshop(state) or self.screw_press(state))
+    
+    def bed(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Beds", self.player)
+    
+    def training_axe(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Training Axe", self.player)
+    def training_spear(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Training Spear", self.player)
+    def training_sword(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Training Sword", self.player)
+    
+    def wood_corkscrew(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Corkscrew", self.player)
+    def metal_corkscrew(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Corkscrew", self.player)
+    def wood_or_metal_corkscrew(self, state:CollectionState) -> bool:
+            return self.wood_or_metal(state) and state.has("Crafting Corkscrew", self.player)
+
+    def wood_spike(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Spike", self.player)
+    def metal_spike(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Spike", self.player)
+    def wood_or_metal_spike(self, state:CollectionState) -> bool:
+            return self.wood_or_metal(state) and state.has("Crafting Spike", self.player)
+
+    def wood_ball(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Ball", self.player)
+    def metal_ball(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Ball", self.player)
+    def wood_or_metal_ball(self, state:CollectionState) -> bool:
+            return self.wood_or_metal(state) and state.has("Crafting Ball", self.player)
+
+    def wood_animal_trap(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Animal Trap", self.player)
+    def metal_animal_trap(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Animal Trap", self.player)
+    def wood_or_metal_animal_trap(self, state:CollectionState) -> bool:
+            return self.wood_or_metal(state) and state.has("Crafting Animal Trap", self.player)
+    
+    def wood_barrel(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Barrel", self.player)
+    def metal_barrel(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Barrel", self.player)
+    def wood_or_metal_barrel(self, state:CollectionState) -> bool:
+            return self.wood_or_metal(state) and state.has("Crafting Barrel", self.player)
+    
+    def wood_bin(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Bin", self.player)
+    def metal_bin(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Bin", self.player)
+    def wood_or_metal_bin(self, state:CollectionState) -> bool:
+            return self.wood_or_metal(state) and state.has("Crafting Bin", self.player)
+
+    def wood_bucket(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Bucket", self.player)
+    def metal_bucket(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Bucket", self.player)
+    def wood_or_metal_bucket(self, state:CollectionState) -> bool:
+            return self.wood_or_metal(state) and state.has("Crafting Bucket", self.player)
+
+    def wood_crutch(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Crutch", self.player)
+    def metal_crutch(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Crutch", self.player)
+    def wood_or_metal_crutch(self, state:CollectionState) -> bool:
+            return self.wood_or_metal(state) and state.has("Crafting Crutch", self.player)
+
+    def wood_minecart(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Minecart", self.player)
+    def metal_minecart(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Minecart", self.player)
+    def wood_or_metal_minecart(self, state:CollectionState) -> bool:
+            return self.wood_or_metal(state) and state.has("Crafting Minecart", self.player)
+
+    def wood_splint(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Splint", self.player)
+    def metal_splint(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Splint", self.player)
+    def wood_or_metal_splint(self, state:CollectionState) -> bool:
+            return self.wood_or_metal(state) and state.has("Crafting Splint", self.player)
+    
+    def wood_stepladder(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Stepladder", self.player)
+    def metal_stepladder(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Stepladder", self.player)
+    def wood_or_metal_stepladder(self, state:CollectionState) -> bool:
+            return self.wood_or_metal(state) and state.has("Crafting Stepladder", self.player)
+    
+    def wood_wheelbarrow(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Wheelbarrow", self.player)
+    def metal_wheelbarrow(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Wheelbarrow", self.player)
+    def wood_or_metal_wheelbarrow(self, state:CollectionState) -> bool:
+            return self.wood_or_metal(state) and state.has("Crafting Wheelbarrow", self.player)
+    
+    def wood_blocks(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Blocks", self.player)
+    def stone_blocks(self, state:CollectionState) -> bool:
+            return self.stone(state) and state.has("Crafting Blocks", self.player)
+    def metal_blocks(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Blocks", self.player)
+    def glass_blocks(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Crafting Blocks", self.player)
+    def ceramic_blocks(self, state:CollectionState) -> bool:
+            return self.ceramic(state) and state.has("Crafting Blocks", self.player)
+    def wood_or_stone_or_metal_or_glass_or_ceramic_blocks(self, state:CollectionState) -> bool:
+            return self.wood_or_stone_or_metal_or_glass_or_ceramic(state) and state.has("Crafting Blocks", self.player)
+    
+    def wood_jug(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Jug", self.player)
+    def stone_jug(self, state:CollectionState) -> bool:
+            return self.stone(state) and state.has("Crafting Jug", self.player)
+    def metal_jug(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Jug", self.player)
+    def glass_jug(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Crafting Jug", self.player)
+    def ceramic_jug(self, state:CollectionState) -> bool:
+            return self.ceramic(state) and state.has("Crafting Jug", self.player)
+    def wood_or_stone_or_metal_or_glass_or_ceramic_jug(self, state:CollectionState) -> bool:
+            return self.wood_or_stone_or_metal_or_glass_or_ceramic(state) and state.has("Crafting Jug", self.player)
+    
+    def wood_pot(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Large Pot", self.player)
+    def stone_pot(self, state:CollectionState) -> bool:
+            return self.stone(state) and state.has("Crafting Large Pot", self.player)
+    def metal_pot(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Large Pot", self.player)
+    def glass_pot(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Crafting Large Pot", self.player)
+    def ceramic_pot(self, state:CollectionState) -> bool:
+            return self.ceramic(state) and state.has("Crafting Large Pot", self.player)
+    def wood_or_stone_or_metal_or_glass_or_ceramic_pot(self, state:CollectionState) -> bool:
+            return self.wood_or_stone_or_metal_or_glass_or_ceramic(state) and state.has("Crafting Large Pot", self.player)
+    
+    def wood_hive(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Hive", self.player)
+    def stone_hive(self, state:CollectionState) -> bool:
+            return self.stone(state) and state.has("Crafting Hive", self.player)
+    def metal_hive(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Hive", self.player)
+    def glass_hive(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Crafting Hive", self.player)
+    def ceramic_hive(self, state:CollectionState) -> bool:
+            return self.ceramic(state) and state.has("Crafting Hive", self.player)
+    def wood_or_stone_or_metal_or_glass_or_ceramic_hive(self, state:CollectionState) -> bool:
+            return self.wood_or_stone_or_metal_or_glass_or_ceramic(state) and state.has("Crafting Hive", self.player)
+    
+    def wood_altar(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Altar", self.player)
+    def stone_altar(self, state:CollectionState) -> bool:
+            return self.stone(state) and state.has("Crafting Altar", self.player)
+    def metal_altar(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Altar", self.player)
+    def glass_altar(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Crafting Altar", self.player)
+    def wood_or_stone_or_metal_or_glass_altar(self, state:CollectionState) -> bool:
+            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Crafting Altar", self.player)
+    
+    def wood_armorstand(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Armor Stand", self.player)
+    def stone_armorstand(self, state:CollectionState) -> bool:
+            return self.stone(state) and state.has("Crafting Armor Stand", self.player)
+    def metal_armorstand(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Armor Stand", self.player)
+    def glass_armorstand(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Crafting Armor Stand", self.player)
+    def wood_or_stone_or_metal_or_glass_armorstand(self, state:CollectionState) -> bool:
+            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Crafting Armor Stand", self.player)
+    
+    def wood_bookcase(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Bookcase", self.player)
+    def stone_bookcase(self, state:CollectionState) -> bool:
+            return self.stone(state) and state.has("Crafting Bookcase", self.player)
+    def metal_bookcase(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Bookcase", self.player)
+    def glass_bookcase(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Crafting Bookcase", self.player)
+    def wood_or_stone_or_metal_or_glass_bookcase(self, state:CollectionState) -> bool:
+            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Crafting Bookcase", self.player)
+    
+    def wood_cabinet(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Cabinet", self.player)
+    def stone_cabinet(self, state:CollectionState) -> bool:
+            return self.stone(state) and state.has("Crafting Cabinet", self.player)
+    def metal_cabinet(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Cabinet", self.player)
+    def glass_cabinet(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Crafting Cabinet", self.player)
+    def wood_or_stone_or_metal_or_glass_cabinet(self, state:CollectionState) -> bool:
+            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Crafting Cabinet", self.player)
+    
+    def wood_burial(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Burial Container", self.player)
+    def stone_burial(self, state:CollectionState) -> bool:
+            return self.stone(state) and state.has("Crafting Burial Container", self.player)
+    def metal_burial(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Burial Container", self.player)
+    def glass_burial(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Crafting Burial Container", self.player)
+    def wood_or_stone_or_metal_or_glass_burial(self, state:CollectionState) -> bool:
+            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Crafting Burial Container", self.player)
+    
+    def wood_chair(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Chair", self.player)
+    def stone_chair(self, state:CollectionState) -> bool:
+            return self.stone(state) and state.has("Crafting Chair", self.player)
+    def metal_chair(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Chair", self.player)
+    def glass_chair(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Crafting Chair", self.player)
+    def wood_or_stone_or_metal_or_glass_chair(self, state:CollectionState) -> bool:
+            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Crafting Chair", self.player)
+    
+    def wood_container(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Container", self.player)
+    def stone_container(self, state:CollectionState) -> bool:
+            return self.stone(state) and state.has("Crafting Container", self.player)
+    def metal_container(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Container", self.player)
+    def glass_container(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Crafting Container", self.player)
+    def wood_or_stone_or_metal_or_glass_container(self, state:CollectionState) -> bool:
+            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Crafting Container", self.player)
+    
+    def wood_door(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Door", self.player)
+    def stone_door(self, state:CollectionState) -> bool:
+            return self.stone(state) and state.has("Crafting Door", self.player)
+    def metal_door(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Door", self.player)
+    def glass_door(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Crafting Door", self.player)
+    def wood_or_stone_or_metal_or_glass_door(self, state:CollectionState) -> bool:
+            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Crafting Door", self.player)
+    
+    def wood_floodgate(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Floodgate", self.player)
+    def stone_floodgate(self, state:CollectionState) -> bool:
+            return self.stone(state) and state.has("Crafting Floodgate", self.player)
+    def metal_floodgate(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Floodgate", self.player)
+    def glass_floodgate(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Crafting Floodgate", self.player)
+    def wood_or_stone_or_metal_or_glass_floodgate(self, state:CollectionState) -> bool:
+            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Crafting Floodgate", self.player)
+    
+    def wood_grate(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Grate", self.player)
+    def stone_grate(self, state:CollectionState) -> bool:
+            return self.stone(state) and state.has("Crafting Grate", self.player)
+    def metal_grate(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Grate", self.player)
+    def glass_grate(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Crafting Grate", self.player)
+    def wood_or_stone_or_metal_or_glass_grate(self, state:CollectionState) -> bool:
+            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Crafting Grate", self.player)
+    
+    def wood_hatchcover(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Hatch Cover", self.player)
+    def stone_hatchcover(self, state:CollectionState) -> bool:
+            return self.stone(state) and state.has("Crafting Hatch Cover", self.player)
+    def metal_hatchcover(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Hatch Cover", self.player)
+    def glass_hatchcover(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Crafting Hatch Cover", self.player)
+    def wood_or_stone_or_metal_or_glass_hatchcover(self, state:CollectionState) -> bool:
+            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Crafting Hatch Cover", self.player)
+
+    def wood_pedestal(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Pedestal", self.player)
+    def stone_pedestal(self, state:CollectionState) -> bool:
+            return self.stone(state) and state.has("Crafting Pedestal", self.player)
+    def metal_pedestal(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Pedestal", self.player)
+    def glass_pedestal(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Crafting Pedestal", self.player)
+    def wood_or_stone_or_metal_or_glass_pedestal(self, state:CollectionState) -> bool:
+            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Crafting Pedestal", self.player)
+    
+    def wood_table(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Table", self.player)
+    def stone_table(self, state:CollectionState) -> bool:
+            return self.stone(state) and state.has("Crafting Table", self.player)
+    def metal_table(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Table", self.player)
+    def glass_table(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Crafting Table", self.player)
+    def wood_or_stone_or_metal_or_glass_table(self, state:CollectionState) -> bool:
+            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Crafting Table", self.player)
+
+    def wood_weaponrack(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Weapon Rack", self.player)
+    def stone_weaponrack(self, state:CollectionState) -> bool:
+            return self.stone(state) and state.has("Crafting Weapon Rack", self.player)
+    def metal_weaponrack(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Weapon Rack", self.player)
+    def glass_weaponrack(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Crafting Weapon Rack", self.player)
+    def wood_or_stone_or_metal_or_glass_weaponrack(self, state:CollectionState) -> bool:
+            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Crafting Weapon Rack", self.player)
+    
+    def wood_statue(self, state:CollectionState) -> bool:
+            return self.wood(state) and state.has("Crafting Statue", self.player)
+    def stone_statue(self, state:CollectionState) -> bool:
+            return self.stone(state) and state.has("Crafting Statue", self.player)
+    def metal_statue(self, state:CollectionState) -> bool:
+            return self.metal(state) and state.has("Crafting Statue", self.player)
+    def glass_statue(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Crafting Statue", self.player)
+    def wood_or_stone_or_metal_or_glass_statue(self, state:CollectionState) -> bool:
+            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Crafting Statue", self.player)
 
     def set_dynamic_rules(self) -> None:
         for location in self.world.dynamic_locations:
             self.world.multiworld
             loc = self.world.multiworld.get_location(location.name, self.player)
             match location.df_item:
-                case "Beds" | "Training Axe" | "Training Spear" | "Training Sword": 
-                    set_rule(loc, self.wood)
-                case "Corkscrew" | "Spike" | "Ball" | "Animal Trap" | "Barrel" |\
-                    "Bin" | "Bucket" | "Crutch" | "Minecart" | "Splint" |\
-                    "Stepladder" | "Wheelbarrow":
-                    if location.material_type == "Wood":
-                        set_rule(loc, self.wood)
-                    elif location.material_type == "Metal":
-                        set_rule(loc, self.metal)
+                case "Beds": 
+                    if self.world.options.craftsanity_items == CraftingItems.option_all:
+                        set_rule(loc, self.bed)
                     else:
-                        set_rule(loc, self.wood_or_metal)
-                case "Blocks" | "Jug" | "Large Pot" | "Hive":
-                    if location.material_type == "Wood":
                         set_rule(loc, self.wood)
+                case "Training Axe":
+                    if self.world.options.craftsanity_items != CraftingItems.option_off:
+                        set_rule(loc, self.training_axe)
+                    else:
+                        set_rule(loc, self.wood)
+                case "Training Spear":
+                    if self.world.options.craftsanity_items != CraftingItems.option_off:
+                        set_rule(loc, self.training_spear)
+                    else:
+                        set_rule(loc, self.wood)
+                case  "Training Sword":
+                    if self.world.options.craftsanity_items != CraftingItems.option_off:
+                        set_rule(loc, self.training_sword)
+                    else:
+                        set_rule(loc, self.wood)
+                case "Corkscrew":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_corkscrew)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_corkscrew)
+                        else:
+                            set_rule(loc, self.metal)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_metal_corkscrew)
+                        else:
+                            set_rule(loc, self.wood_or_metal)
+                case "Spike":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_spike)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_spike)
+                        else:
+                            set_rule(loc, self.metal)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_metal_spike)
+                        else:
+                            set_rule(loc, self.wood_or_metal)
+                case "Ball":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_ball)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_ball)
+                        else:
+                            set_rule(loc, self.metal)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_metal_ball)
+                        else:
+                            set_rule(loc, self.wood_or_metal)
+                case "Animal Trap":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_animal_trap)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_animal_trap)
+                        else:
+                            set_rule(loc, self.metal)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_metal_animal_trap)
+                        else:
+                            set_rule(loc, self.wood_or_metal)
+                case "Barrel":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_barrel)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_barrel)
+                        else:
+                            set_rule(loc, self.metal)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_metal_barrel)
+                        else:
+                            set_rule(loc, self.wood_or_metal)
+                case "Bin":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_bin)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_bin)
+                        else:
+                            set_rule(loc, self.metal)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_metal_bin)
+                        else:
+                            set_rule(loc, self.wood_or_metal)
+                case "Bucket":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_bucket)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_bucket)
+                        else:
+                            set_rule(loc, self.metal)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_metal_bucket)
+                        else:
+                            set_rule(loc, self.wood_or_metal)
+                case "Crutch":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_crutch)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_crutch)
+                        else:
+                            set_rule(loc, self.metal)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_metal_crutch)
+                        else:
+                            set_rule(loc, self.wood_or_metal)
+                case "Minecart":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_minecart)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_minecart)
+                        else:
+                            set_rule(loc, self.metal)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_metal_minecart)
+                        else:
+                            set_rule(loc, self.wood_or_metal)
+                case "Splint":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_splint)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_splint)
+                        else:
+                            set_rule(loc, self.metal)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_metal_splint)
+                        else:
+                            set_rule(loc, self.wood_or_metal)
+                case "Stepladder":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_stepladder)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_stepladder)
+                        else:
+                            set_rule(loc, self.metal)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_metal_stepladder)
+                        else:
+                            set_rule(loc, self.wood_or_metal)
+                case "Wheelbarrow":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_wheelbarrow)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_wheelbarrow)
+                        else:
+                            set_rule(loc, self.metal)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_metal_wheelbarrow)
+                        else:
+                            set_rule(loc, self.wood_or_metal)
+                case "Blocks":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_blocks)
+                        else:
+                            set_rule(loc, self.wood)
                     elif location.material_type == "Stone":
-                        set_rule(loc, self.stone)
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.stone_blocks)
+                        else:
+                            set_rule(loc, self.stone)
                     elif location.material_type == "Metal":
-                        set_rule(loc, self.metal)
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_blocks)
+                        else:
+                            set_rule(loc, self.metal)
                     elif location.material_type == "Glass":
-                        set_rule(loc, self.glass)
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.glass_blocks)
+                        else:
+                            set_rule(loc, self.glass)
                     elif location.material_type == "Ceramic":
-                        set_rule(loc, self.ceramic)
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.ceramic_blocks)
+                        else:
+                            set_rule(loc, self.ceramic)
                     else:
-                        set_rule(loc, self.wood_or_stone_or_metal_or_glass_or_ceramic)
-                case "Altar" | "Armor Stand" | "Bookcase" | "Cabinet" | "Burial Container" |\
-                    "Chair" | "Container" | "Door" | "Floodgate"| "Grate"|\
-                    "Hatch Cover" | "Pedestal" | "Table" | "Weapon Rack" | "Statue" |\
-                    "Book Binding" | "Scroll Roller":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_or_ceramic_blocks)
+                        else:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_or_ceramic)
+                case "Jug":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_jug)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Stone":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.stone_jug)
+                        else:
+                            set_rule(loc, self.stone)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_jug)
+                        else:
+                            set_rule(loc, self.metal)
+                    elif location.material_type == "Glass":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.glass_jug)
+                        else:
+                            set_rule(loc, self.glass)
+                    elif location.material_type == "Ceramic":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.ceramic_jug)
+                        else:
+                            set_rule(loc, self.ceramic)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_or_ceramic_jug)
+                        else:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_or_ceramic)
+                case "Large Pot":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_pot)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Stone":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.stone_pot)
+                        else:
+                            set_rule(loc, self.stone)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_pot)
+                        else:
+                            set_rule(loc, self.metal)
+                    elif location.material_type == "Glass":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.glass_pot)
+                        else:
+                            set_rule(loc, self.glass)
+                    elif location.material_type == "Ceramic":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.ceramic_pot)
+                        else:
+                            set_rule(loc, self.ceramic)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_or_ceramic_pot)
+                        else:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_or_ceramic)
+                case "Hive":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_hive)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Stone":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.stone_hive)
+                        else:
+                            set_rule(loc, self.stone)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_hive)
+                        else:
+                            set_rule(loc, self.metal)
+                    elif location.material_type == "Glass":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.glass_hive)
+                        else:
+                            set_rule(loc, self.glass)
+                    elif location.material_type == "Ceramic":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.ceramic_hive)
+                        else:
+                            set_rule(loc, self.ceramic)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_or_ceramic_hive)
+                        else:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_or_ceramic)
+                case "Altar":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_altar)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Stone":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.stone_altar)
+                        else:
+                            set_rule(loc, self.stone)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_altar)
+                        else:
+                            set_rule(loc, self.metal)
+                    elif location.material_type == "Glass":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.glass_altar)
+                        else:
+                            set_rule(loc, self.glass)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_altar)
+                        else:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass)
+                case "Armor Stand":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_armorstand)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Stone":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.stone_armorstand)
+                        else:
+                            set_rule(loc, self.stone)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_armorstand)
+                        else:
+                            set_rule(loc, self.metal)
+                    elif location.material_type == "Glass":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.glass_armorstand)
+                        else:
+                            set_rule(loc, self.glass)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_armorstand)
+                        else:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass)
+                case "Bookcase":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_bookcase)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Stone":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.stone_bookcase)
+                        else:
+                            set_rule(loc, self.stone)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_bookcase)
+                        else:
+                            set_rule(loc, self.metal)
+                    elif location.material_type == "Glass":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.glass_bookcase)
+                        else:
+                            set_rule(loc, self.glass)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_bookcase)
+                        else:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass)
+                case "Cabinet":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_cabinet)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Stone":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.stone_cabinet)
+                        else:
+                            set_rule(loc, self.stone)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_cabinet)
+                        else:
+                            set_rule(loc, self.metal)
+                    elif location.material_type == "Glass":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.glass_cabinet)
+                        else:
+                            set_rule(loc, self.glass)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_cabinet)
+                        else:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass)
+                case "Burial Container":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_burial)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Stone":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.stone_burial)
+                        else:
+                            set_rule(loc, self.stone)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_burial)
+                        else:
+                            set_rule(loc, self.metal)
+                    elif location.material_type == "Glass":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.glass_burial)
+                        else:
+                            set_rule(loc, self.glass)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_burial)
+                        else:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass)
+                case "Chair":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_chair)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Stone":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.stone_chair)
+                        else:
+                            set_rule(loc, self.stone)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_chair)
+                        else:
+                            set_rule(loc, self.metal)
+                    elif location.material_type == "Glass":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.glass_chair)
+                        else:
+                            set_rule(loc, self.glass)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_chair)
+                        else:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass)
+                case "Container":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_container)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Stone":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.stone_container)
+                        else:
+                            set_rule(loc, self.stone)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_container)
+                        else:
+                            set_rule(loc, self.metal)
+                    elif location.material_type == "Glass":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.glass_container)
+                        else:
+                            set_rule(loc, self.glass)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_container)
+                        else:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass)
+                case "Door":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_door)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Stone":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.stone_door)
+                        else:
+                            set_rule(loc, self.stone)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_door)
+                        else:
+                            set_rule(loc, self.metal)
+                    elif location.material_type == "Glass":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.glass_door)
+                        else:
+                            set_rule(loc, self.glass)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_door)
+                        else:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass)
+                case "Floodgate":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_floodgate)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Stone":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.stone_floodgate)
+                        else:
+                            set_rule(loc, self.stone)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_floodgate)
+                        else:
+                            set_rule(loc, self.metal)
+                    elif location.material_type == "Glass":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.glass_floodgate)
+                        else:
+                            set_rule(loc, self.glass)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_floodgate)
+                        else:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass)
+                case "Grate":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_grate)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Stone":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.stone_grate)
+                        else:
+                            set_rule(loc, self.stone)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_grate)
+                        else:
+                            set_rule(loc, self.metal)
+                    elif location.material_type == "Glass":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.glass_grate)
+                        else:
+                            set_rule(loc, self.glass)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_grate)
+                        else:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass)
+                case "Hatch Cover":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_hatchcover)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Stone":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.stone_hatchcover)
+                        else:
+                            set_rule(loc, self.stone)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_hatchcover)
+                        else:
+                            set_rule(loc, self.metal)
+                    elif location.material_type == "Glass":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.glass_hatchcover)
+                        else:
+                            set_rule(loc, self.glass)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_hatchcover)
+                        else:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass)
+                case "Pedestal":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_pedestal)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Stone":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.stone_pedestal)
+                        else:
+                            set_rule(loc, self.stone)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_pedestal)
+                        else:
+                            set_rule(loc, self.metal)
+                    elif location.material_type == "Glass":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.glass_pedestal)
+                        else:
+                            set_rule(loc, self.glass)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_pedestal)
+                        else:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass)
+                case "Table":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_table)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Stone":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.stone_table)
+                        else:
+                            set_rule(loc, self.stone)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_table)
+                        else:
+                            set_rule(loc, self.metal)
+                    elif location.material_type == "Glass":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.glass_table)
+                        else:
+                            set_rule(loc, self.glass)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_table)
+                        else:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass)
+                case "Weapon Rack":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_weaponrack)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Stone":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.stone_weaponrack)
+                        else:
+                            set_rule(loc, self.stone)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_weaponrack)
+                        else:
+                            set_rule(loc, self.metal)
+                    elif location.material_type == "Glass":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.glass_weaponrack)
+                        else:
+                            set_rule(loc, self.glass)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_weaponrack)
+                        else:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass)
+                case "Statue":
+                    if location.material_type == "Wood":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_statue)
+                        else:
+                            set_rule(loc, self.wood)
+                    elif location.material_type == "Stone":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.stone_statue)
+                        else:
+                            set_rule(loc, self.stone)
+                    elif location.material_type == "Metal":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.metal_statue)
+                        else:
+                            set_rule(loc, self.metal)
+                    elif location.material_type == "Glass":
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.glass_statue)
+                        else:
+                            set_rule(loc, self.glass)
+                    else:
+                        if self.world.options.craftsanity_items != CraftingItems.option_off:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass_statue)
+                        else:
+                            set_rule(loc, self.wood_or_stone_or_metal_or_glass)
+                case "Book Binding" | "Scroll Roller":
                     if location.material_type == "Wood":
                         set_rule(loc, self.wood)
                     elif location.material_type == "Stone":
@@ -499,6 +1459,9 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.glass)
                     else:
                         set_rule(loc, self.wood_or_stone_or_metal_or_glass)
+
+
+
                 case "Buckler" | "Shield":
                     if location.material_type == "Wood":
                         set_rule(loc, self.wood)
