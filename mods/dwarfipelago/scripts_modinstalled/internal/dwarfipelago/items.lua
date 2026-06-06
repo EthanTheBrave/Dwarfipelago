@@ -327,6 +327,56 @@ local function recv_bag_of_sand()
     announce("Received: Bags of Sand! Ready for the glass furnace.")
 end
 
+-- Raw clay, bagged the same way as sand (cloth BOX + POWDER_MISC of a clay
+-- inorganic, preferring fire clay / kaolinite). NOTE: kilns normally gather clay
+-- straight from tiles, so this delivers raw clay material rather than a guaranteed
+-- kiln reagent. Falls back to fired clay blocks (usable construction material).
+local function recv_bag_of_clay()
+    local ok, err = pcall(function()
+        local unit
+        for _, u in ipairs(df.global.world.units.active) do
+            if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then unit = u; break end
+        end
+        if not unit then error("no living citizen to anchor the spawn") end
+
+        local function find_mat(tokens)
+            for _, t in ipairs(tokens) do
+                local mi = dfhack.matinfo.find(t)
+                if mi then return mi.type, mi.index end
+            end
+        end
+        local ct, ci = find_mat({ "PLANT_MAT:GRASS_TAIL_PIG:THREAD", "CREATURE_MAT:COW:LEATHER" })
+        -- Prefer the proper potter's clays; else any inorganic whose token is a clay.
+        local clt, cli = find_mat({ "INORGANIC:FIRE_CLAY", "INORGANIC:KAOLINITE" })
+        if not clt then
+            for i, raw in ipairs(df.global.world.raws.inorganics) do
+                if (raw.id or ""):find("CLAY") then clt, cli = 0, i; break end
+            end
+        end
+        if not ct or not clt then error("could not resolve bag/clay material") end
+
+        local made = 0
+        for _ = 1, 3 do
+            local bag  = dfhack.items.createItem(unit, df.item_type.BOX, -1, ct, ci, false)
+            local clay = dfhack.items.createItem(unit, df.item_type.POWDER_MISC, -1, clt, cli, false)
+            if bag and bag[1] and clay and clay[1] then
+                dfhack.items.moveToContainer(clay[1], bag[1])
+                made = made + 1
+            end
+        end
+        if made == 0 then error("createItem produced no items") end
+    end)
+    if not ok then
+        log.error("bag_of_clay: " .. tostring(err))
+        if spawn_item("BLOCKS", "INORGANIC:FIRE_CLAY", 4) == 0 then
+            spawn_item("BOULDER", "INORGANIC:LIMESTONE", 3)
+        end
+        announce("Received: a Clay shipment (delivered as fired clay blocks — raw clay spawn unavailable).")
+        return
+    end
+    announce("Received: Bags of Clay!")
+end
+
 -- Low-grade (copper) tools/gear — useful recovery, intentionally rare.
 local function recv_copper_pick()
     if spawn_item("WEAPON:ITEM_WEAPON_PICK", "INORGANIC:COPPER") == 0 then
@@ -912,6 +962,7 @@ M.handlers = {
     ["Cloth Bolt"]           = recv_cloth_bolt,
     ["Tanned Leather"]       = recv_tanned_leather,
     ["Bag of Sand"]          = recv_bag_of_sand,
+    ["Bag of Clay"]          = recv_bag_of_clay,
     ["Copper Pick"]          = recv_copper_pick,
     ["Copper Axe"]           = recv_copper_axe,
     ["Copper Short Sword"]   = recv_copper_short_sword,
