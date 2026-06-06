@@ -151,12 +151,22 @@ function M.dump()
     print("[Dwarfipelago] Pending recv DeathLinks:", M.get_pending_recv())
     print("[Dwarfipelago] Trade depot placed:", dfhack.persistent.getWorldDataString(KEY_DEPOT_BUILT) == "1")
     print("[Dwarfipelago] Enabled:", M.is_enabled())
-    local craft_counts = {}
-    for _, flag in ipairs(CRAFT_FLAGS) do
-        local n = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/craft_count/" .. flag)) or 0
-        if n > 0 then craft_counts[flag] = n end
+    -- Craft counts: enumerate via the checks index so dynamic material-split
+    -- keys (e.g. "table_wood") show up, not just the legacy hardcoded flags.
+    local checks = reqscript("internal/dwarfipelago/checks")
+    print("[Dwarfipelago] Craft counts:", json.encode(checks.get_all_craft_counts()))
+
+    -- Progression unlocks (same data the panel shows, via items.UNLOCK_DEFS).
+    local items_defs = reqscript("internal/dwarfipelago/items")
+    print("[Dwarfipelago] Unlocks:")
+    for _, def in ipairs(items_defs.UNLOCK_DEFS or {}) do
+        local raw = dfhack.persistent.getWorldDataString("dwarfipelago/unlock/" .. def.key)
+        if def.max then
+            print(("    %-23s %d/%d"):format(def.label .. ":", tonumber(raw) or 0, def.max))
+        else
+            print(("    %-23s %s"):format(def.label .. ":", raw == "1" and "yes" or "no"))
+        end
     end
-    print("[Dwarfipelago] Craft counts:", json.encode(craft_counts))
 
     -- ── Mining ──────────────────────────────────────────────────────────────
     local function num(key) return tonumber(dfhack.persistent.getWorldDataString(key)) end
@@ -208,9 +218,22 @@ function M.reset()
     dfhack.persistent.saveWorldDataString("dwarfipelago/mining/cavern3", "")
     dfhack.persistent.saveWorldDataString("dwarfipelago/mining/magma", "")
     dfhack.persistent.saveWorldDataString("dwarfipelago/farming/crop_count", "")
+
+    -- Craft counts: legacy hardcoded flags + every dynamic key via the index.
     for _, flag in ipairs(CRAFT_FLAGS) do
         dfhack.persistent.saveWorldDataString("dwarfipelago/craft_count/" .. flag, "")
     end
+    reqscript("internal/dwarfipelago/checks").clear_craft_counts()
+
+    -- Progression unlocks, received blueprints, and one-shot flags.
+    local items = reqscript("internal/dwarfipelago/items")
+    for _, def in ipairs(items.UNLOCK_DEFS or {}) do
+        dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/" .. def.key, "")
+    end
+    for _, name in ipairs(items.BLUEPRINT_NAMES or {}) do
+        dfhack.persistent.saveWorldDataString("dwarfipelago/blueprint/" .. name, "")
+    end
+    dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/spawned", "")
     print("[Dwarfipelago] State reset.")
 end
 
