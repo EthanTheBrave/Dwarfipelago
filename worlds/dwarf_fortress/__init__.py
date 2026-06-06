@@ -10,8 +10,18 @@ from .items import (
     PROGRESSION_ITEMS, USEFUL_ITEMS
 )
 from .locations import LocationData, LOCATION_TABLE, ALL_LOCATIONS
-from .craftsanity import generate_location_data, generate_location_data_PRINT_ONLY
+from .craftsanity import (
+    generate_location_data,
+    generate_location_data_PRINT_ONLY,
+    build_craft_location_table,
+)
 from . import rules
+
+# The complete AP DataPackage: the static (non-craft) locations plus every
+# possible craft check, computed deterministically. This is the single source of
+# truth for location ids — the per-slot generation in craftsanity.loop_locations
+# derives the same ids from the same formula, so they can never drift.
+_FULL_LOCATION_TABLE: dict[str, int] = {**LOCATION_TABLE, **build_craft_location_table()}
 
 # Register the Archipelago launcher buttons (Dwarf Fortress + Dwarf Fortress Client).
 # Imported here so the components are registered whenever this world is loaded,
@@ -65,7 +75,7 @@ class DwarfFortressWorld(World):
     settings: ClassVar[DwarfFortressSettings]
 
     item_name_to_id = ITEM_TABLE
-    location_name_to_id = LOCATION_TABLE
+    location_name_to_id = _FULL_LOCATION_TABLE
 
     dynamic_locations = []
     dynamic_locations_names = []
@@ -74,30 +84,23 @@ class DwarfFortressWorld(World):
     def generate_early(self) -> None:
         # Make per-instance copies of the class-level shared containers so that
         # multiple DF players in the same multiworld don't corrupt each other's state.
-        self.location_name_to_id = dict(LOCATION_TABLE)
+        self.location_name_to_id = dict(_FULL_LOCATION_TABLE)
         self.dynamic_locations = []
         self.dynamic_locations_names = []
         #populates dynamic_locations and d_l_names
         generate_location_data(self)
         ## FOR printing, uncomment below and set your yaml to the max! (enable all items, max location, lowest threshold, all materials)
         #generate_location_data_PRINT_ONLY(self)
-        # The dynamically-generated craft locations are the single source of truth
-        # for their AP ids. We OVERRIDE any entry in location_name_to_id (the
-        # static crafting_locations.py ids are out of sync with the dynamic
-        # assign_locationid_block + per-check increment, e.g. "Crafting Table
-        # Check 1" is 37528401 statically but 37528001 dynamically). Because
-        # fill_slot_data sends the dynamic ap_id to the client, create_regions
-        # MUST register the same dynamic id here — otherwise the client checks an
-        # id the server never created and the check is silently ignored.
-        # This also covers material-specific names (e.g. "Crafting Bone Gauntlets
-        # Check 1") that aren't in the static table at all.
-        for loc in self.dynamic_locations:
-            if loc.name not in self.location_name_to_id:
-                self.location_name_to_id[loc.name] = loc.ap_id
-        remove_list = []
-        for location in self.location_name_to_id:
-            if "Crafting" in location and location not in self.dynamic_locations_names:
-                remove_list.append(location)
+        # Craft ids are now computed deterministically (craftsanity.craft_location_id),
+        # so the per-slot generation and the DataPackage registry always agree —
+        # no override needed. We only need to PRUNE the craft locations this slot
+        # didn't generate (the registry contains every possible check), otherwise
+        # create_regions would create checks the player can never reach.
+        generated = set(self.dynamic_locations_names)
+        remove_list = [
+            name for name in self.location_name_to_id
+            if "Crafting" in name and name not in generated
+        ]
         for location in remove_list:
             del self.location_name_to_id[location] #remove unused locations for caculations and creations
         ## PRINT LOCATIONS
