@@ -1128,8 +1128,9 @@ local function test_find(substr)
     for _, id in ipairs(matches) do print("    " .. id) end
 end
 
--- Diagnose bag-of-sand creation step by step so we can see exactly where the
--- nesting fails (bag not a real container, moveToContainer returning false, ...).
+-- Probe which BOX material DF actually names a "bag" (vs chest/coffer). A leather
+-- BOX came out as a "chest", and the glass furnace needs a real bag, so we make a
+-- BOX of each candidate fabric and print DF's description for it.
 local function test_sandbag()
     if not dfhack.isMapLoaded() then print("[test] No fortress loaded."); return end
     local unit
@@ -1138,46 +1139,30 @@ local function test_sandbag()
     end
     if not unit then print("[test] No living citizen."); return end
 
-    local function find_mat(tokens)
-        for _, t in ipairs(tokens) do
-            local mi = dfhack.matinfo.find(t)
-            if mi then return mi.type, mi.index, t end
-        end
-    end
-    local ct, ci, ctok = find_mat({ "CREATURE_MAT:COW:LEATHER", "PLANT_MAT:GRASS_TAIL_PIG:THREAD" })
-    local st, si, stok
-    for i, raw in ipairs(df.global.world.raws.inorganics) do
-        if raw.flags and raw.flags.SOIL_SAND then st, si, stok = 0, i, raw.id; break end
-    end
-    if not st then
-        st, si, stok = find_mat({ "INORGANIC:SAND_TAN", "INORGANIC:SAND_BLACK",
-            "INORGANIC:SAND_YELLOW", "INORGANIC:SAND_WHITE", "INORGANIC:SAND_RED" })
-    end
-    print(("[test] bag mat = %s | sand mat = %s"):format(tostring(ctok), tostring(stok)))
-    if not ct or not st then print("[test] missing material — aborting."); return end
-
-    local bag  = dfhack.items.createItem(unit, df.item_type.BOX, -1, ct, ci, false)
-    local sand = dfhack.items.createItem(unit, df.item_type.POWDER_MISC, -1, st, si, false)
-    local b = bag and bag[1]
-    local s = sand and sand[1]
-    print(("[test] bag created = %s | sand created = %s"):format(tostring(b ~= nil), tostring(s ~= nil)))
-    if b then
-        local is_bag, has_container = "?", "?"
-        pcall(function() is_bag = tostring(df.item_type[b:getType()]) end)
-        pcall(function() has_container = tostring(b.flags.container) end)
-        print(("[test] bag item_type=%s flags.container=%s desc=%s"):format(
-            is_bag, has_container, dfhack.items.getDescription(b, 0)))
-    end
-    if b and s then
-        local moved = dfhack.items.moveToContainer(s, b)
-        print("[test] moveToContainer returned: " .. tostring(moved))
-        local inside = false
-        pcall(function()
-            for _, g in ipairs(s.general_refs) do
-                if df.general_ref_contained_in_itemst:is_instance(g) then inside = true end
+    -- Candidate bag fabrics. Tokens that don't resolve in this world are skipped.
+    local candidates = {
+        "PLANT_MAT:GRASS_TAIL_PIG:CLOTH",
+        "PLANT_MAT:GRASS_TAIL_PIG:THREAD",
+        "CREATURE_MAT:COW:LEATHER",
+        "CREATURE_MAT:SHEEP:WOOL",
+        "SILK_TEMPLATE",
+    }
+    print("[test] BOX description by material (looking for one named 'bag'):")
+    local isBag = dfhack.items.isBag  -- may be nil on older builds
+    for _, t in ipairs(candidates) do
+        local mi = dfhack.matinfo.find(t)
+        if mi then
+            local box = dfhack.items.createItem(unit, df.item_type.BOX, -1, mi.type, mi.index, false)
+            if box and box[1] then
+                local bagflag = ""
+                if isBag then bagflag = "  isBag=" .. tostring(isBag(box[1])) end
+                print(("   %-32s -> %s%s"):format(t, dfhack.items.getDescription(box[1], 0), bagflag))
+            else
+                print(("   %-32s -> createItem failed"):format(t))
             end
-        end)
-        print("[test] sand is now contained: " .. tostring(inside))
+        else
+            print(("   %-32s -> material not found"):format(t))
+        end
     end
 end
 
