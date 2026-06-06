@@ -323,22 +323,50 @@ local function recv_goblin_trophy()
 end
 
 -- ── Item handlers: traps ──────────────────────────────────────────────────────
--- The hostile-spawn traps use modtools/create-unit, which is broken on some DF
--- builds ("Cannot read field world.arena_spawn"). Each trap attempts the spawn
--- (retrying once to clear the script's "untested version" warning) and falls
--- back to a reliable non-spawn effect when spawning isn't available, so the trap
--- always does *something*.
+-- Hostile-spawn traps create units directly through the dfhack.units API instead
+-- of the modtools/create-unit script (which errors on this build:
+-- "Cannot read field world.arena_spawn"). Each trap still falls back to a
+-- reliable non-spawn effect if the spawn fails, so the trap always does *something*.
 
--- Run modtools/create-unit, retrying once past the untested-version warning.
--- Returns true if the call completed without error.
-local function try_create_unit(args)
-    for _ = 1, 2 do
-        local ok = pcall(function()
-            dfhack.run_script("modtools/create-unit", table.unpack(args))
-        end)
-        if ok then return true end
+-- Create a unit via the dfhack.units API and drop it onto the map as a live actor.
+--   race_token  : creature raw id, e.g. "GOBLIN", "CAVE_BEAR"
+--   pos         : {x=,y=,z=} walkable tile to place it on
+--   opts.civ_id : civilisation id (-1 = wild); goblins use the goblin civ
+--   opts.invader: set invader/marauder flags so a civ unit actually attacks
+-- Returns the created unit, or nil on failure.
+local function create_unit(race_token, pos, opts)
+    opts = opts or {}
+    local result
+    local ok, err = pcall(function()
+        local race_idx
+        for i, cr in ipairs(df.global.world.raws.creatures.all) do
+            if cr.creature_id == race_token then race_idx = i; break end
+        end
+        if not race_idx then error("unknown creature " .. tostring(race_token)) end
+
+        -- dfhack.units.create() builds the unit (body, soul, mind) and adds it to
+        -- world.units.all, but NOT to world.units.active, and with no map position.
+        local unit = dfhack.units.create(race_idx, 0)
+        if not unit then error("dfhack.units.create returned nil") end
+
+        -- Place on the map (teleport sets tile occupancy) and register as active.
+        if not dfhack.units.teleport(unit, {x = pos.x, y = pos.y, z = pos.z}) then
+            unit.pos.x, unit.pos.y, unit.pos.z = pos.x, pos.y, pos.z
+        end
+        df.global.world.units.active:insert('#', unit)
+
+        unit.civ_id = opts.civ_id or -1
+        if opts.invader then
+            unit.flags1.active_invader = true
+            unit.flags1.marauder       = true
+        end
+        result = unit
+    end)
+    if not ok then
+        log.error("create_unit(" .. tostring(race_token) .. "): " .. tostring(err))
+        return nil
     end
-    return false
+    return result
 end
 
 -- Add `amount` stress to up to `count` random living citizens (all if count nil).
@@ -386,15 +414,16 @@ local function destroy_food(max_items)
 end
 
 local function recv_goblin_ambush()
-    -- Goblins as enemies (civ ID set, NOT setUnitToFort which would make them
-    -- friendly fortress members).
-    local x, y, z    = get_fort_spawn_pos()
-    local civ_id_str = tostring(find_goblin_civ_id())
+    -- Goblins as enemies: goblin civ id + invader flags (NOT a fort member).
+    local x, y, z = get_fort_spawn_pos()
+    local civ_id  = find_goblin_civ_id()
     local spawned = 0
-    for _ = 1, 3 do
-        if try_create_unit({"-race", "GOBLIN", "-civId", civ_id_str,
-                            "-groupId", "-1", "-location", "[", x, y, z, "]"}) then
-            spawned = spawned + 1
+    if x then
+        for _ = 1, 3 do
+            if create_unit("GOBLIN", {x = x, y = y, z = z},
+                           {civ_id = civ_id, invader = true}) then
+                spawned = spawned + 1
+            end
         end
     end
     if spawned > 0 then
@@ -402,34 +431,32 @@ local function recv_goblin_ambush()
     else
         -- Fallback: the fear of a raid rattles the whole fortress.
         local n = stress_citizens(60000)
-        log.warn("goblin_ambush: create-unit unavailable, applied raid-fear stress to " .. n .. " dwarves")
+        log.warn("goblin_ambush: unit spawn unavailable, applied raid-fear stress to " .. n .. " dwarves")
         announce("Trap: A goblin ambush descends — panic grips your dwarves!")
     end
 end
 
 local function recv_cave_bear()
     local x, y, z = get_fort_spawn_pos()
-    if try_create_unit({"-race", "CAVE_BEAR", "-civId", "-1",
-                        "-groupId", "-1", "-location", "[", x, y, z, "]"}) then
+    if x and create_unit("CAVE_BEAR", {x = x, y = y, z = z}, {civ_id = -1}) then
         announce("Trap: A Cave Bear has found its way in!")
     else
         -- Fallback: a beast in the dark badly shakes a few dwarves.
         local n = stress_citizens(120000, 3)
-        log.warn("cave_bear: create-unit unavailable, applied beast-scare stress to " .. n .. " dwarves")
+        log.warn("cave_bear: unit spawn unavailable, applied beast-scare stress to " .. n .. " dwarves")
         announce("Trap: Something large and angry stalks your tunnels...")
     end
 end
 
 local function recv_vermin_infestation()
-    -- GIANT_RAT (a real hostile creature) stands in for vermin, spread over a
-    -- 10-tile radius.
+    -- GIANT_RAT (a real hostile creature) stands in for vermin.
     local x, y, z = get_fort_spawn_pos()
     local spawned = 0
-    for _ = 1, 10 do
-        if try_create_unit({"-race", "GIANT_RAT", "-civId", "-1", "-groupId", "-1",
-                            "-location", "[", x, y, z, "]",
-                            "-locationRange", "[", "10", "10", "0", "]"}) then
-            spawned = spawned + 1
+    if x then
+        for _ = 1, 10 do
+            if create_unit("GIANT_RAT", {x = x, y = y, z = z}, {civ_id = -1}) then
+                spawned = spawned + 1
+            end
         end
     end
     if spawned > 0 then
@@ -437,7 +464,7 @@ local function recv_vermin_infestation()
     else
         -- Fallback: vermin devour part of your food and drink stores.
         local eaten = destroy_food(20)
-        log.warn("vermin_infestation: create-unit unavailable, vermin ate " .. eaten .. " food/drink items")
+        log.warn("vermin_infestation: unit spawn unavailable, vermin ate " .. eaten .. " food/drink items")
         announce(("Trap: Vermin Infestation! They have devoured %d of your stores."):format(eaten))
     end
 end
@@ -579,16 +606,11 @@ local function spawn_precursor_threat()
             COLOR_YELLOW, true)
         log.warn("spawn_precursor_threat: underground search failed, falling back to surface")
     end
-    local ok, err = pcall(function()
-        dfhack.run_script("modtools/create-unit",
-            "-race", "GIANT_CAVE_SPIDER", "-civId", "-1", "-groupId", "-1",
-            "-location", "[", tostring(x), tostring(y), tostring(z), "]")
-    end)
-    if not ok then
+    if not create_unit("GIANT_CAVE_SPIDER", {x = x, y = y, z = z}, {civ_id = -1}) then
         dfhack.gui.showAnnouncement(
             "[AP] Error: precursor creature could not be spawned. Check the DFHack console.",
             COLOR_RED, true)
-        log.error("precursor spawn failed: " .. tostring(err))
+        log.error("precursor spawn failed")
     end
 end
 
