@@ -128,16 +128,6 @@ def generate_location_data(world: "DwarfFortressWorld"):
             new_location.base_location_id += assign_locationid_block(new_location.item_name)
             loop_locations(world, new_location, dynamic_locations)
 
-def generate_location_data_PRINT_ONLY(world: "DwarfFortressWorld"):
-    dynamic_locations: list[LocationData] = []
-    if world.options.craftsanity != EnableCraftsanity.option_off:
-        for item in world.options.craftsanity_items:
-            new_location = DynamicCraftingData("", "", "", 0, 0, BASE_ID)
-            new_location.item_name = item
-            new_location.id = 0
-            new_location.base_location_id += assign_locationid_block(new_location.item_name)
-            loop_locations_PRINT_ONLY(world, new_location, dynamic_locations)
-
 def loop_locations(world: "DwarfFortressWorld", new_location: DynamicCraftingData, dynamic_locations: list[LocationData]) -> int:
     item = new_location.item_name
     max_id = calulate_check_count(world)
@@ -161,46 +151,6 @@ def loop_locations(world: "DwarfFortressWorld", new_location: DynamicCraftingDat
                 emit(material)
     else:  # material doesn't matter
         emit("")
-    return
-
-def loop_locations_PRINT_ONLY(world: "DwarfFortressWorld", new_location: DynamicCraftingData, dynamic_locations: list[LocationData]) -> int:
-    if world.options.craftsanity_enable_materials and not non_material_items(new_location.item_name):
-        for materials in world.options.craftsanity_materials: #iterate all selected Materials
-            if valid_materialitem(materials, new_location.item_name) == False:
-                continue
-            new_location.type = materials
-            new_location.max_id = calulate_check_count(world)
-            for next_id in range(new_location.id, new_location.max_id):
-                if next_id == new_location.max_id - 1:
-                    new_location.check_name = "Crafting "+ new_location.type + " " + new_location.item_name + " Final Check"
-                    new_location.base_location_id += 1
-                else:
-                    new_location.check_name = "Crafting "+ new_location.type + " " + new_location.item_name + " Check "+ str(next_id + 1)
-                    new_location.base_location_id += 1
-                world.dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, new_location.type, new_location.item_name, next_id + 1))
-                world.dynamic_locations_names.append(new_location.check_name)
-        ##Also include Materials Doesn't Matter for Printing Only!
-        new_location.type = ""
-        new_location.max_id = calulate_check_count(world)
-        for next_id in range(new_location.id, new_location.max_id):
-            if next_id == new_location.max_id - 1:
-                new_location.check_name = "Crafting " + new_location.item_name + " Final Check"
-                new_location.base_location_id += 1
-            else:
-                new_location.check_name = "Crafting " + new_location.item_name + " Check "+ str(next_id + 1)
-                new_location.base_location_id += 1
-            world.dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, "", new_location.item_name, next_id + 1))
-    else: # Materials doesn't matter
-        new_location.max_id = calulate_check_count(world)
-        for next_id in range(new_location.id, new_location.max_id):
-            if next_id == new_location.max_id - 1:
-                new_location.check_name = "Crafting " + new_location.item_name + " Final Check"
-                new_location.base_location_id += 1
-            else:
-                new_location.check_name = "Crafting " + new_location.item_name + " Check "+ str(next_id + 1)
-                new_location.base_location_id += 1
-            world.dynamic_locations.append(LocationData(new_location.check_name, new_location.base_location_id, "", False, "", new_location.item_name, next_id + 1))
-            world.dynamic_locations_names.append(new_location.check_name)
     return
 
 def calulate_check_count(world: "DwarfFortressWorld"):

@@ -12,7 +12,6 @@ from .items import (
 from .locations import LocationData, LOCATION_TABLE, ALL_LOCATIONS
 from .craftsanity import (
     generate_location_data,
-    generate_location_data_PRINT_ONLY,
     build_craft_location_table,
 )
 from . import rules
@@ -89,8 +88,6 @@ class DwarfFortressWorld(World):
         self.dynamic_locations_names = []
         #populates dynamic_locations and d_l_names
         generate_location_data(self)
-        ## FOR printing, uncomment below and set your yaml to the max! (enable all items, max location, lowest threshold, all materials)
-        #generate_location_data_PRINT_ONLY(self)
         # Craft ids are now computed deterministically (craftsanity.craft_location_id),
         # so the per-slot generation and the DataPackage registry always agree —
         # no override needed. We only need to PRUNE the craft locations this slot
@@ -103,9 +100,6 @@ class DwarfFortressWorld(World):
         ]
         for location in remove_list:
             del self.location_name_to_id[location] #remove unused locations for caculations and creations
-        ## PRINT LOCATIONS
-        #for locations in self.dynamic_locations:
-        #    print(f'LocationData("{locations.name}", {locations.ap_id}, "Fortress", False, "{locations.material_type}", "{locations.df_item}", {locations.threshold}),')
 
         # Goal-based location filtering — mirror of the item removal in
         # create_items(). The wealth-tier checks are coffer progression locks:
