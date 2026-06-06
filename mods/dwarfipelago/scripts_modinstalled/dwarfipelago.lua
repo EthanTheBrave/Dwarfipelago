@@ -6,6 +6,7 @@
 --   dwarfipelago reset              -- wipe persistent state (use with care)
 --   dwarfipelago resetseed          -- clear AP seed lock so this world can join a new slot
 --   dwarfipelago receive <item>     -- manually deliver an item (for testing)
+--   dwarfipelago test <name> [args] -- run a mechanic verification test (e.g. spawn, goblin)
 
 -- Internal modules live under internal/dwarfipelago/ to keep them out of the
 -- DFHack launcher autocomplete. Use reqscript (not require) so they hot-reload
@@ -1172,6 +1173,9 @@ elseif cmd == "receive" then
     else
         items.receive(item_name)
     end
+elseif cmd == "test" then
+    -- Manual mechanic verification: dwarfipelago test <name> [args]
+    items.run_test(args[2], { table.unpack(args, 3) })
 else
-    print("Usage: dwarfipelago [start|stop|status|reset|resetseed|panel|receive <item>]")
+    print("Usage: dwarfipelago [start|stop|status|reset|resetseed|panel|receive <item>|test <name>]")
 end
