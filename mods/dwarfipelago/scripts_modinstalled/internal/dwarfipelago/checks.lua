@@ -626,31 +626,56 @@ larmor_subtype(14, "lower_body_clothing")
 larmor_subtype(15, "lower_body_armor")
 larmor_subtype(16, "lower_body_clothing")
 
+-- Construction jobs/orders that use a generic material category (e.g. "make
+-- wooden table") set mat_type/mat_index to -1 and instead flag
+-- material_category.wood / .stone / etc. Map those category fields to our flag.
+local MATCAT_TO_FLAG = {
+    wood = "wood",
+    metal = "metal", bar = "metal",
+    stone = "stone", rock = "stone",
+    glass = "glass", glass2 = "glass", glass3 = "glass",
+    leather = "leather",
+    cloth = "cloth", yarn = "cloth", silk = "cloth", plant_cloth = "cloth",
+    bone = "bone",
+}
+
 local function mat_craft_flag(job)
+    -- 1. Specific material set on the job (e.g. a chosen metal/stone): decode it.
     local ok, mat = pcall(dfhack.matinfo.decode, job.mat_type, job.mat_index)
-    if not ok or not mat then return nil end
-    -- Match against the raw material TOKEN (e.g. "PLANT_MAT:OAK:WOOD",
-    -- "INORGANIC:GLASS_GREEN", "CREATURE_MAT:COW:LEATHER"), NOT toString() which
-    -- returns a readable name like "oak wood" that never matches the uppercase
-    -- substrings below — that bug made wood/glass/leather/cloth resolve wrongly.
-    local token = ""
-    pcall(function() token = mat:getToken() or "" end)
-    if token == "" then token = mat:toString() or "" end
-    if mat.mode == "inorganic" then
-        local raw = mat.inorganic
-        if raw and raw.flags.IS_METAL then return "metal" end
-        if token:find("GLASS") then return "glass" end
-        if token:find("CLAY") or token:find("PORCELAIN") or token:find("KAOLINITE") then return "ceramic" end
-        return "stone"
-    elseif mat.mode == "plant" then
-        if token:find(":WOOD") then return "wood" end
-        return "cloth"  -- plant fiber / thread
-    elseif mat.mode == "creature" then
-        if token:find("LEATHER") then return "leather" end
-        if token:find(":SILK") then return "cloth" end
-        return "bone"
+    if ok and mat then
+        -- Match against the raw material TOKEN (e.g. "PLANT_MAT:OAK:WOOD",
+        -- "INORGANIC:GLASS_GREEN", "CREATURE_MAT:COW:LEATHER"), NOT toString()
+        -- which returns a readable name that won't match the uppercase substrings.
+        local token = ""
+        pcall(function() token = mat:getToken() or "" end)
+        if token == "" then token = mat:toString() or "" end
+        if mat.mode == "inorganic" then
+            local raw = mat.inorganic
+            if raw and raw.flags.IS_METAL then return "metal" end
+            if token:find("GLASS") then return "glass" end
+            if token:find("CLAY") or token:find("PORCELAIN") or token:find("KAOLINITE") then return "ceramic" end
+            return "stone"
+        elseif mat.mode == "plant" then
+            if token:find(":WOOD") then return "wood" end
+            return "cloth"  -- plant fiber / thread
+        elseif mat.mode == "creature" then
+            if token:find("LEATHER") then return "leather" end
+            if token:find(":SILK") then return "cloth" end
+            return "bone"
+        end
     end
-    return nil
+
+    -- 2. Generic category material (mat_type/index unset): read material_category.
+    local cat_flag
+    pcall(function()
+        for k, v in pairs(job.material_category) do
+            if v == true and MATCAT_TO_FLAG[k] then
+                cat_flag = MATCAT_TO_FLAG[k]
+                return
+            end
+        end
+    end)
+    return cat_flag
 end
 
 -- Returns the AP craftable_items/materials flag for a completed job,
