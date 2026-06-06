@@ -680,7 +680,7 @@ class DwarfFortressContext(CommonContext):
         self._deathlink_threshold  = int(dl_threshold)
         self._deathlink_percentage = bool(int(dl_percentage))
         if seed_is_fresh or current_seed == str(self.seed):
-            script_version = self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("dwarfipelago/version"))')
+            script_version = (self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("dwarfipelago/version"))') or "").strip()
             if self.version == script_version:
                 if seed_is_fresh:
                     def write():
@@ -690,10 +690,12 @@ class DwarfFortressContext(CommonContext):
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_threshold", "{dl_threshold}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_percentage", "{int(dl_percentage)}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/seed", "{self.seed}")')
-                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_enabled", "{craftsanity_enabled}")')
-                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_materials", "{materials_enabled}")')
                     write()
                     self.init_crafting_locations()
+                # Always re-sync these flags so Lua uses the correct key format
+                # even on reconnects or if the initial write was interrupted.
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_enabled", "{craftsanity_enabled}")')
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_materials", "{materials_enabled}")')
                 self._slot_data_synced = True
                 await self.getAPKeyValue("Dwarfipelago/"+str(self.seed)+"/completed_locations")
                 logger.info(f"Synced slot data → goal={goal}, wealth_goal={wealth_goal}, pop_goal={pop_goal}, dl_threshold={dl_threshold}")

@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from typing import List, Optional
-from .crafting_locations import CRAFTING_LOCATIONS
 
 BASE_ID = 37370000
 
@@ -117,9 +116,13 @@ FARMING_LOCATIONS: list[LocationData] = [
 ]
 
 
+# Craft locations are NOT included here. They are computed deterministically by
+# craftsanity.build_craft_location_table() and merged into the World's
+# location_name_to_id in __init__.py (see _FULL_LOCATION_TABLE). Keeping them out
+# of this module avoids a circular import (craftsanity imports from locations).
 ALL_LOCATIONS: list[LocationData] = (
     WEALTH_LOCATIONS + PRODUCTION_LOCATIONS + TRADE_LOCATIONS
     + STATUS_LOCATIONS + TITLE_LOCATIONS + MINING_LOCATIONS
-    + FARMING_LOCATIONS + CRAFTING_LOCATIONS
+    + FARMING_LOCATIONS
 )
 LOCATION_TABLE: dict[str, int] = {loc.name: loc.ap_id for loc in ALL_LOCATIONS}
