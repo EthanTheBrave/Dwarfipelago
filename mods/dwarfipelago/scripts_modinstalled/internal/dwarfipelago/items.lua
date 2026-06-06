@@ -1093,54 +1093,12 @@ local function test_find(substr)
     for _, id in ipairs(matches) do print("    " .. id) end
 end
 
--- Compare a real fort bag against one of our created "chests" to find the
--- attribute that makes a BOX a bag vs a chest (same item type / material, so it
--- must be an item-level field or flag).
-local function test_sandbag()
-    if not dfhack.isMapLoaded() then print("[test] No fortress loaded."); return end
-
-    local function info(it)
-        local t = it:getType()
-        local desc = (select(2, pcall(dfhack.items.getDescription, it, 0))) or "?"
-        local tok = "?"
-        local mat = select(2, pcall(dfhack.matinfo.decode, it.mat_type, it.mat_index))
-        if mat then pcall(function() tok = mat:getToken() end) end
-        local soft, leather = "?", "?"
-        if mat and mat.material then
-            pcall(function() soft    = tostring(mat.material.flags.ITEMS_SOFT) end)
-            pcall(function() leather = tostring(mat.material.flags.LEATHER) end)
-        end
-        local fwhole = "?"
-        pcall(function() fwhole = string.format("0x%X", it.flags.whole) end)
-        -- item_boxst-specific: does it expose a 'flags' field of its own?
-        local boxflags = "n/a"
-        pcall(function() if it.flags2 then boxflags = string.format("0x%X", it.flags2.whole) end end)
-        return ("type=%d(%s) class=%s mat=%s SOFT=%s LEATHER=%s flags=%s flags2=%s\n        desc=%s"):format(
-            t, tostring(df.item_type[t]), tostring(it._type), tok, soft, leather, fwhole, boxflags, desc)
-    end
-
-    local realbag, ourchest
-    for _, it in ipairs(df.global.world.items.all) do
-        local ok, desc = pcall(dfhack.items.getDescription, it, 0)
-        if ok and desc then
-            local d = desc:lower()
-            if not realbag  and d:find("bag")   then realbag  = it end
-            if not ourchest and d:find("chest") then ourchest = it end
-        end
-        if realbag and ourchest then break end
-    end
-    print("[test] REAL BAG : " .. (realbag  and info(realbag)  or "none found"))
-    print("[test] OUR CHEST: " .. (ourchest and info(ourchest) or "none found"))
-end
-
 -- Ordered so 'dwarfipelago test' lists them predictably.
 local TEST_LIST = {
     { "spawn",     "Spawn 1 unit via dfhack.units API + report status (arg: RACE, default GIANT_RAT)",
                    function(rest) test_spawn(rest[1]) end },
     { "find",      "List creature tokens matching a substring (arg: SUBSTR, e.g. BEAR)",
                    function(rest) test_find(rest[1]) end },
-    { "sandbag",   "Diagnose bag-of-sand: create bag+sand and report each step",
-                   function() test_sandbag() end },
     { "goblin",    "Goblin Ambush trap (3 hostile goblins)",          function() recv_goblin_ambush() end },
     { "cavebear",  "Cave Bear Incursion trap",                        function() recv_cave_bear() end },
     { "vermin",    "Vermin Infestation trap (10 giant rats)",         function() recv_vermin_infestation() end },
