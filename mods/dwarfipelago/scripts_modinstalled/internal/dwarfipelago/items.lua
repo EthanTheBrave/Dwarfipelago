@@ -368,9 +368,16 @@ local function create_unit(race_token, pos, opts)
         df.global.world.units.active:insert('#', unit)
 
         unit.civ_id = opts.civ_id or -1
-        if opts.invader then
+
+        -- A freshly created unit is neutral wildlife (it just stands around). To
+        -- make a trap creature an actual threat we flag it as an active hostile:
+        --   active_invader → the game treats it as a hostile that seeks targets
+        --   marauder       → roams/attacks rather than fleeing
+        -- For civ units (goblins) civ_id is also set so they invade as that race.
+        if opts.hostile then
             unit.flags1.active_invader = true
             unit.flags1.marauder       = true
+            pcall(function() unit.animal.population.region_x = -1 end)  -- detach from any wild pop
         end
         result = unit
     end)
@@ -434,7 +441,7 @@ local function recv_goblin_ambush()
     if x then
         for _ = 1, 3 do
             if create_unit("GOBLIN", {x = x, y = y, z = z},
-                           {civ_id = civ_id, invader = true}) then
+                           {civ_id = civ_id, hostile = true}) then
                 spawned = spawned + 1
             end
         end
@@ -454,7 +461,7 @@ local function recv_cave_bear()
     -- BLIND_CAVE_BEAR is the actual underground bear (perfect for this trap);
     -- fall back across the surface bear species so it resolves in any world.
     local BEARS = { "BLIND_CAVE_BEAR", "CAVE_BEAR", "BEAR_GRIZZLY", "BEAR_BLACK", "BEAR_POLAR", "BEAR_SLOTH" }
-    if x and create_unit(BEARS, {x = x, y = y, z = z}, {civ_id = -1}) then
+    if x and create_unit(BEARS, {x = x, y = y, z = z}, {civ_id = -1, hostile = true}) then
         announce("Trap: A Cave Bear has found its way in!")
     else
         -- Fallback: a beast in the dark badly shakes a few dwarves.
@@ -471,7 +478,7 @@ local function recv_vermin_infestation()
     local RATS = { "GIANT_RAT", "RAT" }
     if x then
         for _ = 1, 10 do
-            if create_unit(RATS, {x = x, y = y, z = z}, {civ_id = -1}) then
+            if create_unit(RATS, {x = x, y = y, z = z}, {civ_id = -1, hostile = true}) then
                 spawned = spawned + 1
             end
         end
@@ -624,7 +631,7 @@ local function spawn_precursor_threat()
         log.warn("spawn_precursor_threat: underground search failed, falling back to surface")
     end
     if not create_unit({ "GIANT_CAVE_SPIDER", "CAVE_SPIDER_GIANT", "SPIDER_CAVE_GIANT" },
-                       {x = x, y = y, z = z}, {civ_id = -1}) then
+                       {x = x, y = y, z = z}, {civ_id = -1, hostile = true}) then
         dfhack.gui.showAnnouncement(
             "[AP] Error: precursor creature could not be spawned. Check the DFHack console.",
             COLOR_RED, true)
@@ -920,7 +927,7 @@ local function test_spawn(race)
         return
     end
     print(("[test] dfhack.units.create %s at (%d,%d,%d)..."):format(race, x, y, z))
-    local unit = create_unit(race, {x = x, y = y, z = z}, {civ_id = -1})
+    local unit = create_unit(race, {x = x, y = y, z = z}, {civ_id = -1, hostile = true})
     if not unit then
         print("[test] FAIL: create_unit returned nil (check error above; unknown race token?).")
         return
