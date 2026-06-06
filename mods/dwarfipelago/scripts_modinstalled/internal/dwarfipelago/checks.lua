@@ -775,16 +775,56 @@ end
 -- The AP client polls these directly to decide when a milestone threshold is met.
 
 local CRAFT_COUNT_PREFIX = "dwarfipelago/craft_count/"
+-- Index of every craft-count flag incremented in this world, so the status
+-- command can enumerate dynamic material-split keys (e.g. "table_wood") that
+-- aren't present in any hardcoded list.
+local CRAFT_INDEX_KEY = "dwarfipelago/craft_count_index"
+
+local function craft_index_add(flag)
+    local json = require('json')
+    local raw  = dfhack.persistent.getWorldDataString(CRAFT_INDEX_KEY)
+    local list = (raw and raw ~= "") and json.decode(raw) or {}
+    for _, f in ipairs(list) do
+        if f == flag then return end
+    end
+    table.insert(list, flag)
+    dfhack.persistent.saveWorldDataString(CRAFT_INDEX_KEY, json.encode(list))
+end
 
 function M.increment_craft_count(flag)
     local key = CRAFT_COUNT_PREFIX .. flag
     local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
     dfhack.persistent.saveWorldDataString(key, tostring(n))
+    craft_index_add(flag)
     return n
 end
 
 function M.get_craft_count(flag)
     return tonumber(dfhack.persistent.getWorldDataString(CRAFT_COUNT_PREFIX .. flag)) or 0
+end
+
+-- Returns { flag = count } for every craft flag recorded this world (count > 0).
+function M.get_all_craft_counts()
+    local json = require('json')
+    local raw  = dfhack.persistent.getWorldDataString(CRAFT_INDEX_KEY)
+    local list = (raw and raw ~= "") and json.decode(raw) or {}
+    local out = {}
+    for _, f in ipairs(list) do
+        local n = tonumber(dfhack.persistent.getWorldDataString(CRAFT_COUNT_PREFIX .. f)) or 0
+        if n > 0 then out[f] = n end
+    end
+    return out
+end
+
+-- Clears all recorded craft counts and the index (used by 'dwarfipelago reset').
+function M.clear_craft_counts()
+    local json = require('json')
+    local raw  = dfhack.persistent.getWorldDataString(CRAFT_INDEX_KEY)
+    local list = (raw and raw ~= "") and json.decode(raw) or {}
+    for _, f in ipairs(list) do
+        dfhack.persistent.saveWorldDataString(CRAFT_COUNT_PREFIX .. f, "")
+    end
+    dfhack.persistent.saveWorldDataString(CRAFT_INDEX_KEY, "")
 end
 
 -- reqscript returns the script's _ENV, not the explicit return value.
