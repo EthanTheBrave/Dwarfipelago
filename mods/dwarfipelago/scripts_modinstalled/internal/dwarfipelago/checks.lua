@@ -641,28 +641,40 @@ local MATCAT_TO_FLAG = {
 
 local function mat_craft_flag(job)
     -- 1. Specific material set on the job (e.g. a chosen metal/stone): decode it.
+    --    Detection is TOKEN-driven rather than .mode-driven, because a generic
+    --    "any stone" order stores mat_type=0/mat_index=-1, which decodes to a
+    --    matinfo with no specific raw and a nil .mode (token "INORGANIC") -- the
+    --    old .mode branches missed it entirely.
     local ok, mat = pcall(dfhack.matinfo.decode, job.mat_type, job.mat_index)
     if ok and mat then
-        -- Match against the raw material TOKEN (e.g. "PLANT_MAT:OAK:WOOD",
-        -- "INORGANIC:GLASS_GREEN", "CREATURE_MAT:COW:LEATHER"), NOT toString()
-        -- which returns a readable name that won't match the uppercase substrings.
+        -- Raw material TOKEN, e.g. "PLANT_MAT:OAK:WOOD", "INORGANIC:GLASS_GREEN",
+        -- "CREATURE_MAT:COW:LEATHER", or bare "INORGANIC" for generic stone.
         local token = ""
         pcall(function() token = mat:getToken() or "" end)
-        if token == "" then token = mat:toString() or "" end
-        if mat.mode == "inorganic" then
-            local raw = mat.inorganic
-            if raw and raw.flags.IS_METAL then return "metal" end
-            if token:find("GLASS") then return "glass" end
-            if token:find("CLAY") or token:find("PORCELAIN") or token:find("KAOLINITE") then return "ceramic" end
-            return "stone"
-        elseif mat.mode == "plant" then
-            if token:find(":WOOD") then return "wood" end
+        if token == "" then pcall(function() token = mat:toString() or "" end) end
+        local up = token:upper()
+
+        -- Metal is only reliable via the inorganic raw's IS_METAL flag.
+        local is_metal = false
+        pcall(function()
+            is_metal = (mat.inorganic and mat.inorganic.flags and mat.inorganic.flags.IS_METAL) or false
+        end)
+        if is_metal then return "metal" end
+
+        if mat.mode == "plant" then
+            if up:find(":WOOD") then return "wood" end
             return "cloth"  -- plant fiber / thread
         elseif mat.mode == "creature" then
-            if token:find("LEATHER") then return "leather" end
-            if token:find(":SILK") then return "cloth" end
+            if up:find("LEATHER") then return "leather" end
+            if up:find(":SILK") then return "cloth" end
             return "bone"
         end
+
+        -- Inorganic / builtin / generic (covers nil .mode when mat_index == -1).
+        if up:find("GLASS") then return "glass" end
+        if up:find("CLAY") or up:find("PORCELAIN") or up:find("KAOLINITE") then return "ceramic" end
+        if up:find("INORGANIC") then return "stone" end
+        if up:find(":WOOD") then return "wood" end
     end
 
     -- 2. Generic category material (mat_type/index unset): read material_category.
@@ -675,7 +687,13 @@ local function mat_craft_flag(job)
             end
         end
     end)
-    return cat_flag
+    if cat_flag then return cat_flag end
+
+    -- 3. Last resort by builtin mat_type: 0 = INORGANIC base (generic stone),
+    --    3..5 = builtin green/clear/crystal glass.
+    if job.mat_type == 0 then return "stone" end
+    if job.mat_type and job.mat_type >= 3 and job.mat_type <= 5 then return "glass" end
+    return nil
 end
 
 -- Returns the AP craftable_items/materials flag for a completed job,
