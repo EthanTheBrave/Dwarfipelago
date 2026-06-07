@@ -2,11 +2,6 @@ from BaseClasses import MultiWorld
 from worlds.dwarf_fortress.craftsanity_rules import DynamicCraftingLocationRules
 from .options import DwarfFortressGoal, CraftingItems
 
-BLUEPRINT_COMPLEX_RULES = {
-    "smelting": [
-        "First Metal Bar Smelted",
-    ]
-}
 
 # Wealth tier → how many Merchant's Coffers needed to unlock it.
 WEALTH_COFFER_RULES: list[tuple[str, int]] = [
