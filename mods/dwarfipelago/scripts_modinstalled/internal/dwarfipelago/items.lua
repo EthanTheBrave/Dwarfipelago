@@ -514,7 +514,8 @@ local function recv_master_builders_codex()
         end
     end
     dfhack.gui.showAnnouncement(
-        "[AP] A Master Builder's Codex arrives with an artifact door! Ancient construction secrets are now yours.",
+        "[AP] A Master Builder's Codex arrives with an artifact door! To build it, raise the " ..
+        "build material list's Max Quality filter to Artifact (it's hidden at Masterful by default).",
         COLOR_GREEN, true)
     print("[Dwarfipelago] Progression item received: Master Builder's Codex")
 end
