@@ -456,6 +456,7 @@ class DwarfFortressContext(CommonContext):
         self._received_index_loaded = False  # restored from world data this connection?
         self._slot_data_synced = False   # Loaded the correct saved world
         self._goal_complete = False
+        self._deathlink_enabled = False  # set from slot_data; gates sending + the DeathLink tag
         self._deathlink_threshold = 5    # dwarves (or %) per DeathLink (overridden by slot data)
         self._deathlink_percentage = False  # treat threshold as % of population
         self._pending_recv_deathlinks = 0  # incoming DeathLink bounces waiting to be applied
@@ -731,7 +732,7 @@ class DwarfFortressContext(CommonContext):
         already sent. For each new multiple of deathlink_threshold deaths,
         persist the new count then broadcast one DeathLink Bounce to the AP server.
         """
-        if self._deathlink_threshold <= 0:
+        if not self._deathlink_enabled or self._deathlink_threshold <= 0:
             return
 
         def read_counts():
@@ -964,6 +965,13 @@ class DwarfFortressContext(CommonContext):
             # Start DFHack polling and (when inside AP) the server connection as
             # concurrent asyncio tasks so neither blocks the other.
             self.slot_data: dict[str, Any] = args.get("slot_data", {})
+            # Register as a DeathLink participant when the option is on. This adds
+            # the "DeathLink" tag and sends a ConnectUpdate, which is what tells the
+            # server to route DeathLink bounces to/from this slot. Without it the
+            # server never treats us as a participant, so nothing is exchanged.
+            self._deathlink_enabled = bool(self.slot_data.get("deathlink", 0))
+            if self._deathlink_enabled:
+                asyncio.create_task(self.update_death_link(True))
             self.dfhack_task = asyncio.create_task(self.dfhack_poll_loop(), name="DFHack poll")
         elif cmd == "Retrieved":
             key = "Dwarfipelago/"+str(self.seed)+"/completed_locations"
