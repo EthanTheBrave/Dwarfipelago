@@ -203,7 +203,7 @@ class DwarfFortressWorld(World):
         #precollect starting items
         for item_name in self.starting_inventory:
             self.multiworld.push_precollected(self.create_item(item_name))
-            
+
         # Separate required (progression) items from optional ones.
         # Progression items — all blueprints plus Artifact/Legendary items — must
         # always be included because rules.py gates locations behind them.  If they

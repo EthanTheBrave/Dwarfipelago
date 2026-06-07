@@ -127,7 +127,7 @@ M.checks = {
     { id = 37370104, name = "First Prepared Meal",     fn = function() return M.production_flag("meal")           end },
     { id = 37370105, name = "First Brew Complete",     fn = function() return M.production_flag("brew")           end },
     { id = 37370106, name = "First Metal Bar Smelted", fn = function() return M.production_flag("metal_bar")      end },
-    { id = 37370107, name = "First Stone Block Cut",   fn = function() return M.production_flag("stone_block")    end },
+    { id = 37370107, name = "First Block Cut",         fn = function() return M.production_flag("stone_block")    end },
     { id = 37370108, name = "First Cloth Woven",       fn = function() return M.production_flag("cloth")          end },
     { id = 37370109, name = "First Leather Tanned",    fn = function() return M.production_flag("leather")        end },
     { id = 37370110, name = "First Gem Cut",           fn = function() return M.production_flag("gem")            end },
@@ -434,7 +434,7 @@ cmap("MakeGloves",              "GARMOR_SUBTYPE")
 cmap("MakePants",               "LARMOR_SUBTYPE")
 cmap("MakeShoes",               "footwear")
 cmap("ConstructBag",            "bag")
-cmap("MintCoins",               "coin")
+cmap("MintCoins",               "coins")
 cmap("MakeChain",               "rope/chain")
 cmap("ForgeAnvil",              "anvil")
 
@@ -755,7 +755,12 @@ function M.job_to_craft_flag(job)
             or flag == "leather" or flag == "sheet" or flag == "cloth" or flag == "alcohol"
             or flag == "lye" or flag == "potash" or flag == "milk_of_lime" or flag == "prepared_meal"
             or flag == "tallow" or flag == "oil" or flag == "press_cake" or flag == "honey"
-            or flag == "bee_wax" or flag == "dye" or flag == "soap" then
+            or flag == "bee_wax" or flag == "dye" or flag == "soap" or flag == "training_axe"
+            or flag == "training_spear" or flag == "training_sword" or flag == "cup" or flag == "ballista_parts"
+            or flag == "catapult_parts" or flag == "millstone" or flag == "quern" or flag == "slab"
+            or flag == "mug" or flag == "totem" or flag == "window" or flag == "battle_axe"
+            or flag == "mace" or flag == "pick" or flag == "short_sword" or flag == "spear"
+            or flag == "war_hammer" or flag == "anvil" or flag == "coins" then
                 return flag
         end
         local need_mat = dfhack.persistent.getWorldDataString('dwarfipelago/craftsanity_materials')
