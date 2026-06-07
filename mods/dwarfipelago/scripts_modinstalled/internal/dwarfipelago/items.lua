@@ -419,24 +419,46 @@ end
 
 local function recv_artifact_weapon()
     dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/artifact_weapon", "1")
+    -- Deliver an artifact-tier weapon (adamantine), falling back to steel.
+    if spawn_item("WEAPON:ITEM_WEAPON_AXE_BATTLE", "INORGANIC:ADAMANTINE") == 0 then
+        if spawn_item("WEAPON:ITEM_WEAPON_AXE_BATTLE", "INORGANIC:STEEL") == 0 then
+            spawn_item("BAR", "INORGANIC:STEEL", 3)
+        end
+    end
     dfhack.gui.showAnnouncement(
-        "[AP] An Artifact Weapon has been commissioned for your fortress! Your champions stand ready.",
+        "[AP] An Artifact Weapon has been delivered to your fortress! Your champions stand ready.",
         COLOR_GREEN, true)
     print("[Dwarfipelago] Progression item received: Artifact Weapon")
 end
 
 local function recv_artifact_armor()
     dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/artifact_armor", "1")
+    -- A full set of artifact-tier armor (adamantine), falling back to steel.
+    local mat = "INORGANIC:ADAMANTINE"
+    if spawn_item("ARMOR:ITEM_ARMOR_BREASTPLATE", mat) == 0 then
+        mat = "INORGANIC:STEEL"
+        spawn_item("ARMOR:ITEM_ARMOR_BREASTPLATE", mat)
+    end
+    spawn_item("HELM:ITEM_HELM_HELM",          mat)
+    spawn_item("SHIELD:ITEM_SHIELD_SHIELD",    mat)
+    spawn_item("GLOVES:ITEM_GLOVES_GAUNTLETS", mat)
+    spawn_item("PANTS:ITEM_PANTS_GREAVES",     mat)
+    spawn_item("SHOES:ITEM_SHOES_BOOTS",       mat)
     dfhack.gui.showAnnouncement(
-        "[AP] Artifact Armor has been forged for your soldiers! Your defenders are emboldened.",
+        "[AP] Artifact Armor has been delivered to your soldiers! Your defenders are emboldened.",
         COLOR_GREEN, true)
     print("[Dwarfipelago] Progression item received: Artifact Armor")
 end
 
 local function recv_master_builders_codex()
     dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/master_builders_codex", "1")
+    -- Comes with an "artifact" door — created in the best material available.
+    for _, m in ipairs({ "INORGANIC:ADAMANTINE", "INORGANIC:PLATINUM",
+                         "INORGANIC:GOLD", "INORGANIC:MARBLE" }) do
+        if spawn_item("DOOR", m) > 0 then break end
+    end
     dfhack.gui.showAnnouncement(
-        "[AP] A Master Builder's Codex has arrived! Ancient construction secrets are now yours.",
+        "[AP] A Master Builder's Codex arrives with an artifact door! Ancient construction secrets are now yours.",
         COLOR_GREEN, true)
     print("[Dwarfipelago] Progression item received: Master Builder's Codex")
 end
