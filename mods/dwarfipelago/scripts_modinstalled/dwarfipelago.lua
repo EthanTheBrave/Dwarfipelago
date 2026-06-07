@@ -22,7 +22,7 @@ local eventful   = require("plugins.eventful")
 local repeatUtil = require("repeat-util")
 
 local SCRIPT_NAME = "dwarfipelago"
-local SCRIPT_VERSION = "1.0.4"
+local SCRIPT_VERSION = "1.0.5"
 local POLL_TICKS  = 100  -- poll wealth/trade/goal checks every N ticks
 
 -- Set to true while we are applying a received DeathLink so that the death
@@ -298,7 +298,40 @@ local CARAVAN_RACES = {
     HUMAN = "human_caravan",
 }
 
+-- True if a Civilization entity of the given creature token exists in this world.
+local function civ_exists(token)
+    local creatures = df.global.world.raws.creatures.all
+    for _, ent in ipairs(df.global.world.entities.all) do
+        local ok, match = pcall(function()
+            local r = ent.race
+            return ent.type == df.historical_entity_type.Civilization
+                and r >= 0 and r < #creatures and creatures[r].creature_id == token
+        end)
+        if ok and match then return true end
+    end
+    return false
+end
+
+-- An elf/human caravan can never visit if that civilisation doesn't exist in the
+-- world, which would leave its "X Caravan Visit" location permanently unreachable
+-- (an AP soft-lock). Auto-satisfy those checks once so the multiworld stays
+-- completable. The dwarven caravan always comes from the parent civ, so it's
+-- never auto-satisfied.
+local _caravan_autosat_done = false
+local function auto_satisfy_absent_caravans()
+    if _caravan_autosat_done then return end
+    _caravan_autosat_done = true
+    for token, flag in pairs({ ELF = "elven_caravan", HUMAN = "human_caravan" }) do
+        if not checks.trade_flag(flag) and not civ_exists(token) then
+            checks.set_trade_flag(flag)
+            print(("[Dwarfipelago] No %s civilization in this world; auto-satisfied %s.")
+                :format(token, flag))
+        end
+    end
+end
+
 local function detect_caravans()
+    auto_satisfy_absent_caravans()
     for _, unit in ipairs(df.global.world.units.active) do
         if dfhack.units.isAlive(unit) then
             -- Merchant units mark a caravan visit for that race.

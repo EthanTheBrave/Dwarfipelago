@@ -136,6 +136,25 @@ local function find_goblin_civ_id()
     return -1
 end
 
+-- Find a civilization entity id for a creature token (e.g. "ELF", "HUMAN",
+-- "DWARF"), preferring an actual Civilization entity. Returns nil if none exist.
+local function find_civ_id(token)
+    local creatures = df.global.world.raws.creatures.all
+    local fallback
+    for _, ent in ipairs(df.global.world.entities.all) do
+        local ok, is_match, is_civ = pcall(function()
+            local r = ent.race
+            local m = (r >= 0 and r < #creatures and creatures[r].creature_id == token)
+            return m, (ent.type == df.historical_entity_type.Civilization)
+        end)
+        if ok and is_match then
+            fallback = fallback or ent.id
+            if is_civ then return ent.id end
+        end
+    end
+    return fallback
+end
+
 -- ── Item handlers: trade goods ────────────────────────────────────────────────
 -- createitem syntax: <item-token> <material>
 --   Cut gems  → SMALLGEM INORGANIC:<gem>   (SMALLGEM = cut gem; ROUGH = uncut)
@@ -400,24 +419,103 @@ end
 
 local function recv_artifact_weapon()
     dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/artifact_weapon", "1")
+    -- Deliver an artifact-tier weapon (adamantine), falling back to steel.
+    if spawn_item("WEAPON:ITEM_WEAPON_AXE_BATTLE", "INORGANIC:ADAMANTINE") == 0 then
+        if spawn_item("WEAPON:ITEM_WEAPON_AXE_BATTLE", "INORGANIC:STEEL") == 0 then
+            spawn_item("BAR", "INORGANIC:STEEL", 3)
+        end
+    end
     dfhack.gui.showAnnouncement(
-        "[AP] An Artifact Weapon has been commissioned for your fortress! Your champions stand ready.",
+        "[AP] An Artifact Weapon has been delivered to your fortress! Your champions stand ready.",
         COLOR_GREEN, true)
     print("[Dwarfipelago] Progression item received: Artifact Weapon")
 end
 
 local function recv_artifact_armor()
     dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/artifact_armor", "1")
+    -- A full set of artifact-tier armor (adamantine), falling back to steel.
+    local mat = "INORGANIC:ADAMANTINE"
+    if spawn_item("ARMOR:ITEM_ARMOR_BREASTPLATE", mat) == 0 then
+        mat = "INORGANIC:STEEL"
+        spawn_item("ARMOR:ITEM_ARMOR_BREASTPLATE", mat)
+    end
+    spawn_item("HELM:ITEM_HELM_HELM",          mat)
+    spawn_item("SHIELD:ITEM_SHIELD_SHIELD",    mat)
+    spawn_item("GLOVES:ITEM_GLOVES_GAUNTLETS", mat)
+    spawn_item("PANTS:ITEM_PANTS_GREAVES",     mat)
+    spawn_item("SHOES:ITEM_SHOES_BOOTS",       mat)
     dfhack.gui.showAnnouncement(
-        "[AP] Artifact Armor has been forged for your soldiers! Your defenders are emboldened.",
+        "[AP] Artifact Armor has been delivered to your soldiers! Your defenders are emboldened.",
         COLOR_GREEN, true)
     print("[Dwarfipelago] Progression item received: Artifact Armor")
 end
 
+-- Create a genuine artifact door at the depot. Built artifact doors are
+-- indestructible, so we must set the artifact flag + Artifact quality on the
+-- item (createitem alone makes an ordinary door). Returns true on success.
+local function spawn_artifact_door()
+    local result = false
+    pcall(function()
+        local unit
+        for _, u in ipairs(df.global.world.units.active) do
+            if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then unit = u; break end
+        end
+        if not unit then return end
+
+        local mt, mi
+        for _, tok in ipairs({ "INORGANIC:ADAMANTINE", "INORGANIC:PLATINUM",
+                               "INORGANIC:GOLD", "INORGANIC:MARBLE" }) do
+            local found = dfhack.matinfo.find(tok)
+            if found then mt, mi = found.type, found.index; break end
+        end
+        if not mt then return end
+
+        local made = dfhack.items.createItem(unit, df.item_type.DOOR, -1, mt, mi, false)
+        local door = made and made[1]
+        if not door then return end
+
+        -- Register a genuine artifact: a record in world.artifacts.all that the
+        -- door links to via a general_ref. Order matters — the record is added
+        -- first, then the item is linked and flagged. If any step fails the door
+        -- stays a plain, BUILDABLE door rather than the half-set "artifact with no
+        -- record" state that dwarves refuse to haul/build.
+        pcall(function()
+            local arts = df.global.world.artifacts
+            local newid = 0
+            for _, a in ipairs(arts.all) do
+                if a.id and a.id >= newid then newid = a.id + 1 end
+            end
+            local rec = df.artifact_record:new()
+            rec.id   = newid
+            rec.item = door
+            arts.all:insert('#', rec)
+            local ref = df.general_ref_is_artifactst:new()
+            ref.artifact_id = newid
+            door.general_refs:insert('#', ref)
+            door.flags.artifact = true
+            door.quality = df.item_quality.Artifact
+        end)
+
+        local dx, dy, dz = find_trade_depot_center()
+        if dx then pcall(function() dfhack.items.moveToGround(door, { x = dx, y = dy, z = dz }) end) end
+        result = true
+    end)
+    return result
+end
+
 local function recv_master_builders_codex()
     dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/master_builders_codex", "1")
+    -- A genuine artifact door (indestructible once built). Fall back to a plain
+    -- best-material door if the artifact path fails on this build.
+    if not spawn_artifact_door() then
+        for _, m in ipairs({ "INORGANIC:ADAMANTINE", "INORGANIC:PLATINUM",
+                             "INORGANIC:GOLD", "INORGANIC:MARBLE" }) do
+            if spawn_item("DOOR", m) > 0 then break end
+        end
+    end
     dfhack.gui.showAnnouncement(
-        "[AP] A Master Builder's Codex has arrived! Ancient construction secrets are now yours.",
+        "[AP] A Master Builder's Codex arrives with an artifact door! To build it, raise the " ..
+        "build material list's Max Quality filter to Artifact (it's hidden at Masterful by default).",
         COLOR_GREEN, true)
     print("[Dwarfipelago] Progression item received: Master Builder's Codex")
 end
@@ -594,10 +692,18 @@ local function recv_cave_bear()
 end
 
 local function recv_vermin_infestation()
-    -- GIANT_RAT (a real hostile creature) stands in for vermin.
+    -- A rodent stands in for vermin. Build a world-aware candidate list: common
+    -- tokens first, then any creature whose token looks rodent-like (so it works
+    -- in worlds without GIANT_RAT). create_unit picks the first one present.
     local x, y, z = get_fort_spawn_pos()
     local spawned = 0
-    local RATS = { "GIANT_RAT", "RAT" }
+    local RATS = { "GIANT_RAT", "RAT", "GIANT_MOUSE", "MOUSE", "GIANT_MOLE", "MOLE_DWARF" }
+    for _, cr in ipairs(df.global.world.raws.creatures.all) do
+        local id = cr.creature_id or ""
+        if id:find("RAT") or id:find("MOUSE") or id:find("MOLE") or id:find("VERMIN") then
+            table.insert(RATS, id)
+        end
+    end
     if x then
         for _ = 1, 10 do
             if create_unit(RATS, {x = x, y = y, z = z}, {civ_id = -1, hostile = true}) then
@@ -803,23 +909,124 @@ local function recv_merchants_coffer()
     announce(("Merchant's Coffer received! Wealth tier %d/5 unlocked"):format(n))
 end
 
+-- Create `count` adult dwarves and enlist them as fortress citizens. Used for the
+-- Immigration Wave: `force Migrants` only queues a wave the parent civ may have no
+-- one to fill (it reports success but brings nobody), so we add citizens directly.
+-- Returns how many were successfully made.
+-- A lore-ish dwarf name: a random word from the dwarven language, else a curated
+-- fallback. Set as a nickname so spawned migrants display a name, not "Peasant".
+local DWARF_NAME_FALLBACK = {
+    "Urist", "Solon", "Bomrek", "Zuglar", "Catten", "Lokum", "Kadol", "Reg",
+    "Sibrek", "Tholtig", "Ducim", "Asmel", "Datan", "Erush", "Goden", "Kogan",
+    "Litast", "Meng", "Nako", "Oddom", "Rith", "Sazir", "Tun", "Vabok", "Zaneg",
+}
+local function dwarf_name()
+    local nm
+    pcall(function()
+        local lang = df.global.world.raws.language
+        local idx
+        for i, tr in ipairs(lang.translations) do
+            if tr.name == "DWARF" then idx = i; break end
+        end
+        if idx then
+            local words = lang.translations[idx].words
+            local n = 0
+            for _ in ipairs(words) do n = n + 1 end
+            if n > 0 then
+                local raw = words[math.random(0, n - 1)]
+                local w = (type(raw) == "string") and raw or raw.value
+                if w and #w > 0 then nm = w:sub(1, 1):upper() .. w:sub(2):lower() end
+            end
+        end
+    end)
+    if not nm or nm == "" then nm = DWARF_NAME_FALLBACK[math.random(#DWARF_NAME_FALLBACK)] end
+    return nm
+end
+
+-- Pick a civilian-clothing subtype id (armorlevel 0) from an itemdef vector.
+local function clothing_subtype(defs)
+    local fallback
+    for _, d in ipairs(defs) do
+        fallback = fallback or d.id
+        local lvl
+        pcall(function() lvl = d.armorlevel end)
+        if lvl == 0 then return d.id end
+    end
+    return fallback
+end
+
+-- Create a basic cloth outfit (body/legs/feet) at the depot so a new dwarf can
+-- dress themselves. spawn_item already places items at the depot center.
+local function make_outfit()
+    local idefs = df.global.world.raws.itemdefs
+    local cloth = "PLANT_MAT:GRASS_TAIL_PIG:THREAD"
+    local body = clothing_subtype(idefs.armor)
+    local legs = clothing_subtype(idefs.pants)
+    local feet = clothing_subtype(idefs.shoes)
+    if body then spawn_item("ARMOR:" .. body, cloth) end
+    if legs then spawn_item("PANTS:" .. legs, cloth) end
+    if feet then spawn_item("SHOES:" .. feet, cloth) end
+end
+
+local function spawn_citizen_dwarves(count)
+    local race_idx
+    for i, cr in ipairs(df.global.world.raws.creatures.all) do
+        if cr.creature_id == "DWARF" then race_idx = i; break end
+    end
+    if not race_idx then return 0 end
+
+    -- Count castes (MALE/FEMALE) so we can vary sex.
+    local ncastes = 0
+    pcall(function() for _ in ipairs(df.global.world.raws.creatures.all[race_idx].caste) do ncastes = ncastes + 1 end end)
+
+    -- Drop them at the depot (or a citizen's tile).
+    local dx, dy, dz = find_trade_depot_center()
+    if not dx then
+        local sx, sy, sz = get_fort_spawn_pos()
+        dx, dy, dz = tonumber(sx), tonumber(sy), tonumber(sz)
+    end
+
+    local cur_year = df.global.cur_year
+    local made = 0
+    for _ = 1, count do
+        pcall(function()
+            local caste = (ncastes > 0) and math.random(0, ncastes - 1) or 0
+            local unit = dfhack.units.create(race_idx, caste)
+            if not unit then error("create returned nil") end
+            -- Make them adults (~20-40 yrs) so they aren't spawned as babies.
+            pcall(function() unit.birth_year = cur_year - math.random(20, 40) end)
+            if dx then
+                if not dfhack.units.teleport(unit, {x = dx, y = dy, z = dz}) then
+                    unit.pos.x, unit.pos.y, unit.pos.z = dx, dy, dz
+                end
+            end
+            df.global.world.units.active:insert('#', unit)
+            dfhack.units.makeown(unit)   -- enlist as a fortress member
+            pcall(function() dfhack.units.setNickname(unit, dwarf_name()) end)
+            pcall(make_outfit)           -- cloth outfit at the depot to dress with
+            made = made + 1
+        end)
+    end
+    return made
+end
+
 local function recv_immigration_wave()
     local key = "dwarfipelago/unlock/immigration_waves"
     local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
     dfhack.persistent.saveWorldDataString(key, tostring(n))
 
-    -- Trigger a real migration wave through the game's own system via DFHack's
-    -- 'force' command. This is version-safe, unlike modtools/create-unit, which
-    -- is broken on some DF builds ("Cannot read field world.arena_spawn").
-    local ok, err = pcall(function()
-        dfhack.run_command("force", "Migrants")
-    end)
-    if not ok then
-        log.error("immigration_wave: force Migrants failed: " .. tostring(err))
+    -- Directly add citizen dwarves (reliable). 'force Migrants' was unreliable —
+    -- it reports success but often brings nobody when the parent civ has no
+    -- migrants available.
+    local wave = math.random(2, 5)
+    local made = spawn_citizen_dwarves(wave)
+    if made == 0 then
+        -- Last resort: ask the game for a wave the normal way.
+        pcall(function() dfhack.run_command("force", "Migrants") end)
+        announce(("Immigration Wave received! A wave of migrants approaches. (tier %d/5)"):format(n))
+    else
+        announce(("Immigration Wave received! %d migrant(s) join the fortress. (tier %d/5)"):format(made, n))
     end
-
-    announce(("Immigration Wave received! A wave of migrants approaches. (tier %d/5)")
-        :format(n))
 end
 
 local function recv_barons_charter()
@@ -1048,7 +1255,7 @@ end
 -- Low-level spawn check: create one unit via the dfhack.units API and report the
 -- result. Isolates the API mechanic from the trap wrappers/fallbacks.
 local function test_spawn(race)
-    race = (race and race ~= "") and race:upper() or "GIANT_RAT"
+    race = (race and race ~= "") and race:upper() or "DWARF"  -- DWARF always exists
     if not dfhack.isMapLoaded() then
         print("[test] No fortress loaded.")
         return
@@ -1095,16 +1302,38 @@ end
 
 -- Ordered so 'dwarfipelago test' lists them predictably.
 local TEST_LIST = {
-    { "spawn",     "Spawn 1 unit via dfhack.units API + report status (arg: RACE, default GIANT_RAT)",
+    { "spawn",     "Spawn 1 unit via dfhack.units API + report status (arg: RACE, default DWARF)",
                    function(rest) test_spawn(rest[1]) end },
     { "find",      "List creature tokens matching a substring (arg: SUBSTR, e.g. BEAR)",
                    function(rest) test_find(rest[1]) end },
     { "goblin",    "Goblin Ambush trap (3 hostile goblins)",          function() recv_goblin_ambush() end },
     { "cavebear",  "Cave Bear Incursion trap",                        function() recv_cave_bear() end },
-    { "vermin",    "Vermin Infestation trap (10 giant rats)",         function() recv_vermin_infestation() end },
+    { "vermin",    "Vermin Infestation trap (rodents)",               function() recv_vermin_infestation() end },
     { "spider",    "Precursor threat (giant cave spider, underground)", function() spawn_precursor_threat() end },
     { "megabeast", "Force the goal megabeast (once per world)",        function() spawn_target_megabeast() end },
-    { "migrants",  "Force a migration wave",                           function() recv_immigration_wave() end },
+    { "migrants",  "Add a wave of citizen dwarves",                    function() recv_immigration_wave() end },
+    { "caravan",   "Force a caravan (arg: dwarf|elf|human|goblin; default = parent civ)",
+                   function(rest)
+                       local token = ({ dwarf = "DWARF", elf = "ELF",
+                                        human = "HUMAN", goblin = "GOBLIN" })[(rest[1] or ""):lower()]
+                       local ok
+                       if token then
+                           local id = find_civ_id(token)
+                           if not id then
+                               print("[test] No " .. token .. " civilization exists in this world.")
+                               return
+                           end
+                           ok = pcall(function() dfhack.run_command("force", "Caravan", tostring(id)) end)
+                           print(ok and ("[test] Forced a " .. token .. " caravan (civ id " .. id .. ").")
+                                     or  "[test] force Caravan failed.")
+                       else
+                           ok = pcall(function() dfhack.run_command("force", "Caravan") end)
+                           print(ok and "[test] Forced the parent-civ (dwarven) caravan."
+                                     or  "[test] force Caravan failed.")
+                       end
+                       print("[test] It enters at a map edge and walks to your depot; give it time. "
+                             .. "A race not neighboring your embark may not actually arrive.")
+                   end },
 }
 
 -- Dispatch a named test. `rest` is an array of any extra args after the name.
