@@ -1,41 +1,8 @@
 from BaseClasses import MultiWorld
-from worlds.dwarf_fortress.craftsanity import DynamicCraftingLocationRules
-from .options import DwarfFortressGoal
-
-
-# Workshop blueprint → which production locations it gates.
-# Locations not listed here are reachable from the start (unlocked workshops).
-BLUEPRINT_RULES: dict[str, list[str]] = {
-    "Craftsdwarf's Workshop Blueprint": [
-        "First Crafted Item",
-    ],
-    "Kitchen Blueprint": [
-        "First Prepared Meal",
-    ],
-    "Jeweler's Workshop Blueprint": [
-        "First Gem Cut",
-    ],
-    "Loom Blueprint": [
-        "First Cloth Woven",
-    ],
-    "Tanner's Blueprint": [
-        "First Leather Tanned",
-    ],
-    "Mechanic's Workshop Blueprint": [
-        "First Mechanism Made",
-        "First Trap Built",
-    ],
-    "Stoneworker's Workshop Blueprint": [
-        "First Millstone Made"
-    ]
-}
+from worlds.dwarf_fortress.craftsanity_rules import DynamicCraftingLocationRules
+from .options import DwarfFortressGoal, CraftingItems
 
 BLUEPRINT_COMPLEX_RULES = {
-    "metal": [
-        "First Weapon Forged",  
-        "First Armor Crafted",
-        "First Anvil Made",
-    ],
     "smelting": [
         "First Metal Bar Smelted",
     ]
@@ -75,20 +42,76 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     dynamic_rules = DynamicCraftingLocationRules(world)
 
     # ── Workshop blueprint gates ──────────────────────────────────────────────
-    for blueprint_name, location_names in BLUEPRINT_RULES.items():
-        for loc_name in location_names:
-            loc = multiworld.get_location(loc_name, player)
-            loc.access_rule = lambda state, bp=blueprint_name: state.has(bp, player)
+    loc = multiworld.get_location("First Minecart Made", player)
+    dynamic_rules.df_location_rule(loc, "Minecart", "")
 
-    for item_type, location_names in BLUEPRINT_COMPLEX_RULES.items():
-        if item_type == "metal":
-            for loc_name in location_names:
-                loc = multiworld.get_location(loc_name, player)
-                loc.access_rule = lambda state: dynamic_rules.metal(state)
-        elif item_type == "smelting":
-            for loc_name in location_names:
-                loc = multiworld.get_location(loc_name, player)
-                loc.access_rule = lambda state: dynamic_rules.needs_make_metal(state)
+    loc = multiworld.get_location("First Prepared Meal", player)
+    dynamic_rules.df_location_rule(loc, "Prepared Meal", "")
+
+    loc = multiworld.get_location("First Cloth Woven", player)
+    dynamic_rules.df_location_rule(loc, "Cloth", "")
+
+    loc = multiworld.get_location("First Crafted Item", player)
+    dynamic_rules.df_location_rule(loc, "Crafts", "")
+
+    loc = multiworld.get_location("First Gem Cut", player)
+    loc.access_rule = lambda state: state.has("Jeweler's Workshop Blueprint", player)
+
+    loc = multiworld.get_location("First Leather Tanned", player)
+    dynamic_rules.df_location_rule(loc, "Leather", "")
+
+    loc = multiworld.get_location("First Mechanism Made", player)
+    dynamic_rules.df_location_rule(loc, "Mechanism", "")
+
+    loc = multiworld.get_location("First Trap Built", player)
+    loc.access_rule = lambda state: state.has("Mechanic's Workshop Blueprint", player) and \
+        state.has_any(["Crafting Spike", "Crafting Ball"], player)
+    
+    loc = multiworld.get_location("First Millstone Made", player)
+    dynamic_rules.df_location_rule(loc, "Millstone", "")
+
+    loc = multiworld.get_location("First Block Cut", player)
+    dynamic_rules.df_location_rule(loc, "Blocks", "")
+
+    loc = multiworld.get_location("First Cage Constructed", player)
+    dynamic_rules.df_location_rule(loc, "Cage", "")
+
+    loc = multiworld.get_location("First Furniture Made", player)
+    loc.access_rule = lambda state: dynamic_rules.wood_or_stone_or_metal_or_glass_chair(state) \
+        or dynamic_rules.wood_or_stone_or_metal_or_glass_cabinet(state) or dynamic_rules.wood_or_metal_bucket(state) \
+        or dynamic_rules.wood_or_stone_or_metal_or_glass_floodgate(state) or dynamic_rules.wood_or_stone_or_metal_or_glass_door(state)
+    
+    loc = multiworld.get_location("First Brew Complete", player)
+    dynamic_rules.df_location_rule(loc, "Alcohol", "")
+
+    loc = multiworld.get_location("First Barrel Made", player)
+    dynamic_rules.df_location_rule(loc, "Barrel", "")
+
+    loc = multiworld.get_location("First Chest Made", player)
+    dynamic_rules.df_location_rule(loc, "Container", "")
+
+    loc = multiworld.get_location("First Table Made", player)
+    dynamic_rules.df_location_rule(loc, "Table", "")
+
+    loc = multiworld.get_location("First Bed Made", player)
+    dynamic_rules.df_location_rule(loc, "Bed", "")
+
+    loc = multiworld.get_location("First Weapon Forged", player)
+    loc.access_rule = lambda state: dynamic_rules.training_axe(state) \
+        or dynamic_rules.training_spear(state) or dynamic_rules.training_sword(state) \
+        or dynamic_rules.make_battleaxe(state) or dynamic_rules.make_sword(state) or dynamic_rules.make_spear(state) \
+        or dynamic_rules.make_warhammer(state) or dynamic_rules.wood_or_bone_bolt(state)
+    
+    loc = multiworld.get_location("First Armor Crafted", player)
+    loc.access_rule = lambda state: dynamic_rules.metal_or_bone_or_leather_helm(state) \
+        or dynamic_rules.metal_or_bone_gauntlets(state) or dynamic_rules.metal_or_leather_ubodyarmor(state) \
+        or dynamic_rules.metal_or_bone_or_leather_lbodyarmor(state)
+    
+    loc = multiworld.get_location("First Anvil Made", player)
+    dynamic_rules.df_location_rule(loc, "Anvil", "")
+
+    loc = multiworld.get_location("First Metal Bar Smelted", player)
+    dynamic_rules.df_location_rule(loc, "Metal Bars", "")
 
     # ── Progressive Coffer gates (wealth tier locations) ──────────────────────
     if options.goal == DwarfFortressGoal.option_legendary_wealth:
@@ -111,9 +134,6 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     if len(world.dynamic_locations) > 0:
         dynamic_rules.set_dynamic_rules()
 
-
-    loc = multiworld.get_location("First Minecart Made", player)
-    loc.access_rule = lambda state: state.has("Carpenter's Workshop Blueprint", player) or state.has("Forge Blueprint", player)
 
     # ── Goal condition ────────────────────────────────────────────────────────
     goal_location = multiworld.get_location("Goal", player)
@@ -154,4 +174,3 @@ def set_rules(world: "DwarfFortressWorld") -> None:
             )
         )
     multiworld.completion_condition[player] = goal_location.access_rule
-
