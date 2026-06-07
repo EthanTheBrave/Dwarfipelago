@@ -47,6 +47,7 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/prod/<flag>` | `"1"` or absent | Lua | Set when a first-production milestone fires |
 | `dwarfipelago/trade/<flag>` | `"1"` or absent | Lua | Set when a trade/caravan milestone fires |
 | `dwarfipelago/craft_count/<flag>` | Integer string | Lua | Cumulative crafts completed for that flag |
+| `dwarfipelago/craft_count_index` | JSON `string[]` | Lua | Every craft flag that has been incremented this world; lets `status` enumerate dynamic material-split keys |
 | `dwarfipelago/blueprint/<name>` | `"1"` or absent | Lua | Set when a blueprint item has been received |
 | `dwarfipelago/unlock/wealth_coffers` | Integer string | Lua | How many Merchant's Coffers received (0–5); gates wealth tier checks |
 | `dwarfipelago/unlock/immigration_waves` | Integer string | Lua | How many Immigration Waves received (0–5); gates title/population checks |
@@ -59,7 +60,14 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/unlock/artifact_armor` | `"1"` or absent | Lua | Set when Artifact Armor received; gates population_boom prestige requirement |
 | `dwarfipelago/unlock/master_builders_codex` | `"1"` or absent | Lua | Set when Master Builder's Codex received; gates legendary_wealth, mountainhome, and population_boom goals |
 | `dwarfipelago/depot_built` | `"1"` or absent | Lua | Set once the starting trade depot has been placed or adopted |
-| `dwarfipelago/megabeast/target_id` | Integer string | Lua | Unit ID of the AP-summoned megabeast; prevents natural megabeast kills counting as goal completion |
+| `dwarfipelago/megabeast/spawned` | `"1"` or absent | Lua | Set once the AP target megabeast has been summoned (Military Training tier 4); prevents re-summoning on reload |
+| `dwarfipelago/megabeast/target_id` | Integer string | Lua | Unit ID of a pinned target megabeast, if used (natural megabeasts are cleared at load so the forced beast is the only one) |
+| `dwarfipelago/mining/dig_count` | Integer string | Lua | Cumulative dig/channel/ramp jobs completed (tiles-excavated milestones) |
+| `dwarfipelago/mining/surface_z` | Integer string | Lua | Captured surface z-level (baseline for depth milestones) |
+| `dwarfipelago/mining/deepest_z` | Integer string | Lua | Deepest z any mining job has reached |
+| `dwarfipelago/mining/cavern1`..`cavern3` | `"1"` or absent | Lua | Set when the 1st/2nd/3rd cavern layer is breached |
+| `dwarfipelago/mining/magma` | `"1"` or absent | Lua | Set when the magma sea is reached |
+| `dwarfipelago/farming/crop_count` | Integer string | Lua | Cumulative harvested crops (harvest milestones) |
 
 ### Config (written by Python, read by Lua)
 
@@ -74,7 +82,7 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/received_index` | Integer string | Python | Count of received AP items already applied in-game; restored on reconnect so items aren't re-delivered (and counter-based progression items aren't double-counted) |
 | `dwarfipelago/version` | Version string | Lua | Mod version recorded on `start()` |
 | `dwarfipelago/craftsanity_enabled` | `"0"`, `"1"`, or `"2"` | Python | Craftsanity mode: 0=off, 1=on (crafted), 2=storage |
-| `dwarfipelago/craftsanity_materials` | `"0"` or `"1"` | Python | When `"1"`, craft counts are split by material type (e.g. `Barrel_Wood` vs `Barrel_Metal`) |
+| `dwarfipelago/craftsanity_materials` | `"0"` or `"1"` | Python | When `"1"`, craft counts are split by material type (e.g. `barrel_wood` vs `barrel_metal`) |
 
 ---
 
@@ -118,12 +126,15 @@ returns an integer string.
 Initialized by Python to create the persistent storage for Lua to count the crafts to.
 Example:
 
+Flag keys are **lowercase**, with spaces as underscores. With materials enabled,
+the suffix is the resolved material (also lowercase).
+
 | Key | Description |
 |-----|-------------|
-| `dwarfipelago/craft_count/Barrel_Metal` | Total Metal Barrels crafted/stored (when `craftsanity_materials` is `"1"`) |
-| `dwarfipelago/craft_count/Barrel_Wood` | Total Wooden Barrels crafted/stored (when `craftsanity_materials` is `"1"`) |
-| `dwarfipelago/craft_count/Barrel` | Total Barrels of any material (when `craftsanity_materials` is `"0"`) |
-| `dwarfipelago/craft_count/Glass` | Total Glass items (Glass has only one material type, so always stored without suffix) |
+| `dwarfipelago/craft_count/barrel_metal` | Total Metal Barrels crafted/stored (when `craftsanity_materials` is `"1"`) |
+| `dwarfipelago/craft_count/barrel_wood` | Total Wooden Barrels crafted/stored (when `craftsanity_materials` is `"1"`) |
+| `dwarfipelago/craft_count/barrel` | Total Barrels of any material (when `craftsanity_materials` is `"0"`) |
+| `dwarfipelago/craft_count/glass` | Total Glass items (Glass has only one material type, so always stored without suffix) |
 
 
 #### How a completed job becomes a flag
@@ -143,10 +154,18 @@ duplicating the full list here, as it spans ~100 item types:
   `GOBLET_SUBTYPE_FLAG`, `REACTION_SUBTYPE_FLAG`, `UARMOR_SUBTYPE_FLAG`,
   `GARMOR_SUBTYPE_FLAG`, and `LARMOR_SUBTYPE_FLAG` tables. For example a
   `MakeWeapon` job resolves to `"battle_axe"`, `"short_sword"`, etc. by subtype.
-- **Material dispatch** — for `MakeCrafts`, `CarveBone`, `CarveStatue`, and
-  `CarveFurniture` (the `NEEDS_MAT_CHECK` set), the flag comes from the job's
-  primary material: inorganic-metal → `metal`, other inorganic → `stone`,
-  plant → `wood`, creature → `bone`.
+- **Material split** — when `craftsanity_materials` is `"1"`, a material-relevant
+  item's flag gets a `_<material>` suffix (e.g. `table_wood`, `blocks_stone`).
+  `mat_craft_flag(job)` resolves the material, token-first, with fallbacks so it
+  works for both manual jobs and Manager work orders:
+  1. decode `job.mat_type`/`job.mat_index` and match the raw token —
+     `IS_METAL` flag → `metal`, `GLASS` → `glass`, `CLAY`/`KAOLINITE`/`PORCELAIN`
+     → `ceramic`, `INORGANIC` → `stone`, `:WOOD` → `wood`, `LEATHER` → `leather`,
+     `SILK`/`YARN` → `cloth`, `BONE` → `bone`;
+  2. else read the job's `material_category` bitfield (generic "any wood/stone" jobs);
+  3. else scan the job's consumed/produced **items** for a usable material
+     (manual workshop jobs often leave `mat_type = -1`);
+  4. last resort: builtin `mat_type` (0 → `stone`, 3–5 → `glass`).
 
 > **Note:** the flag strings produced here must match the storage-key suffixes
 > the Python client initializes in `init_crafting_locations` (derived from each
@@ -201,8 +220,10 @@ Load them from Python via `reqscript("internal/dwarfipelago/<module>")`.
 | `set_trade_flag(flag)` | fn | Mark a trade flag |
 | `job_to_production_flag(job)` | fn → string\|nil | Maps a completed job to its first-production flag |
 | `job_to_craft_flag(job)` | fn → string\|nil | Maps a completed job to its craft-count flag |
-| `increment_craft_count(flag)` | fn → int | Increment and persist a craft count, returns new total |
+| `increment_craft_count(flag)` | fn → int | Increment and persist a craft count (also records the flag in the craft index), returns new total |
 | `get_craft_count(flag)` | fn → int | Read current craft count for a flag |
+| `get_all_craft_counts()` | fn → table | `{flag = count}` for every flag in the craft index with count > 0 (used by `status`) |
+| `clear_craft_counts()` | fn | Wipe all recorded craft counts and the index (used by `reset`) |
 | `fortress_wealth()` | fn → int | Current total fortress wealth (items + buildings + stocks) |
 | `treasury_wealth()` | fn → int | Combined value of minted coins + cut gems in stocks (used by the legendary_wealth goal and wealth-tier checks) |
 
@@ -250,56 +271,53 @@ It is a DFHack overlay widget + ZScreen popup. Open it three ways:
 - Run `dwarfipelago panel` from the DFHack console
 - Run `dwarfipelago-panel` directly from the DFHack console
 
+The popup is a resizable `widgets.Window` containing a `widgets.TabBar` + `widgets.Pages`
+with three tabs, each a `widgets.Panel`:
+
+| Tab | Contents |
+|-----|----------|
+| **Status** | enabled state, goal, completion, depot status |
+| **Unlocks** | progression unlock counts/flags — **built dynamically** from `items.UNLOCK_DEFS` |
+| **Controls** | Restart/Start (`Shift+S`), Reset all AP state (`Shift+R`), Reset seed (`Shift+D`) |
+
+`open_panel()` toggles: calling it again while open dismisses the existing instance.
+
 ### Adding a status field
 
-Status fields are `widgets.Label` views inside `DwarfipelagoPanel:init()`. Each one has a `frame = {t=N, l=0}` where `t` is the row offset inside the window (0-indexed from the top of the window's content area).
+Add a `widgets.Label` to the **Status** page's `subviews` (Tab 1 in `pages`), with
+`frame = {t=N, l=0}` where `t` is the row within that page. Read plain persistent
+keys with the local `ps(key, default)` helper; read the enabled flag via
+`state.is_enabled()` (it's stored as a JSON object, not a plain string). Use the
+`yn(bool [,yes_color, no_color])` helper for YES/no values.
 
-Read plain persistent keys with the local `ps()` helper:
-```lua
-local my_value = ps("some/key", "default")
-```
+### Adding a progression unlock
 
-Read the enabled flag specifically via `state.is_enabled()` (not `ps()`) because it is stored as a JSON object, not a plain string.
-
-Example — adding a new status row at `t=3` (shift existing rows down by 1 to make room):
-```lua
-widgets.Label{
-    frame = {t=3, l=0},
-    text  = {"My label: ", ps("my/key", "unknown")},
-},
-```
-
-Color a value with the `yn()` helper (for boolean YES/no display) or inline pen:
-```lua
-{text="some text", pen=COLOR_GREEN}   -- always green
-yn(some_bool)                          -- YES (green) / no (dark gray)
-yn(some_bool, COLOR_CYAN, COLOR_RED)  -- custom colors
-```
-
-After adding a row, update the separator and all rows below it — increment each `t=` value by 1, and also update `local W, H = 44, 32` if the window needs to grow taller.
+You usually **don't** edit the panel — add an entry to `items.UNLOCK_DEFS` (in
+`items.lua`) with `{ key, label, max? }` and it appears on the Unlocks tab
+automatically (and in `dwarfipelago status`).
 
 ### Adding a control button
 
-Buttons are `widgets.HotkeyLabel` views in the Controls section. Pick an unused key binding and add the view:
+Add a `widgets.HotkeyLabel` to the **Controls** page's `subviews` (Tab 3):
 ```lua
 widgets.HotkeyLabel{
-    frame = {t=20, l=2},          -- t= row, l=2 indents it under "Controls:"
+    frame = {t=5, l=2},           -- next free row under the existing controls
     key   = "CUSTOM_SHIFT_X",     -- DFHack key binding name
     label = "My action",
     on_activate = function()
         dfhack.run_command("dwarfipelago", "some-subcommand")
-        self:dismiss()            -- close the panel after acting
+        self:dismiss()
     end,
 },
 ```
 
-Available `CUSTOM_SHIFT_*` keys: A–Z. Avoid S (Restart/Start) and R (Reset) which are already taken.
+Available `CUSTOM_SHIFT_*` keys: A–Z. Taken: **S** (Restart/Start), **R** (Reset), **D** (Reset seed).
 
 ### Moving the `[AP]` hotspot button
 
 The corner button position is set in `DwarfipelagoHotspot.ATTRS`:
 ```lua
-default_pos = {x=8, y=2},   -- x= column from left, y= row from top (1-indexed)
+default_pos = {x=6, y=2},   -- x= column from left, y= row from top (1-indexed)
 ```
 
 Negative values count from the bottom-right edge (e.g. `{x=-5, y=-2}`).
@@ -325,8 +343,17 @@ dwarfipelago panel
 # Reset all persistent state
 dwarfipelago reset
 
+# Clear the stored AP seed so this saved world can join a freshly generated slot
+# (keeps checks/unlocks/craft counts; use 'reset' for a full wipe)
+dwarfipelago resetseed
+
 # Manually deliver an item (for testing)
 dwarfipelago receive "Gold Bar"
+
+# Run a mechanic verification test (no name = list them). Tests:
+#   spawn [RACE] | find <substr> | goblin | cavebear | vermin | spider
+#   megabeast | migrants | caravan [dwarf|elf|human|goblin]
+dwarfipelago test caravan elf
 
 # Peek at any storage key
 lua print(dfhack.persistent.getWorldDataString("dwarfipelago/pending_item_created"))
