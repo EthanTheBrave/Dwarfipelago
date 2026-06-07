@@ -19,18 +19,22 @@ end
 -- Returns current total fortress wealth (items + buildings + stocks).
 -- DF 50+ (Steam / 2022+) renamed df.global.ui → df.global.plotinfo.
 -- We try plotinfo first so both versions are supported.
+-- DF50 stores fortress wealth as a STRUCT (plotinfo.tasks.wealth) whose .total is
+-- the created-wealth figure shown in the fort status; older builds exposed it as a
+-- plain number. Handle both, and fall back to a few field names.
 local function fortress_wealth()
-    local ok, result = pcall(function()
-        return df.global.plotinfo.tasks.wealth
-    end)
-    if ok and type(result) == "number" then return result end
-
-    -- Fallback for Classic DF (pre-50).
-    ok, result = pcall(function()
-        return df.global.ui.tasks.wealth
-    end)
-    if ok and type(result) == "number" then return result end
-
+    for _, base in ipairs({ "plotinfo", "ui" }) do
+        local w
+        pcall(function() w = df.global[base].tasks.wealth end)
+        if type(w) == "number" then return w end
+        if w ~= nil then
+            for _, f in ipairs({ "total", "created" }) do
+                local v
+                pcall(function() v = w[f] end)
+                if type(v) == "number" then return v end
+            end
+        end
+    end
     return 0
 end
 
@@ -85,17 +89,16 @@ local function citizen_count()
     return count
 end
 
+-- Exported wealth. Try the wealth struct's .exported field, then a few legacy
+-- names. Falls back to 0 (the created-wealth path already covers the title gate).
 local function exported_wealth()
-    local ok, result = pcall(function()
-        return df.global.plotinfo.tasks.wealth_exported
-    end)
-    if ok and type(result) == "number" then return result end
-
-    ok, result = pcall(function()
-        return df.global.ui.tasks.wealth_exported
-    end)
-    if ok and type(result) == "number" then return result end
-
+    for _, base in ipairs({ "plotinfo", "ui" }) do
+        local v
+        pcall(function() v = df.global[base].tasks.wealth.exported end)
+        if type(v) == "number" then return v end
+        pcall(function() v = df.global[base].tasks.wealth_exported end)
+        if type(v) == "number" then return v end
+    end
     return 0
 end
 
