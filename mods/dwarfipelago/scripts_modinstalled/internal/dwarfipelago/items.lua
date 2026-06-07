@@ -803,23 +803,67 @@ local function recv_merchants_coffer()
     announce(("Merchant's Coffer received! Wealth tier %d/5 unlocked"):format(n))
 end
 
+-- Create `count` adult dwarves and enlist them as fortress citizens. Used for the
+-- Immigration Wave: `force Migrants` only queues a wave the parent civ may have no
+-- one to fill (it reports success but brings nobody), so we add citizens directly.
+-- Returns how many were successfully made.
+local function spawn_citizen_dwarves(count)
+    local race_idx
+    for i, cr in ipairs(df.global.world.raws.creatures.all) do
+        if cr.creature_id == "DWARF" then race_idx = i; break end
+    end
+    if not race_idx then return 0 end
+
+    -- Count castes (MALE/FEMALE) so we can vary sex.
+    local ncastes = 0
+    pcall(function() for _ in ipairs(df.global.world.raws.creatures.all[race_idx].caste) do ncastes = ncastes + 1 end end)
+
+    -- Drop them at the depot (or a citizen's tile).
+    local dx, dy, dz = find_trade_depot_center()
+    if not dx then
+        local sx, sy, sz = get_fort_spawn_pos()
+        dx, dy, dz = tonumber(sx), tonumber(sy), tonumber(sz)
+    end
+
+    local cur_year = df.global.cur_year
+    local made = 0
+    for _ = 1, count do
+        pcall(function()
+            local caste = (ncastes > 0) and math.random(0, ncastes - 1) or 0
+            local unit = dfhack.units.create(race_idx, caste)
+            if not unit then error("create returned nil") end
+            -- Make them adults (~20-40 yrs) so they aren't spawned as babies.
+            pcall(function() unit.birth_year = cur_year - math.random(20, 40) end)
+            if dx then
+                if not dfhack.units.teleport(unit, {x = dx, y = dy, z = dz}) then
+                    unit.pos.x, unit.pos.y, unit.pos.z = dx, dy, dz
+                end
+            end
+            df.global.world.units.active:insert('#', unit)
+            dfhack.units.makeown(unit)   -- enlist as a fortress member
+            made = made + 1
+        end)
+    end
+    return made
+end
+
 local function recv_immigration_wave()
     local key = "dwarfipelago/unlock/immigration_waves"
     local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
     dfhack.persistent.saveWorldDataString(key, tostring(n))
 
-    -- Trigger a real migration wave through the game's own system via DFHack's
-    -- 'force' command. This is version-safe, unlike modtools/create-unit, which
-    -- is broken on some DF builds ("Cannot read field world.arena_spawn").
-    local ok, err = pcall(function()
-        dfhack.run_command("force", "Migrants")
-    end)
-    if not ok then
-        log.error("immigration_wave: force Migrants failed: " .. tostring(err))
+    -- Directly add citizen dwarves (reliable). 'force Migrants' was unreliable —
+    -- it reports success but often brings nobody when the parent civ has no
+    -- migrants available.
+    local wave = math.random(2, 5)
+    local made = spawn_citizen_dwarves(wave)
+    if made == 0 then
+        -- Last resort: ask the game for a wave the normal way.
+        pcall(function() dfhack.run_command("force", "Migrants") end)
+        announce(("Immigration Wave received! A wave of migrants approaches. (tier %d/5)"):format(n))
+    else
+        announce(("Immigration Wave received! %d migrant(s) join the fortress. (tier %d/5)"):format(made, n))
     end
-
-    announce(("Immigration Wave received! A wave of migrants approaches. (tier %d/5)")
-        :format(n))
 end
 
 local function recv_barons_charter()
