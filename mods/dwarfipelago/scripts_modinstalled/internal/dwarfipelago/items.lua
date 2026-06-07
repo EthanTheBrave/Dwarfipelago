@@ -474,8 +474,27 @@ local function spawn_artifact_door()
         local door = made and made[1]
         if not door then return end
 
-        pcall(function() door.quality = df.item_quality.Artifact end)
-        pcall(function() door.flags.artifact = true end)  -- indestructible when built
+        -- Register a genuine artifact: a record in world.artifacts.all that the
+        -- door links to via a general_ref. Order matters — the record is added
+        -- first, then the item is linked and flagged. If any step fails the door
+        -- stays a plain, BUILDABLE door rather than the half-set "artifact with no
+        -- record" state that dwarves refuse to haul/build.
+        pcall(function()
+            local arts = df.global.world.artifacts
+            local newid = 0
+            for _, a in ipairs(arts.all) do
+                if a.id and a.id >= newid then newid = a.id + 1 end
+            end
+            local rec = df.artifact_record:new()
+            rec.id   = newid
+            rec.item = door
+            arts.all:insert('#', rec)
+            local ref = df.general_ref_is_artifactst:new()
+            ref.artifact_id = newid
+            door.general_refs:insert('#', ref)
+            door.flags.artifact = true
+            door.quality = df.item_quality.Artifact
+        end)
 
         local dx, dy, dz = find_trade_depot_center()
         if dx then pcall(function() dfhack.items.moveToGround(door, { x = dx, y = dy, z = dz }) end) end
