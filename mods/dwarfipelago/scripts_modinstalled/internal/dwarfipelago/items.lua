@@ -136,6 +136,25 @@ local function find_goblin_civ_id()
     return -1
 end
 
+-- Find a civilization entity id for a creature token (e.g. "ELF", "HUMAN",
+-- "DWARF"), preferring an actual Civilization entity. Returns nil if none exist.
+local function find_civ_id(token)
+    local creatures = df.global.world.raws.creatures.all
+    local fallback
+    for _, ent in ipairs(df.global.world.entities.all) do
+        local ok, is_match, is_civ = pcall(function()
+            local r = ent.race
+            local m = (r >= 0 and r < #creatures and creatures[r].creature_id == token)
+            return m, (ent.type == df.historical_entity_type.Civilization)
+        end)
+        if ok and is_match then
+            fallback = fallback or ent.id
+            if is_civ then return ent.id end
+        end
+    end
+    return fallback
+end
+
 -- ── Item handlers: trade goods ────────────────────────────────────────────────
 -- createitem syntax: <item-token> <material>
 --   Cut gems  → SMALLGEM INORGANIC:<gem>   (SMALLGEM = cut gem; ROUGH = uncut)
@@ -1216,14 +1235,17 @@ local TEST_LIST = {
     { "migrants",  "Add a wave of citizen dwarves",                    function() recv_immigration_wave() end },
     { "caravan",   "Force a caravan (arg: dwarf|elf|human|goblin; default = parent civ)",
                    function(rest)
-                       local civ = ({ dwarf = "MOUNTAIN", mountain = "MOUNTAIN",
-                                      elf = "FOREST",   forest = "FOREST",
-                                      human = "PLAINS", plains = "PLAINS",
-                                      goblin = "EVIL",  evil = "EVIL" })[(rest[1] or ""):lower()]
+                       local token = ({ dwarf = "DWARF", elf = "ELF",
+                                        human = "HUMAN", goblin = "GOBLIN" })[(rest[1] or ""):lower()]
                        local ok
-                       if civ then
-                           ok = pcall(function() dfhack.run_command("force", "Caravan", civ) end)
-                           print(ok and ("[test] Forced a " .. civ .. " caravan.")
+                       if token then
+                           local id = find_civ_id(token)
+                           if not id then
+                               print("[test] No " .. token .. " civilization exists in this world.")
+                               return
+                           end
+                           ok = pcall(function() dfhack.run_command("force", "Caravan", tostring(id)) end)
+                           print(ok and ("[test] Forced a " .. token .. " caravan (civ id " .. id .. ").")
                                      or  "[test] force Caravan failed.")
                        else
                            ok = pcall(function() dfhack.run_command("force", "Caravan") end)
@@ -1231,7 +1253,7 @@ local TEST_LIST = {
                                      or  "[test] force Caravan failed.")
                        end
                        print("[test] It enters at a map edge and walks to your depot; give it time. "
-                             .. "A race with no living civ / not a neighbor may not arrive.")
+                             .. "A race not neighboring your embark may not actually arrive.")
                    end },
 }
 
