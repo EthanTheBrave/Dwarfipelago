@@ -1299,10 +1299,40 @@ local function test_find(substr)
     for _, id in ipairs(matches) do print("    " .. id) end
 end
 
+-- Create an artifact door and dump its state so we can see why dwarves won't
+-- build it (forbidden? not on ground? artifact ref present? in a job?).
+local function test_doorinfo()
+    if not spawn_artifact_door() then print("[test] door creation failed."); return end
+    local d
+    for _, it in ipairs(df.global.world.items.all) do
+        if it:getType() == df.item_type.DOOR then
+            local art = false
+            pcall(function() art = it.flags.artifact end)
+            if art then d = it end          -- prefer the artifact door
+            d = d or it                     -- else remember the last door seen
+        end
+    end
+    if not d then print("[test] no door item found."); return end
+    local function fl(n) local v = "?"; pcall(function() v = tostring(d.flags[n]) end); return v end
+    local has_ref = false
+    pcall(function()
+        for _, g in ipairs(d.general_refs) do
+            if df.general_ref_is_artifactst:is_instance(g) then has_ref = true end
+        end
+    end)
+    print(("[test] door id=%d quality=%s"):format(d.id, tostring(d.quality)))
+    print(("[test] artifact=%s forbid=%s on_ground=%s in_job=%s in_building=%s removed=%s"):format(
+        fl("artifact"), fl("forbid"), fl("on_ground"), fl("in_job"), fl("in_building"), fl("removed")))
+    print(("[test] artifact general_ref=%s | world artifacts=%d"):format(
+        tostring(has_ref), #df.global.world.artifacts.all))
+end
+
 -- Ordered so 'dwarfipelago test' lists them predictably.
 local TEST_LIST = {
     { "spawn",     "Spawn 1 unit via dfhack.units API + report status (arg: RACE, default DWARF)",
                    function(rest) test_spawn(rest[1]) end },
+    { "doorinfo",  "Create an artifact door and report its item state (build diagnostics)",
+                   function() test_doorinfo() end },
     { "find",      "List creature tokens matching a substring (arg: SUBSTR, e.g. BEAR)",
                    function(rest) test_find(rest[1]) end },
     { "goblin",    "Goblin Ambush trap (3 hostile goblins)",          function() recv_goblin_ambush() end },
