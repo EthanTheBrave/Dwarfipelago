@@ -1204,16 +1204,22 @@ end
 
 -- Ordered so 'dwarfipelago test' lists them predictably.
 local TEST_LIST = {
-    { "spawn",     "Spawn 1 unit via dfhack.units API + report status (arg: RACE, default GIANT_RAT)",
+    { "spawn",     "Spawn 1 unit via dfhack.units API + report status (arg: RACE, default DWARF)",
                    function(rest) test_spawn(rest[1]) end },
     { "find",      "List creature tokens matching a substring (arg: SUBSTR, e.g. BEAR)",
                    function(rest) test_find(rest[1]) end },
     { "goblin",    "Goblin Ambush trap (3 hostile goblins)",          function() recv_goblin_ambush() end },
     { "cavebear",  "Cave Bear Incursion trap",                        function() recv_cave_bear() end },
-    { "vermin",    "Vermin Infestation trap (10 giant rats)",         function() recv_vermin_infestation() end },
+    { "vermin",    "Vermin Infestation trap (rodents)",               function() recv_vermin_infestation() end },
     { "spider",    "Precursor threat (giant cave spider, underground)", function() spawn_precursor_threat() end },
     { "megabeast", "Force the goal megabeast (once per world)",        function() spawn_target_megabeast() end },
-    { "migrants",  "Force a migration wave",                           function() recv_immigration_wave() end },
+    { "migrants",  "Add a wave of citizen dwarves",                    function() recv_immigration_wave() end },
+    { "caravan",   "Force a merchant caravan to arrive (walks to the depot)",
+                   function()
+                       local ok = pcall(function() dfhack.run_command("force", "Caravan") end)
+                       print(ok and "[test] Caravan forced — it enters at the map edge and heads for your depot."
+                                 or  "[test] force Caravan failed.")
+                   end },
 }
 
 -- Dispatch a named test. `rest` is an array of any extra args after the name.
