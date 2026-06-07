@@ -19,18 +19,22 @@ end
 -- Returns current total fortress wealth (items + buildings + stocks).
 -- DF 50+ (Steam / 2022+) renamed df.global.ui → df.global.plotinfo.
 -- We try plotinfo first so both versions are supported.
+-- DF50 stores fortress wealth as a STRUCT (plotinfo.tasks.wealth) whose .total is
+-- the created-wealth figure shown in the fort status; older builds exposed it as a
+-- plain number. Handle both, and fall back to a few field names.
 local function fortress_wealth()
-    local ok, result = pcall(function()
-        return df.global.plotinfo.tasks.wealth
-    end)
-    if ok and type(result) == "number" then return result end
-
-    -- Fallback for Classic DF (pre-50).
-    ok, result = pcall(function()
-        return df.global.ui.tasks.wealth
-    end)
-    if ok and type(result) == "number" then return result end
-
+    for _, base in ipairs({ "plotinfo", "ui" }) do
+        local w
+        pcall(function() w = df.global[base].tasks.wealth end)
+        if type(w) == "number" then return w end
+        if w ~= nil then
+            for _, f in ipairs({ "total", "created" }) do
+                local v
+                pcall(function() v = w[f] end)
+                if type(v) == "number" then return v end
+            end
+        end
+    end
     return 0
 end
 
@@ -85,17 +89,16 @@ local function citizen_count()
     return count
 end
 
+-- Exported wealth. Try the wealth struct's .exported field, then a few legacy
+-- names. Falls back to 0 (the created-wealth path already covers the title gate).
 local function exported_wealth()
-    local ok, result = pcall(function()
-        return df.global.plotinfo.tasks.wealth_exported
-    end)
-    if ok and type(result) == "number" then return result end
-
-    ok, result = pcall(function()
-        return df.global.ui.tasks.wealth_exported
-    end)
-    if ok and type(result) == "number" then return result end
-
+    for _, base in ipairs({ "plotinfo", "ui" }) do
+        local v
+        pcall(function() v = df.global[base].tasks.wealth.exported end)
+        if type(v) == "number" then return v end
+        pcall(function() v = df.global[base].tasks.wealth_exported end)
+        if type(v) == "number" then return v end
+    end
     return 0
 end
 
@@ -780,16 +783,56 @@ end
 -- The AP client polls these directly to decide when a milestone threshold is met.
 
 local CRAFT_COUNT_PREFIX = "dwarfipelago/craft_count/"
+-- Index of every craft-count flag incremented in this world, so the status
+-- command can enumerate dynamic material-split keys (e.g. "table_wood") that
+-- aren't present in any hardcoded list.
+local CRAFT_INDEX_KEY = "dwarfipelago/craft_count_index"
+
+local function craft_index_add(flag)
+    local json = require('json')
+    local raw  = dfhack.persistent.getWorldDataString(CRAFT_INDEX_KEY)
+    local list = (raw and raw ~= "") and json.decode(raw) or {}
+    for _, f in ipairs(list) do
+        if f == flag then return end
+    end
+    table.insert(list, flag)
+    dfhack.persistent.saveWorldDataString(CRAFT_INDEX_KEY, json.encode(list))
+end
 
 function M.increment_craft_count(flag)
     local key = CRAFT_COUNT_PREFIX .. flag
     local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
     dfhack.persistent.saveWorldDataString(key, tostring(n))
+    craft_index_add(flag)
     return n
 end
 
 function M.get_craft_count(flag)
     return tonumber(dfhack.persistent.getWorldDataString(CRAFT_COUNT_PREFIX .. flag)) or 0
+end
+
+-- Returns { flag = count } for every craft flag recorded this world (count > 0).
+function M.get_all_craft_counts()
+    local json = require('json')
+    local raw  = dfhack.persistent.getWorldDataString(CRAFT_INDEX_KEY)
+    local list = (raw and raw ~= "") and json.decode(raw) or {}
+    local out = {}
+    for _, f in ipairs(list) do
+        local n = tonumber(dfhack.persistent.getWorldDataString(CRAFT_COUNT_PREFIX .. f)) or 0
+        if n > 0 then out[f] = n end
+    end
+    return out
+end
+
+-- Clears all recorded craft counts and the index (used by 'dwarfipelago reset').
+function M.clear_craft_counts()
+    local json = require('json')
+    local raw  = dfhack.persistent.getWorldDataString(CRAFT_INDEX_KEY)
+    local list = (raw and raw ~= "") and json.decode(raw) or {}
+    for _, f in ipairs(list) do
+        dfhack.persistent.saveWorldDataString(CRAFT_COUNT_PREFIX .. f, "")
+    end
+    dfhack.persistent.saveWorldDataString(CRAFT_INDEX_KEY, "")
 end
 
 -- reqscript returns the script's _ENV, not the explicit return value.

@@ -12,6 +12,8 @@ class ItemData:
     ap_id: int
     classification: ItemClassification
     quantity: int = 1  # how many copies go into the item pool
+    weight: int = 10   # relative frequency when padding the pool with filler
+                       # (higher = more common; only used for FILLER_ITEMS)
 
 
 # ── Items DF sends to other players ──────────────────────────────────────────
@@ -90,11 +92,24 @@ USEFUL_ITEMS: list[ItemData] = [
 ]
 
 FILLER_ITEMS: list[ItemData] = [
-    ItemData("Dwarven Ale",            BASE_ID + 520, ItemClassification.filler),
-    ItemData("Stone Trinket",          BASE_ID + 521, ItemClassification.filler),
-    ItemData("Bone Crafts",            BASE_ID + 522, ItemClassification.filler),
-    ItemData("Raw Ore",                BASE_ID + 523, ItemClassification.filler),
-    ItemData("Wooden Cup",             BASE_ID + 524, ItemClassification.filler),
+    # Flavor filler — kept but down-weighted so they no longer dominate the pool.
+    ItemData("Dwarven Ale",            BASE_ID + 520, ItemClassification.filler, weight=10),
+    ItemData("Stone Trinket",          BASE_ID + 521, ItemClassification.filler, weight=3),
+    ItemData("Bone Crafts",            BASE_ID + 522, ItemClassification.filler, weight=6),
+    ItemData("Raw Ore",                BASE_ID + 523, ItemClassification.filler, weight=10),
+    ItemData("Wooden Cup",             BASE_ID + 524, ItemClassification.filler, weight=3),
+    # Useful industry materials — the bulk of what a DF player should receive.
+    ItemData("Flux Stone",             BASE_ID + 525, ItemClassification.filler, weight=12),
+    ItemData("Pig Iron Bar",           BASE_ID + 526, ItemClassification.filler, weight=10),
+    ItemData("Charcoal",               BASE_ID + 527, ItemClassification.filler, weight=12),
+    ItemData("Cloth Bolt",             BASE_ID + 528, ItemClassification.filler, weight=10),
+    ItemData("Tanned Leather",         BASE_ID + 529, ItemClassification.filler, weight=10),
+    ItemData("Bag of Sand",            BASE_ID + 536, ItemClassification.filler, weight=10),
+    ItemData("Raw Clay",               BASE_ID + 537, ItemClassification.filler, weight=10),
+    # Low-grade (copper) tools/gear — genuinely useful recovery items, kept rare.
+    ItemData("Copper Pick",            BASE_ID + 533, ItemClassification.filler, weight=3),
+    ItemData("Copper Axe",             BASE_ID + 534, ItemClassification.filler, weight=3),
+    ItemData("Copper Short Sword",     BASE_ID + 535, ItemClassification.filler, weight=2),
 ]
 
 TRAP_ITEMS: list[ItemData] = [
