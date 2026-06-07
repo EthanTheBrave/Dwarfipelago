@@ -450,12 +450,49 @@ local function recv_artifact_armor()
     print("[Dwarfipelago] Progression item received: Artifact Armor")
 end
 
+-- Create a genuine artifact door at the depot. Built artifact doors are
+-- indestructible, so we must set the artifact flag + Artifact quality on the
+-- item (createitem alone makes an ordinary door). Returns true on success.
+local function spawn_artifact_door()
+    local result = false
+    pcall(function()
+        local unit
+        for _, u in ipairs(df.global.world.units.active) do
+            if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then unit = u; break end
+        end
+        if not unit then return end
+
+        local mt, mi
+        for _, tok in ipairs({ "INORGANIC:ADAMANTINE", "INORGANIC:PLATINUM",
+                               "INORGANIC:GOLD", "INORGANIC:MARBLE" }) do
+            local found = dfhack.matinfo.find(tok)
+            if found then mt, mi = found.type, found.index; break end
+        end
+        if not mt then return end
+
+        local made = dfhack.items.createItem(unit, df.item_type.DOOR, -1, mt, mi, false)
+        local door = made and made[1]
+        if not door then return end
+
+        pcall(function() door.quality = df.item_quality.Artifact end)
+        pcall(function() door.flags.artifact = true end)  -- indestructible when built
+
+        local dx, dy, dz = find_trade_depot_center()
+        if dx then pcall(function() dfhack.items.moveToGround(door, { x = dx, y = dy, z = dz }) end) end
+        result = true
+    end)
+    return result
+end
+
 local function recv_master_builders_codex()
     dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/master_builders_codex", "1")
-    -- Comes with an "artifact" door — created in the best material available.
-    for _, m in ipairs({ "INORGANIC:ADAMANTINE", "INORGANIC:PLATINUM",
-                         "INORGANIC:GOLD", "INORGANIC:MARBLE" }) do
-        if spawn_item("DOOR", m) > 0 then break end
+    -- A genuine artifact door (indestructible once built). Fall back to a plain
+    -- best-material door if the artifact path fails on this build.
+    if not spawn_artifact_door() then
+        for _, m in ipairs({ "INORGANIC:ADAMANTINE", "INORGANIC:PLATINUM",
+                             "INORGANIC:GOLD", "INORGANIC:MARBLE" }) do
+            if spawn_item("DOOR", m) > 0 then break end
+        end
     end
     dfhack.gui.showAnnouncement(
         "[AP] A Master Builder's Codex arrives with an artifact door! Ancient construction secrets are now yours.",
