@@ -594,10 +594,18 @@ local function recv_cave_bear()
 end
 
 local function recv_vermin_infestation()
-    -- GIANT_RAT (a real hostile creature) stands in for vermin.
+    -- A rodent stands in for vermin. Build a world-aware candidate list: common
+    -- tokens first, then any creature whose token looks rodent-like (so it works
+    -- in worlds without GIANT_RAT). create_unit picks the first one present.
     local x, y, z = get_fort_spawn_pos()
     local spawned = 0
-    local RATS = { "GIANT_RAT", "RAT" }
+    local RATS = { "GIANT_RAT", "RAT", "GIANT_MOUSE", "MOUSE", "GIANT_MOLE", "MOLE_DWARF" }
+    for _, cr in ipairs(df.global.world.raws.creatures.all) do
+        local id = cr.creature_id or ""
+        if id:find("RAT") or id:find("MOUSE") or id:find("MOLE") or id:find("VERMIN") then
+            table.insert(RATS, id)
+        end
+    end
     if x then
         for _ = 1, 10 do
             if create_unit(RATS, {x = x, y = y, z = z}, {civ_id = -1, hostile = true}) then
@@ -807,6 +815,61 @@ end
 -- Immigration Wave: `force Migrants` only queues a wave the parent civ may have no
 -- one to fill (it reports success but brings nobody), so we add citizens directly.
 -- Returns how many were successfully made.
+-- A lore-ish dwarf name: a random word from the dwarven language, else a curated
+-- fallback. Set as a nickname so spawned migrants display a name, not "Peasant".
+local DWARF_NAME_FALLBACK = {
+    "Urist", "Solon", "Bomrek", "Zuglar", "Catten", "Lokum", "Kadol", "Reg",
+    "Sibrek", "Tholtig", "Ducim", "Asmel", "Datan", "Erush", "Goden", "Kogan",
+    "Litast", "Meng", "Nako", "Oddom", "Rith", "Sazir", "Tun", "Vabok", "Zaneg",
+}
+local function dwarf_name()
+    local nm
+    pcall(function()
+        local lang = df.global.world.raws.language
+        local idx
+        for i, tr in ipairs(lang.translations) do
+            if tr.name == "DWARF" then idx = i; break end
+        end
+        if idx then
+            local words = lang.translations[idx].words
+            local n = 0
+            for _ in ipairs(words) do n = n + 1 end
+            if n > 0 then
+                local raw = words[math.random(0, n - 1)]
+                local w = (type(raw) == "string") and raw or raw.value
+                if w and #w > 0 then nm = w:sub(1, 1):upper() .. w:sub(2):lower() end
+            end
+        end
+    end)
+    if not nm or nm == "" then nm = DWARF_NAME_FALLBACK[math.random(#DWARF_NAME_FALLBACK)] end
+    return nm
+end
+
+-- Pick a civilian-clothing subtype id (armorlevel 0) from an itemdef vector.
+local function clothing_subtype(defs)
+    local fallback
+    for _, d in ipairs(defs) do
+        fallback = fallback or d.id
+        local lvl
+        pcall(function() lvl = d.armorlevel end)
+        if lvl == 0 then return d.id end
+    end
+    return fallback
+end
+
+-- Create a basic cloth outfit (body/legs/feet) at the depot so a new dwarf can
+-- dress themselves. spawn_item already places items at the depot center.
+local function make_outfit()
+    local idefs = df.global.world.raws.itemdefs
+    local cloth = "PLANT_MAT:GRASS_TAIL_PIG:THREAD"
+    local body = clothing_subtype(idefs.armor)
+    local legs = clothing_subtype(idefs.pants)
+    local feet = clothing_subtype(idefs.shoes)
+    if body then spawn_item("ARMOR:" .. body, cloth) end
+    if legs then spawn_item("PANTS:" .. legs, cloth) end
+    if feet then spawn_item("SHOES:" .. feet, cloth) end
+end
+
 local function spawn_citizen_dwarves(count)
     local race_idx
     for i, cr in ipairs(df.global.world.raws.creatures.all) do
@@ -841,6 +904,8 @@ local function spawn_citizen_dwarves(count)
             end
             df.global.world.units.active:insert('#', unit)
             dfhack.units.makeown(unit)   -- enlist as a fortress member
+            pcall(function() dfhack.units.setNickname(unit, dwarf_name()) end)
+            pcall(make_outfit)           -- cloth outfit at the depot to dress with
             made = made + 1
         end)
     end
@@ -1092,7 +1157,7 @@ end
 -- Low-level spawn check: create one unit via the dfhack.units API and report the
 -- result. Isolates the API mechanic from the trap wrappers/fallbacks.
 local function test_spawn(race)
-    race = (race and race ~= "") and race:upper() or "GIANT_RAT"
+    race = (race and race ~= "") and race:upper() or "DWARF"  -- DWARF always exists
     if not dfhack.isMapLoaded() then
         print("[test] No fortress loaded.")
         return
