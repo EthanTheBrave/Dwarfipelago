@@ -1214,11 +1214,24 @@ local TEST_LIST = {
     { "spider",    "Precursor threat (giant cave spider, underground)", function() spawn_precursor_threat() end },
     { "megabeast", "Force the goal megabeast (once per world)",        function() spawn_target_megabeast() end },
     { "migrants",  "Add a wave of citizen dwarves",                    function() recv_immigration_wave() end },
-    { "caravan",   "Force a merchant caravan to arrive (walks to the depot)",
-                   function()
-                       local ok = pcall(function() dfhack.run_command("force", "Caravan") end)
-                       print(ok and "[test] Caravan forced — it enters at the map edge and heads for your depot."
-                                 or  "[test] force Caravan failed.")
+    { "caravan",   "Force a caravan (arg: dwarf|elf|human|goblin; default = parent civ)",
+                   function(rest)
+                       local civ = ({ dwarf = "MOUNTAIN", mountain = "MOUNTAIN",
+                                      elf = "FOREST",   forest = "FOREST",
+                                      human = "PLAINS", plains = "PLAINS",
+                                      goblin = "EVIL",  evil = "EVIL" })[(rest[1] or ""):lower()]
+                       local ok
+                       if civ then
+                           ok = pcall(function() dfhack.run_command("force", "Caravan", civ) end)
+                           print(ok and ("[test] Forced a " .. civ .. " caravan.")
+                                     or  "[test] force Caravan failed.")
+                       else
+                           ok = pcall(function() dfhack.run_command("force", "Caravan") end)
+                           print(ok and "[test] Forced the parent-civ (dwarven) caravan."
+                                     or  "[test] force Caravan failed.")
+                       end
+                       print("[test] It enters at a map edge and walks to your depot; give it time. "
+                             .. "A race with no living civ / not a neighbor may not arrive.")
                    end },
 }
 
