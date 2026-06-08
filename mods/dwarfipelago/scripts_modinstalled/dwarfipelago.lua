@@ -161,7 +161,6 @@ local function check_goal_by_poll()
                 print("[Dwarfipelago] Goal complete: Mountainhome!")
             end
         end
-
     elseif goal == 4 then -- Remains of the Great King
         -- RotGK is achieved when you received all your remains
         amt = goal_setting("unlock/RotGK", 0)
@@ -174,6 +173,7 @@ local function check_goal_by_poll()
             end
         end
     end
+end
 
 -- ── Goal completion: eventful hook (megabeast death) ─────────────────────────
 
