@@ -104,6 +104,8 @@ local function check_goal_by_poll()
     local goal = goal_setting("goal", -1)
     if goal == -1 then return end  -- slot data not yet synced from Python client
 
+    -- goal == 0 (slay_megabeast) is handled by the on_unit_death hook below.
+
     if goal == 1 then  -- legendary_wealth
         local target = goal_setting("wealth_goal", 100000)
         if checks.treasury_wealth() >= target
@@ -159,9 +161,19 @@ local function check_goal_by_poll()
                 print("[Dwarfipelago] Goal complete: Mountainhome!")
             end
         end
+
+    elseif goal == 4 then -- Remains of the Great King
+        -- RotGK is achieved when you received all your remains
+        amt = goal_setting("unlock/RotGK", 0)
+        if amt >= goal_setting("king_remains_goal", 100) then
+            if state.mark_goal_complete() then
+                dfhack.gui.showAnnouncement(
+                    "[AP] Goal reached: Remains of the Great King! The Great King is fully assembled back in our great halls. Victory!",
+                    COLOR_CYAN, true)
+                print("[Dwarfipelago] Goal complete: Remains of the Great King!")
+            end
+        end
     end
-    -- goal == 0 (slay_megabeast) is handled by the on_unit_death hook below.
-end
 
 -- ── Goal completion: eventful hook (megabeast death) ─────────────────────────
 
