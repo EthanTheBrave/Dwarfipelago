@@ -80,6 +80,11 @@ local _megabeast_cleanup_done = false
 -- Resets on each script load so the player gets a reminder after every reload.
 local _treasury_block_notified = {}
 
+-- Per-flag announcement tracking for crafting item locks. Prevents an announcement
+-- flood when a workshop or work order queues many instances of a locked job type.
+-- Keyed by base craft flag string. Resets on each script load.
+local _craftlock_notified = {}
+
 local WEALTH_LOCK_TIERS = {
     { id = 37370000, threshold = 1000,   coffers = 1, name = "Humble Beginnings (1,000)"    },
     { id = 37370001, threshold = 10000,  coffers = 2, name = "Growing Stronghold (10,000)"  },
@@ -727,6 +732,44 @@ local function check_treasury_job_gate(job)
     end
 end
 
+-- ── Crafting item gate ────────────────────────────────────────────────────────
+-- When craftitems mode is 1 (on) or 2 (all), every craft job is checked against
+-- the craftlock flags written by the "Crafting X" AP item handlers in items.lua.
+-- Jobs for locked items are removed one tick after initiation (same pattern as the
+-- blueprint gate) and the player is notified once per session per locked item type.
+
+-- Set of flags that can be craft-locked (mirrors CRAFTING_LOCK_ITEMS in items.lua).
+local CRAFTLOCK_FLAGS = {}
+pcall(function()
+    local lock_items = reqscript("internal/dwarfipelago/items").CRAFTING_LOCK_ITEMS
+    for _, item_name in ipairs(lock_items) do
+        CRAFTLOCK_FLAGS[item_name:lower():gsub(" ", "_")] = true
+    end
+end)
+
+local function check_craftitem_gate(job)
+    local mode = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/craftitems")) or 0
+    if mode == 0 then return end
+
+    local base_flag
+    pcall(function() base_flag = checks.job_to_base_craft_flag(job) end)
+    if not base_flag or not CRAFTLOCK_FLAGS[base_flag] then return end
+
+    if dfhack.persistent.getWorldDataString("dwarfipelago/craftlock/" .. base_flag) == "1" then return end
+
+    dfhack.timeout(1, "ticks", function()
+        pcall(function() dfhack.job.removeJob(job) end)
+    end)
+
+    if not _craftlock_notified[base_flag] then
+        _craftlock_notified[base_flag] = true
+        dfhack.gui.showAnnouncement(
+            ("[AP] Cannot craft %s — crafting permit not yet received!"):format(
+                base_flag:gsub("_", " ")),
+            COLOR_YELLOW, true)
+    end
+end
+
 -- ── Workshop / furnace / building blueprint enforcement ─────────────────────
 -- When a dwarf tries to build a locked structure, the job is cancelled.
 -- Unlocked blueprints are tracked in persistent storage by the AP client:
@@ -799,6 +842,7 @@ local function on_job_initiated(job)
     if not state.is_enabled() then return end
 
     check_treasury_job_gate(job)
+    check_craftitem_gate(job)
 
     -- Only care about construction jobs.
     if job.job_type ~= df.job_type.ConstructBuilding then return end
