@@ -171,6 +171,12 @@ def set_rules(world: "DwarfFortressWorld") -> None:
             and state.count("Immigration Wave", player) >= 5
         )
 
+    elif options.goal == DwarfFortressGoal.option_king_remains:
+        # required to find all remains
+        goal_location.access_rule = lambda state: (
+            state.has("Remains of the Great King", player, options.remains_great_king.value)
+        )
+        
     else:
         # Population Boom: all immigration waves must have arrived plus fortress established.
         goal_location.access_rule = lambda state: (
