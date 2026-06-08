@@ -1241,6 +1241,44 @@ for _, bp_name in ipairs(BLUEPRINT_NAMES) do
     end
 end
 
+-- ── Crafting lock items ───────────────────────────────────────────────────────
+-- Receiving "Crafting X" from the AP multiworld writes a craftlock flag that
+-- dwarfipelago.lua's on_job_initiated hook reads to decide whether to allow the
+-- job. Names must match CRAFT_ITEMS in items.py exactly (minus the "Crafting " prefix).
+
+local CRAFTING_LOCK_ITEMS = {
+    "Beds", "Corkscrew", "Blocks", "Spike", "Ball", "Altar", "Animal Trap",
+    "Armor Stand", "Barrel", "Bin", "Bookcase", "Bucket", "Buckler", "Cabinet",
+    "Cage", "Burial Container", "Chair", "Container", "Crutch", "Door",
+    "Floodgate", "Grate", "Hatch Cover", "Minecart", "Pedestal", "Pipe Section",
+    "Shield", "Splint", "Stepladder", "Table", "Training Axe", "Training Spear",
+    "Training Sword", "Weapon Rack", "Wheelbarrow", "Crossbow", "Bolt",
+    "Millstone", "Quern", "Slab", "Statue", "Mechanism", "Traction Bench",
+    "Crafts", "Liquid Container", "Cup", "Toy", "Totem", "Helm",
+    "Ballista Parts", "Catapult Parts", "Ballista Arrows", "Ash", "Charcoal",
+    "Metal Bars", "Coke Bars", "Pearlash", "Gypsum Plaster", "Jug", "Large Pot",
+    "Hive", "Quicklime", "Glass", "Window", "Book Binding", "Scroll Roller",
+    "Leather", "Sheet", "Cloth", "Alcohol", "Lye", "Potash", "Milk of Lime",
+    "Prepared Meal", "Tallow", "Oil", "Honey", "Headgear Clothing",
+    "Upper Body Clothing", "Upper Body Armor", "Hand Clothing", "Gauntlets",
+    "Lower Body Clothing", "Lower Body Armor", "Footwear", "Dye", "Bag",
+    "Rope/Chain", "Battle Axe", "Mace", "Pick", "Short Sword", "Spear",
+    "War Hammer", "Anvil", "Coins", "Soap",
+}
+
+M.CRAFTING_LOCK_ITEMS = CRAFTING_LOCK_ITEMS
+
+for _, item_name in ipairs(CRAFTING_LOCK_ITEMS) do
+    local flag = item_name:lower():gsub(" ", "_")
+    M.handlers["Crafting " .. item_name] = function()
+        dfhack.persistent.saveWorldDataString("dwarfipelago/craftlock/" .. flag, "1")
+        dfhack.gui.showAnnouncement(
+            ("[AP] Crafting permit received: %s"):format(item_name),
+            COLOR_GREEN, true)
+        print(("[Dwarfipelago] Craft unlocked: %s"):format(item_name))
+    end
+end
+
 -- ── Test harness (dwarfipelago test <name>) ──────────────────────────────────
 -- Manual in-game verification of the spawn / effect mechanics. Each test prints
 -- what happened so a failure is obvious in the console.
