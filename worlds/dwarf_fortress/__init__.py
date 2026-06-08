@@ -112,8 +112,7 @@ class DwarfFortressWorld(World):
                 self.ap_item_pool.remove(item)
         elif self.options.craftitems == CraftingItems.option_on:
             self.starting_inventory = ["Crafting Beds", "Crafting Charcoal", "Crafting Leather",
-                "Crafting Cloth", "Crafting Alcohol", "Crafting Prepared Meal"
-            ]
+                "Crafting Cloth", "Crafting Alcohol", "Crafting Prepared Meal"]
             remove_ap_pool = []
             for item in self.item_name_to_id:
                 if item in self.starting_inventory:
@@ -122,7 +121,7 @@ class DwarfFortressWorld(World):
             for item in remove_ap_pool:
                 self.ap_item_pool.remove(item)
         
-        if len(CRAFT_ITEMS) > len(self.dynamic_locations):
+        if self.options.craftitems != CraftingItems.option_off and len(CRAFT_ITEMS) > len(self.dynamic_locations):
             raise OptionError(
                 f"{self.player_name}: You do not have enough crafting locations enabled to use the crafting items feature."
                 f" To increase this, add more crafting item locations, increase the maximum amount or lower the threshold."
@@ -205,16 +204,19 @@ class DwarfFortressWorld(World):
 
         for item_data in self.ap_item_pool:
             if self.options.goal == DwarfFortressGoal.option_slay_megabeast and \
-                item_data.name in {"Merchant's Coffer", "Baron's Charter",  "Count's Charter", "Duke's Charter", "Monarch's Invitation"}:
+                item_data.name in {"Merchant's Coffer", "Baron's Charter",  "Count's Charter", "Duke's Charter",
+                    "Monarch's Invitation"}:
                     required.remove(item_data)
             elif self.options.goal == DwarfFortressGoal.option_legendary_wealth and \
-                item_data.name in {"Baron's Charter",  "Count's Charter", "Duke's Charter", "Monarch's Invitation", "Military Training", "Artifact Weapon", "Artifact Armor"}:
+                item_data.name in {"Baron's Charter",  "Count's Charter", "Duke's Charter", "Monarch's Invitation",
+                    "Military Training", "Artifact Weapon", "Artifact Armor"}:
                     required.remove(item_data)
             elif self.options.goal == DwarfFortressGoal.option_mountainhome and \
                 item_data.name in {"Military Training","Artifact Armor", "Merchant's Coffer"}:
                     required.remove(item_data)
             elif self.options.goal == DwarfFortressGoal.option_population_boom and \
-                item_data.name in {"Merchant's Coffer", "Baron's Charter",  "Count's Charter", "Duke's Charter", "Monarch's Invitation", "Military Training"}:
+                item_data.name in {"Merchant's Coffer", "Baron's Charter",  "Count's Charter", "Duke's Charter",
+                    "Monarch's Invitation", "Military Training"}:
                     required.remove(item_data)
 
         item_pool: list[DwarfFortressItem] = []
