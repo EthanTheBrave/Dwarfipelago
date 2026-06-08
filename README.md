@@ -81,7 +81,7 @@ Completing these milestones sends items to other players:
 - **Fortress status** - noble appointments and civilisation recognition milestones
 - **Fortress titles** - Hamlet, Village, Town, City, Metropolis (population + wealth thresholds)
 - **Mining** - depth milestones (10/25/50/75/100 levels below the surface), tiles excavated (100 → 10,000), and breach events (First/Second/Third Cavern, Reached the Magma Sea)
-- **Farming** - harvested-crop milestones (50 / 250 / 1,000 / 2,500 / 5,000 crops)
+- **Farming** - harvested-crop milestones (50 / 100 / 250 / 500 / 1,000 crops)
 - **Craftsanity** - optional crafting milestone checks (see below)
 
 </details>
