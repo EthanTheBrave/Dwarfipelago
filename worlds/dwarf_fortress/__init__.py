@@ -205,19 +205,25 @@ class DwarfFortressWorld(World):
         for item_data in self.ap_item_pool:
             if self.options.goal == DwarfFortressGoal.option_slay_megabeast and \
                 item_data.name in {"Merchant's Coffer", "Baron's Charter",  "Count's Charter", "Duke's Charter",
-                    "Monarch's Invitation"}:
+                    "Monarch's Invitation", "Remains of the Great King"}:
                     required.remove(item_data)
             elif self.options.goal == DwarfFortressGoal.option_legendary_wealth and \
                 item_data.name in {"Baron's Charter",  "Count's Charter", "Duke's Charter", "Monarch's Invitation",
-                    "Military Training", "Artifact Weapon", "Artifact Armor"}:
+                    "Military Training", "Artifact Weapon", "Artifact Armor", "Remains of the Great King"}:
                     required.remove(item_data)
             elif self.options.goal == DwarfFortressGoal.option_mountainhome and \
-                item_data.name in {"Military Training","Artifact Armor", "Merchant's Coffer"}:
+                item_data.name in {"Military Training","Artifact Armor", "Merchant's Coffer", "Remains of the Great King"}:
                     required.remove(item_data)
             elif self.options.goal == DwarfFortressGoal.option_population_boom and \
                 item_data.name in {"Merchant's Coffer", "Baron's Charter",  "Count's Charter", "Duke's Charter",
+                    "Monarch's Invitation", "Military Training", "Remains of the Great King"}:
+                    required.remove(item_data)
+            elif self.options.goal == DwarfFortressGoal.option_king_remains and \
+                item_data.name in {"Merchant's Coffer", "Baron's Charter",  "Count's Charter", "Duke's Charter",
                     "Monarch's Invitation", "Military Training"}:
                     required.remove(item_data)
+            elif self.options.goal == DwarfFortressGoal.option_king_remains and item_data.name == "Remains of the Great King":
+                item_data.quantity = self.options.remains_great_king.value
 
         item_pool: list[DwarfFortressItem] = []
 
@@ -277,6 +283,7 @@ class DwarfFortressWorld(World):
             "goal": self.options.goal.value,
             "wealth_goal_amount": self.options.wealth_goal_amount.value,
             "population_goal_amount": self.options.population_goal_amount.value,
+            "remains_great_king": self.options.remains_great_king.value,
             "deathlink": self.options.deathlink.value,
             "deathlink_threshold": self.options.deathlink_threshold.value,
             "seed": self.random.randint(12212, 15245354),
@@ -286,6 +293,7 @@ class DwarfFortressWorld(World):
             "craftsanity_threshold": self.options.craftsanity_threshold.value,
             "craftsanity_enabled": self.options.craftsanity.value,
             "craftsanity_materials": self.options.craftsanity_enable_materials.value,
+            "crafting_items": self.options.craftitems.value,
             "deathlink_percentage": self.options.deathlink_percentage.value,
             "version": f"{self.world_version.as_simple_string()}",
         }
