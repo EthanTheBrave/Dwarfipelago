@@ -673,7 +673,8 @@ class DwarfFortressContext(CommonContext):
         craftsanity_enabled = slot_data.get("craftsanity_enabled") # 0 off, 1 on, 2 storage
         self.version = slot_data.get("version")
         materials_enabled = slot_data.get("craftsanity_materials")
-        craftitems = slot_data.get("craftitems", 0)
+        king_remains_amt = slot_data.get("remains_great_king")
+        craftingitems = slot_data.get("crafting_items")
         current_seed = self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("dwarfipelago/seed"))')
         current_seed = (current_seed or "").strip()
         # A blank/"nil" stored seed means this world has no AP identity yet (fresh,
@@ -689,6 +690,8 @@ class DwarfFortressContext(CommonContext):
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/goal", "{goal}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/wealth_goal", "{wealth_goal}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/pop_goal", "{pop_goal}")')
+                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/king_remains_goal", "{king_remains_amt}")')
+                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/crafting_items", "{craftingitems}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_threshold", "{dl_threshold}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_percentage", "{int(dl_percentage)}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/seed", "{self.seed}")')

@@ -520,6 +520,17 @@ local function recv_master_builders_codex()
     print("[Dwarfipelago] Progression item received: Master Builder's Codex")
 end
 
+local function recv_king_remains()
+    amt = dfhack.persistent.getWorldDataString("dwarfipelago/unlock/RotGK")
+    if amt == nil or amt == 0 then
+        dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/RotGK", "1")
+    else
+        new_amt = tonumber(amt) + 1
+        dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/RotGK", tostring(new_amt))
+    end
+    print("[Dwarfipelago] Progression item received: Remains of the Great King")
+end
+
 -- ── Item handlers: junk traps (AP filler trap items sent back to DF) ─────────
 -- These items land back in the DF player's inventory as padding. They have no
 -- meaningful in-game effect — just a flavour announcement.
@@ -1149,9 +1160,10 @@ M.handlers = {
     ["Artifact Weapon"]        = recv_artifact_weapon,
     ["Artifact Armor"]         = recv_artifact_armor,
     ["Master Builder's Codex"] = recv_master_builders_codex,
+    ["Remains of the Great King"] = recv_king_remains,
 
     -- Junk trap items (filler traps sent back to DF)
-    ["Cave Fisher Silk"]       = recv_cave_fisher_silk,
+    ["Cave Fisher Silk"]       = recv_cave_fisher_silk, --currently disabled in Client
     ["Dwarf Bones"]            = recv_dwarf_bones,
     ["Goblin Trophy"]          = recv_goblin_trophy,
 

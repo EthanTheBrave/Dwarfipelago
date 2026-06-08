@@ -9,6 +9,7 @@ class DwarfFortressGoal(Choice):
     option_legendary_wealth = 1
     option_population_boom = 2
     option_mountainhome = 3
+    option_king_remains = 4
     default = 2
 
 
@@ -26,6 +27,18 @@ class PopulationGoalAmount(Range):
     range_start = 20
     range_end = 500
     default = 300
+
+class RemainsoftheGreatKing(Range):
+    """
+    "Treasure hunters, Kobolds and Goblins has plundered our great halls and took the remains of our great king.
+    They have traded them outside of our realm and we need our friends to help find them.
+    We need to find all X remains to bring our great king back into our halls."
+    Craftsanity may be required depending on how many remains are shuffled.
+    When goal is 'King Remains'."""
+    display_name = "Remains of the Great King"
+    range_start = 5
+    range_end = 100
+    default = 10
 
 
 class TrapItemWeight(Range):
@@ -166,7 +179,7 @@ class CraftingItems(Choice):
     When set to "on", The following crafts you can preform that do not AP items (comes with the workshop):
     Beds, Charcoal, Leather, Cloth, Alcohol, Prepared Meal
     When set to "all", the above are included and are required to obtain them
-    Craftsanity must be enabled to use this feature.
+    Craftsanity must be enabled to use this feature as it adds 97 additional items.
     """
     display_name = "Crafting Items"
     option_off = 0
@@ -188,6 +201,7 @@ class DwarfFortressOptions(PerGameCommonOptions):
     goal: DwarfFortressGoal
     wealth_goal_amount: WealthGoalAmount
     population_goal_amount: PopulationGoalAmount
+    remains_great_king: RemainsoftheGreatKing
     trades_inlogic: TradesInLogic
     craftsanity: EnableCraftsanity
     craftitems: CraftingItems
