@@ -59,8 +59,11 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     dynamic_rules.df_location_rule(loc, "Mechanism", "")
 
     loc = multiworld.get_location("First Trap Built", player)
-    loc.access_rule = lambda state: state.has("Mechanic's Workshop Blueprint", player) and \
-        state.has_any(["Crafting Spike", "Crafting Ball"], player)
+    if options.craftitems == CraftingItems.option_off:
+        loc.access_rule = lambda state: state.has("Mechanic's Workshop Blueprint", player)
+    else:
+        loc.access_rule = lambda state: state.has("Mechanic's Workshop Blueprint", player) and \
+            state.has_any(["Crafting Spike", "Crafting Ball"], player)
     
     loc = multiworld.get_location("First Millstone Made", player)
     dynamic_rules.df_location_rule(loc, "Millstone", "")
@@ -72,9 +75,13 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     dynamic_rules.df_location_rule(loc, "Cage", "")
 
     loc = multiworld.get_location("First Furniture Made", player)
-    loc.access_rule = lambda state: dynamic_rules.wood_or_stone_or_metal_or_glass_chair(state) \
-        or dynamic_rules.wood_or_stone_or_metal_or_glass_cabinet(state) or dynamic_rules.wood_or_metal_bucket(state) \
-        or dynamic_rules.wood_or_stone_or_metal_or_glass_floodgate(state) or dynamic_rules.wood_or_stone_or_metal_or_glass_door(state)
+    if options.craftitems == CraftingItems.option_off:
+        loc.access_rule = lambda state: dynamic_rules.metal(state) or dynamic_rules.wood(state) \
+            or dynamic_rules.stone(state) or dynamic_rules.glass(state)
+    else:
+        loc.access_rule = lambda state: dynamic_rules.wood_or_stone_or_metal_or_glass_chair(state) \
+            or dynamic_rules.wood_or_stone_or_metal_or_glass_cabinet(state) or dynamic_rules.wood_or_metal_bucket(state) \
+            or dynamic_rules.wood_or_stone_or_metal_or_glass_floodgate(state) or dynamic_rules.wood_or_stone_or_metal_or_glass_door(state)
     
     loc = multiworld.get_location("First Brew Complete", player)
     dynamic_rules.df_location_rule(loc, "Alcohol", "")
@@ -92,15 +99,21 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     dynamic_rules.df_location_rule(loc, "Bed", "")
 
     loc = multiworld.get_location("First Weapon Forged", player)
-    loc.access_rule = lambda state: dynamic_rules.training_axe(state) \
-        or dynamic_rules.training_spear(state) or dynamic_rules.training_sword(state) \
-        or dynamic_rules.make_battleaxe(state) or dynamic_rules.make_sword(state) or dynamic_rules.make_spear(state) \
-        or dynamic_rules.make_warhammer(state) or dynamic_rules.wood_or_bone_bolt(state)
+    if options.craftitems == CraftingItems.option_off:
+        loc.access_rule = lambda state: dynamic_rules.metal(state) or dynamic_rules.wood(state)
+    else:
+        loc.access_rule = lambda state: dynamic_rules.training_axe(state) \
+            or dynamic_rules.training_spear(state) or dynamic_rules.training_sword(state) \
+            or dynamic_rules.make_battleaxe(state) or dynamic_rules.make_sword(state) or dynamic_rules.make_spear(state) \
+            or dynamic_rules.make_warhammer(state) or dynamic_rules.wood_or_bone_bolt(state)
     
     loc = multiworld.get_location("First Armor Crafted", player)
-    loc.access_rule = lambda state: dynamic_rules.metal_or_bone_or_leather_helm(state) \
-        or dynamic_rules.metal_or_bone_gauntlets(state) or dynamic_rules.metal_or_leather_ubodyarmor(state) \
-        or dynamic_rules.metal_or_bone_or_leather_lbodyarmor(state)
+    if options.craftitems == CraftingItems.option_off:
+        loc.access_rule = lambda state: dynamic_rules.metal(state) or dynamic_rules.leather_works(state)
+    else:
+        loc.access_rule = lambda state: dynamic_rules.metal_or_bone_or_leather_helm(state) \
+            or dynamic_rules.metal_or_bone_gauntlets(state) or dynamic_rules.metal_or_leather_ubodyarmor(state) \
+            or dynamic_rules.metal_or_bone_or_leather_lbodyarmor(state)
     
     loc = multiworld.get_location("First Anvil Made", player)
     dynamic_rules.df_location_rule(loc, "Anvil", "")
