@@ -196,10 +196,10 @@ M.checks = {
 
     -- Farming: cumulative harvested crops (PLANT items).
     { id = 37370730, name = "Harvest 50 Crops",    fn = function() return M.crops_harvested() >= 50   end },
-    { id = 37370731, name = "Harvest 250 Crops",   fn = function() return M.crops_harvested() >= 250  end },
-    { id = 37370732, name = "Harvest 1,000 Crops", fn = function() return M.crops_harvested() >= 1000 end },
-    { id = 37370733, name = "Harvest 2,500 Crops", fn = function() return M.crops_harvested() >= 2500 end },
-    { id = 37370734, name = "Harvest 5,000 Crops", fn = function() return M.crops_harvested() >= 5000 end },
+    { id = 37370731, name = "Harvest 100 Crops",   fn = function() return M.crops_harvested() >= 100  end },
+    { id = 37370732, name = "Harvest 250 Crops",   fn = function() return M.crops_harvested() >= 250  end },
+    { id = 37370733, name = "Harvest 500 Crops",   fn = function() return M.crops_harvested() >= 500  end },
+    { id = 37370734, name = "Harvest 1,000 Crops", fn = function() return M.crops_harvested() >= 1000 end },
 }
 
 -- ── Production flag helpers ───────────────────────────────────────────────────
