@@ -1117,10 +1117,42 @@ ensure_trade_depot = function()
     end)
 
     dfhack.persistent.saveWorldDataString("dwarfipelago/depot_built", "1")
-    dfhack.gui.showAnnouncement(
-        "[AP] A Trading Post has been established near your starting wagon!",
-        COLOR_GREEN, true)
+    pcall(function()
+        dfhack.gui.showZoomAnnouncement(
+            df.announcement_type.CARAVAN_ARRIVAL,
+            {x=tx, y=ty, z=sz},
+            "[AP] A Trading Post has been established near your starting wagon!",
+            COLOR_GREEN, true)
+    end)
     print(("[Dwarfipelago] Trade depot placed at %d,%d,%d"):format(tx, ty, sz))
+end
+
+-- ── World validation ──────────────────────────────────────────────────────────
+
+local function check_civilization_diversity()
+    local has_human, has_elf = false, false
+    local creatures = df.global.world.raws.creatures.all
+    pcall(function()
+        for _, ent in ipairs(df.global.world.entities.all) do
+            if ent.race >= 0 and ent.race < #creatures then
+                local race_id = creatures[ent.race].creature_id
+                if race_id == "HUMAN" then has_human = true end
+                if race_id == "ELF"   then has_elf   = true end
+            end
+        end
+    end)
+    if not has_human then
+        dfhack.gui.showAnnouncement(
+            "[AP] Warning: No human civilization found in this world. Human caravans will not appear.",
+            COLOR_YELLOW, true)
+        log.warn("No human civilization detected — world may be missing human civs.")
+    end
+    if not has_elf then
+        dfhack.gui.showAnnouncement(
+            "[AP] Warning: No elf civilization found in this world. Elf caravans will not appear.",
+            COLOR_YELLOW, true)
+        log.warn("No elf civilization detected — world may be missing elf civs.")
+    end
 end
 
 -- ── Start / stop ──────────────────────────────────────────────────────────────
@@ -1146,6 +1178,8 @@ local function start()
 
     -- Enable the corner [AP] overlay button.
     pcall(dfhack.run_command, "overlay", "enable", "dwarfipelago-panel.hotspot")
+
+    check_civilization_diversity()
 
     print("[Dwarfipelago] Started. Listening for fortress milestones.")
     print("[Dwarfipelago] Make sure DwarfFortressClient.py is running.")

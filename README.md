@@ -25,6 +25,35 @@ See [`worlds/dwarf_fortress/docs/setup_en.md`](worlds/dwarf_fortress/docs/setup_
 ---
 
 <details>
+<summary>World Generation</summary>
+
+Dwarfipelago is balanced for a **Small world** (65×65 region tiles). A recommended world gen preset is included in the repo.
+
+### Setup
+
+1. Copy `prefs/world_gen.txt` from this repo into your Dwarf Fortress `prefs/` folder (create the folder if it doesn't exist)
+2. When creating a new world in DF, open the world gen menu and select **"DwarfipelagoWorld"** from the saved presets list
+3. Generate and embark as normal
+
+### What the preset does
+
+| Setting | Value | Reason |
+|---------|-------|--------|
+| World size | Small (65×65) | Balanced play duration; faster gen than Medium/Large |
+| Numbered civs | 20 | Ensures human and elf civilizations are present for caravan checks |
+| Forest regions (min) | 2 | Guarantees elf habitat exists |
+| Grassland regions (min) | 2 | Guarantees human habitat exists |
+| Everything else | DF defaults | No other settings are changed |
+
+### If you use a different preset
+
+The mod will still work, but when you run `dwarfipelago start` it will warn you in-game (yellow announcement) if no human or elf civilization was found in the world. Human and elf caravan visit checks will be impossible to complete in that world.
+
+</details>
+
+---
+
+<details>
 <summary>Trade Depot</summary>
 
 When you load a fortress with Dwarfipelago active, the mod automatically places a **Trade Depot** near your starting wagon. This depot serves as the central hub for Archipelago:
