@@ -33,7 +33,7 @@ PRODUCTION_LOCATIONS: list[LocationData] = [
     LocationData("First Prepared Meal",      BASE_ID + 104, "Fortress"),
     LocationData("First Brew Complete",      BASE_ID + 105, "Fortress"),
     LocationData("First Metal Bar Smelted",  BASE_ID + 106, "Fortress"),
-    LocationData("First Stone Block Cut",    BASE_ID + 107, "Fortress"),
+    LocationData("First Block Cut",          BASE_ID + 107, "Fortress"),
     LocationData("First Cloth Woven",        BASE_ID + 108, "Fortress"),
     LocationData("First Leather Tanned",     BASE_ID + 109, "Fortress"),
     LocationData("First Gem Cut",            BASE_ID + 110, "Fortress"),

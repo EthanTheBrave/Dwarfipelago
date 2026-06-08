@@ -4,7 +4,7 @@ from typing import List, Set, Union, TYPE_CHECKING
 from dataclasses import dataclass
 from BaseClasses import ItemClassification, Location, LocationProgressType, CollectionState
 from worlds.generic.Rules import set_rule
-from .options import EnableCraftsanity, CraftsanityItemGroup, CraftsanityItems, CraftsanityMaterials
+from .options import EnableCraftsanity, CraftsanityItemGroup, CraftsanityItems, CraftsanityMaterials, CraftingItems
 from .locations import BASE_ID, LocationData
 
 if TYPE_CHECKING:
@@ -161,8 +161,6 @@ def calulate_check_count(world: "DwarfFortressWorld"):
         return checks
     
 def valid_materialitem(material: str, item: str) -> bool:
-    if material == "Wood" and item in {"Training Axe", "Training Spear", "Training Sword", "Cup", "Ballista Parts", "Catapult Parts"}:
-        return True
     if material in {"Wood", "Metal"} and item in {"Animal Trap", "Barrel", "Bin", "Bucket", "Crutch", "Minecart", "Splint", "Stepladder", "Wheelbarrow", "Ballista Arrows", "Corkscrew"}:
         return True
     if material in {"Wood", "Metal", "Glass"} and item in {"Spike", "Cage", "Ball", "Pipe Section"}:
@@ -175,8 +173,6 @@ def valid_materialitem(material: str, item: str) -> bool:
         return True
     if material in {"Wood", "Bone", "Metal"} and item in {"Crossbow", "Bolt"}:
         return True
-    if material == "Stone" and item in {"Millstone", "Quern", "Slab", "Mug"}:
-        return True
     if material in {"Stone", "Metal", "Glass", "Ceramic"} and item in {"Statue"}:
         return True
     if material in {"Stone", "Metal"} and item in {"Mechanism"}:
@@ -185,15 +181,11 @@ def valid_materialitem(material: str, item: str) -> bool:
         return True
     if material in {"Metal", "Glass"} and item == "Goblet":
         return True
-    if material == "Bone" and item == "Totem":
-        return True
     if material in {"Bone", "Metal"} and item == "Gauntlets":
         return True
     if material in {"Leather", "Bone", "Metal"} and item == "Helm":
         return True
     if material in {"Bone", "Leather", "Metal"} and item == "Lower Body Armor":
-        return True
-    if material == "Glass" and item == "Window":
         return True
     if material in {"Leather", "Cloth"} and item in {"Headgear Clothing", "Upper Body Clothing", "Hand Clothing", "Lower Body Clothing", "Bag"}:
         return True
@@ -203,410 +195,16 @@ def valid_materialitem(material: str, item: str) -> bool:
         return True
     if material in {"Cloth", "Metal"} and item == "Rope/Chain":
         return True
-    if material == "Metal" and item in {"Battle Axe", "Mace", "Pick", "Short Sword", "Spear", "War Hammer", "Anvil", "Coins"}:
-        return True
     return False
 
 def non_material_items(item: str) -> bool:
-    if item in {"Beds", "Ash", "Charcoal", "Metal Bars", "Coke Bars", "Pearlash", "Gypsum Plaster", "Quicklime", "Glass", "Leather", "Sheet", "Cloth", "Alcohol", "Lye", "Potash", "Milk of Lime", "Prepared Meal", "Tallow", "Oil", "Press Cake", "Honey", "Bee Wax", "Dye", "Soap"}:
+    if item in {"Beds", "Ash", "Charcoal", "Metal Bars", "Coke Bars", "Pearlash", "Gypsum Plaster", "Quicklime",
+        "Glass", "Leather", "Sheet", "Cloth", "Alcohol", "Lye", "Potash", "Milk of Lime", "Prepared Meal", "Tallow",
+        "Oil", "Press Cake", "Honey", "Bee Wax", "Dye", "Soap", "Training Axe", "Training Spear", "Training Sword",
+        "Cup", "Ballista Parts", "Catapult Parts", "Millstone", "Quern", "Slab", "Mug", "Totem", "Window", 
+        "Battle Axe", "Mace", "Pick", "Short Sword", "Spear", "War Hammer", "Anvil", "Coins"}:
         return True
     return False
-    
-class DynamicCraftingLocationRules:
-    world: "DwarfFortressWorld"
-
-    def __init__(self, world: "DwarfFortressWorld") -> None:
-        self.player = world.player
-        self.world = world
-            
-
-    def wood(self, state:CollectionState) -> bool:
-        return state.has("Carpenter's Workshop Blueprint", self.player)
-    
-    def metal(self, state:CollectionState) -> bool:
-        if self.world.options.trades_inlogic:
-            return state.has("Forge Blueprint", self.player) or state.has("Magma Smelter Blueprint", self.player)
-        else:
-            return self.process_resource(state, "metal") and (state.has("Forge Blueprint", self.player) or \
-            state.has("Magma Forge Blueprint", self.player))
-        
-    def process_resource(self, state:CollectionState, resource) -> bool: #glass, metal, ceramic
-        if resource == "metal":
-            return (state.has("Wood Furnace Blueprint", self.player) and state.has("Forge Blueprint", self.player)) or \
-            state.has("Magma Smelter Blueprint", self.player)
-        elif resource == "glass":
-            return (state.has("Wood Furnace Blueprint", self.player) and state.has("Glass Furnace Blueprint", self.player)) or \
-            state.has("Magma Glass Furnace Blueprint", self.player)
-        elif resource == "ceramic":
-            return (state.has("Wood Furnace Blueprint", self.player) and state.has("Kiln Blueprint", self.player)) or \
-            state.has("Magma Kiln Blueprint", self.player)
-        else:
-            print("Missing Resource Type for process_resource function")
-            return False
-        
-    def make_metal(self, state:CollectionState) -> bool:
-        if self.world.options.trades_inlogic:
-            return True
-        else:
-            return self.process_resource(state, "metal")
-        
-    def needs_make_metal(self, state:CollectionState) -> bool:
-        return self.process_resource(state, "metal")
-        
-    def ceramic(self, state:CollectionState) -> bool:
-        return self.process_resource(state, "ceramic")
-    
-    def glass(self, state:CollectionState) -> bool:
-        return self.process_resource(state, "glass")
-    
-    def stone(self, state:CollectionState) -> bool:
-        return state.has("Stoneworker's Workshop Blueprint", self.player)
-    
-    def leather(self, state:CollectionState) -> bool:
-        return state.has("Tanner's Blueprint", self.player)
-
-    def leather_works(self, state:CollectionState) -> bool:
-        if self.world.options.trades_inlogic:
-            return state.has("Leather Works Blueprint", self.player)
-        else:
-            return self.leather(state) and state.has("Leather Works Blueprint", self.player)
-    
-    def cloth(self, state:CollectionState) -> bool:
-        return state.has("Loom Blueprint", self.player)
-    
-    def clothier_workshop(self, state:CollectionState) -> bool:
-        if self.world.options.trades_inlogic:
-            return state.has("Clothier's Shop Blueprint", self.player)
-        else:
-            return self.cloth(state) and state.has("Clothier's Shop Blueprint", self.player)
-        
-    def wood_or_metal(self, state:CollectionState) -> bool:
-        return self.wood(state) or self.metal(state)
-    
-    def wood_or_metal_or_glass(self, state:CollectionState) -> bool:
-        return self.wood(state) or self.metal(state) or self.glass(state)
-    
-    def wood_or_stone_or_metal_or_glass(self, state:CollectionState) -> bool:
-        return self.wood(state) or self.stone(state) or self.metal(state) or self.glass(state)
-    
-    def wood_or_stone_or_metal_or_glass_or_ceramic(self, state:CollectionState) -> bool:
-        return self.wood(state) or self.stone(state) or self.metal(state) or self.glass(state) or self.ceramic(state)
-    
-    def wood_or_leather_or_metal(self, state:CollectionState) -> bool:
-        return self.wood(state) or self.leather_works(state) or self.metal(state) 
-    
-    def bowyer_workshop(self, state:CollectionState) -> bool:
-        return state.has("Bowyer's Workshop Blueprint", self.player)
-    
-    def craftdwarf_workshop(self, state:CollectionState) -> bool:
-        return state.has("Craftsdwarf's Workshop Blueprint", self.player)
-    
-    def mechanic_workshop(self, state:CollectionState) -> bool:
-        return state.has("Mechanic's Workshop Blueprint", self.player)
-    
-    def butcher_workshop(self, state:CollectionState) -> bool:
-        return state.has("Butcher's Shop Blueprint", self.player)
-    
-    def famer_workshop(self, state:CollectionState) -> bool:
-        return state.has("Farmer's Workshop Blueprint", self.player)
-    
-    def seige_workshop(self, state:CollectionState) -> bool:
-        return state.has("Siege Workshop Blueprint", self.player)
-    
-    def wood_furnace(self, state:CollectionState) -> bool:
-        return state.has("Wood Furnace Blueprint", self.player)
-    
-    def screw_press(self, state:CollectionState) -> bool:
-        return state.has("Screw Press Blueprint", self.player)
-    
-    def still(self, state:CollectionState) -> bool:
-        return state.has("Still Blueprint", self.player)
-    
-    def ashery(self, state:CollectionState) -> bool:
-        return state.has("Ashery Blueprint", self.player)
-    
-    def kitchen(self, state:CollectionState) -> bool:
-        return state.has("Kitchen Blueprint", self.player)
-    
-    def kitchen_and_butchershop(self, state:CollectionState) -> bool:
-        return self.kitchen(state) and self.butcher_workshop(state)
-    
-    def seige_and_metal(self, state:CollectionState) -> bool:
-        return self.seige_workshop(state) and self.metal(state)
-
-    def bowyer_or_metal(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.bowyer_workshop(state) 
-    
-    def craftdwarf_or_metal(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.craftdwarf_workshop(state) 
-    
-    def craftdwarf_and_butchery(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and self.butcher_workshop(state)
-    
-    def wooden_traction_bench(self, state:CollectionState) -> bool:
-        return self.wood(state) and self.mechanic_workshop(state) and \
-        (self.metal(state) or self.clothier_workshop(state))
-    
-    def stone_traction_bench(self, state:CollectionState) -> bool:
-        return self.stone(state) and self.mechanic_workshop(state) and \
-        (self.metal(state) or self.clothier_workshop(state))
-    
-    def metal_traction_bench(self, state:CollectionState) -> bool:
-        return self.metal(state) and self.mechanic_workshop(state)
-    
-    def glass_traction_bench(self, state:CollectionState) -> bool:
-        return self.glass(state) and self.mechanic_workshop(state) and \
-        (self.metal(state) or self.clothier_workshop(state))
-    
-    def any_traction_bench(self, state:CollectionState) -> bool:
-        return (self.glass(state) or self.metal(state) or self.wood(state) or self.stone(state)) \
-        and self.mechanic_workshop(state) and (self.metal(state) or self.clothier_workshop(state))
-    
-    def metal_or_glass_or_leather(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.glass(state) or self.leather_works(state)
-    
-    def metal_or_glass(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.glass(state)
-    
-    def metal_or_leather(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.leather_works(state)
-    
-    def metal_or_bone(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.craftdwarf_workshop(state)
-    
-    def metal_or_cloth(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.clothier_workshop(state)
-
-    def metal_or_bone_or_leather(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.leather_works(state) or self.craftdwarf_workshop(state)
-    
-    def metal_or_cloth_or_leather(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.leather_works(state) or self.clothier_workshop(state)
-    
-    def make_paper(self, state:CollectionState) -> bool:
-        return self.famer_workshop(state) or self.screw_press(state) or self.leather(state)
-    
-    def ashery_and_wood_furnace(self, state:CollectionState) -> bool:
-        return self.ashery(state) and self.wood_furnace(state)
-    
-    def ashery_and_kiln(self, state:CollectionState) -> bool:
-        return self.ashery(state) and self.ceramic(state)
-    
-    def leather_or_cloth(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) or self.leather_works(state)
-    
-    def dye(self, state:CollectionState) -> bool:
-        if self.world.options.trades_inlogic:
-            return state.has("Dyer's Workshop Blueprint", self.player)
-        else:
-            return self.cloth(state) and state.has("Dyer's Workshop Blueprint", self.player)
-        
-    def soap(self, state:CollectionState) -> bool:
-        return self.ashery(state) and self.wood_furnace(state) \
-            and state.has("Soap Maker's Workshop Blueprint", self.player) \
-            and (self.kitchen(state) and self.butcher_workshop(state) or self.screw_press(state))
-
-    def set_dynamic_rules(self) -> None:
-        for location in self.world.dynamic_locations:
-            self.world.multiworld
-            loc = self.world.multiworld.get_location(location.name, self.player)
-            match location.df_item:
-                case "Beds" | "Training Axe" | "Training Spear" | "Training Sword": 
-                    set_rule(loc, self.wood)
-                case "Corkscrew" | "Spike" | "Ball" | "Animal Trap" | "Barrel" |\
-                    "Bin" | "Bucket" | "Crutch" | "Minecart" | "Splint" |\
-                    "Stepladder" | "Wheelbarrow":
-                    if location.material_type == "Wood":
-                        set_rule(loc, self.wood)
-                    elif location.material_type == "Metal":
-                        set_rule(loc, self.metal)
-                    else:
-                        set_rule(loc, self.wood_or_metal)
-                case "Blocks" | "Jug" | "Large Pot" | "Hive":
-                    if location.material_type == "Wood":
-                        set_rule(loc, self.wood)
-                    elif location.material_type == "Stone":
-                        set_rule(loc, self.stone)
-                    elif location.material_type == "Metal":
-                        set_rule(loc, self.metal)
-                    elif location.material_type == "Glass":
-                        set_rule(loc, self.glass)
-                    elif location.material_type == "Ceramic":
-                        set_rule(loc, self.ceramic)
-                    else:
-                        set_rule(loc, self.wood_or_stone_or_metal_or_glass_or_ceramic)
-                case "Altar" | "Armor Stand" | "Bookcase" | "Cabinet" | "Burial Container" |\
-                    "Chair" | "Container" | "Door" | "Floodgate"| "Grate"|\
-                    "Hatch Cover" | "Pedestal" | "Table" | "Weapon Rack" | "Statue" |\
-                    "Book Binding" | "Scroll Roller":
-                    if location.material_type == "Wood":
-                        set_rule(loc, self.wood)
-                    elif location.material_type == "Stone":
-                        set_rule(loc, self.stone)
-                    elif location.material_type == "Metal":
-                        set_rule(loc, self.metal)
-                    elif location.material_type == "Glass":
-                        set_rule(loc, self.glass)
-                    else:
-                        set_rule(loc, self.wood_or_stone_or_metal_or_glass)
-                case "Buckler" | "Shield":
-                    if location.material_type == "Wood":
-                        set_rule(loc, self.wood)
-                    elif location.material_type == "Metal":
-                        set_rule(loc, self.metal)
-                    elif location.material_type == "Leather":
-                        set_rule(loc, self.leather_works)
-                    else:
-                        set_rule(loc, self.wood_or_leather_or_metal)
-                case "Cage" | "Pipe Section":
-                    if location.material_type == "Wood":
-                        set_rule(loc, self.wood)
-                    elif location.material_type == "Metal":
-                        set_rule(loc, self.metal)
-                    elif location.material_type == "Glass":
-                        set_rule(loc, self.glass)
-                    else:
-                        set_rule(loc, self.wood_or_metal_or_glass)
-                case "Crossbow":
-                    if type in {"Wood", "Bone"}:
-                        set_rule(loc, self.bowyer_workshop)
-                    elif location.material_type == "Metal":
-                        set_rule(loc, self.metal)
-                    else:
-                        set_rule(loc, self.bowyer_or_metal)
-                case "Bolt":
-                    if type in {"Wood", "Bone"}:
-                        set_rule(loc, self.craftdwarf_workshop)
-                    elif location.material_type == "Metal":
-                        set_rule(loc, self.metal)
-                    else:
-                        set_rule(loc, self.craftdwarf_or_metal)
-                case "Millstone" | "Quern" | "Slab" | "Crafts":
-                    set_rule(loc, self.stone)
-                case "Mechanism":
-                    set_rule(loc, self.mechanic_workshop)
-                case "Traction Bench":
-                    if location.material_type == "Wood":
-                        set_rule(loc, self.wooden_traction_bench)
-                    elif location.material_type == "Stone":
-                        set_rule(loc, self.stone_traction_bench)
-                    elif location.material_type == "Metal":
-                        set_rule(loc, self.metal_traction_bench)
-                    elif location.material_type == "Glass":
-                        set_rule(loc, self.glass_traction_bench)
-                    else:
-                        set_rule(loc, self.any_traction_bench)
-                case "Liquid Container":
-                    if location.material_type == "Metal":
-                        set_rule(loc, self.metal)
-                    elif location.material_type == "Glass":
-                        set_rule(loc, self.glass)
-                    elif location.material_type == "Leather":
-                        set_rule(loc, self.leather_works)
-                    else:
-                        set_rule(loc, self.metal_or_glass_or_leather)
-                case "Goblet":
-                    set_rule(loc, self.metal_or_glass)
-                case "Mug" | "Cup" | "Toy":
-                    set_rule(loc, self.craftdwarf_workshop)
-                case "Totem":
-                    set_rule(loc, self.craftdwarf_and_butchery)
-                case "Helm" | "Lower Body Armor":
-                    if location.material_type == "Metal":
-                        set_rule(loc, self.metal)
-                    elif location.material_type == "Bone":
-                        set_rule(loc, self.craftdwarf_workshop)
-                    elif location.material_type == "Leather":
-                        set_rule(loc, self.leather_works)
-                    else:
-                        set_rule(loc, self.metal_or_bone_or_leather)
-                case "Ballista Parts" | "Catapult Parts":
-                    set_rule(loc, self.seige_workshop)
-                case "Ballista Arrows":
-                    if location.material_type == "Wood":
-                        set_rule(loc, self.seige_workshop)
-                    elif location.material_type == "Metal":
-                        set_rule(loc, self.seige_and_metal)
-                    else:
-                        set_rule(loc, self.seige_workshop)
-                case "Ash" | "Charcoal":
-                    set_rule(loc, self.wood_furnace)
-                case "Metal Bars" | "Coke Bars":
-                    set_rule(loc, self.make_metal)
-                case "Pearlash" | "Gypsum Plaster" | "Quicklime":
-                    set_rule(loc, self.ceramic)
-                case "Glass" | "Window" :
-                    set_rule(loc, self.glass)
-                case "Leather":
-                    set_rule(loc, self.leather)
-                case "Sheet":
-                    set_rule(loc, self.make_paper)
-                case "Cloth":
-                    set_rule(loc, self.cloth)
-                case "Alcohol":
-                    set_rule(loc, self.still)
-                case "Lye" | "Potash":
-                    set_rule(loc, self.ashery_and_wood_furnace)
-                case "Milk of Lime":
-                    set_rule(loc, self.ashery_and_kiln)
-                case "Prepared Meal":
-                    set_rule(loc, self.kitchen)
-                case "Tallow":
-                    set_rule(loc, self.kitchen_and_butchershop)
-                case "Oil" | "Press Cake" | "Honey" | "Bee Wax":
-                    set_rule(loc, self.screw_press)
-                case "Headgear Clothing" | "Upper Body Clothing" | "Hand Clothing"|\
-                    "Lower Body Clothing":
-                    if location.material_type == "Cloth":
-                        set_rule(loc, self.clothier_workshop)
-                    elif location.material_type == "Leather":
-                        set_rule(loc, self.leather_works)
-                    else:
-                        set_rule(loc, self.leather_or_cloth)
-                case "Upper Body Armor":
-                    if location.material_type == "Metal":
-                        set_rule(loc, self.metal)
-                    elif location.material_type == "Leather":
-                        set_rule(loc, self.leather_works)
-                    else:
-                        set_rule(loc, self.metal_or_leather)
-                case "Gauntlets":
-                    if location.material_type == "Metal":
-                        set_rule(loc, self.metal)
-                    elif location.material_type == "Bone":
-                        set_rule(loc, self.craftdwarf_workshop)
-                    else:
-                        set_rule(loc, self.metal_or_bone)  
-                case "Footwear":
-                    if location.material_type == "Metal":
-                        set_rule(loc, self.metal)
-                    elif location.material_type == "Cloth":
-                        set_rule(loc, self.clothier_workshop)
-                    elif location.material_type == "Leather":
-                        set_rule(loc, self.leather_works)
-                    else:
-                        set_rule(loc, self.metal_or_cloth_or_leather)
-                case "Dye":
-                    set_rule(loc, self.dye)
-                case "Bag":
-                    if location.material_type == "Cloth":
-                        set_rule(loc, self.clothier_workshop)
-                    elif location.material_type == "Leather":
-                        set_rule(loc, self.leather_works)
-                    else:
-                        set_rule(loc, self.leather_or_cloth)
-                case "Rope/Chain":
-                    if location.material_type == "Cloth":
-                        set_rule(loc, self.clothier_workshop)
-                    elif location.material_type == "Metal":
-                        set_rule(loc, self.metal)
-                    else:
-                        set_rule(loc, self.metal_or_cloth)
-                case "Battle Axe" | "Mace" | "Pick" | "Short Sword" | "War Hammer" |\
-                    "Anvil" | "Coins":
-                    set_rule(loc, self.metal)
-                case "Soap":
-                    set_rule(loc, self.soap)
 
 def assign_locationid_block(item: str) -> int:
     match item:
