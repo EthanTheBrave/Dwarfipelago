@@ -1,13 +1,14 @@
 from typing import Any, ClassVar, List
 from BaseClasses import Region, Location, Item, ItemClassification, Tutorial
 from worlds.AutoWorld import World, WebWorld
+from Options import OptionError
 from worlds.LauncherComponents import Component, icon_paths, components, Type, launch_subprocess
 
-from .options import DwarfFortressOptions, DwarfFortressGoal
+from .options import DwarfFortressOptions, DwarfFortressGoal, CraftingItems
 from .settings import DwarfFortressSettings
 from .items import (
     ItemData, ITEM_TABLE, AP_ITEM_POOL, FILLER_ITEMS, TRAP_ITEMS,
-    PROGRESSION_ITEMS, USEFUL_ITEMS
+    PROGRESSION_ITEMS, USEFUL_ITEMS, CRAFT_ITEMS
 )
 from .locations import LocationData, LOCATION_TABLE, ALL_LOCATIONS
 from .craftsanity import (
@@ -78,6 +79,8 @@ class DwarfFortressWorld(World):
 
     dynamic_locations = []
     dynamic_locations_names = []
+    ap_item_pool = AP_ITEM_POOL
+    starting_inventory = []
     active_location_names = []  # per-slot subset of location_name_to_id this slot creates
     web = DwarfFortressWebWorld()
 
@@ -91,8 +94,40 @@ class DwarfFortressWorld(World):
         # name we select is guaranteed to already exist in location_name_to_id.
         self.dynamic_locations = []
         self.dynamic_locations_names = []
-        #populates dynamic_locations and d_l_names
+        #populates dynamic_locations and names
         generate_location_data(self)
+
+         # remove the crafting items from the pool depending on the options
+        if self.options.craftitems == CraftingItems.option_off or not self.options.craftsanity:
+            remove_list = []
+            remove_ap_pool = []
+            for item in self.item_name_to_id:
+                match = [i for i in CRAFT_ITEMS if i.name == item]
+                if len(match) > 0:
+                    remove_list.append(item)
+                    remove_ap_pool.append(match[0])
+            for item in remove_list:
+                del self.item_name_to_id[item]
+            for item in remove_ap_pool:
+                self.ap_item_pool.remove(item)
+        elif self.options.craftitems == CraftingItems.option_on:
+            self.starting_inventory = ["Crafting Beds", "Crafting Charcoal", "Crafting Leather",
+                "Crafting Cloth", "Crafting Alcohol", "Crafting Prepared Meal"
+            ]
+            remove_ap_pool = []
+            for item in self.item_name_to_id:
+                if item in self.starting_inventory:
+                    match = [i for i in CRAFT_ITEMS if i.name == item]
+                    remove_ap_pool.append(match[0])
+            for item in remove_ap_pool:
+                self.ap_item_pool.remove(item)
+        
+        if len(CRAFT_ITEMS) > len(self.dynamic_locations):
+            raise OptionError(
+                f"{self.player_name}: You do not have enough crafting locations enabled to use the crafting items feature."
+                f" To increase this, add more crafting item locations, increase the maximum amount or lower the threshold."
+                f" You need {len(CRAFT_ITEMS) - len(self.dynamic_locations)} more locations."
+            )
 
         # Active set = the static non-craft locations (LOCATION_TABLE) plus the
         # craft subset this slot generated. Goal-based filtering then drops
@@ -151,20 +186,24 @@ class DwarfFortressWorld(World):
         location_count = len(self.active_location_names)
         trap_weight = self.options.trap_item_weight.value / 100.0
 
+        #precollect starting items
+        for item_name in self.starting_inventory:
+            self.multiworld.push_precollected(self.create_item(item_name))
+
         # Separate required (progression) items from optional ones.
         # Progression items — all blueprints plus Artifact/Legendary items — must
         # always be included because rules.py gates locations behind them.  If they
         # were trimmed to fit the location count the accessibility check would fail.
         required: list[ItemData] = [
-            d for d in AP_ITEM_POOL
+            d for d in self.ap_item_pool
             if d.classification == ItemClassification.progression
         ]
         optional: list[ItemData] = [
-            d for d in AP_ITEM_POOL
+            d for d in self.ap_item_pool
             if d.classification != ItemClassification.progression
         ]
 
-        for item_data in AP_ITEM_POOL:
+        for item_data in self.ap_item_pool:
             if self.options.goal == DwarfFortressGoal.option_slay_megabeast and \
                 item_data.name in {"Merchant's Coffer", "Baron's Charter",  "Count's Charter", "Duke's Charter", "Monarch's Invitation"}:
                     required.remove(item_data)
@@ -253,7 +292,7 @@ class DwarfFortressWorld(World):
 
     def create_item(self, name: str) -> DwarfFortressItem:
         classification = ItemClassification.filler
-        for item_data in AP_ITEM_POOL:
+        for item_data in self.ap_item_pool:
             if item_data.name == name:
                 classification = item_data.classification
                 break
