@@ -530,14 +530,13 @@ helm_subtype(15, "headgear_clothing")
 
 
 local GOBLET_SUBTYPE_FLAG = {}
-local function goblet_subtype(name, flag)
-    local v = df.job_type[name]
-    if v ~= nil then GOBLET_SUBTYPE_FLAG[v] = flag end
+local function goblet_subtype(material_flag, flag)
+    GOBLET_SUBTYPE_FLAG[material_flag] = flag
 end
 goblet_subtype("wood",   "cup")
 goblet_subtype("stone",  "mug")
 goblet_subtype("metal",  "goblet")
-goblet_subtype("glass",   "goblet")
+goblet_subtype("glass",  "goblet")
 
 -- Keyed by the job's reaction_name STRING (job_to_craft_flag looks up
 -- REACTION_SUBTYPE_FLAG[job.reaction_name]). The previous version keyed by
@@ -547,8 +546,8 @@ local REACTION_SUBTYPE_FLAG = {}
 local function reaction_subtype(name, flag)
     REACTION_SUBTYPE_FLAG[name] = flag
 end
-reaction_subtype("LIGNITE_TO_COAL",                 "coke_bar")
-reaction_subtype("BITUMINOUS_COAL_TO_COAL",         "coke_bar")
+reaction_subtype("LIGNITE_TO_COAL",                 "coke_bars")
+reaction_subtype("BITUMINOUS_COAL_TO_COAL",         "coke_bars")
 reaction_subtype("MAKE_PEARLASH",                   "pearlash")
 reaction_subtype("MAKE_PLASTER_POWDER",             "gypsum_plaster")
 reaction_subtype("MAKE_QUICKLIME",                  "quicklime")
@@ -722,58 +721,73 @@ local function mat_craft_flag(job)
     return item_flag
 end
 
+-- Shared dispatch: resolve job_type + all subtype tables to the base craft flag
+-- string, without any material suffix. Returns nil when not a tracked craft.
+local function _job_flag_dispatch(job)
+    if not job or not job.job_type then return nil end
+    local flag = JOB_TO_CRAFT_FLAG[job.job_type]
+    if not flag then return nil end
+
+    if flag == "TOOL_SUBTYPE" then
+        return TOOL_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+    elseif flag == "TRAP_SUBTYPE" then
+        return TRAP_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+    elseif flag == "SHIELD_SUBTYPE" then
+        return SHIELD_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+    elseif flag == "WEAPON_SUBTYPE" then
+        return WEAPON_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+    elseif flag == "HELM_SUBTYPE" then
+        return HELM_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+    elseif flag == "GOBLET_SUBTYPE" then
+        return GOBLET_SUBTYPE_FLAG[mat_craft_flag(job)]
+    elseif flag == "REACTION_SUBTYPE" then
+        if string.find(job.reaction_name, "DYE") then return "dye" end
+        return REACTION_SUBTYPE_FLAG[job.reaction_name]
+    elseif flag == "UARMOR_SUBTYPE" then
+        return UARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+    elseif flag == "GARMOR_SUBTYPE" then
+        return GARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+    elseif flag == "LARMOR_SUBTYPE" then
+        return LARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+    end
+    return flag
+end
+
+-- Items tracked without a material suffix regardless of craftsanity_materials.
+-- Hash table for O(1) lookup. Also the source of truth for coke_bars (not coke_bar).
+local NON_MATERIAL = {
+    beds=true, ash=true, charcoal=true, metal_bars=true, coke_bars=true,
+    pearlash=true, gypsum_plaster=true, quicklime=true, glass=true,
+    leather=true, sheet=true, cloth=true, alcohol=true,
+    lye=true, potash=true, milk_of_lime=true, prepared_meal=true,
+    tallow=true, oil=true, press_cake=true, honey=true,
+    bee_wax=true, dye=true, soap=true, training_axe=true,
+    training_spear=true, training_sword=true, cup=true, ballista_parts=true,
+    catapult_parts=true, millstone=true, quern=true, slab=true,
+    mug=true, totem=true, window=true, battle_axe=true,
+    mace=true, pick=true, short_sword=true, spear=true,
+    war_hammer=true, anvil=true, coins=true,
+}
+
+-- Returns the base item flag for a job (no material suffix). Used by the
+-- crafting-item gate in dwarfipelago.lua. Returns nil if not a tracked craft.
+function M.job_to_base_craft_flag(job)
+    return _job_flag_dispatch(job)
+end
+
 -- Returns the AP craftable_items/materials flag for a completed job,
 -- or nil if the job type is not tracked for quantity checks.
 function M.job_to_craft_flag(job)
-    if not job or not job.job_type then return nil end
-    local flag = JOB_TO_CRAFT_FLAG[job.job_type]
-    if flag then
-        if flag == "TOOL_SUBTYPE" then
-            flag = TOOL_SUBTYPE_FLAG[tonumber(job.item_subtype)]
-        elseif flag == "TRAP_SUBTYPE" then
-            flag = TRAP_SUBTYPE_FLAG[tonumber(job.item_subtype)]
-        elseif flag == "SHIELD_SUBTYPE" then
-            flag = SHIELD_SUBTYPE_FLAG[tonumber(job.item_subtype)]
-        elseif flag == "WEAPON_SUBTYPE" then
-            flag = WEAPON_SUBTYPE_FLAG[tonumber(job.item_subtype)]
-        elseif flag == "HELM_SUBTYPE" then
-            flag = HELM_SUBTYPE_FLAG[tonumber(job.item_subtype)]
-        elseif flag == "GOBLET_SUBTYPE" then
-            flag = GOBLET_SUBTYPE_FLAG[mat_craft_flag(job)]
-        elseif flag == "REACTION_SUBTYPE" then
-            if string.find(job.reaction_name, "DYE") then --too many DYES to add
-                flag = "dye"
-            else
-                flag = REACTION_SUBTYPE_FLAG[job.reaction_name]
-            end
-        elseif flag == "UARMOR_SUBTYPE" then
-            flag = UARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
-        elseif flag == "GARMOR_SUBTYPE" then
-            flag = GARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
-        elseif flag == "LARMOR_SUBTYPE" then
-            flag = LARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
-        end
-        if flag == "beds" or flag == "ash" or flag == "charcoal" or flag == "metal_bars" or flag == "coke_bar"
-            or flag == "pearlash" or flag == "gypsum_plaster" or flag == "quicklime" or flag == "glass"
-            or flag == "leather" or flag == "sheet" or flag == "cloth" or flag == "alcohol"
-            or flag == "lye" or flag == "potash" or flag == "milk_of_lime" or flag == "prepared_meal"
-            or flag == "tallow" or flag == "oil" or flag == "press_cake" or flag == "honey"
-            or flag == "bee_wax" or flag == "dye" or flag == "soap" or flag == "training_axe"
-            or flag == "training_spear" or flag == "training_sword" or flag == "cup" or flag == "ballista_parts"
-            or flag == "catapult_parts" or flag == "millstone" or flag == "quern" or flag == "slab"
-            or flag == "mug" or flag == "totem" or flag == "window" or flag == "battle_axe"
-            or flag == "mace" or flag == "pick" or flag == "short_sword" or flag == "spear"
-            or flag == "war_hammer" or flag == "anvil" or flag == "coins" then
-                return flag
-        end
-        local need_mat = dfhack.persistent.getWorldDataString('dwarfipelago/craftsanity_materials')
-        if tonumber(need_mat) == 1 then
-            local material_used = mat_craft_flag(job) -- shouldn't return nil here
-            return tostring(flag) .. "_" .. tostring(material_used) 
-        end
-        return flag 
+    local flag = _job_flag_dispatch(job)
+    if not flag then return nil end
+    if NON_MATERIAL[flag] then return flag end
+    local need_mat = dfhack.persistent.getWorldDataString('dwarfipelago/craftsanity_materials')
+    if tonumber(need_mat) == 1 then
+        local material_used = mat_craft_flag(job)
+        if not material_used then return flag end  -- nil guard: fall back to base key
+        return flag .. "_" .. material_used
     end
-    return nil
+    return flag
 end
 
 -- ── Craft count helpers ───────────────────────────────────────────────────────
