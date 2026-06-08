@@ -83,8 +83,30 @@ local function spawn_item(item_type, material, quantity)
     return created
 end
 
-local function announce(msg)
+-- Show an AP announcement. If pos ({x,y,z}) is given, the announcement is
+-- clickable in the announcements list and zooms the map to that tile.
+-- Falls back to a plain showAnnouncement if zoom fails (e.g. bad pos).
+local function announce(msg, pos, atype)
+    if pos then
+        local ok = pcall(function()
+            dfhack.gui.showZoomAnnouncement(
+                atype or df.announcement_type.CARAVAN_ARRIVAL,
+                pos, "[AP] " .. msg, COLOR_GREEN, true)
+        end)
+        if ok then return end
+    end
     dfhack.gui.showAnnouncement("[AP] " .. msg, COLOR_GREEN, true)
+end
+
+-- Returns the trade depot center as a pos table, or nil if no depot exists.
+local function depot_pos()
+    local cx, cy, cz = find_trade_depot_center()
+    if cx then return {x=cx, y=cy, z=cz} end
+end
+
+-- Shorthand for announcements about items spawned at the trade depot.
+local function announce_at_depot(msg)
+    announce(msg, depot_pos())
 end
 
 -- Version-safe unit display name. DFHack moved name translation across versions:
@@ -163,38 +185,38 @@ end
 
 local function recv_cut_sapphire()
     spawn_item("SMALLGEM", "INORGANIC:SAPPHIRE")
-    announce("Received: Cut Sapphire!")
+    announce_at_depot("Received: Cut Sapphire!")
 end
 
 local function recv_cut_ruby()
     spawn_item("SMALLGEM", "INORGANIC:RUBY")
-    announce("Received: Cut Ruby!")
+    announce_at_depot("Received: Cut Ruby!")
 end
 
 local function recv_cut_diamond()
     spawn_item("SMALLGEM", "INORGANIC:CLEAR_DIAMOND")
-    announce("Received: Cut Diamond!")
+    announce_at_depot("Received: Cut Diamond!")
 end
 
 local function recv_gold_bar()
     spawn_item("BAR", "INORGANIC:GOLD")
-    announce("Received: Gold Bar!")
+    announce_at_depot("Received: Gold Bar!")
 end
 
 local function recv_silver_bar()
     spawn_item("BAR", "INORGANIC:SILVER")
-    announce("Received: Silver Bar!")
+    announce_at_depot("Received: Silver Bar!")
 end
 
 local function recv_steel_bar()
     spawn_item("BAR", "INORGANIC:STEEL")
-    announce("Received: Steel Bar!")
+    announce_at_depot("Received: Steel Bar!")
 end
 
 local function recv_masterwork_craft()
     -- FIGURINE is the correct item token for a craft figurine.
     spawn_item("FIGURINE", "INORGANIC:OBSIDIAN")
-    announce("Received: Masterwork Craft!")
+    announce_at_depot("Received: Masterwork Craft!")
 end
 
 -- ── Item handlers: resources ──────────────────────────────────────────────────
@@ -208,28 +230,28 @@ local function recv_food_bundle()
     for _ = 1, 5 do
         spawn_item("PLANT_GROWTH", "PLANT:MUSHROOM_HELMET_PLUMP:MUSHROOM")
     end
-    announce("Received: Food Bundle (5 plump helmets)!")
+    announce_at_depot("Received: Food Bundle (5 plump helmets)!")
 end
 
 local function recv_wood_bundle()
     for _ = 1, 5 do
         spawn_item("WOOD", "PLANT_MAT:OAK:WOOD")
     end
-    announce("Received: Wood Bundle (5 logs)!")
+    announce_at_depot("Received: Wood Bundle (5 logs)!")
 end
 
 local function recv_iron_ore_bundle()
     for _ = 1, 5 do
         spawn_item("BOULDER", "INORGANIC:LIMONITE")
     end
-    announce("Received: Iron Ore Bundle!")
+    announce_at_depot("Received: Iron Ore Bundle!")
 end
 
 local function recv_coal_bundle()
     for _ = 1, 3 do
         spawn_item("BAR", "COAL:COKE")
     end
-    announce("Received: Coal Bundle!")
+    announce_at_depot("Received: Coal Bundle!")
 end
 
 -- ── Item handlers: filler items ──────────────────────────────────────────────
@@ -238,27 +260,27 @@ end
 
 local function recv_dwarven_ale()
     spawn_item("DRINK", "PLANT_MAT:MUSHROOM_HELMET_PLUMP:DRINK", 3)
-    announce("Received: Dwarven Ale! A cask of plump helmet brew.")
+    announce_at_depot("Received: Dwarven Ale! A cask of plump helmet brew.")
 end
 
 local function recv_stone_trinket()
     spawn_item("FIGURINE", "INORGANIC:MARBLE")
-    announce("Received: Stone Trinket! A finely carved marble figurine.")
+    announce_at_depot("Received: Stone Trinket! A finely carved marble figurine.")
 end
 
 local function recv_bone_crafts()
     spawn_item("FIGURINE", "CREATURE_MAT:DWARF:BONE")
-    announce("Received: Bone Crafts!")
+    announce_at_depot("Received: Bone Crafts!")
 end
 
 local function recv_raw_ore()
     spawn_item("BOULDER", "INORGANIC:MAGNETITE", 3)
-    announce("Received: Raw Ore! Magnetite boulders ready for smelting.")
+    announce_at_depot("Received: Raw Ore! Magnetite boulders ready for smelting.")
 end
 
 local function recv_wooden_cup()
     spawn_item("GOBLET", "PLANT_MAT:OAK:WOOD")
-    announce("Received: Wooden Cup!")
+    announce_at_depot("Received: Wooden Cup!")
 end
 
 -- New useful industry-material filler. Each falls back to a known-good spawn if
@@ -387,7 +409,7 @@ end
 
 local function recv_masterwork_crafts()
     spawn_item("FIGURINE", "INORGANIC:OBSIDIAN")
-    announce("Received: Masterwork Crafts! A masterwork obsidian figurine.")
+    announce_at_depot("Received: Masterwork Crafts! A masterwork obsidian figurine.")
 end
 
 local function recv_dwarven_steel_sword()
@@ -396,13 +418,13 @@ local function recv_dwarven_steel_sword()
     if spawn_item("WEAPON:ITEM_WEAPON_SWORD_SHORT", "INORGANIC:STEEL") == 0 then
         spawn_item("BAR", "INORGANIC:STEEL", 3)
     end
-    announce("Received: Dwarven Steel Sword!")
+    announce_at_depot("Received: Dwarven Steel Sword!")
 end
 
 local function recv_fine_cloth()
     -- Pig tail is the iconic dwarven fibre crop; its thread material makes cloth.
     spawn_item("CLOTH", "PLANT_MAT:GRASS_TAIL_PIG:THREAD", 3)
-    announce("Received: Fine Cloth!")
+    announce_at_depot("Received: Fine Cloth!")
 end
 
 local function recv_adamantine_fiber()
@@ -410,7 +432,7 @@ local function recv_adamantine_fiber()
     if spawn_item("CLOTH", "INORGANIC:ADAMANTINE", 2) == 0 then
         spawn_item("CLOTH", "PLANT_MAT:GRASS_TAIL_PIG:THREAD", 3)
     end
-    announce("Received: Adamantine Fiber!")
+    announce_at_depot("Received: Adamantine Fiber!")
 end
 
 -- ── Item handlers: progression gate items ────────────────────────────────────
@@ -538,19 +560,19 @@ end
 local function recv_cave_fisher_silk()
     -- Silk cloth woven from cave fisher silk. CLOTH item, creature silk material.
     spawn_item("CLOTH", "CREATURE_MAT:CAVE_FISHER:SILK", 2)
-    announce("A bundle of cave fisher silk has been deposited at your trade depot.")
+    announce_at_depot("A bundle of cave fisher silk has been deposited at your trade depot.")
 end
 
 local function recv_dwarf_bones()
     -- A grim totem carved from dwarf bone. TOTEM item, creature bone material.
     spawn_item("TOTEM", "CREATURE_MAT:DWARF:BONE")
-    announce("A grim package of dwarf bones has arrived. An ill omen...")
+    announce_at_depot("A grim package of dwarf bones has arrived. An ill omen...")
 end
 
 local function recv_goblin_trophy()
     -- A goblin-bone totem — the classic war trophy.
     spawn_item("TOTEM", "CREATURE_MAT:GOBLIN:BONE")
-    announce("A goblin trophy has been delivered. Someone out there is mocking you.")
+    announce_at_depot("A goblin trophy has been delivered. Someone out there is mocking you.")
 end
 
 -- ── Item handlers: traps ──────────────────────────────────────────────────────
@@ -677,13 +699,16 @@ local function recv_goblin_ambush()
             end
         end
     end
+    local spawn_pos = x and {x=x, y=y, z=z} or nil
     if spawned > 0 then
-        announce("Trap: Goblin Ambush! Raiders have breached the fortress!")
+        announce("Trap: Goblin Ambush! Raiders have breached the fortress!",
+            spawn_pos, df.announcement_type.AMBUSH_AMBUSHER)
     else
         -- Fallback: the fear of a raid rattles the whole fortress.
         local n = stress_citizens(60000)
         log.warn("goblin_ambush: unit spawn unavailable, applied raid-fear stress to " .. n .. " dwarves")
-        announce("Trap: A goblin ambush descends — panic grips your dwarves!")
+        announce("Trap: A goblin ambush descends — panic grips your dwarves!",
+            spawn_pos, df.announcement_type.AMBUSH_AMBUSHER)
     end
 end
 
@@ -692,13 +717,16 @@ local function recv_cave_bear()
     -- BLIND_CAVE_BEAR is the actual underground bear (perfect for this trap);
     -- fall back across the surface bear species so it resolves in any world.
     local BEARS = { "BLIND_CAVE_BEAR", "CAVE_BEAR", "BEAR_GRIZZLY", "BEAR_BLACK", "BEAR_POLAR", "BEAR_SLOTH" }
+    local spawn_pos = x and {x=x, y=y, z=z} or nil
     if x and create_unit(BEARS, {x = x, y = y, z = z}, {civ_id = -1, hostile = true}) then
-        announce("Trap: A Cave Bear has found its way in!")
+        announce("Trap: A Cave Bear has found its way in!",
+            spawn_pos, df.announcement_type.BEAST_AMBUSH)
     else
         -- Fallback: a beast in the dark badly shakes a few dwarves.
         local n = stress_citizens(120000, 3)
         log.warn("cave_bear: unit spawn unavailable, applied beast-scare stress to " .. n .. " dwarves")
-        announce("Trap: Something large and angry stalks your tunnels...")
+        announce("Trap: Something large and angry stalks your tunnels...",
+            spawn_pos, df.announcement_type.BEAST_AMBUSH)
     end
 end
 
@@ -722,13 +750,16 @@ local function recv_vermin_infestation()
             end
         end
     end
+    local spawn_pos = x and {x=x, y=y, z=z} or nil
     if spawned > 0 then
-        announce("Trap: Vermin Infestation! Giant rats everywhere!")
+        announce("Trap: Vermin Infestation! Giant rats everywhere!",
+            spawn_pos, df.announcement_type.VERMIN_CAGE_ESCAPE)
     else
         -- Fallback: vermin devour part of your food and drink stores.
         local eaten = destroy_food(20)
         log.warn("vermin_infestation: unit spawn unavailable, vermin ate " .. eaten .. " food/drink items")
-        announce(("Trap: Vermin Infestation! They have devoured %d of your stores."):format(eaten))
+        announce(("Trap: Vermin Infestation! They have devoured %d of your stores."):format(eaten),
+            spawn_pos, df.announcement_type.VERMIN_CAGE_ESCAPE)
     end
 end
 
@@ -752,7 +783,9 @@ local function recv_tantrum_trigger()
     if target and target.status.current_soul then
         target.status.current_soul.personality.stress = 500000
         local name = unit_display_name(target)
-        announce("Trap: " .. (name ~= "" and name or "A dwarf") .. " has had enough!")
+        local tpos = {x=target.pos.x, y=target.pos.y, z=target.pos.z}
+        announce("Trap: " .. (name ~= "" and name or "A dwarf") .. " has had enough!",
+            tpos, df.announcement_type.CITIZEN_TANTRUM)
     else
         -- No eligible dwarf found (e.g. very early embark with no stress data).
         announce("Trap: Something sinister stirs in the fortress...")
