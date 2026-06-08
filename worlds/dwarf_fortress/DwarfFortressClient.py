@@ -673,6 +673,7 @@ class DwarfFortressContext(CommonContext):
         craftsanity_enabled = slot_data.get("craftsanity_enabled") # 0 off, 1 on, 2 storage
         self.version = slot_data.get("version")
         materials_enabled = slot_data.get("craftsanity_materials")
+        craftitems = slot_data.get("craftitems", 0)
         current_seed = self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("dwarfipelago/seed"))')
         current_seed = (current_seed or "").strip()
         # A blank/"nil" stored seed means this world has no AP identity yet (fresh,
@@ -697,6 +698,7 @@ class DwarfFortressContext(CommonContext):
                 # even on reconnects or if the initial write was interrupted.
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_enabled", "{craftsanity_enabled}")')
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_materials", "{materials_enabled}")')
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftitems", "{craftitems}")')
                 self._slot_data_synced = True
                 await self.getAPKeyValue("Dwarfipelago/"+str(self.seed)+"/completed_locations")
                 logger.info(f"Synced slot data → goal={goal}, wealth_goal={wealth_goal}, pop_goal={pop_goal}, dl_threshold={dl_threshold}")
