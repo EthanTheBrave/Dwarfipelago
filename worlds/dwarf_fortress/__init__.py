@@ -295,6 +295,7 @@ class DwarfFortressWorld(World):
             "craftsanity_materials": self.options.craftsanity_enable_materials.value,
             "crafting_items": self.options.craftitems.value,
             "deathlink_percentage": self.options.deathlink_percentage.value,
+            "energy_link": self.options.energy_link.value,
             "version": f"{self.world_version.as_simple_string()}",
         }
 
