@@ -402,21 +402,11 @@ local function detect_trade_export()
         return  -- both already fired
     end
 
-    -- DF50+ uses plotinfo; Classic uses ui.
-    local exported = 0
-    local ok, result = pcall(function()
-        return df.global.plotinfo.tasks.wealth_exported
-    end)
-    if ok and type(result) == "number" then
-        exported = result
-    else
-        ok, result = pcall(function()
-            return df.global.ui.tasks.wealth_exported
-        end)
-        if ok and type(result) == "number" then
-            exported = result
-        end
-    end
+    -- Use the same multi-path lookup that checks.lua uses for wealth-gate checks.
+    -- DF50 Steam nests exported wealth as tasks.wealth.exported; Classic uses a
+    -- flat tasks.wealth_exported field.  exported_wealth() tries both forms and
+    -- both global bases (plotinfo / ui) so we don't miss either variant.
+    local exported = checks.exported_wealth()
 
     if exported > 0 then
         if not checks.trade_flag("trade_completed") then
