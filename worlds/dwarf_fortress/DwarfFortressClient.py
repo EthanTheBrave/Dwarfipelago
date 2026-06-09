@@ -441,17 +441,17 @@ class DwarfFortressCommandProcessor(ClientCommandProcessor):
         """Send energy to test energy link. usage: /send_energy_link <amount>"""
         difference = int(amount)
         if difference <= 0:
-            self.last_deplete = time.time()
-            async_start(self.send_msgs([{
-                "cmd": "Set", "key": self.energylink_key, "operations":
+            self.ctx.last_deplete = time.time()
+            async_start(self.ctx.send_msgs([{
+                "cmd": "Set", "key": self.ctx.energylink_key, "operations":
                     [{"operation": "add", "value": difference},
                     {"operation": "max", "value": 0}],
-                "last_deplete": self.last_deplete
+                "last_deplete": self.ctx.last_deplete
             }]))
             logger.debug(f"EnergyLink: Used {format_SI_prefix(difference)}J")
         else:
-            async_start(self.send_msgs([{
-                "cmd": "Set", "key": self.energylink_key, "operations":
+            async_start(self.ctx.send_msgs([{
+                "cmd": "Set", "key": self.ctx.energylink_key, "operations":
                     [{"operation": "add", "value": difference}]
             }]))
             logger.debug(f"EnergyLink: Sent {format_SI_prefix(difference)}J")
@@ -1042,7 +1042,6 @@ class DwarfFortressContext(CommonContext):
                 asyncio.create_task(self.update_death_link(True))
             self.energy_link_enabled = bool(self.slot_data.get("energy_link", 0))
             if self.energy_link_enabled:
-                asyncio.create_task(self.update_death_link(True))
                 async_start(self.send_msgs([{
                     "cmd": "SetNotify", "keys": [self.energylink_key]
                 }]))
@@ -1069,7 +1068,7 @@ class DwarfFortressContext(CommonContext):
                     if gained:
                         logger.debug(f"EnergyLink: Received {gained_text}. "
                                      f"{format_SI_prefix(args['value'])}J remaining.")
-                        self.rcon_client.send_command(f"/ap-energylink {gained}")
+                        self.new_energy = gained
 
     def on_print_json(self, args: dict[Any, Any]):
         if self.ui:
@@ -1114,7 +1113,7 @@ class DwarfFortressContext(CommonContext):
 
     @property
     def energy_link_status(self) -> str:
-        if not self.energy_link_increment:
+        if not self.energy_link_enabled:
             return "Disabled"
         elif self.current_energy_link_value is None:
             return "Standby"

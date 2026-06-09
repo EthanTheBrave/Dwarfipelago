@@ -202,6 +202,7 @@ class DwarfFortressOptions(PerGameCommonOptions):
     deathlink: DeathLink
     deathlink_threshold: DeathLinkThreshold
     deathlink_percentage: DeathLinkPercentage
+    energy_link:EnergyLink
     goal: DwarfFortressGoal
     wealth_goal_amount: WealthGoalAmount
     population_goal_amount: PopulationGoalAmount
@@ -217,4 +218,3 @@ class DwarfFortressOptions(PerGameCommonOptions):
     craftsanity_threshold: CraftsanityThreshold
     trap_item_weight: TrapItemWeight
     start_inventory: StartingDefaultDFInventory
-    energy_link:EnergyLink
