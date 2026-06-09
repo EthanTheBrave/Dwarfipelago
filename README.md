@@ -25,6 +25,35 @@ See [`worlds/dwarf_fortress/docs/setup_en.md`](worlds/dwarf_fortress/docs/setup_
 ---
 
 <details>
+<summary>World Generation</summary>
+
+Dwarfipelago is balanced for a **Small world** (65×65 region tiles). A recommended world gen preset is included in the repo.
+
+### Setup
+
+1. Copy `prefs/world_gen.txt` from this repo into your Dwarf Fortress `prefs/` folder (create the folder if it doesn't exist)
+2. When creating a new world in DF, open the world gen menu and select **"DwarfipelagoWorld"** from the saved presets list
+3. Generate and embark as normal
+
+### What the preset does
+
+| Setting | Value | Reason |
+|---------|-------|--------|
+| World size | Small (65×65) | Balanced play duration; faster gen than Medium/Large |
+| Numbered civs | 20 | Ensures human and elf civilizations are present for caravan checks |
+| Forest regions (min) | 2 | Guarantees elf habitat exists |
+| Grassland regions (min) | 2 | Guarantees human habitat exists |
+| Everything else | DF defaults | No other settings are changed |
+
+### If you use a different preset
+
+The mod will still work, but when you run `dwarfipelago start` it will warn you in-game (yellow announcement) if no human or elf civilization was found in the world. Human and elf caravan visit checks will be impossible to complete in that world.
+
+</details>
+
+---
+
+<details>
 <summary>Trade Depot</summary>
 
 When you load a fortress with Dwarfipelago active, the mod automatically places a **Trade Depot** near your starting wagon. This depot serves as the central hub for Archipelago:
@@ -77,11 +106,11 @@ Completing these milestones sends items to other players:
 
 - **Treasury milestones** - Humble Beginnings (1,000☼) through Legendary Vault (500,000☼) — based on the combined value of **minted coins and cut gems** in fortress stocks, not total fortress wealth
 - **First production** - first weapon forged, armor crafted, meal prepared, brew completed, metal bar smelted, gem cut, and more (18 milestones)
-- **Trade & diplomacy** - first caravan trade, first export, dwarven/elven/human caravan visits, outpost liaison meeting
+- **Trade & diplomacy** - first caravan trade, first export, dwarven/elven/human caravan visits, outpost liaison meeting (an elven/human caravan-visit check auto-completes if that civilisation doesn't exist in your world, so it can't soft-lock the seed)
 - **Fortress status** - noble appointments and civilisation recognition milestones
 - **Fortress titles** - Hamlet, Village, Town, City, Metropolis (population + wealth thresholds)
 - **Mining** - depth milestones (10/25/50/75/100 levels below the surface), tiles excavated (100 → 10,000), and breach events (First/Second/Third Cavern, Reached the Magma Sea)
-- **Farming** - harvested-crop milestones (50 / 250 / 1,000 / 2,500 / 5,000 crops)
+- **Farming** - harvested-crop milestones (50 / 100 / 250 / 500 / 1,000 crops)
 - **Craftsanity** - optional crafting milestone checks (see below)
 
 </details>
@@ -154,9 +183,13 @@ craftsanity_threshold: 5
 |------|---------|
 | Workshop blueprints | 29 blueprints that unlock workshops, furnaces, and farm plots - **progression items** (see Progression section below) |
 | Progression locks | Merchant's Coffer (x5), Immigration Wave (x5), Noble Ladder charters (x4), Military Training (x4) - gate milestone checks and goal completion |
+| Prestige rewards | Artifact Weapon (adamantine battle axe), Artifact Armor (full adamantine set), Master Builder's Codex (genuine indestructible **artifact** adamantine door) |
 | Trade goods | Cut gems, gold/silver/steel bars, masterwork crafts |
 | Resources | Food bundles, wood bundles, iron ore, coal |
-| Traps | Goblin ambush, cave bear incursion, vermin infestation, tantrum trigger |
+| Industry materials | Flux stone, pig iron, charcoal, cloth bolts, tanned leather, **bags of sand** (glassmaking), raw clay (kaolinite for porcelain), plus rare low-grade copper tools (pick/axe/sword) |
+| Traps | Goblin ambush, cave bear incursion, vermin infestation, tantrum trigger, lost caravan |
+
+All received goods are delivered to the **trade depot**.
 
 </details>
 
@@ -199,7 +232,7 @@ The **Legendary Wealth** goal also requires all 5 coffers and a treasury value a
 
 #### Immigration Wave (x5) - Population Growth
 
-Five waves gate the five fortress title checks (Hamlet through Metropolis) and scale up the population requirement for every goal's completion condition. Each Immigration Wave received also brings a small group of dwarves into your fortress as new citizens, so receiving them genuinely grows your population.
+Five waves gate the five fortress title checks (Hamlet through Metropolis) and scale up the population requirement for every goal's completion condition. Each Immigration Wave received also brings a small group of dwarves into your fortress as new citizens (arriving named and in basic clothing at the depot), so receiving them genuinely grows your population.
 
 | Waves received | Title check unlocked | Also gates |
 |---|---|---|
@@ -235,9 +268,11 @@ Four training items gate the megabeast slaying goal. The first three each **equi
 
 Dwarfipelago supports Archipelago's DeathLink system with a configurable threshold:
 
+- Enable it with `deathlink: true` in your options YAML (off by default)
 - Every **N dwarf deaths** (default: 5) in your fortress sends one DeathLink to all connected DeathLink players
 - Receiving a DeathLink kills **N random dwarves** in your fortress
 - Set `deathlink_threshold: 1` in your options for classic one-death-equals-one-death behaviour
+- Set `deathlink_percentage: true` to treat the threshold as a **percentage of your current population** instead of a flat count
 
 </details>
 
