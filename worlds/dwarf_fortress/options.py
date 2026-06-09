@@ -193,11 +193,16 @@ class StartingDefaultDFInventory(StartInventory):
     display_name = "Start Inventory"
     default = {"Carpenter's Workshop Blueprint": 1, "Stoneworker's Workshop Blueprint": 1, "Still Blueprint": 1, "Farm Plot Blueprint": 1}
 
+class EnergyLink(Toggle):
+    """Allow sending energy to other worlds. Used to call a caravan early in the season."""
+    display_name = "Energy Link"
+
 @dataclass
 class DwarfFortressOptions(PerGameCommonOptions):
     deathlink: DeathLink
     deathlink_threshold: DeathLinkThreshold
     deathlink_percentage: DeathLinkPercentage
+    energy_link:EnergyLink
     goal: DwarfFortressGoal
     wealth_goal_amount: WealthGoalAmount
     population_goal_amount: PopulationGoalAmount

@@ -94,6 +94,7 @@ Configurable per-slot in your options YAML. Every goal also requires a minimum n
 | `legendary_wealth` | Accumulate a configurable treasury value in **minted coins and cut gems** (default: 100,000☼) | 3 |
 | `slay_megabeast` | Kill a dragon, titan, or other megabeast | 2 |
 | `mountainhome` | Achieve Mountainhome status - the monarch takes residence in your fortress (very difficult) | 5 |
+| `kings_remains` | Treasure hunters, Kobolds and Goblins has plundered our great halls and took the remains of our great king. They have traded them outside of our realm and we need our friends to help find them. We need to find all X remains to bring our great king back into our halls. | 0 |
 
 </details>
 
@@ -188,6 +189,7 @@ craftsanity_threshold: 5
 | Resources | Food bundles, wood bundles, iron ore, coal |
 | Industry materials | Flux stone, pig iron, charcoal, cloth bolts, tanned leather, **bags of sand** (glassmaking), raw clay (kaolinite for porcelain), plus rare low-grade copper tools (pick/axe/sword) |
 | Traps | Goblin ambush, cave bear incursion, vermin infestation, tantrum trigger, lost caravan |
+| Crafting Items | Jobs listed in Craftsanity now requires a item that allows you to do those jobs. Can't make table without the Crafting Table Item. |
 
 All received goods are delivered to the **trade depot**.
 
@@ -258,6 +260,10 @@ The **Mountainhome** goal additionally requires the Monarch's Invitation before 
 #### Military Training (x4) - Slay Megabeast
 
 Four training items gate the megabeast slaying goal. The first three each **equip your fortress with escalating steel gear** (weapons, then armor, then full elite kit) to prepare your military. The **fourth** summons the target megabeast itself. Killing a megabeast before all four training items have arrived won't trigger victory - your military isn't considered ready yet, and the AP-summoned beast won't have appeared.
+
+#### Remains of the Great King (RotGK) (x5 - x100) - Treasure Hunt
+Throughout the Multiworld will contain this item. Collect all of them to reach your goal.
+
 
 </details>
 
