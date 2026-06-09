@@ -723,6 +723,7 @@ class DwarfFortressContext(CommonContext):
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/pop_goal", "{pop_goal}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/king_remains_goal", "{king_remains_amt}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/crafting_items", "{craftingitems}")')
+                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink", "{1 if self._deathlink_enabled else 0}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_threshold", "{dl_threshold}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_percentage", "{int(dl_percentage)}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/seed", "{self.seed}")')
@@ -733,6 +734,29 @@ class DwarfFortressContext(CommonContext):
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_enabled", "{craftsanity_enabled}")')
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_materials", "{materials_enabled}")')
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/crafting_items", "{craftingitems}")')
+                # Craftsanity metadata for the in-game panel tab.
+                # Written on every sync so the panel works after reconnects.
+                if self._craftsanity_threshold and self._craftsanity_max_value:
+                    self.dfhack.run_command("lua",
+                        f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_threshold",'
+                        f' "{int(self._craftsanity_threshold)}")')
+                    self.dfhack.run_command("lua",
+                        f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_max",'
+                        f' "{int(self._craftsanity_max_value)}")')
+                    if self._crafting_locations:
+                        seen: dict[str, str] = {}
+                        for loc_data in self._crafting_locations.values():
+                            item     = loc_data["item"]
+                            material = loc_data["material"]
+                            flag     = (item.replace(" ", "_") + ("_" + material if material else "")).lower()
+                            if flag not in seen:
+                                seen[flag] = (material + " " if material else "") + item
+                        entries = ",".join(f'["{f}"]="{l}"' for f, l in seen.items())
+                        self.dfhack.run_command(
+                            "lua",
+                            f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_labels",'
+                            f' require("json").encode({{{entries}}}))'
+                        )
                 self._slot_data_synced = True
                 await self.getAPKeyValue("Dwarfipelago/"+str(self.seed)+"/completed_locations")
                 logger.info(f"Synced slot data → goal={goal}, wealth_goal={wealth_goal}, pop_goal={pop_goal}, dl_threshold={dl_threshold}")
@@ -977,9 +1001,14 @@ class DwarfFortressContext(CommonContext):
             amount_crafted = count_lookup.get((item, material), 0)
             if amount_crafted == 0:
                 continue
-            if amount_crafted >= self._craftsanity_max_value:
-                local_checks.append(int(crafts))
-            elif amount_crafted / threshold >= self._crafting_locations[crafts]["threshold"]:
+            # Each location carries a tier number (1, 2, …, max_id); the check
+            # fires when amount_crafted / threshold >= that tier number.
+            # We no longer short-circuit on amount_crafted >= max_value because
+            # that path fires every remaining tier at once when a work-order batch
+            # overshoots the max, and can fire the final check early when
+            # max_value is not divisible by threshold.  The tier formula below
+            # covers all cases including the final check.
+            if amount_crafted / threshold >= self._crafting_locations[crafts]["threshold"]:
                 local_checks.append(int(crafts))
 
         if local_checks:

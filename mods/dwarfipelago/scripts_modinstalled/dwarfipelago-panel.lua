@@ -23,6 +23,7 @@ local GOAL_NAMES = {
     ["1"] = "Legendary Wealth",
     ["2"] = "Population Boom",
     ["3"] = "Mountainhome",
+    ["4"] = "Remains of the Great King",
 }
 
 local function yn(val, yes_color, no_color)
@@ -111,7 +112,7 @@ end
 
 local DEPTH_THRESHOLDS  = {10, 25, 50, 75, 100}
 local TILES_THRESHOLDS  = {100, 500, 2000, 5000, 10000}
-local CROPS_THRESHOLDS  = {50, 250, 1000, 2500, 5000}
+local CROPS_THRESHOLDS  = {50, 100, 250, 500, 1000}
 local WEALTH_THRESHOLDS = {1000, 10000, 50000, 100000, 500000}
 
 local PROD_FLAGS = {
@@ -241,6 +242,86 @@ local function build_progress_lines()
     return lines
 end
 
+-- ── Craftsanity list ──────────────────────────────────────────────────────────
+
+local function build_crafts_lines()
+    local lines = {}
+    local json  = require('json')
+
+    local function hdr(s)      table.insert(lines, {text=s, pen=COLOR_CYAN})     end
+    local function row(s, pen) table.insert(lines, {text=s, pen=pen or COLOR_WHITE}) end
+    local function blank()     table.insert(lines, {text=""})                    end
+
+    local enabled = tonumber(ps("craftsanity_enabled", "0")) or 0
+    if enabled == 0 then
+        row("  Craftsanity is not enabled for this seed.", COLOR_DARKGRAY)
+        return lines
+    end
+
+    local threshold  = math.max(1, tonumber(ps("craftsanity_threshold", "1")) or 1)
+    local max_val    = tonumber(ps("craftsanity_max", "0")) or 0
+    local labels_raw = ps("craftsanity_labels", "{}")
+    local labels     = json.decode(labels_raw) or {}
+
+    if max_val == 0 or next(labels) == nil then
+        row("  Waiting for AP client to sync craftsanity data...", COLOR_DARKGRAY)
+        return lines
+    end
+
+    local checks_per_item = math.ceil(max_val / threshold)
+    hdr(("  threshold: %-5d max: %-8s checks/item: %d"):format(
+        threshold, fmt_num(max_val), checks_per_item))
+    blank()
+    row(("  %-26s  %6s   %s"):format("Item", "Count", "Progress"), COLOR_CYAN)
+    row("  " .. string.rep("-", 52), COLOR_DARKGRAY)
+
+    -- Build display list
+    local craft_counts = checks.get_all_craft_counts()
+    local list = {}
+    for flag, label in pairs(labels) do
+        local count  = craft_counts[flag] or 0
+        local done_n = math.min(math.floor(count / threshold), checks_per_item)
+        table.insert(list, {
+            label   = label,
+            flag    = flag,
+            count   = count,
+            done_n  = done_n,
+            is_done = done_n >= checks_per_item,
+        })
+    end
+    -- Sort: in-progress (count desc) → not-started (alpha) → done (alpha)
+    table.sort(list, function(a, b)
+        if a.is_done ~= b.is_done then return not a.is_done end
+        if (a.count > 0) ~= (b.count > 0) then return a.count > b.count end
+        if a.count ~= b.count then return a.count > b.count end
+        return a.label < b.label
+    end)
+
+    local n_done = 0
+    for _, e in ipairs(list) do
+        if e.is_done then
+            n_done = n_done + 1
+            row(("  %-26s  %6s   DONE (%d/%d)"):format(
+                e.label, fmt_num(e.count), checks_per_item, checks_per_item),
+                COLOR_GREEN)
+        elseif e.count == 0 then
+            row(("  %-26s  %6s   --"):format(e.label, "0"), COLOR_DARKGRAY)
+        else
+            local next_target = (e.done_n + 1) * threshold
+            row(("  %-26s  %6s → %-7s %d/%d"):format(
+                e.label, fmt_num(e.count), fmt_num(next_target),
+                e.done_n, checks_per_item))
+        end
+    end
+
+    blank()
+    row("  " .. string.rep("-", 52), COLOR_DARKGRAY)
+    row(("  Items complete: %d / %d"):format(n_done, #list),
+        n_done >= #list and COLOR_GREEN or COLOR_WHITE)
+
+    return lines
+end
+
 -- ── Status / control popup ────────────────────────────────────────────────────
 
 local _panel_instance = nil
@@ -262,6 +343,28 @@ function DwarfipelagoPanel:init()
     local depot    = ps("depot_built",   "0") == "1"
 
     local goal_str = GOAL_NAMES[goal_key] or "Not synced"
+
+    -- Goal-specific target string
+    local target_str
+    if goal_key == "1" then
+        local wg = tonumber(ps("wealth_goal", "100000")) or 100000
+        target_str = "Target:   " .. fmt_num(wg) .. " wealth"
+    elseif goal_key == "2" then
+        local pg = tonumber(ps("pop_goal", "300")) or 300
+        target_str = "Target:   " .. tostring(pg) .. " citizens"
+    elseif goal_key == "4" then
+        local kg = tonumber(ps("king_remains_goal", ""))
+        target_str = "Target:   " .. (kg and tostring(kg) or "?") .. " remains"
+    end
+
+    -- DeathLink display
+    local dl_on     = ps("deathlink",            "0") == "1"
+    local dl_thresh = tonumber(ps("deathlink_threshold",  "0")) or 0
+    local dl_pct    = ps("deathlink_percentage", "0") == "1"
+    local dl_detail = dl_on and (dl_pct
+        and ("  (%d%% of population)"):format(dl_thresh)
+        or  ("  (every %d deaths)"):format(dl_thresh)) or ""
+
     local W, H = 62, 48
 
     local pages = widgets.Pages{
@@ -284,14 +387,27 @@ function DwarfipelagoPanel:init()
                     },
                     widgets.Label{
                         frame = {t=2, l=0},
-                        text  = {"Complete: ", yn(complete)},
+                        text  = target_str or "",
                     },
                     widgets.Label{
                         frame = {t=3, l=0},
+                        text  = {"Complete: ", yn(complete)},
+                    },
+                    widgets.Label{
+                        frame = {t=4, l=0},
                         text  = {
                             "Depot:    ",
                             {text=depot and "built" or "pending",
                              pen=depot and COLOR_GREEN or COLOR_YELLOW},
+                        },
+                    },
+                    widgets.Label{
+                        frame = {t=5, l=0},
+                        text  = {
+                            "DeathLink: ",
+                            {text=dl_on and "ON" or "off",
+                             pen=dl_on and COLOR_GREEN or COLOR_DARKGRAY},
+                            {text=dl_detail, pen=COLOR_WHITE},
                         },
                     },
                 },
@@ -304,7 +420,11 @@ function DwarfipelagoPanel:init()
             widgets.Panel{
                 subviews = { make_list(build_progress_lines()) },
             },
-            -- ── Tab 4: Controls ──────────────────────────────────────────────
+            -- ── Tab 4: Crafts ─────────────────────────────────────────────────
+            widgets.Panel{
+                subviews = { make_list(build_crafts_lines()) },
+            },
+            -- ── Tab 5: Controls ──────────────────────────────────────────────
             widgets.Panel{
                 subviews = {
                     widgets.Label{frame={t=0, l=0}, text="Controls:"},
@@ -354,7 +474,7 @@ function DwarfipelagoPanel:init()
             subviews    = {
                 widgets.TabBar{
                     frame        = {t=0, l=0},
-                    labels       = {"Status", "Unlocks", "Progress", "Controls"},
+                    labels       = {"Status", "Unlocks", "Progress", "Crafts", "Controls"},
                     on_select    = function(idx) pages:setSelected(idx) end,
                     get_cur_page = function() return pages:getSelected() end,
                 },
