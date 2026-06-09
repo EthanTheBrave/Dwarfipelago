@@ -437,24 +437,24 @@ class DwarfFortressCommandProcessor(ClientCommandProcessor):
         """Print the status of the energy link."""
         self.output(f"Energy Link: {self.ctx.energy_link_status}")
 
-    def _cmd_send_energy_link(self, amount: str = ""):
-        """Send energy to test energy link. usage: /send_energy_link <amount>"""
-        difference = int(amount)
-        if difference <= 0:
-            self.ctx.last_deplete = time.time()
-            async_start(self.ctx.send_msgs([{
-                "cmd": "Set", "key": self.ctx.energylink_key, "operations":
-                    [{"operation": "add", "value": difference},
-                    {"operation": "max", "value": 0}],
-                "last_deplete": self.ctx.last_deplete
-            }]))
-            logger.debug(f"EnergyLink: Used {format_SI_prefix(difference)}J")
-        else:
-            async_start(self.ctx.send_msgs([{
-                "cmd": "Set", "key": self.ctx.energylink_key, "operations":
-                    [{"operation": "add", "value": difference}]
-            }]))
-            logger.debug(f"EnergyLink: Sent {format_SI_prefix(difference)}J")
+    # def _cmd_send_energy_link(self, amount: str = ""):
+    #     """Send energy to test energy link. usage: /send_energy_link <amount>"""
+    #     difference = int(amount)
+    #     if difference <= 0:
+    #         self.ctx.last_deplete = time.time()
+    #         async_start(self.ctx.send_msgs([{
+    #             "cmd": "Set", "key": self.ctx.energylink_key, "operations":
+    #                 [{"operation": "add", "value": difference},
+    #                 {"operation": "max", "value": 0}],
+    #             "last_deplete": self.ctx.last_deplete
+    #         }]))
+    #         logger.debug(f"EnergyLink: Used {format_SI_prefix(difference)}*")
+    #     else:
+    #         async_start(self.ctx.send_msgs([{
+    #             "cmd": "Set", "key": self.ctx.energylink_key, "operations":
+    #                 [{"operation": "add", "value": difference}]
+    #         }]))
+    #         logger.debug(f"EnergyLink: Sent {format_SI_prefix(difference)}*")
         
 
 
@@ -890,13 +890,13 @@ class DwarfFortressContext(CommonContext):
                                 {"operation": "max", "value": 0}],
                             "last_deplete": self.last_deplete
                         }])
-                        logger.debug(f"EnergyLink: Used {format_SI_prefix(difference)}J")
+                        logger.debug(f"EnergyLink: Used {format_SI_prefix(difference)}*")
                     else:
                         await self.send_msgs([{
                             "cmd": "Set", "key": self.energylink_key, "operations":
                                 [{"operation": "add", "value": difference}]
                         }])
-                        logger.debug(f"EnergyLink: Sent {format_SI_prefix(difference)}J")
+                        logger.debug(f"EnergyLink: Sent {format_SI_prefix(difference)}*")
                     self.last_energy = self.current_energy
                     self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/use_energy_link", "N")')
 
@@ -1064,10 +1064,10 @@ class DwarfFortressContext(CommonContext):
                 if self.energy_link_enabled and args.get("last_deplete", -1) == self.last_deplete:
                     # it's our deplete request
                     gained = int(args["original_value"] - args["value"])
-                    gained_text = format_SI_prefix(gained) + "J"
+                    gained_text = format_SI_prefix(gained) + "*"
                     if gained:
                         logger.debug(f"EnergyLink: Received {gained_text}. "
-                                     f"{format_SI_prefix(args['value'])}J remaining.")
+                                     f"{format_SI_prefix(args['value'])}* remaining.")
                         self.new_energy = gained
 
     def on_print_json(self, args: dict[Any, Any]):
@@ -1118,7 +1118,7 @@ class DwarfFortressContext(CommonContext):
         elif self.current_energy_link_value is None:
             return "Standby"
         else:
-            return f"{format_SI_prefix(self.current_energy_link_value)}J"
+            return f"{format_SI_prefix(self.current_energy_link_value)}*"
         
     @property
     def energylink_key(self) -> str:
