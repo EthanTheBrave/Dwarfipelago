@@ -1001,9 +1001,14 @@ class DwarfFortressContext(CommonContext):
             amount_crafted = count_lookup.get((item, material), 0)
             if amount_crafted == 0:
                 continue
-            if amount_crafted >= self._craftsanity_max_value:
-                local_checks.append(int(crafts))
-            elif amount_crafted / threshold >= self._crafting_locations[crafts]["threshold"]:
+            # Each location carries a tier number (1, 2, …, max_id); the check
+            # fires when amount_crafted / threshold >= that tier number.
+            # We no longer short-circuit on amount_crafted >= max_value because
+            # that path fires every remaining tier at once when a work-order batch
+            # overshoots the max, and can fire the final check early when
+            # max_value is not divisible by threshold.  The tier formula below
+            # covers all cases including the final check.
+            if amount_crafted / threshold >= self._crafting_locations[crafts]["threshold"]:
                 local_checks.append(int(crafts))
 
         if local_checks:
