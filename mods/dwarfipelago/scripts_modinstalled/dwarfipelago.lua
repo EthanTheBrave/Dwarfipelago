@@ -372,6 +372,28 @@ local function detect_caravans()
     end
 end
 
+-- ability to force a caravan
+local function getCiv(civ)
+    civ = string.lower(tostring(civ))
+    for _,entity in ipairs(df.global.world.entities.all) do
+        if string.lower(entity.entity_raw.code) == civ then return entity end
+    end
+end
+
+local function spawnCaravan()
+    civ = getCiv("MOUNTAIN")  -- FOREST = Elves / PLAINS = humans / MOUNTAIN = dwarves
+    df.global.timed_events:insert('#', {
+        new=true,
+        type=df.timed_event_type['Caravan'],
+        season=df.global.cur_season,
+        season_ticks=df.global.cur_season_tick,
+        entity=civ,
+        feature_ind=-1,
+    })
+    dfhack.persistent.saveWorldDataString("dwarfipelago/use_energy_link", "Y")
+end
+
+
 -- Detect first trade / first export by checking the fortress exported-wealth
 -- counter. DF increments this when goods are sold to a caravan, so a value
 -- above zero means at least one trade has been completed.

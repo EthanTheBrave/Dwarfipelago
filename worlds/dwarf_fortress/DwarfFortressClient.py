@@ -23,6 +23,7 @@ import time
 from typing import Any, Optional
 from CommonClient import CommonContext, server_loop, ClientCommandProcessor, logger
 from NetUtils import ClientStatus
+from Utils import async_start, format_SI_prefix
 
 _STEAM_CANDIDATES: list[str] = [
     # Windows — 32-bit Steam
@@ -432,6 +433,30 @@ class DwarfFortressCommandProcessor(ClientCommandProcessor):
             self.ctx.debug_mode = not self.ctx.debug_mode
         logger.info(f"Dwarfipelago debug logging {'ON' if self.ctx.debug_mode else 'OFF'}")
 
+    def _cmd_energy_link(self):
+        """Print the status of the energy link."""
+        self.output(f"Energy Link: {self.ctx.energy_link_status}")
+
+    # def _cmd_send_energy_link(self, amount: str = ""):
+    #     """Send energy to test energy link. usage: /send_energy_link <amount>"""
+    #     difference = int(amount)
+    #     if difference <= 0:
+    #         self.ctx.last_deplete = time.time()
+    #         async_start(self.ctx.send_msgs([{
+    #             "cmd": "Set", "key": self.ctx.energylink_key, "operations":
+    #                 [{"operation": "add", "value": difference},
+    #                 {"operation": "max", "value": 0}],
+    #             "last_deplete": self.ctx.last_deplete
+    #         }]))
+    #         logger.debug(f"EnergyLink: Used {format_SI_prefix(difference)}*")
+    #     else:
+    #         async_start(self.ctx.send_msgs([{
+    #             "cmd": "Set", "key": self.ctx.energylink_key, "operations":
+    #                 [{"operation": "add", "value": difference}]
+    #         }]))
+    #         logger.debug(f"EnergyLink: Sent {format_SI_prefix(difference)}*")
+        
+
 
 class DwarfFortressContext(CommonContext):
     """
@@ -469,6 +494,10 @@ class DwarfFortressContext(CommonContext):
         self._completed_locations_loaded = False  # True once the AP Get reply has populated the list
         self.seed = 0                    # your "identity"
         self.version = 0                 # apworld version
+        self.energy_link_enabled = False # energy link
+        self.last_deplete = 0            # energy link
+        self.last_energy = 0             # energy link
+        self.current_energy = 0          # energy link
 
     def debug(self, msg: str):
         """Log only when debug mode is enabled (toggle with /dfdebug)."""
@@ -557,6 +586,8 @@ class DwarfFortressContext(CommonContext):
                         await self._process_new_checks()
                         await self._crafting_location_checks()
                         await self._apply_pending_items()
+                        await self.update_energy()
+                        await self.new_energy()
                     else:
                         logger.debug("Trade depot not yet established — holding checks and item delivery")
 
@@ -701,7 +732,7 @@ class DwarfFortressContext(CommonContext):
                 # even on reconnects or if the initial write was interrupted.
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_enabled", "{craftsanity_enabled}")')
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_materials", "{materials_enabled}")')
-                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftitems", "{craftitems}")')
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/crafting_items", "{craftingitems}")')
                 self._slot_data_synced = True
                 await self.getAPKeyValue("Dwarfipelago/"+str(self.seed)+"/completed_locations")
                 logger.info(f"Synced slot data → goal={goal}, wealth_goal={wealth_goal}, pop_goal={pop_goal}, dl_threshold={dl_threshold}")
@@ -837,6 +868,38 @@ class DwarfFortressContext(CommonContext):
             self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("{storage_name}", "0")')
             last_item = self._crafting_locations[crafts]["item"]
             last_material = self._crafting_locations[crafts]["material"]
+    
+    async def update_energy(self):
+        if self.energy_link_enabled and self.last_energy != self.current_energy:
+            self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/energy_link", "{self.current_energy}")')
+            self.last_energy = self.current_energy
+
+    async def new_energy(self):
+        if self.energy_link_enabled:
+            used_energy = self.dfhack.run_command("lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/use_energy_link") or "N")')
+            if used_energy == "Y":
+                energy = self.dfhack.run_command("lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/energy_link") or "0")')
+                if energy != "0":
+                    self.current_energy = int(energy)
+                    difference = self.current_energy - self.last_energy
+                    if difference <= 0:
+                        self.last_deplete = time.time()
+                        await self.send_msgs([{
+                            "cmd": "Set", "key": self.energylink_key, "operations":
+                                [{"operation": "add", "value": difference},
+                                {"operation": "max", "value": 0}],
+                            "last_deplete": self.last_deplete
+                        }])
+                        logger.debug(f"EnergyLink: Used {format_SI_prefix(difference)}*")
+                    else:
+                        await self.send_msgs([{
+                            "cmd": "Set", "key": self.energylink_key, "operations":
+                                [{"operation": "add", "value": difference}]
+                        }])
+                        logger.debug(f"EnergyLink: Sent {format_SI_prefix(difference)}*")
+                    self.last_energy = self.current_energy
+                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/use_energy_link", "N")')
+
 
     async def _crafting_location_checks(self):
         """Read new crafting location checks from persistent storage and report them to AP."""
@@ -977,6 +1040,11 @@ class DwarfFortressContext(CommonContext):
             self._deathlink_enabled = bool(self.slot_data.get("deathlink", 0))
             if self._deathlink_enabled:
                 asyncio.create_task(self.update_death_link(True))
+            self.energy_link_enabled = bool(self.slot_data.get("energy_link", 0))
+            if self.energy_link_enabled:
+                async_start(self.send_msgs([{
+                    "cmd": "SetNotify", "keys": [self.energylink_key]
+                }]))
             self.dfhack_task = asyncio.create_task(self.dfhack_poll_loop(), name="DFHack poll")
         elif cmd == "Retrieved":
             key = "Dwarfipelago/"+str(self.seed)+"/completed_locations"
@@ -991,6 +1059,16 @@ class DwarfFortressContext(CommonContext):
                 self._completed_locations_loaded = True
                 self.debug(f"Loaded {len(self._completed_crafting_locations)} completed craft location(s) from AP storage")
             #response from the Get Command
+        elif cmd == "SetReply":
+            if args["key"].startswith("EnergyLink"):
+                if self.energy_link_enabled and args.get("last_deplete", -1) == self.last_deplete:
+                    # it's our deplete request
+                    gained = int(args["original_value"] - args["value"])
+                    gained_text = format_SI_prefix(gained) + "*"
+                    if gained:
+                        logger.debug(f"EnergyLink: Received {gained_text}. "
+                                     f"{format_SI_prefix(args['value'])}* remaining.")
+                        self.new_energy = gained
 
     def on_print_json(self, args: dict[Any, Any]):
         if self.ui:
@@ -1032,6 +1110,22 @@ class DwarfFortressContext(CommonContext):
     async def disconnect(self, allow_autoreconnect: bool = False):
         self.dfhack.disconnect()
         await super().disconnect(allow_autoreconnect)
+
+    @property
+    def energy_link_status(self) -> str:
+        if not self.energy_link_enabled:
+            return "Disabled"
+        elif self.current_energy_link_value is None:
+            return "Standby"
+        else:
+            return f"{format_SI_prefix(self.current_energy_link_value)}*"
+        
+    @property
+    def energylink_key(self) -> str:
+        if self.generator_version >= (0, 4, 2):
+            return f"EnergyLink{self.team}"
+        else:
+            return "EnergyLink"
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
