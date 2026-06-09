@@ -390,6 +390,7 @@ local function spawnCaravan()
         entity=civ,
         feature_ind=-1,
     })
+    dfhack.persistent.saveWorldDataString("Dwarfipelago/use_energy_link", "Y")
 end
 
 
