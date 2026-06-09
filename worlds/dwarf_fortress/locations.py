@@ -109,10 +109,10 @@ MINING_LOCATIONS: list[LocationData] = [
 # (BASE_ID + 730).
 FARMING_LOCATIONS: list[LocationData] = [
     LocationData("Harvest 50 Crops",    BASE_ID + 730, "Fortress"),
-    LocationData("Harvest 250 Crops",   BASE_ID + 731, "Fortress"),
-    LocationData("Harvest 1,000 Crops", BASE_ID + 732, "Fortress"),
-    LocationData("Harvest 2,500 Crops", BASE_ID + 733, "Fortress"),
-    LocationData("Harvest 5,000 Crops", BASE_ID + 734, "Fortress"),
+    LocationData("Harvest 100 Crops",   BASE_ID + 731, "Fortress"),
+    LocationData("Harvest 250 Crops",   BASE_ID + 732, "Fortress"),
+    LocationData("Harvest 500 Crops",   BASE_ID + 733, "Fortress"),
+    LocationData("Harvest 1,000 Crops", BASE_ID + 734, "Fortress"),
 ]
 
 
