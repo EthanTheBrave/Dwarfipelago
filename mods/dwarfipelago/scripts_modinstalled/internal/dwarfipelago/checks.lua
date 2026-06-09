@@ -352,6 +352,7 @@ end
 -- Expose wealth accessors so main.lua can use them without duplicating logic.
 M.fortress_wealth  = fortress_wealth
 M.treasury_wealth  = treasury_wealth
+M.exported_wealth  = exported_wealth
 
 -- ── Job type → craft count flag mapping ──────────────────────────────────────
 -- Separate from JOB_TO_FLAG: maps jobs to the specific AP option names used in
