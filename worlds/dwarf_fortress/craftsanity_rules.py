@@ -642,15 +642,21 @@ class DynamicCraftingLocationRules:
         return self.mechanic_workshop(state) and state.has("Crafting Mechanism", self.player)
     
     def wood_crafting_tractionbench(self, state:CollectionState) -> bool:
-        return self.wooden_traction_bench(state) and state.has("Crafting Traction Bench", self.player)
+        return self.wood_table(state) and self.metal_or_cloth_ropechain(state) \
+            and self.mechanic_mechanism(state) and state.has("Crafting Traction Bench", self.player)
     def stone_crafting_tractionbench(self, state:CollectionState) -> bool:
-        return self.stone_traction_bench(state) and state.has("Crafting Traction Bench", self.player)
+        return self.stone_table(state) and self.metal_or_cloth_ropechain(state) \
+            and self.mechanic_mechanism(state) and state.has("Crafting Traction Bench", self.player)
     def metal_crafting_tractionbench(self, state:CollectionState) -> bool:
-        return self.metal_traction_bench(state) and state.has("Crafting Traction Bench", self.player)
+        return self.metal_table(state) and self.metal_or_cloth_ropechain(state) \
+            and self.mechanic_mechanism(state) and state.has("Crafting Traction Bench", self.player)
     def glass_crafting_tractionbench(self, state:CollectionState) -> bool:
-        return self.glass_traction_bench(state) and state.has("Crafting Traction Bench", self.player)
+        return self.glass_table(state) and self.metal_or_cloth_ropechain(state) \
+            and self.mechanic_mechanism(state) and state.has("Crafting Traction Bench", self.player)
     def any_crafting_tractionbench(self, state:CollectionState) -> bool:
-        return self.any_traction_bench(state) and state.has("Crafting Traction Bench", self.player)
+        return (self.wood_table(state) or self.stone_table(state) or self.metal_table(state) \
+            or self.glass_table(state)) and self.metal_or_cloth_ropechain(state) \
+            and self.mechanic_mechanism(state) and state.has("Crafting Traction Bench", self.player)
     
     def glass_liquidcontainer(self, state:CollectionState) -> bool:
         return self.glass(state) and state.has("Crafting Liquid Container", self.player)
@@ -744,9 +750,9 @@ class DynamicCraftingLocationRules:
         return self.still(state) and state.has("Crafting Alcohol", self.player)
     
     def ashery_and_wood_furnace_lye(self, state:CollectionState) -> bool:
-        return self.ashery_and_wood_furnace(state) and state.has("Crafting Lye", self.player)
+        return self.ash(state) and state.has("Crafting Lye", self.player)
     def ashery_and_wood_furnace_potash(self, state:CollectionState) -> bool:
-        return self.ashery_and_wood_furnace(state) and state.has("Crafting Potash", self.player)
+        return (self.ash(state) or self.ashery_and_wood_furnace_lye(state)) and state.has("Crafting Potash", self.player)
     def ashery_and_kiln_milklime(self, state:CollectionState) -> bool:
         return self.ashery_and_kiln(state) and state.has("Crafting Milk of Lime", self.player)
     
@@ -850,7 +856,8 @@ class DynamicCraftingLocationRules:
         return self.metal(state) and state.has("Crafting Coins", self.player)
     
     def make_soap(self, state:CollectionState) -> bool:
-        return self.soap(state) and state.has("Crafting Soap", self.player)
+        return self.ashery_and_wood_furnace_lye(state) and (self.make_tallow(state) or self.make_oil(state)) \
+        and state.has("Crafting Soap", self.player)
     
     def set_dynamic_rules(self) -> None:
         for location in self.world.dynamic_locations:
