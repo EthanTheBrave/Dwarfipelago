@@ -110,8 +110,11 @@ Completing these milestones sends items to other players:
 - **Trade & diplomacy** - first caravan trade, first export, dwarven/elven/human caravan visits, outpost liaison meeting (an elven/human caravan-visit check auto-completes if that civilisation doesn't exist in your world, so it can't soft-lock the seed)
 - **Fortress status** - noble appointments and civilisation recognition milestones
 - **Fortress titles** - Hamlet, Village, Town, City, Metropolis (population + wealth thresholds)
-- **Mining** - depth milestones (10/25/50/75/100 levels below the surface), tiles excavated (100 → 10,000), and breach events (First/Second/Third Cavern, Reached the Magma Sea)
+- **Mining** - depth milestones (10/25/50/75/100 levels below the surface), tiles excavated (100 → 10,000), and breach events (First/Second/Third Cavern, Reached the Magma Sea, Breached the Circus)
 - **Farming** - harvested-crop milestones (50 / 100 / 250 / 500 / 1,000 crops)
+- **Infrastructure** - Built a Well, Pumped Water, Pumped Magma
+- **Biology** - First Eggs Hatched, Caged a Megabeast
+- **Deep / Endgame** - Mined Adamantine, Sold an Artifact
 - **Craftsanity** - optional crafting milestone checks (see below)
 
 </details>
