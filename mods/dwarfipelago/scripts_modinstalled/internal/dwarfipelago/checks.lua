@@ -188,11 +188,12 @@ M.checks = {
     { id = 37370713, name = "Excavator IV (5,000 tiles)",  fn = function() return M.mining_count() >= 5000  end },
     { id = 37370714, name = "Excavator V (10,000 tiles)",  fn = function() return M.mining_count() >= 10000 end },
 
-    -- Mining: cavern / magma sea breaches (detected via map feature on dig jobs).
+    -- Mining: cavern / magma sea / circus breaches (detected via map feature on dig jobs).
     { id = 37370720, name = "First Cavern Breached",  fn = function() return M.mining_flag("cavern1") end },
     { id = 37370721, name = "Second Cavern Breached", fn = function() return M.mining_flag("cavern2") end },
     { id = 37370722, name = "Third Cavern Breached",  fn = function() return M.mining_flag("cavern3") end },
     { id = 37370723, name = "Reached the Magma Sea",  fn = function() return M.mining_flag("magma")   end },
+    { id = 37370724, name = "Breached the Circus",    fn = function() return M.mining_flag("circus")  end },
 
     -- Farming: cumulative harvested crops (PLANT items).
     { id = 37370730, name = "Harvest 50 Crops",    fn = function() return M.crops_harvested() >= 50   end },
@@ -200,6 +201,19 @@ M.checks = {
     { id = 37370732, name = "Harvest 250 Crops",   fn = function() return M.crops_harvested() >= 250  end },
     { id = 37370733, name = "Harvest 500 Crops",   fn = function() return M.crops_harvested() >= 500  end },
     { id = 37370734, name = "Harvest 1,000 Crops", fn = function() return M.crops_harvested() >= 1000 end },
+
+    -- Infrastructure: wells and screw pumps (polled each tick once built).
+    { id = 37370740, name = "Built a Well",  fn = function() return M.production_flag("well")       end },
+    { id = 37370741, name = "Pumped Water",  fn = function() return M.production_flag("pump_water") end },
+    { id = 37370742, name = "Pumped Magma",  fn = function() return M.production_flag("pump_magma") end },
+
+    -- Biology / animals.
+    { id = 37370750, name = "First Eggs Hatched", fn = function() return M.production_flag("egg_hatched")     end },
+    { id = 37370751, name = "Caged a Megabeast",  fn = function() return M.production_flag("caged_megabeast") end },
+
+    -- Deep / endgame.
+    { id = 37370760, name = "Mined Adamantine", fn = function() return M.production_flag("adamantine")    end },
+    { id = 37370761, name = "Sold an Artifact", fn = function() return M.production_flag("sold_artifact") end },
 }
 
 -- ── Production flag helpers ───────────────────────────────────────────────────

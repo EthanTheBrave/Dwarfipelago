@@ -102,6 +102,7 @@ MINING_LOCATIONS: list[LocationData] = [
     LocationData("Second Cavern Breached",       BASE_ID + 721, "Fortress"),
     LocationData("Third Cavern Breached",        BASE_ID + 722, "Fortress"),
     LocationData("Reached the Magma Sea",        BASE_ID + 723, "Fortress"),
+    LocationData("Breached the Circus",          BASE_ID + 724, "Fortress"),
 ]
 
 # ── Farming Milestones ────────────────────────────────────────────────────────
@@ -115,6 +116,25 @@ FARMING_LOCATIONS: list[LocationData] = [
     LocationData("Harvest 1,000 Crops", BASE_ID + 734, "Fortress"),
 ]
 
+# ── Infrastructure Milestones ─────────────────────────────────────────────────
+INFRASTRUCTURE_LOCATIONS: list[LocationData] = [
+    LocationData("Built a Well",   BASE_ID + 740, "Fortress"),
+    LocationData("Pumped Water",   BASE_ID + 741, "Fortress"),
+    LocationData("Pumped Magma",   BASE_ID + 742, "Fortress"),
+]
+
+# ── Biology / Animal Milestones ───────────────────────────────────────────────
+BIOLOGY_LOCATIONS: list[LocationData] = [
+    LocationData("First Eggs Hatched",  BASE_ID + 750, "Fortress"),
+    LocationData("Caged a Megabeast",   BASE_ID + 751, "Fortress"),
+]
+
+# ── Deep / Endgame Milestones ─────────────────────────────────────────────────
+ENDGAME_LOCATIONS: list[LocationData] = [
+    LocationData("Mined Adamantine",  BASE_ID + 760, "Fortress"),
+    LocationData("Sold an Artifact",  BASE_ID + 761, "Fortress"),
+]
+
 
 # Craft locations are NOT included here. They are computed deterministically by
 # craftsanity.build_craft_location_table() and merged into the World's
@@ -123,6 +143,7 @@ FARMING_LOCATIONS: list[LocationData] = [
 ALL_LOCATIONS: list[LocationData] = (
     WEALTH_LOCATIONS + PRODUCTION_LOCATIONS + TRADE_LOCATIONS
     + STATUS_LOCATIONS + TITLE_LOCATIONS + MINING_LOCATIONS
-    + FARMING_LOCATIONS
+    + FARMING_LOCATIONS + INFRASTRUCTURE_LOCATIONS
+    + BIOLOGY_LOCATIONS + ENDGAME_LOCATIONS
 )
 LOCATION_TABLE: dict[str, int] = {loc.name: loc.ap_id for loc in ALL_LOCATIONS}

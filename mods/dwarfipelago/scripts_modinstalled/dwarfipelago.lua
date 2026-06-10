@@ -545,6 +545,122 @@ local function poll_manager_orders()
     end
 end
 
+-- ── Screw pump activity ───────────────────────────────────────────────────────
+-- Fires pump_water or pump_magma the first time a powered screw pump is found
+-- adjacent to the appropriate liquid.  Runs every poll tick; bails as soon as
+-- both flags are set.
+local function detect_pump_activity()
+    if checks.production_flag("pump_water") and checks.production_flag("pump_magma") then return end
+
+    local function liquid_at(x, y, z)
+        local ok, blk = pcall(dfhack.maps.getTileBlock, x, y, z)
+        if not ok or not blk then return nil end
+        local des = blk.designation[x % 16][y % 16]
+        if not des then return nil end
+        local flow = 0
+        pcall(function() flow = des.flow_size end)
+        if flow == 0 then return nil end
+        local is_magma = false
+        pcall(function() is_magma = des.liquid_type end)
+        return is_magma and "magma" or "water"
+    end
+
+    pcall(function()
+        for _, bld in ipairs(df.global.world.buildings.all) do
+            local ok_t, btype = pcall(function() return bld:getType() end)
+            if not (ok_t and btype == df.building_type.ScrewPump) then goto skip_pump end
+
+            -- Must be connected to a machine network (power source present).
+            local connected = false
+            pcall(function() connected = bld.machine_id >= 0 end)
+            if not connected then goto skip_pump end
+
+            -- Check the five tiles that could be the intake: directly below,
+            -- and the four horizontal neighbours one level down.
+            local x, y, z = bld.x1, bld.y1, bld.z
+            for _, d in ipairs({{0,0,-1},{-1,0,-1},{1,0,-1},{0,-1,-1},{0,1,-1}}) do
+                local liq = liquid_at(x + d[1], y + d[2], z + d[3])
+                if liq == "water" and not checks.production_flag("pump_water") then
+                    checks.set_production_flag("pump_water")
+                    dfhack.gui.showAnnouncement("[AP] Water has been pumped!", COLOR_GREEN, true)
+                    print("[Dwarfipelago] Check: Pumped Water")
+                elseif liq == "magma" and not checks.production_flag("pump_magma") then
+                    checks.set_production_flag("pump_magma")
+                    dfhack.gui.showAnnouncement("[AP] Magma has been pumped!", COLOR_GREEN, true)
+                    print("[Dwarfipelago] Check: Pumped Magma")
+                end
+            end
+            if checks.production_flag("pump_water") and checks.production_flag("pump_magma") then return end
+            ::skip_pump::
+        end
+    end)
+end
+
+-- ── Egg hatch detection ───────────────────────────────────────────────────────
+-- Scans active units for the born_from_egg flag (set on chicks/hatchlings).
+local function detect_egg_hatch()
+    if checks.production_flag("egg_hatched") then return end
+    pcall(function()
+        for _, unit in ipairs(df.global.world.units.active) do
+            local ok, from_egg = pcall(function() return unit.flags2.born_from_egg end)
+            if ok and from_egg then
+                checks.set_production_flag("egg_hatched")
+                dfhack.gui.showAnnouncement("[AP] Eggs have hatched in the fortress!", COLOR_GREEN, true)
+                print("[Dwarfipelago] Check: First Eggs Hatched")
+                return
+            end
+        end
+    end)
+end
+
+-- ── Caged megabeast detection ─────────────────────────────────────────────────
+local function detect_caged_megabeast()
+    if checks.production_flag("caged_megabeast") then return end
+    pcall(function()
+        for _, unit in ipairs(df.global.world.units.active) do
+            local ok, is_mega = pcall(dfhack.units.isMegabeast, unit)
+            if ok and is_mega then
+                local caged = false
+                pcall(function() caged = unit.flags1.caged end)
+                if caged then
+                    checks.set_production_flag("caged_megabeast")
+                    dfhack.gui.showAnnouncement("[AP] A megabeast has been caged!", COLOR_GREEN, true)
+                    print("[Dwarfipelago] Check: Caged a Megabeast")
+                    return
+                end
+            end
+        end
+    end)
+end
+
+-- ── Artifact departure detection ──────────────────────────────────────────────
+-- Fires sold_artifact when any world artifact's item has been removed from the
+-- game (i.e. left the fortress via trade, theft, or other departure).
+local function detect_sold_artifact()
+    if checks.production_flag("sold_artifact") then return end
+    pcall(function()
+        for _, artifact in ipairs(df.global.world.artifacts.all) do
+            local item_id = -1
+            pcall(function() item_id = artifact.item_id end)
+            if item_id < 0 then goto skip_art end
+            local item = df.item.find(item_id)
+            if not item then goto skip_art end
+            local gone = false
+            pcall(function() gone = item.flags.removed end)
+            if not gone then
+                pcall(function() gone = item.pos.x < 0 end)
+            end
+            if gone then
+                checks.set_production_flag("sold_artifact")
+                dfhack.gui.showAnnouncement("[AP] An artifact has left the fortress!", COLOR_GREEN, true)
+                print("[Dwarfipelago] Check: Sold an Artifact")
+                return
+            end
+            ::skip_art::
+        end
+    end)
+end
+
 -- Forward declaration so poll_checks can call ensure_trade_depot, which is
 -- defined later in the file (after the item event helpers).
 local ensure_trade_depot
@@ -589,6 +705,10 @@ local function poll_checks()
     check_locked_notifications()
     detect_caravans()
     detect_trade_export()
+    detect_pump_activity()
+    detect_egg_hatch()
+    detect_caged_megabeast()
+    detect_sold_artifact()
 
     for _, check in ipairs(checks.checks) do
         if not state.is_location_checked(check.id) then
@@ -618,6 +738,19 @@ local function on_job_completed(job)
     local prod_flag = checks.job_to_production_flag(job)
     if prod_flag and not checks.production_flag(prod_flag) then
         checks.set_production_flag(prod_flag)
+    end
+
+    -- Well construction detection.
+    if job.job_type == df.job_type.ConstructBuilding then
+        local ok_bld, bld = pcall(dfhack.job.getHolder, job)
+        if ok_bld and bld and not checks.production_flag("well") then
+            local ok_t, btype = pcall(function() return bld:getType() end)
+            if ok_t and btype == df.building_type.Well then
+                checks.set_production_flag("well")
+                dfhack.gui.showAnnouncement("[AP] A well has been constructed!", COLOR_GREEN, true)
+                print("[Dwarfipelago] Check: Built a Well")
+            end
+        end
     end
 
     -- Cumulative craft counts — incremented here, polled by the AP client.
@@ -668,6 +801,8 @@ local function on_job_completed(job)
                         end
                     elseif t:find("magma_core") then
                         set_mining_milestone("magma", "You have reached the Magma Sea!")
+                    elseif t:find("underworld") then
+                        set_mining_milestone("circus", "You have breached the Circus — the end is nigh!")
                     end
                 end
             end
@@ -948,6 +1083,20 @@ local function on_item_created(item_id)
             local key = "dwarfipelago/farming/crop_count"
             local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
             dfhack.persistent.saveWorldDataString(key, tostring(n))
+        end
+
+        -- Adamantine detection: fires the first time any adamantine item is created
+        -- (raw adamantine boulders when mined, or strands/wafers in some DF versions).
+        if not checks.production_flag("adamantine") then
+            local ok_mat, mat = pcall(dfhack.matinfo.decode, item)
+            if ok_mat and mat then
+                local ok_tok, token = pcall(function() return mat:getToken() end)
+                if ok_tok and token and token:upper():find("ADAMANTINE") then
+                    checks.set_production_flag("adamantine")
+                    dfhack.gui.showAnnouncement("[AP] Adamantine has been discovered!", COLOR_CYAN, true)
+                    print("[Dwarfipelago] Check: Mined Adamantine")
+                end
+            end
         end
     end
 
