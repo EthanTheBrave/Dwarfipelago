@@ -410,6 +410,21 @@ function DwarfipelagoPanel:init()
                             {text=dl_detail, pen=COLOR_WHITE},
                         },
                     },
+                    (function()
+                        local energy_on = ps("energy_enabled", "0") == "1"
+                        if not energy_on then return widgets.Label{frame={t=6,l=0}, text=""} end
+                        local pool     = tonumber(ps("energy_link", "0")) or 0
+                        local mj       = math.floor(pool / 1000000)
+                        local caravan  = ps("ap_caravan_active", "0") == "1"
+                        return widgets.Label{
+                            frame = {t=6, l=0},
+                            text  = {
+                                "Energy:   ",
+                                {text=fmt_num(mj) .. " MJ", pen=COLOR_CYAN},
+                                {text=caravan and "  [Caravan docked]" or "", pen=COLOR_GREEN},
+                            },
+                        }
+                    end)(),
                 },
             },
             -- ── Tab 2: Unlocks ────────────────────────────────────────────────
@@ -457,6 +472,33 @@ function DwarfipelagoPanel:init()
                         label = "Reset seed",
                         on_activate = function()
                             dfhack.run_command("dwarfipelago", "resetseed")
+                            self:dismiss()
+                        end,
+                    },
+                    widgets.HotkeyLabel{
+                        frame = {t=6, l=2},
+                        key   = "CUSTOM_SHIFT_A",
+                        label = "Deposit Ale (energy link)",
+                        on_activate = function()
+                            dfhack.run_command("dwarfipelago", "deposit-ale")
+                            self:dismiss()
+                        end,
+                    },
+                    widgets.HotkeyLabel{
+                        frame = {t=7, l=2},
+                        key   = "CUSTOM_SHIFT_C",
+                        label = "Call AP Caravan (10,000 coins)",
+                        on_activate = function()
+                            dfhack.run_command("dwarfipelago", "call-caravan")
+                            self:dismiss()
+                        end,
+                    },
+                    widgets.HotkeyLabel{
+                        frame = {t=8, l=2},
+                        key   = "CUSTOM_SHIFT_V",
+                        label = "Dismiss AP Caravan",
+                        on_activate = function()
+                            dfhack.run_command("dwarfipelago", "dismiss-caravan")
                             self:dismiss()
                         end,
                     },
