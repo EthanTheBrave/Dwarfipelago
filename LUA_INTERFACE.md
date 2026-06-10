@@ -67,6 +67,7 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/mining/deepest_z` | Integer string | Lua | Deepest z any mining job has reached |
 | `dwarfipelago/mining/cavern1`..`cavern3` | `"1"` or absent | Lua | Set when the 1st/2nd/3rd cavern layer is breached |
 | `dwarfipelago/mining/magma` | `"1"` or absent | Lua | Set when the magma sea is reached |
+| `dwarfipelago/mining/circus` | `"1"` or absent | Lua | Set when the Circus (underworld) is breached |
 | `dwarfipelago/farming/crop_count` | Integer string | Lua | Cumulative harvested crops (harvest milestones) |
 
 ### Config (written by Python, read by Lua)
