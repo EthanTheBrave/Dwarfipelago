@@ -597,41 +597,6 @@ local function deposit_coins(target_val)
     _add_energy(deposited_val * 1000, ("%d ☼ in coins"):format(deposited_val))
 end
 
--- Poll: keep the AP caravan from departing by removing its Return timed event.
-local _timed_return_type = nil
-local function _get_return_event_type()
-    if _timed_return_type ~= nil then return _timed_return_type end
-    local v = false
-    pcall(function() v = df.timed_event_type.Return end)
-    _timed_return_type = v
-    return v
-end
-
-local function keep_ap_caravan_anchored()
-    if dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_active") ~= "1" then return end
-    local ret_type = _get_return_event_type()
-    if not ret_type then return end
-    local civ = getCiv("MOUNTAIN")
-    if not civ then return end
-    pcall(function()
-        local n = df.global.timed_events:size()
-        for i = n - 1, 0, -1 do
-            local evt = df.global.timed_events[i]
-            if not evt then goto cont end
-            local is_ret = false
-            pcall(function() is_ret = (evt.type == ret_type) end)
-            if is_ret then
-                local match = false
-                pcall(function() match = (evt.entity.id == civ.id) end)
-                if match then
-                    pcall(function() df.global.timed_events:erase(i) end)
-                end
-            end
-            ::cont::
-        end
-    end)
-end
-
 -- Detect first trade / first export by checking the fortress exported-wealth
 -- counter. DF increments this when goods are sold to a caravan, so a value
 -- above zero means at least one trade has been completed.
@@ -947,7 +912,6 @@ local function poll_checks()
     detect_egg_hatch()
     detect_caged_megabeast()
     detect_sold_artifact()
-    keep_ap_caravan_anchored()
     _check_spawn_caravan_approved()
 
     for _, check in ipairs(checks.checks) do
