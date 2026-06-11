@@ -897,36 +897,27 @@ class DwarfFortressContext(CommonContext):
             last_material = self._crafting_locations[crafts]["material"]
     
     async def update_energy(self):
-        """Push the current AP pool balance to Lua so the panel can display it."""
-        if not self.energy_link_enabled:
-            return
-        pool = self.current_energy_link_value
-        if pool is not None:
-            pool_int = int(pool)
-            if pool_int != self.last_energy:
-                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/energy_link", "{pool_int}")')
-                self.last_energy = pool_int
+        if self.energy_link_enabled and self.last_energy != self.current_energy_link_value:
+            self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/energy_link", "{int(self.current_energy_link_value or 0)}")')
+            self.last_energy = self.current_energy_link_value
 
     async def new_energy(self):
-        """Handle ale deposits: when Lua sets use_energy_link=Y, read energy_deposit and add to pool."""
-        if not self.energy_link_enabled:
-            return
-        flag = self.dfhack.run_command("lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/use_energy_link") or "N")')
-        if not (flag and flag.strip() == "Y"):
-            return
-        deposit_raw = self.dfhack.run_command("lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/energy_deposit") or "0")')
-        try:
-            deposit = int((deposit_raw or "0").strip())
-        except ValueError:
-            deposit = 0
-        if deposit > 0:
-            await self.send_msgs([{
-                "cmd": "Set", "key": self.energylink_key,
-                "operations": [{"operation": "add", "value": deposit}]
-            }])
-            logger.debug(f"EnergyLink: Deposited {format_SI_prefix(deposit)}* of ale energy")
-        self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/energy_deposit", "0")')
-        self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/use_energy_link", "N")')
+        if self.energy_link_enabled:
+            used_energy = self.dfhack.run_command("lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/use_energy_link") or "N")')
+            if used_energy and used_energy.strip() == "Y":
+                deposit_raw = self.dfhack.run_command("lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/energy_deposit") or "0")')
+                try:
+                    deposit = int((deposit_raw or "0").strip())
+                except ValueError:
+                    deposit = 0
+                if deposit > 0:
+                    await self.send_msgs([{
+                        "cmd": "Set", "key": self.energylink_key, "operations":
+                            [{"operation": "add", "value": deposit}]
+                    }])
+                    logger.debug(f"EnergyLink: Sent {format_SI_prefix(deposit)}*")
+                self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/energy_deposit", "0")')
+                self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/use_energy_link", "N")')
 
     async def _check_caravan_request(self):
         """Handle caravan call: deduct seasonal energy cost from pool, then approve spawn in Lua."""
@@ -1124,11 +1115,11 @@ class DwarfFortressContext(CommonContext):
         elif cmd == "SetReply":
             if args["key"].startswith("EnergyLink"):
                 if self.energy_link_enabled and args.get("last_deplete", -1) == self.last_deplete:
-                    # it's our deplete request — log how much was actually taken from the pool
+                    # it's our deplete request
                     gained = int(args["original_value"] - args["value"])
                     gained_text = format_SI_prefix(gained) + "*"
                     if gained:
-                        logger.debug(f"EnergyLink: Withdrew {gained_text}. "
+                        logger.debug(f"EnergyLink: Received {gained_text}. "
                                      f"{format_SI_prefix(args['value'])}* remaining.")
 
     def on_print_json(self, args: dict[Any, Any]):
