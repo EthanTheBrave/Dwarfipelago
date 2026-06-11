@@ -529,7 +529,7 @@ local function deposit_ale(n)
         dfhack.gui.showAnnouncement("[AP] Could not remove any ale.", COLOR_RED, true)
         return
     end
-    _add_energy(deposited * 1000000, ("%d ale"):format(deposited))
+    _add_energy(deposited * 100000, ("%d ale"):format(deposited))
 end
 
 -- Deposit up to n food items (nil = all available).
@@ -551,7 +551,7 @@ local function deposit_food(n)
         dfhack.gui.showAnnouncement("[AP] Could not remove any food.", COLOR_RED, true)
         return
     end
-    _add_energy(deposited * 500000, ("%d food"):format(deposited))
+    _add_energy(deposited * 50000, ("%d food"):format(deposited))
 end
 
 -- Deposit all available minted coins.
