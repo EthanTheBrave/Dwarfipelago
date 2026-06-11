@@ -381,7 +381,7 @@ function DwarfipelagoPanel:init()
     local W, H = 62, 48
 
     local pages = widgets.Pages{
-        frame = {t=2, b=2},
+        frame = {t=4, b=2},
         subviews = {
             -- ── Tab 1: Status ────────────────────────────────────────────────
             widgets.Panel{
