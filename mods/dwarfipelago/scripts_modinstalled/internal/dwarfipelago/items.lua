@@ -196,8 +196,8 @@ end
 local function recv_cut_diamond()
     -- Diamond tokens vary by world gen; try known variants then scan raws.
     local tokens = {
-        "INORGANIC:CLEAR_DIAMOND", "INORGANIC:BLUE_DIAMOND", "INORGANIC:RED_DIAMOND",
-        "INORGANIC:YELLOW_DIAMOND", "INORGANIC:BROWN_DIAMOND", "INORGANIC:BLACK_DIAMOND",
+        "INORGANIC:DIAMOND_CLEAR", "INORGANIC:DIAMOND_BLUE", "INORGANIC:DIAMOND_RED",
+        "INORGANIC:DIAMOND_YELLOW", "INORGANIC:DIAMOND_BROWN", "INORGANIC:DIAMOND_BLACK",
     }
     for _, raw in ipairs(df.global.world.raws.inorganics) do
         local id = raw.id or ""
