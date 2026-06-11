@@ -263,11 +263,6 @@ local function recv_dwarven_ale()
     announce_at_depot("Received: Dwarven Ale! A cask of plump helmet brew.")
 end
 
--- Single unit spawned silently by the energy-link auto-retrieve system.
-local function recv_energy_ale()
-    spawn_item("DRINK", "PLANT_MAT:MUSHROOM_HELMET_PLUMP:DRINK")
-end
-
 local function recv_stone_trinket()
     spawn_item("FIGURINE", "INORGANIC:MARBLE")
     announce_at_depot("Received: Stone Trinket! A finely carved marble figurine.")
@@ -1171,9 +1166,6 @@ M.UNLOCK_DEFS = {
 -- Names must match items.py exactly.
 
 M.handlers = {
-    -- Energy Link ale retrieval (spawned silently by the Python client)
-    ["Energy Ale"]           = recv_energy_ale,
-
     -- Filler items
     ["Dwarven Ale"]          = recv_dwarven_ale,
     ["Stone Trinket"]        = recv_stone_trinket,

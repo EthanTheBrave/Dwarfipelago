@@ -588,7 +588,7 @@ class DwarfFortressContext(CommonContext):
                         await self._apply_pending_items()
                         await self.update_energy()
                         await self.new_energy()
-                        await self._check_ale_request()
+                        await self._check_caravan_request()
                     else:
                         logger.debug("Trade depot not yet established — holding checks and item delivery")
 
@@ -928,20 +928,25 @@ class DwarfFortressContext(CommonContext):
         self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/energy_deposit", "0")')
         self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/use_energy_link", "N")')
 
-    async def _check_ale_request(self):
-        """Auto-retrieve ale from the AP pool when fortress drink stocks fall below threshold."""
+    async def _check_caravan_request(self):
+        """Handle caravan call: deduct seasonal energy cost from pool, then approve spawn in Lua."""
         if not self.energy_link_enabled:
             return
-        flag = self.dfhack.run_command("lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/request_ale") or "0")')
+        flag = self.dfhack.run_command("lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/request_caravan") or "0")')
         if not (flag and flag.strip() == "1"):
             return
-        pool = self.current_energy_link_value
-        if pool is None or pool < 1_000_000:
-            # Not enough energy — clear the flag rather than looping forever
-            self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/request_ale", "0")')
+        self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/request_caravan", "0")')
+        cost_raw = self.dfhack.run_command("lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/caravan_energy_cost") or "0")')
+        try:
+            cost = int((cost_raw or "0").strip())
+        except ValueError:
+            cost = 0
+        if cost <= 0:
             return
-        n_ales = min(10, int(pool // 1_000_000))
-        cost   = n_ales * 1_000_000
+        pool = self.current_energy_link_value
+        if pool is None or pool < cost:
+            logger.debug(f"EnergyLink: Caravan denied — need {format_SI_prefix(cost)}*, have {format_SI_prefix(pool or 0)}*")
+            return
         self.last_deplete = time.time()
         await self.send_msgs([{
             "cmd": "Set", "key": self.energylink_key,
@@ -949,9 +954,8 @@ class DwarfFortressContext(CommonContext):
                            {"operation": "max", "value": 0}],
             "last_deplete": self.last_deplete
         }])
-        self.dfhack.run_command("lua", f'for _=1,{n_ales} do reqscript("internal/dwarfipelago/items").receive("Energy Ale") end')
-        self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/request_ale", "0")')
-        logger.debug(f"EnergyLink: Retrieved {n_ales} ale(s), cost {format_SI_prefix(cost)}*")
+        self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/spawn_caravan_approved", "1")')
+        logger.debug(f"EnergyLink: Caravan approved, deducted {format_SI_prefix(cost)}*")
 
 
     async def _crafting_location_checks(self):

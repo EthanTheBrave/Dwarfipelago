@@ -398,32 +398,61 @@ local function spawnCaravan()
 end
 
 -- ── AP Caravan: call / dismiss / anchor ───────────────────────────────────────
+-- Caravan call costs energy from the AP pool; cost varies by season.
+-- Spring = 300 MJ, Summer = 150 MJ, Fall = 50 MJ, Winter = 500 MJ.
+-- Python authorises the deduction and sets spawn_caravan_approved=1.
 
-local CARAVAN_COIN_COST = 10000
+local CARAVAN_SEASON_COST = {
+    [0] = 300000000,  -- Spring
+    [1] = 150000000,  -- Summer
+    [2] =  50000000,  -- Fall
+    [3] = 500000000,  -- Winter
+}
+local SEASON_NAMES = { [0]="Spring", [1]="Summer", [2]="Fall", [3]="Winter" }
+
+local function _cur_season()
+    local s = 0
+    pcall(function() s = df.global.world.cur_season end)
+    return s
+end
+
+local function get_caravan_cost_j()
+    return CARAVAN_SEASON_COST[_cur_season()] or 300000000
+end
+
+local function get_season_name()
+    return SEASON_NAMES[_cur_season()] or "Unknown"
+end
 
 local function call_ap_caravan()
+    if dfhack.persistent.getWorldDataString("dwarfipelago/energy_enabled") ~= "1" then
+        dfhack.gui.showAnnouncement("[AP] Energy Link is not enabled for this slot.", COLOR_YELLOW, true)
+        return
+    end
     if dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_active") == "1" then
         dfhack.gui.showAnnouncement("[AP] The AP caravan is already docked.", COLOR_YELLOW, true)
         return
     end
-    local coin_items, total = checks.find_coins_for_cost(CARAVAN_COIN_COST)
-    if not coin_items then
-        dfhack.gui.showAnnouncement(
-            ("[AP] Need %d in minted coins to call the AP caravan (have %d)."):format(CARAVAN_COIN_COST, total),
-            COLOR_YELLOW, true)
-        print(("[Dwarfipelago] call-caravan: insufficient coins (%d/%d)"):format(total, CARAVAN_COIN_COST))
+    if dfhack.persistent.getWorldDataString("dwarfipelago/request_caravan") == "1" then
+        dfhack.gui.showAnnouncement("[AP] Caravan request is already pending.", COLOR_YELLOW, true)
         return
     end
-    local spent = 0
-    for _, entry in ipairs(coin_items) do
-        if spent >= CARAVAN_COIN_COST then break end
-        pcall(function() dfhack.items.remove(entry.item) end)
-        spent = spent + entry.val
+    local cost = get_caravan_cost_j()
+    local pool = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/energy_link") or "0") or 0
+    if pool < cost then
+        dfhack.gui.showAnnouncement(
+            ("[AP] Need %d MJ (%s) to call caravan — have %d MJ."):format(
+                math.floor(cost/1000000), get_season_name(), math.floor(pool/1000000)),
+            COLOR_YELLOW, true)
+        return
     end
-    if not spawnCaravan() then return end
-    dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "1")
-    dfhack.gui.showAnnouncement("[AP] The AP caravan has been summoned! 10,000 minted coins paid.", COLOR_GREEN, true)
-    print("[Dwarfipelago] AP caravan called.")
+    dfhack.persistent.saveWorldDataString("dwarfipelago/caravan_energy_cost", tostring(cost))
+    dfhack.persistent.saveWorldDataString("dwarfipelago/request_caravan", "1")
+    dfhack.gui.showAnnouncement(
+        ("[AP] Caravan requested — %d MJ (%s). Arriving soon!"):format(
+            math.floor(cost/1000000), get_season_name()),
+        COLOR_CYAN, true)
+    print("[Dwarfipelago] Caravan request queued.")
 end
 
 local function dismiss_ap_caravan()
@@ -436,36 +465,114 @@ local function dismiss_ap_caravan()
     print("[Dwarfipelago] AP caravan dismissed.")
 end
 
--- Deposit all available ale from fortress stocks into the AP energy pool.
-local function deposit_ale()
-    if dfhack.persistent.getWorldDataString("dwarfipelago/energy_enabled") ~= "1" then
-        dfhack.gui.showAnnouncement("[AP] Energy Link is not enabled for this slot.", COLOR_YELLOW, true)
+-- Poll: once Python approves the energy deduction, spawn the caravan.
+local function _check_spawn_caravan_approved()
+    if dfhack.persistent.getWorldDataString("dwarfipelago/spawn_caravan_approved") ~= "1" then return end
+    dfhack.persistent.saveWorldDataString("dwarfipelago/spawn_caravan_approved", "0")
+    if not spawnCaravan() then
+        dfhack.gui.showAnnouncement("[AP] Caravan approved but spawn failed.", COLOR_RED, true)
         return
     end
+    dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "1")
+    local cost = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/caravan_energy_cost") or "0") or 0
+    dfhack.gui.showAnnouncement(
+        ("[AP] The AP caravan has arrived! (%d MJ spent)"):format(math.floor(cost/1000000)),
+        COLOR_GREEN, true)
+    print("[Dwarfipelago] AP caravan spawned.")
+end
+
+-- ── Energy deposits: ale, food, coins ─────────────────────────────────────────
+-- Players remove resources from the fortress to add energy to the AP pool.
+-- Conversion rates:  ale = 1 MJ/unit,  food = 500 kJ/item,  coins = 1 kJ/☼ value.
+
+local function _energy_enabled()
+    if dfhack.persistent.getWorldDataString("dwarfipelago/energy_enabled") ~= "1" then
+        dfhack.gui.showAnnouncement("[AP] Energy Link is not enabled for this slot.", COLOR_YELLOW, true)
+        return false
+    end
+    return true
+end
+
+local function _add_energy(joules, label)
+    local prev = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/energy_deposit") or "0") or 0
+    dfhack.persistent.saveWorldDataString("dwarfipelago/energy_deposit", tostring(prev + joules))
+    dfhack.persistent.saveWorldDataString("dwarfipelago/use_energy_link", "Y")
+    dfhack.gui.showAnnouncement(
+        ("[AP] %s (%.1f MJ) deposited into the energy network!"):format(label, joules/1000000),
+        COLOR_CYAN, true)
+    print(("[Dwarfipelago] Energy deposit: %s = %d J"):format(label, joules))
+end
+
+-- Deposit up to n ale units (nil = all available).
+local function deposit_ale(n)
+    if not _energy_enabled() then return end
     local drinks = {}
     pcall(function() drinks = checks.find_fortress_drinks() end)
     if #drinks == 0 then
-        dfhack.gui.showAnnouncement("[AP] No ale in stocks available to deposit.", COLOR_YELLOW, true)
+        dfhack.gui.showAnnouncement("[AP] No ale in stocks to deposit.", COLOR_YELLOW, true)
         return
     end
     local deposited = 0
     for _, item in ipairs(drinks) do
+        if n and deposited >= n then break end
         local qty = item.stack_size or 1
-        local ok = pcall(function() dfhack.items.remove(item) end)
-        if ok then deposited = deposited + qty end
+        if n and (deposited + qty) > n then
+            local take = n - deposited
+            pcall(function() item.stack_size = item.stack_size - take end)
+            deposited = deposited + take
+            break
+        end
+        pcall(function() dfhack.items.remove(item) end)
+        deposited = deposited + qty
     end
     if deposited == 0 then
-        dfhack.gui.showAnnouncement("[AP] Failed to remove ale from stocks.", COLOR_RED, true)
+        dfhack.gui.showAnnouncement("[AP] Could not remove any ale.", COLOR_RED, true)
         return
     end
-    local energy = deposited * 1000000
-    local prev = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/energy_deposit") or "0") or 0
-    dfhack.persistent.saveWorldDataString("dwarfipelago/energy_deposit", tostring(prev + energy))
-    dfhack.persistent.saveWorldDataString("dwarfipelago/use_energy_link", "Y")
-    dfhack.gui.showAnnouncement(
-        ("[AP] Deposited %d ales (%d MJ) into the energy network!"):format(deposited, deposited),
-        COLOR_CYAN, true)
-    print(("[Dwarfipelago] Energy deposit: %d ales = %d J"):format(deposited, energy))
+    _add_energy(deposited * 1000000, ("%d ale"):format(deposited))
+end
+
+-- Deposit up to n food items (nil = all available).
+local function deposit_food(n)
+    if not _energy_enabled() then return end
+    local food = {}
+    pcall(function() food = checks.find_fortress_food() end)
+    if #food == 0 then
+        dfhack.gui.showAnnouncement("[AP] No food in stocks to deposit.", COLOR_YELLOW, true)
+        return
+    end
+    local count = n and math.min(n, #food) or #food
+    local deposited = 0
+    for i = 1, count do
+        local ok = pcall(function() dfhack.items.remove(food[i]) end)
+        if ok then deposited = deposited + 1 end
+    end
+    if deposited == 0 then
+        dfhack.gui.showAnnouncement("[AP] Could not remove any food.", COLOR_RED, true)
+        return
+    end
+    _add_energy(deposited * 500000, ("%d food"):format(deposited))
+end
+
+-- Deposit all available minted coins.
+local function deposit_coins()
+    if not _energy_enabled() then return end
+    local coin_items, total_j = {}, 0
+    pcall(function() coin_items, total_j = checks.find_fortress_coins_energy() end)
+    if #coin_items == 0 or total_j == 0 then
+        dfhack.gui.showAnnouncement("[AP] No minted coins to deposit.", COLOR_YELLOW, true)
+        return
+    end
+    local deposited_j = 0
+    for _, entry in ipairs(coin_items) do
+        local ok = pcall(function() dfhack.items.remove(entry.item) end)
+        if ok then deposited_j = deposited_j + entry.j end
+    end
+    if deposited_j == 0 then
+        dfhack.gui.showAnnouncement("[AP] Could not remove any coins.", COLOR_RED, true)
+        return
+    end
+    _add_energy(deposited_j, "all coins")
 end
 
 -- Poll: keep the AP caravan from departing by removing its Return timed event.
@@ -502,20 +609,6 @@ local function keep_ap_caravan_anchored()
         end
     end)
 end
-
--- Poll: request ale from the AP pool when fortress drink stocks fall below threshold.
-local ALE_DRINK_THRESHOLD = 50
-
-local function detect_ale_shortage()
-    if dfhack.persistent.getWorldDataString("dwarfipelago/energy_enabled") ~= "1" then return end
-    if dfhack.persistent.getWorldDataString("dwarfipelago/request_ale") == "1" then return end
-    local count = 0
-    pcall(function() count = checks.count_fortress_drinks() end)
-    if count < ALE_DRINK_THRESHOLD then
-        dfhack.persistent.saveWorldDataString("dwarfipelago/request_ale", "1")
-    end
-end
-
 
 -- Detect first trade / first export by checking the fortress exported-wealth
 -- counter. DF increments this when goods are sold to a caravan, so a value
@@ -833,7 +926,7 @@ local function poll_checks()
     detect_caged_megabeast()
     detect_sold_artifact()
     keep_ap_caravan_anchored()
-    detect_ale_shortage()
+    _check_spawn_caravan_approved()
 
     for _, check in ipairs(checks.checks) do
         if not state.is_location_checked(check.id) then
@@ -1580,7 +1673,11 @@ elseif cmd == "call-caravan" then
 elseif cmd == "dismiss-caravan" then
     dismiss_ap_caravan()
 elseif cmd == "deposit-ale" then
-    deposit_ale()
+    deposit_ale(tonumber(args[2]))
+elseif cmd == "deposit-food" then
+    deposit_food(tonumber(args[2]))
+elseif cmd == "deposit-coins" then
+    deposit_coins()
 elseif cmd == "receive" then
     local item_name = table.concat(args, " ", 2)
     if item_name == "" then
@@ -1592,5 +1689,5 @@ elseif cmd == "test" then
     -- Manual mechanic verification: dwarfipelago test <name> [args]
     items.run_test(args[2], { table.unpack(args, 3) })
 else
-    print("Usage: dwarfipelago [start|stop|status|reset|resetseed|panel|call-caravan|dismiss-caravan|deposit-ale|receive <item>|test <name>]")
+    print("Usage: dwarfipelago [start|stop|status|reset|resetseed|panel|call-caravan|dismiss-caravan|deposit-ale [n]|deposit-food [n]|deposit-coins|receive <item>|test <name>]")
 end

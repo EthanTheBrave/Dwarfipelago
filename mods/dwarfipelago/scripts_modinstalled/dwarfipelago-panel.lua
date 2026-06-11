@@ -8,6 +8,7 @@
 local gui     = require('gui')
 local overlay = require('plugins.overlay')
 local widgets = require('gui.widgets')
+local dialogs = require('gui.dialogs')
 local state   = reqscript('internal/dwarfipelago/state')
 local items   = reqscript('internal/dwarfipelago/items')
 local checks  = reqscript('internal/dwarfipelago/checks')
@@ -475,35 +476,128 @@ function DwarfipelagoPanel:init()
                             self:dismiss()
                         end,
                     },
+                },
+            },
+            -- ── Tab 6: Energy ─────────────────────────────────────────────────
+            (function()
+                if ps("energy_enabled", "0") ~= "1" then
+                    return widgets.Panel{ subviews = {
+                        widgets.Label{frame={t=1,l=1}, text={
+                            {text="Energy Link not enabled for this slot.", pen=COLOR_DARKGRAY}
+                        }},
+                    }}
+                end
+
+                local pool    = tonumber(ps("energy_link", "0")) or 0
+                local mj      = math.floor(pool / 1000000)
+                local caravan = ps("ap_caravan_active", "0") == "1"
+                local pending = ps("request_caravan", "0") == "1"
+
+                local season = 0
+                pcall(function() season = df.global.world.cur_season end)
+                local snames = {"Spring","Summer","Fall","Winter"}
+                local scosts = {300, 150, 50, 500}
+                local sname  = snames[(season % 4) + 1]
+                local scost  = scosts[(season % 4) + 1]
+
+                local ale_count = 0
+                pcall(function() ale_count = checks.count_fortress_drinks() end)
+                local food_count = 0
+                pcall(function() food_count = #checks.find_fortress_food() end)
+                local _, coins_j = 0, 0
+                pcall(function() _, coins_j = checks.find_fortress_coins_energy() end)
+
+                local status_tag = caravan and "  [Caravan docked]"
+                               or (pending and "  [Request pending]" or "")
+                local status_pen = caravan and COLOR_GREEN or COLOR_YELLOW
+
+                return widgets.Panel{ subviews = {
+                    widgets.Label{frame={t=0,l=0}, text={
+                        "Pool:     ",
+                        {text=fmt_num(mj).." MJ", pen=COLOR_CYAN},
+                        {text=status_tag, pen=status_pen},
+                    }},
+                    widgets.Label{frame={t=1,l=0}, text={
+                        "Season:   ",
+                        {text=sname, pen=COLOR_WHITE},
+                        "  Caravan cost: ",
+                        {text=fmt_num(scost).." MJ",
+                         pen=(mj >= scost) and COLOR_GREEN or COLOR_RED},
+                    }},
+                    widgets.Label{frame={t=2,l=0}, text={
+                        "Stocks:   ",
+                        {text=fmt_num(ale_count).." ale", pen=COLOR_YELLOW},
+                        "  ",
+                        {text=fmt_num(food_count).." food", pen=COLOR_YELLOW},
+                        "  ",
+                        {text=fmt_num(math.floor(coins_j/1000)).." kJ in coins", pen=COLOR_YELLOW},
+                    }},
                     widgets.HotkeyLabel{
-                        frame = {t=6, l=2},
-                        key   = "CUSTOM_SHIFT_A",
-                        label = "Deposit Ale (energy link)",
-                        on_activate = function()
-                            dfhack.run_command("dwarfipelago", "deposit-ale")
+                        frame={t=4,l=2}, key="CUSTOM_SHIFT_A",
+                        label="Deposit Ale",
+                        on_activate=function()
+                            self:dismiss()
+                            local avail = 0
+                            pcall(function() avail = checks.count_fortress_drinks() end)
+                            dialogs.showInputPrompt(
+                                "Deposit Ale",
+                                ("Ale units to deposit (available: %d, 1 MJ each):"):format(avail),
+                                COLOR_WHITE, "",
+                                function(text)
+                                    local n = math.floor(tonumber(text) or 0)
+                                    if n > 0 then
+                                        dfhack.run_command("dwarfipelago", "deposit-ale", tostring(n))
+                                    end
+                                end
+                            )
+                        end,
+                    },
+                    widgets.HotkeyLabel{
+                        frame={t=5,l=2}, key="CUSTOM_SHIFT_F",
+                        label="Deposit Food",
+                        on_activate=function()
+                            self:dismiss()
+                            local avail = 0
+                            pcall(function() avail = #checks.find_fortress_food() end)
+                            dialogs.showInputPrompt(
+                                "Deposit Food",
+                                ("Food items to deposit (available: %d, 0.5 MJ each):"):format(avail),
+                                COLOR_WHITE, "",
+                                function(text)
+                                    local n = math.floor(tonumber(text) or 0)
+                                    if n > 0 then
+                                        dfhack.run_command("dwarfipelago", "deposit-food", tostring(n))
+                                    end
+                                end
+                            )
+                        end,
+                    },
+                    widgets.HotkeyLabel{
+                        frame={t=6,l=2}, key="CUSTOM_SHIFT_C",
+                        label=("Deposit Coins (all, ~%.1f MJ)"):format(coins_j/1000000),
+                        on_activate=function()
+                            dfhack.run_command("dwarfipelago", "deposit-coins")
                             self:dismiss()
                         end,
                     },
                     widgets.HotkeyLabel{
-                        frame = {t=7, l=2},
-                        key   = "CUSTOM_SHIFT_C",
-                        label = "Call AP Caravan (10,000 coins)",
-                        on_activate = function()
+                        frame={t=8,l=2}, key="CUSTOM_SHIFT_V",
+                        label=("Call Caravan (%d MJ, %s)"):format(scost, sname),
+                        on_activate=function()
                             dfhack.run_command("dwarfipelago", "call-caravan")
                             self:dismiss()
                         end,
                     },
                     widgets.HotkeyLabel{
-                        frame = {t=8, l=2},
-                        key   = "CUSTOM_SHIFT_V",
-                        label = "Dismiss AP Caravan",
-                        on_activate = function()
+                        frame={t=9,l=2}, key="CUSTOM_SHIFT_D",
+                        label="Dismiss Caravan",
+                        on_activate=function()
                             dfhack.run_command("dwarfipelago", "dismiss-caravan")
                             self:dismiss()
                         end,
                     },
-                },
-            },
+                }}
+            end)(),
         },
     }
 
@@ -516,7 +610,7 @@ function DwarfipelagoPanel:init()
             subviews    = {
                 widgets.TabBar{
                     frame        = {t=0, l=0},
-                    labels       = {"Status", "Unlocks", "Progress", "Crafts", "Controls"},
+                    labels       = {"Status", "Unlocks", "Progress", "Crafts", "Controls", "Energy"},
                     on_select    = function(idx) pages:setSelected(idx) end,
                     get_cur_page = function() return pages:getSelected() end,
                 },
