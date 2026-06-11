@@ -739,8 +739,8 @@ local function recv_vermin_infestation()
         end
     end
     if x then
-        for _ = 1, 10 do
-            if create_unit(RATS, {x = tonumber(x), y = tonumber(y), z = tonumber(z)}, {civ_id = -1, hostile = true}) then
+        for _ = 1, 20 do
+            if create_unit(RATS, {x = tonumber(x), y = tonumber(y), z = tonumber(z)}, {civ_id = -1, hostile = false}) then
                 spawned = spawned + 1
             end
         end
