@@ -727,9 +727,28 @@ local function recv_cave_bear()
     end
 end
 
+-- Return a random tile inside a stockpile. Prefers food stockpiles; falls back
+-- to any stockpile; falls back to get_fort_spawn_pos if none exist.
+local function find_stockpile_pos()
+    local food_piles, any_piles = {}, {}
+    for _, bld in ipairs(df.global.world.buildings.all) do
+        if df.building_stockpilest:is_instance(bld) then
+            local is_food = false
+            pcall(function() is_food = bld.settings.flags.food end)
+            table.insert(is_food and food_piles or any_piles, bld)
+        end
+    end
+    local pool = #food_piles > 0 and food_piles or any_piles
+    if #pool == 0 then return get_fort_spawn_pos() end
+    local bld = pool[math.random(#pool)]
+    local x = math.random(bld.x1, bld.x2)
+    local y = math.random(bld.y1, bld.y2)
+    return x, y, bld.z
+end
+
 local function recv_vermin_infestation()
     -- Spawn inside the fortress — rats materialise directly in your stockpiles.
-    local x, y, z = get_fort_spawn_pos()
+    local x, y, z = find_stockpile_pos()
     local spawned = 0
     local RATS = { "GIANT_RAT", "RAT", "GIANT_MOUSE", "MOUSE", "GIANT_MOLE", "MOLE_DWARF" }
     for _, cr in ipairs(df.global.world.raws.creatures.all) do
@@ -740,12 +759,12 @@ local function recv_vermin_infestation()
     end
     if x then
         for _ = 1, 20 do
-            if create_unit(RATS, {x = tonumber(x), y = tonumber(y), z = tonumber(z)}, {civ_id = -1, hostile = false}) then
+            if create_unit(RATS, {x = x, y = y, z = z}, {civ_id = -1, hostile = false}) then
                 spawned = spawned + 1
             end
         end
     end
-    local spawn_pos = x and {x=tonumber(x), y=tonumber(y), z=tonumber(z)} or nil
+    local spawn_pos = x and {x=x, y=y, z=z} or nil
     if spawned > 0 then
         announce("Trap: Vermin Infestation! Giant rats everywhere!",
             spawn_pos, df.announcement_type.VERMIN_CAGE_ESCAPE)
