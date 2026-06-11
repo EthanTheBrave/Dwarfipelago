@@ -898,32 +898,49 @@ function M.find_fortress_drinks()
     return drinks
 end
 
--- Search fortress stocks for minted coins totaling >= target_value.
--- Returns (list_of_{item,val}, total) on success, (nil, total) if short.
-function M.find_coins_for_cost(target_value)
-    local found = {}
-    local total = 0
+-- Return all accessible food items in fortress stocks.
+function M.find_fortress_food()
+    local food = {}
+    for _, item in ipairs(df.global.world.items.all) do
+        local ok, t = pcall(function() return item:getType() end)
+        if ok and t == df.item_type.FOOD
+                and not item.flags.removed
+                and not item.flags.trader
+                and not item.flags.in_inventory
+                and not item.flags.in_job then
+            table.insert(food, item)
+        end
+    end
+    return food
+end
+
+-- Return all accessible minted coins in fortress stocks with their energy values.
+-- Each coin item contributes (stack_size × material_value × 1000) joules.
+-- Returns (list_of_{item,j}, total_j).
+function M.find_fortress_coins_energy()
+    local found   = {}
+    local total_j = 0
     for _, item in ipairs(df.global.world.items.all) do
         local ok, t = pcall(function() return item:getType() end)
         if ok and t == df.item_type.COIN
                 and not item.flags.removed
                 and not item.flags.trader
-                and not item.flags.in_inventory then
-            local val = 0
+                and not item.flags.in_inventory
+                and not item.flags.in_job then
+            local j = 0
             pcall(function()
                 local ok2, mat = pcall(dfhack.matinfo.decode, item.mat_type, item.mat_index)
                 if ok2 and mat and mat.material then
-                    val = (item.stack_size or 1) * (mat.material.material_value or 1)
+                    j = (item.stack_size or 1) * (mat.material.material_value or 1) * 1000
                 end
             end)
-            if val > 0 then
-                table.insert(found, { item = item, val = val })
-                total = total + val
-                if total >= target_value then return found, total end
+            if j > 0 then
+                table.insert(found, { item = item, j = j })
+                total_j = total_j + j
             end
         end
     end
-    return nil, total
+    return found, total_j
 end
 
 -- reqscript returns the script's _ENV, not the explicit return value.
