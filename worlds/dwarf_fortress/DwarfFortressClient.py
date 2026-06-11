@@ -705,7 +705,7 @@ class DwarfFortressContext(CommonContext):
         self.version = slot_data.get("version")
         materials_enabled = slot_data.get("craftsanity_materials")
         king_remains_amt = slot_data.get("remains_great_king")
-        craftingitems = slot_data.get("crafting_items")
+        craftingpermits = slot_data.get("crafting_permits")
         current_seed = self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("dwarfipelago/seed"))')
         current_seed = (current_seed or "").strip()
         # A blank/"nil" stored seed means this world has no AP identity yet (fresh,
@@ -722,7 +722,7 @@ class DwarfFortressContext(CommonContext):
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/wealth_goal", "{wealth_goal}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/pop_goal", "{pop_goal}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/king_remains_goal", "{king_remains_amt}")')
-                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/crafting_items", "{craftingitems}")')
+                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/crafting_permits", "{craftingpermits}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink", "{1 if self._deathlink_enabled else 0}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_threshold", "{dl_threshold}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_percentage", "{int(dl_percentage)}")')
@@ -733,7 +733,7 @@ class DwarfFortressContext(CommonContext):
                 # even on reconnects or if the initial write was interrupted.
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_enabled", "{craftsanity_enabled}")')
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_materials", "{materials_enabled}")')
-                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/crafting_items", "{craftingitems}")')
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/crafting_permits", "{craftingpermits}")')
                 # Craftsanity metadata for the in-game panel tab.
                 # Written on every sync so the panel works after reconnects.
                 if self._craftsanity_threshold and self._craftsanity_max_value:
