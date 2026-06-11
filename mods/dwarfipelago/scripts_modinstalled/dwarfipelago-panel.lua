@@ -558,7 +558,7 @@ function DwarfipelagoPanel:init()
                             pcall(function() avail = checks.count_fortress_drinks() end)
                             dialogs.showInputPrompt(
                                 "Deposit Ale",
-                                ("Ale units to deposit (available: %d, 1 MJ each):"):format(avail),
+                                ("Ale units to deposit (available: %d, 100 kJ each):"):format(avail),
                                 COLOR_WHITE, "",
                                 function(text)
                                     local n = math.floor(tonumber(text) or 0)
@@ -578,7 +578,7 @@ function DwarfipelagoPanel:init()
                             pcall(function() avail = #checks.find_fortress_food() end)
                             dialogs.showInputPrompt(
                                 "Deposit Food",
-                                ("Food items to deposit (available: %d, 0.5 MJ each):"):format(avail),
+                                ("Food items to deposit (available: %d, 50 kJ each):"):format(avail),
                                 COLOR_WHITE, "",
                                 function(text)
                                     local n = math.floor(tonumber(text) or 0)
