@@ -483,7 +483,7 @@ end
 
 -- ── Energy deposits: ale, food, coins ─────────────────────────────────────────
 -- Players remove resources from the fortress to add energy to the AP pool.
--- Conversion rates:  ale = 1 MJ/unit,  food = 500 kJ/item,  coins = 1 kJ/☼ value.
+-- Conversion rates:  ale = 1 MJ/unit,  food = 500 kJ/item,  coins = 1 kJ/* value.
 
 local function _energy_enabled()
     if dfhack.persistent.getWorldDataString("dwarfipelago/energy_enabled") ~= "1" then
@@ -555,12 +555,12 @@ local function deposit_food(n)
 end
 
 -- Deposit all available minted coins.
--- Deposit up to target_val ☼ of minted coin face value (1 ☼ = 1 kJ).
+-- Deposit up to target_val * of minted coin face value (1 * = 1 kJ).
 -- Handles partial stacks so removal is accurate to the coin.
 local function deposit_coins(target_val)
     if not _energy_enabled() then return end
     if not target_val or target_val <= 0 then
-        dfhack.gui.showAnnouncement("[AP] Specify a coin value (☼) amount to deposit.", COLOR_YELLOW, true)
+        dfhack.gui.showAnnouncement("[AP] Specify a coin value (*) amount to deposit.", COLOR_YELLOW, true)
         return
     end
     local coin_items, total_j = {}, 0
@@ -572,7 +572,7 @@ local function deposit_coins(target_val)
     end
     if target_val > avail_val then
         dfhack.gui.showAnnouncement(
-            ("[AP] Only %d ☼ available (requested %d ☼) — depositing all."):format(avail_val, target_val),
+            ("[AP] Only %d * available (requested %d *) — depositing all."):format(avail_val, target_val),
             COLOR_YELLOW, true)
         target_val = avail_val
     end
@@ -594,7 +594,7 @@ local function deposit_coins(target_val)
         dfhack.gui.showAnnouncement("[AP] Could not remove any coins.", COLOR_RED, true)
         return
     end
-    _add_energy(deposited_val * 1000, ("%d ☼ in coins"):format(deposited_val))
+    _add_energy(deposited_val * 1000, ("%d * in coins"):format(deposited_val))
 end
 
 -- Detect first trade / first export by checking the fortress exported-wealth
