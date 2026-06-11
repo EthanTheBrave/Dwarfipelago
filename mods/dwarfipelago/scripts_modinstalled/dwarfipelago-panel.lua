@@ -415,13 +415,12 @@ function DwarfipelagoPanel:init()
                         local energy_on = ps("energy_enabled", "0") == "1"
                         if not energy_on then return widgets.Label{frame={t=6,l=0}, text=""} end
                         local pool     = tonumber(ps("energy_link", "0")) or 0
-                        local mj       = math.floor(pool / 1000000)
                         local caravan  = ps("ap_caravan_active", "0") == "1"
                         return widgets.Label{
                             frame = {t=6, l=0},
                             text  = {
                                 "Energy:   ",
-                                {text=fmt_num(mj) .. " MJ", pen=COLOR_CYAN},
+                                {text=string.format("%.2f MJ", pool/1000000), pen=COLOR_CYAN},
                                 {text=caravan and "  [Caravan docked]" or "", pen=COLOR_GREEN},
                             },
                         }
@@ -489,7 +488,6 @@ function DwarfipelagoPanel:init()
                 end
 
                 local pool    = tonumber(ps("energy_link", "0")) or 0
-                local mj      = math.floor(pool / 1000000)
                 local caravan = ps("ap_caravan_active", "0") == "1"
                 local pending = ps("request_caravan", "0") == "1"
 
@@ -511,18 +509,23 @@ function DwarfipelagoPanel:init()
                                or (pending and "  [Request pending]" or "")
                 local status_pen = caravan and COLOR_GREEN or COLOR_YELLOW
 
+                local pool_mj_str  = string.format("%.2f MJ", pool / 1000000)
+                local pool_kj_str  = "(" .. fmt_num(math.floor(pool / 1000)) .. " kJ)"
+
                 return widgets.Panel{ subviews = {
                     widgets.Label{frame={t=0,l=0}, text={
                         "Pool:     ",
-                        {text=fmt_num(mj).." MJ", pen=COLOR_CYAN},
-                        {text=status_tag, pen=status_pen},
+                        {text=pool_mj_str,  pen=COLOR_CYAN},
+                        "  ",
+                        {text=pool_kj_str,  pen=COLOR_DARKGRAY},
+                        {text=status_tag,   pen=status_pen},
                     }},
                     widgets.Label{frame={t=1,l=0}, text={
                         "Season:   ",
                         {text=sname, pen=COLOR_WHITE},
                         "  Caravan cost: ",
                         {text=fmt_num(scost).." MJ",
-                         pen=(mj >= scost) and COLOR_GREEN or COLOR_RED},
+                         pen=(pool >= scost * 1000000) and COLOR_GREEN or COLOR_RED},
                     }},
                     widgets.Label{frame={t=2,l=0}, text={
                         "Stocks:   ",
