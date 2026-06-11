@@ -194,7 +194,26 @@ local function recv_cut_ruby()
 end
 
 local function recv_cut_diamond()
-    spawn_item("SMALLGEM", "INORGANIC:CLEAR_DIAMOND")
+    -- Diamond tokens vary by world gen; try known variants then scan raws.
+    local tokens = {
+        "INORGANIC:CLEAR_DIAMOND", "INORGANIC:BLUE_DIAMOND", "INORGANIC:RED_DIAMOND",
+        "INORGANIC:YELLOW_DIAMOND", "INORGANIC:BROWN_DIAMOND", "INORGANIC:BLACK_DIAMOND",
+    }
+    for _, raw in ipairs(df.global.world.raws.inorganics) do
+        local id = raw.id or ""
+        if id:find("DIAMOND") then table.insert(tokens, "INORGANIC:" .. id) end
+    end
+    local spawned = false
+    for _, tok in ipairs(tokens) do
+        if dfhack.matinfo.find(tok) and spawn_item("SMALLGEM", tok) > 0 then
+            spawned = true
+            break
+        end
+    end
+    if not spawned then
+        spawn_item("SMALLGEM", "INORGANIC:SAPPHIRE")
+        log.warn("recv_cut_diamond: no diamond material found, substituted sapphire")
+    end
     announce_at_depot("Received: Cut Diamond!")
 end
 
