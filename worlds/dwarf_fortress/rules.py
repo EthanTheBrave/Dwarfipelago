@@ -1,6 +1,6 @@
 from BaseClasses import MultiWorld
 from worlds.dwarf_fortress.craftsanity_rules import DynamicCraftingLocationRules
-from .options import DwarfFortressGoal, CraftingItems
+from .options import DwarfFortressGoal, CraftingPermits
 
 
 # Wealth tier → how many Merchant's Coffers needed to unlock it.
@@ -59,11 +59,11 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     dynamic_rules.df_location_rule(loc, "Mechanism", "")
 
     loc = multiworld.get_location("First Trap Built", player)
-    if options.craftitems == CraftingItems.option_off:
+    if options.craftpermits == CraftingPermits.option_off:
         loc.access_rule = lambda state: state.has("Mechanic's Workshop Blueprint", player)
     else:
         loc.access_rule = lambda state: state.has("Mechanic's Workshop Blueprint", player) and \
-            state.has_any(["Crafting Spike", "Crafting Ball"], player)
+            state.has_any(["Spike Permit", "Ball Permit"], player)
     
     loc = multiworld.get_location("First Millstone Made", player)
     dynamic_rules.df_location_rule(loc, "Millstone", "")
@@ -75,7 +75,7 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     dynamic_rules.df_location_rule(loc, "Cage", "")
 
     loc = multiworld.get_location("First Furniture Made", player)
-    if options.craftitems == CraftingItems.option_off:
+    if options.craftpermits == CraftingPermits.option_off:
         loc.access_rule = lambda state: dynamic_rules.metal(state) or dynamic_rules.wood(state) \
             or dynamic_rules.stone(state) or dynamic_rules.glass(state)
     else:
@@ -99,7 +99,7 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     dynamic_rules.df_location_rule(loc, "Bed", "")
 
     loc = multiworld.get_location("First Weapon Forged", player)
-    if options.craftitems == CraftingItems.option_off:
+    if options.craftpermits == CraftingPermits.option_off:
         loc.access_rule = lambda state: dynamic_rules.metal(state) or dynamic_rules.wood(state)
     else:
         loc.access_rule = lambda state: dynamic_rules.training_axe(state) \
@@ -108,7 +108,7 @@ def set_rules(world: "DwarfFortressWorld") -> None:
             or dynamic_rules.make_warhammer(state) or dynamic_rules.wood_or_bone_bolt(state)
     
     loc = multiworld.get_location("First Armor Crafted", player)
-    if options.craftitems == CraftingItems.option_off:
+    if options.craftpermits == CraftingPermits.option_off:
         loc.access_rule = lambda state: dynamic_rules.metal(state) or dynamic_rules.leather_works(state)
     else:
         loc.access_rule = lambda state: dynamic_rules.metal_or_bone_or_leather_helm(state) \

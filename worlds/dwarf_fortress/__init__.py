@@ -4,7 +4,7 @@ from worlds.AutoWorld import World, WebWorld
 from Options import OptionError
 from worlds.LauncherComponents import Component, icon_paths, components, Type, launch_subprocess
 
-from .options import DwarfFortressOptions, DwarfFortressGoal, CraftingItems
+from .options import DwarfFortressOptions, DwarfFortressGoal, CraftingPermits
 from .settings import DwarfFortressSettings
 from .items import (
     ItemData, ITEM_TABLE, AP_ITEM_POOL, FILLER_ITEMS, TRAP_ITEMS,
@@ -98,7 +98,7 @@ class DwarfFortressWorld(World):
         generate_location_data(self)
 
          # remove the crafting items from the pool depending on the options
-        if self.options.craftitems == CraftingItems.option_off or not self.options.craftsanity:
+        if self.options.craftpermits == CraftingPermits.option_off or not self.options.craftsanity:
             remove_list = []
             remove_ap_pool = []
             for item in self.item_name_to_id:
@@ -110,9 +110,9 @@ class DwarfFortressWorld(World):
                 del self.item_name_to_id[item]
             for item in remove_ap_pool:
                 self.ap_item_pool.remove(item)
-        elif self.options.craftitems == CraftingItems.option_on:
-            self.starting_inventory = ["Crafting Beds", "Crafting Charcoal", "Crafting Leather",
-                "Crafting Cloth", "Crafting Alcohol", "Crafting Prepared Meal"]
+        elif self.options.craftpermits == CraftingPermits.option_on:
+            self.starting_inventory = ["Beds Permit", "Charcoal Permit", "Leather Permit",
+                "Cloth Permit", "Alcohol Permit", "Prepared Meal Permit"]
             remove_ap_pool = []
             for item in self.item_name_to_id:
                 if item in self.starting_inventory:
@@ -121,7 +121,7 @@ class DwarfFortressWorld(World):
             for item in remove_ap_pool:
                 self.ap_item_pool.remove(item)
         
-        if self.options.craftitems != CraftingItems.option_off and len(CRAFT_ITEMS) > len(self.dynamic_locations):
+        if self.options.craftpermits != CraftingPermits.option_off and len(CRAFT_ITEMS) > len(self.dynamic_locations):
             raise OptionError(
                 f"{self.player_name}: You do not have enough crafting locations enabled to use the crafting items feature."
                 f" To increase this, add more crafting item locations, increase the maximum amount or lower the threshold."
@@ -293,7 +293,7 @@ class DwarfFortressWorld(World):
             "craftsanity_threshold": self.options.craftsanity_threshold.value,
             "craftsanity_enabled": self.options.craftsanity.value,
             "craftsanity_materials": self.options.craftsanity_enable_materials.value,
-            "crafting_items": self.options.craftitems.value,
+            "crafting_permits": self.options.craftpermits.value,
             "deathlink_percentage": self.options.deathlink_percentage.value,
             "energy_link": self.options.energy_link.value,
             "version": f"{self.world_version.as_simple_string()}",

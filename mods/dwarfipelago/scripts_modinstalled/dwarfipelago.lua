@@ -895,7 +895,7 @@ pcall(function()
 end)
 
 local function check_craftitem_gate(job)
-    local mode = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/craftitems")) or 0
+    local mode = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/crafting_permits")) or 0
     if mode == 0 then return end
 
     local base_flag

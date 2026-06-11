@@ -1152,6 +1152,7 @@ M.UNLOCK_DEFS = {
     { key = "wealth_coffers",        label = "Merchant's Coffers",     max = 5 },
     { key = "immigration_waves",     label = "Immigration Waves",      max = 5 },
     { key = "military_training",     label = "Military Training",      max = 4 },
+    { key = "RotGK",                 label = "Remains of the Great King", max = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/king_remains_goal"))},
     { key = "baron_charter",         label = "Baron's Charter" },
     { key = "count_charter",         label = "Count's Charter" },
     { key = "duke_charter",          label = "Duke's Charter" },
@@ -1315,7 +1316,7 @@ M.CRAFTING_LOCK_ITEMS = CRAFTING_LOCK_ITEMS
 
 for _, item_name in ipairs(CRAFTING_LOCK_ITEMS) do
     local flag = item_name:lower():gsub(" ", "_")
-    M.handlers["Crafting " .. item_name] = function()
+    M.handlers[item_name .. " Permit"] = function()
         dfhack.persistent.saveWorldDataString("dwarfipelago/craftlock/" .. flag, "1")
         dfhack.gui.showAnnouncement(
             ("[AP] Crafting permit received: %s"):format(item_name),
