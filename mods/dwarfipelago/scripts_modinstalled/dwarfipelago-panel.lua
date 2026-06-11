@@ -70,6 +70,8 @@ end
 
 local function build_unlocks_lines()
     local lines = {}
+    local goal = tonumber(ps("goal", 0))
+
 
     local function hdr(s)
         table.insert(lines, {text=s, pen=COLOR_CYAN})
@@ -90,12 +92,45 @@ local function build_unlocks_lines()
 
     hdr("Progression Items")
     for _, def in ipairs(items.UNLOCK_DEFS) do
+        if goal == 0 then
+            if def.key == "wealth_coffers" or def.key == "baron_charter"
+            or def.key == "count_charter" or def.key == "duke_charter"
+            or def.key == "monarch_invitation" or def.key == "RotGK" then
+                goto continue
+            end
+        elseif goal == 1 then
+            if def.key == "military_training" or def.key == "baron_charter"
+            or def.key == "count_charter" or def.key == "duke_charter"
+            or def.key == "monarch_invitation" or def.key == "RotGK"
+            or def.key == "artifact_weapon" or def.key == "artifact_armor" then
+                goto continue
+            end
+        elseif goal == 2 then
+            if def.key == "military_training" or def.key == "RotGK"
+            or def.key == "artifact_armor" or def.key == "wealth_coffers" then
+                goto continue
+            end
+        elseif goal == 3 then
+            if def.key == "military_training" or def.key == "baron_charter"
+            or def.key == "count_charter" or def.key == "duke_charter"
+            or def.key == "monarch_invitation" or def.key == "RotGK"
+            or def.key == "wealth_coffers" then
+                goto continue
+            end
+        elseif goal == 4 then
+            if def.key == "military_training" or def.key == "baron_charter"
+            or def.key == "count_charter" or def.key == "duke_charter"
+            or def.key == "monarch_invitation" or def.key == "wealth_coffers" then
+                goto continue
+            end
+        end
         local raw = ps("unlock/" .. def.key, "0")
         if def.max then
             item_count(def.label, raw, def.max)
         else
             item_bool(def.label, raw == "1")
         end
+        ::continue::
     end
 
     table.insert(lines, {text = ""})
