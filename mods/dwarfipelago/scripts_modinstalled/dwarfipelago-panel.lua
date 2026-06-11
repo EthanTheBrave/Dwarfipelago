@@ -504,6 +504,7 @@ function DwarfipelagoPanel:init()
                 pcall(function() food_count = #checks.find_fortress_food() end)
                 local _, coins_j = 0, 0
                 pcall(function() _, coins_j = checks.find_fortress_coins_energy() end)
+                local coins_val = math.floor(coins_j / 1000)  -- ☼ face value
 
                 local status_tag = caravan and "  [Caravan docked]"
                                or (pending and "  [Request pending]" or "")
@@ -533,7 +534,7 @@ function DwarfipelagoPanel:init()
                         "  ",
                         {text=fmt_num(food_count).." food", pen=COLOR_YELLOW},
                         "  ",
-                        {text=fmt_num(math.floor(coins_j/1000)).." kJ in coins", pen=COLOR_YELLOW},
+                        {text=fmt_num(coins_val).." ☼ in coins", pen=COLOR_YELLOW},
                     }},
                     widgets.HotkeyLabel{
                         frame={t=4,l=2}, key="CUSTOM_SHIFT_A",
@@ -577,10 +578,25 @@ function DwarfipelagoPanel:init()
                     },
                     widgets.HotkeyLabel{
                         frame={t=6,l=2}, key="CUSTOM_SHIFT_C",
-                        label=("Deposit Coins (all, ~%.1f MJ)"):format(coins_j/1000000),
+                        label=("Deposit Coins (%s ☼ avail)"):format(fmt_num(coins_val)),
                         on_activate=function()
-                            dfhack.run_command("dwarfipelago", "deposit-coins")
                             self:dismiss()
+                            local avail = 0
+                            pcall(function()
+                                local _, cj = checks.find_fortress_coins_energy()
+                                avail = math.floor(cj / 1000)
+                            end)
+                            dialogs.showInputPrompt(
+                                "Deposit Coins",
+                                ("Coin value to deposit in ☼ (available: %s ☼, 1 kJ per ☼):"):format(fmt_num(avail)),
+                                COLOR_WHITE, "",
+                                function(text)
+                                    local n = math.floor(tonumber(text) or 0)
+                                    if n > 0 then
+                                        dfhack.run_command("dwarfipelago", "deposit-coins", tostring(n))
+                                    end
+                                end
+                            )
                         end,
                     },
                     widgets.HotkeyLabel{
