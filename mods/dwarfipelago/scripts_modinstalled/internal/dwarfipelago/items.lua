@@ -1315,7 +1315,7 @@ M.CRAFTING_LOCK_ITEMS = CRAFTING_LOCK_ITEMS
 
 for _, item_name in ipairs(CRAFTING_LOCK_ITEMS) do
     local flag = item_name:lower():gsub(" ", "_")
-    M.handlers["Crafting " .. item_name] = function()
+    M.handlers[item_name .. " Permit"] = function()
         dfhack.persistent.saveWorldDataString("dwarfipelago/craftlock/" .. flag, "1")
         dfhack.gui.showAnnouncement(
             ("[AP] Crafting permit received: %s"):format(item_name),
