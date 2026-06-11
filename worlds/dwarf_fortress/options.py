@@ -173,15 +173,15 @@ class CraftsanityThreshold(Range):
     range_end = 500
     default = 5
 
-class CraftingItems(Choice):
+class CraftingPermits(Choice):
     """
-    If Crafting Items is enabled, you cannot craft certian items until you got the appropriate AP item. 
-    When set to "on", The following crafts you can preform that do not AP items (comes with the workshop):
+    If Crafting Permits is enabled, you cannot craft certian items until you got the appropriate permit. 
+    When set to "on", you start with the following permits:
     Beds, Charcoal, Leather, Cloth, Alcohol, Prepared Meal
-    When set to "all", the above are included and are required to obtain them
+    When set to "all", all permits are required 
     Craftsanity must be enabled to use this feature as it adds 97 additional items.
     """
-    display_name = "Crafting Items"
+    display_name = "Crafting Permits"
     option_off = 0
     option_on = 1
     option_all = 2
@@ -209,7 +209,7 @@ class DwarfFortressOptions(PerGameCommonOptions):
     remains_great_king: RemainsoftheGreatKing
     trades_inlogic: TradesInLogic
     craftsanity: EnableCraftsanity
-    craftitems: CraftingItems
+    craftpermits: CraftingPermits
     craftsanity_item_group: CraftsanityItemGroup
     craftsanity_items: CraftsanityItems
     craftsanity_enable_materials: CraftsanityEnableMaterials
