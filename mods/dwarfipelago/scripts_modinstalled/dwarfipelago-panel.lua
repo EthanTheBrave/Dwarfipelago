@@ -40,6 +40,18 @@ local function fmt_num(n)
     return s:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
 end
 
+-- Adaptive energy display: MJ for large values, kJ for medium, J for tiny.
+local function fmt_energy(j)
+    j = math.max(0, math.floor(j or 0))
+    if j >= 1000000 then
+        return string.format("%.2f MJ", j / 1000000)
+    elseif j >= 1000 then
+        return string.format("%.1f kJ", j / 1000)
+    else
+        return string.format("%d J", j)
+    end
+end
+
 local function next_thresh(val, thresholds)
     for _, t in ipairs(thresholds) do
         if val < t then return t end
@@ -420,7 +432,7 @@ function DwarfipelagoPanel:init()
                             frame = {t=6, l=0},
                             text  = {
                                 "Energy:   ",
-                                {text=string.format("%.2f MJ", pool/1000000), pen=COLOR_CYAN},
+                                {text=fmt_energy(pool), pen=COLOR_CYAN},
                                 {text=caravan and "  [Caravan docked]" or "", pen=COLOR_GREEN},
                             },
                         }
@@ -510,8 +522,9 @@ function DwarfipelagoPanel:init()
                                or (pending and "  [Request pending]" or "")
                 local status_pen = caravan and COLOR_GREEN or COLOR_YELLOW
 
-                local pool_mj_str  = string.format("%.2f MJ", pool / 1000000)
-                local pool_kj_str  = "(" .. fmt_num(math.floor(pool / 1000)) .. " kJ)"
+                local pool_mj_str  = fmt_energy(pool)
+                local pool_kj_str  = pool >= 1000000
+                    and ("(" .. fmt_num(math.floor(pool / 1000)) .. " kJ)") or ""
 
                 return widgets.Panel{ subviews = {
                     widgets.Label{frame={t=0,l=0}, text={

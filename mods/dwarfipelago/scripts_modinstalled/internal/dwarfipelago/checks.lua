@@ -866,16 +866,16 @@ end
 
 -- ── Energy Link helpers ───────────────────────────────────────────────────────
 
--- Count DRINK items in fortress stocks (not carried by traders or units).
--- Each DRINK item in DF typically holds one cask/barrel worth of a brew.
+-- Count DRINK items in fortress stocks (not carried by traders).
+-- Does NOT filter on in_inventory: items inside barrels/containers in DF have
+-- in_inventory=true transitively, which would exclude all stocked drinks.
 function M.count_fortress_drinks()
     local count = 0
     for _, item in ipairs(df.global.world.items.all) do
         local ok, t = pcall(function() return item:getType() end)
         if ok and t == df.item_type.DRINK
                 and not item.flags.removed
-                and not item.flags.trader
-                and not item.flags.in_inventory then
+                and not item.flags.trader then
             count = count + (item.stack_size or 1)
         end
     end
@@ -883,6 +883,8 @@ function M.count_fortress_drinks()
 end
 
 -- Return a list of DRINK items available to deposit (not in active jobs).
+-- Skips items already claimed by a job; in_inventory is not checked because
+-- drinks inside barrels/containers also carry that flag in DF.
 function M.find_fortress_drinks()
     local drinks = {}
     for _, item in ipairs(df.global.world.items.all) do
@@ -890,7 +892,6 @@ function M.find_fortress_drinks()
         if ok and t == df.item_type.DRINK
                 and not item.flags.removed
                 and not item.flags.trader
-                and not item.flags.in_inventory
                 and not item.flags.in_job then
             table.insert(drinks, item)
         end
