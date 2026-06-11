@@ -4,7 +4,7 @@ from typing import List, Set, Union, TYPE_CHECKING
 from dataclasses import dataclass
 from BaseClasses import ItemClassification, Location, LocationProgressType, CollectionState
 from worlds.generic.Rules import set_rule
-from .options import EnableCraftsanity, CraftsanityItemGroup, CraftsanityItems, CraftsanityMaterials, CraftingItems
+from .options import EnableCraftsanity, CraftsanityItemGroup, CraftsanityItems, CraftsanityMaterials
 from .locations import BASE_ID, LocationData
 
 if TYPE_CHECKING:
