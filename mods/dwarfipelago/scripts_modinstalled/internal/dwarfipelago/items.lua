@@ -194,7 +194,26 @@ local function recv_cut_ruby()
 end
 
 local function recv_cut_diamond()
-    spawn_item("SMALLGEM", "INORGANIC:CLEAR_DIAMOND")
+    -- Diamond tokens vary by world gen; try known variants then scan raws.
+    local tokens = {
+        "INORGANIC:DIAMOND_CLEAR", "INORGANIC:DIAMOND_BLUE", "INORGANIC:DIAMOND_RED",
+        "INORGANIC:DIAMOND_YELLOW", "INORGANIC:DIAMOND_BROWN", "INORGANIC:DIAMOND_BLACK",
+    }
+    for _, raw in ipairs(df.global.world.raws.inorganics) do
+        local id = raw.id or ""
+        if id:find("DIAMOND") then table.insert(tokens, "INORGANIC:" .. id) end
+    end
+    local spawned = false
+    for _, tok in ipairs(tokens) do
+        if dfhack.matinfo.find(tok) and spawn_item("SMALLGEM", tok) > 0 then
+            spawned = true
+            break
+        end
+    end
+    if not spawned then
+        spawn_item("SMALLGEM", "INORGANIC:SAPPHIRE")
+        log.warn("recv_cut_diamond: no diamond material found, substituted sapphire")
+    end
     announce_at_depot("Received: Cut Diamond!")
 end
 
@@ -687,8 +706,8 @@ local function destroy_food(max_items)
 end
 
 local function recv_goblin_ambush()
-    -- Goblins as enemies: goblin civ id + invader flags (NOT a fort member).
-    local x, y, z = get_fort_spawn_pos()
+    -- Spawn outside near the embark perimeter so goblins have to path in.
+    local x, y, z = find_surface_spawn_pos()
     local civ_id  = find_goblin_civ_id()
     local spawned = 0
     if x then
@@ -701,10 +720,9 @@ local function recv_goblin_ambush()
     end
     local spawn_pos = x and {x=x, y=y, z=z} or nil
     if spawned > 0 then
-        announce("Trap: Goblin Ambush! Raiders have breached the fortress!",
+        announce("Trap: Goblin Ambush! Raiders approach from outside!",
             spawn_pos, df.announcement_type.AMBUSH_AMBUSHER)
     else
-        -- Fallback: the fear of a raid rattles the whole fortress.
         local n = stress_citizens(60000)
         log.warn("goblin_ambush: unit spawn unavailable, applied raid-fear stress to " .. n .. " dwarves")
         announce("Trap: A goblin ambush descends — panic grips your dwarves!",
@@ -713,28 +731,43 @@ local function recv_goblin_ambush()
 end
 
 local function recv_cave_bear()
-    local x, y, z = get_fort_spawn_pos()
-    -- BLIND_CAVE_BEAR is the actual underground bear (perfect for this trap);
-    -- fall back across the surface bear species so it resolves in any world.
+    -- Spawn on the surface so the bear has to approach the fortress entrance.
+    local x, y, z = find_surface_spawn_pos()
     local BEARS = { "BLIND_CAVE_BEAR", "CAVE_BEAR", "BEAR_GRIZZLY", "BEAR_BLACK", "BEAR_POLAR", "BEAR_SLOTH" }
     local spawn_pos = x and {x=x, y=y, z=z} or nil
     if x and create_unit(BEARS, {x = x, y = y, z = z}, {civ_id = -1, hostile = true}) then
-        announce("Trap: A Cave Bear has found its way in!",
+        announce("Trap: A Cave Bear has been spotted outside!",
             spawn_pos, df.announcement_type.BEAST_AMBUSH)
     else
-        -- Fallback: a beast in the dark badly shakes a few dwarves.
         local n = stress_citizens(120000, 3)
         log.warn("cave_bear: unit spawn unavailable, applied beast-scare stress to " .. n .. " dwarves")
-        announce("Trap: Something large and angry stalks your tunnels...",
+        announce("Trap: Something large and angry circles your fortress...",
             spawn_pos, df.announcement_type.BEAST_AMBUSH)
     end
 end
 
+-- Return a random tile inside a stockpile. Prefers food stockpiles; falls back
+-- to any stockpile; falls back to get_fort_spawn_pos if none exist.
+local function find_stockpile_pos()
+    local food_piles, any_piles = {}, {}
+    for _, bld in ipairs(df.global.world.buildings.all) do
+        if df.building_stockpilest:is_instance(bld) then
+            local is_food = false
+            pcall(function() is_food = bld.settings.flags.food end)
+            table.insert(is_food and food_piles or any_piles, bld)
+        end
+    end
+    local pool = #food_piles > 0 and food_piles or any_piles
+    if #pool == 0 then return get_fort_spawn_pos() end
+    local bld = pool[math.random(#pool)]
+    local x = math.random(bld.x1, bld.x2)
+    local y = math.random(bld.y1, bld.y2)
+    return x, y, bld.z
+end
+
 local function recv_vermin_infestation()
-    -- A rodent stands in for vermin. Build a world-aware candidate list: common
-    -- tokens first, then any creature whose token looks rodent-like (so it works
-    -- in worlds without GIANT_RAT). create_unit picks the first one present.
-    local x, y, z = get_fort_spawn_pos()
+    -- Spawn inside the fortress — rats materialise directly in your stockpiles.
+    local x, y, z = find_stockpile_pos()
     local spawned = 0
     local RATS = { "GIANT_RAT", "RAT", "GIANT_MOUSE", "MOUSE", "GIANT_MOLE", "MOLE_DWARF" }
     for _, cr in ipairs(df.global.world.raws.creatures.all) do
@@ -745,7 +778,7 @@ local function recv_vermin_infestation()
     end
     if x then
         for _ = 1, 10 do
-            if create_unit(RATS, {x = x, y = y, z = z}, {civ_id = -1, hostile = true}) then
+            if create_unit(RATS, {x = x, y = y, z = z}, {civ_id = -1, hostile = false}) then
                 spawned = spawned + 1
             end
         end
@@ -755,7 +788,6 @@ local function recv_vermin_infestation()
         announce("Trap: Vermin Infestation! Giant rats everywhere!",
             spawn_pos, df.announcement_type.VERMIN_CAGE_ESCAPE)
     else
-        -- Fallback: vermin devour part of your food and drink stores.
         local eaten = destroy_food(20)
         log.warn("vermin_infestation: unit spawn unavailable, vermin ate " .. eaten .. " food/drink items")
         announce(("Trap: Vermin Infestation! They have devoured %d of your stores."):format(eaten),
@@ -832,6 +864,55 @@ local function find_underground_spawn()
                         and not block.designation[lx][ly].outside then
                     return x, y, z
                 end
+            end
+        end
+    end
+    return nil
+end
+
+-- Search for a walkable surface tile (outside == true) near a map edge.
+-- Biases toward the embark perimeter so spawned hostiles have to path inward,
+-- giving dwarves time to react. Returns x, y, z or nil on failure.
+local function find_surface_spawn_pos()
+    if not dfhack.isMapLoaded() then return nil end
+    local map = df.global.world.map
+
+    -- Estimate surface z from a living citizen (fallback: upper portion of map).
+    local surface_z = math.floor(map.z_count * 0.7)
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+            surface_z = unit.pos.z
+            break
+        end
+    end
+
+    local z_lo = math.max(0, surface_z - 3)
+    local z_hi = math.min(map.z_count - 1, surface_z + 5)
+    local m    = 4  -- stay off the very map edge to avoid bound issues
+
+    -- Four generators, one per embark edge (N/S/W/E).
+    local edge_gens = {
+        function() return math.random(m, map.x_count-1-m), math.random(m, 10)                   end,
+        function() return math.random(m, map.x_count-1-m), math.random(map.y_count-11, map.y_count-1-m) end,
+        function() return math.random(m, 10),               math.random(m, map.y_count-1-m)     end,
+        function() return math.random(map.x_count-11, map.x_count-1-m), math.random(m, map.y_count-1-m) end,
+    }
+
+    for z = z_hi, z_lo, -1 do
+        for _ = 1, 60 do
+            local x, y = edge_gens[math.random(4)]()
+            local block = dfhack.maps.getTileBlock(x, y, z)
+            if block then
+                local lx, ly = x % 16, y % 16
+                local ok = false
+                pcall(function()
+                    local des   = block.designation[lx][ly]
+                    local shape = df.tiletype.attrs[block.tiletype[lx][ly]].shape
+                    ok = des.outside and des.flow_size == 0
+                      and (shape == df.tiletype_shape.FLOOR
+                        or shape == df.tiletype_shape.RAMP)
+                end)
+                if ok then return x, y, z end
             end
         end
     end

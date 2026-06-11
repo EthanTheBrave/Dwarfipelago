@@ -381,7 +381,11 @@ local function getCiv(civ)
 end
 
 local function spawnCaravan()
-    civ = getCiv("MOUNTAIN")  -- FOREST = Elves / PLAINS = humans / MOUNTAIN = dwarves
+    local civ = getCiv("MOUNTAIN")  -- FOREST = Elves / PLAINS = humans / MOUNTAIN = dwarves
+    if not civ then
+        dfhack.gui.showAnnouncement("[AP] Cannot summon caravan: no dwarven civilization found.", COLOR_RED, true)
+        return false
+    end
     df.global.timed_events:insert('#', {
         new=true,
         type=df.timed_event_type['Caravan'],
@@ -390,9 +394,208 @@ local function spawnCaravan()
         entity=civ,
         feature_ind=-1,
     })
-    dfhack.persistent.saveWorldDataString("dwarfipelago/use_energy_link", "Y")
+    return true
 end
 
+-- ── AP Caravan: call / dismiss / anchor ───────────────────────────────────────
+-- Caravan call costs energy from the AP pool; cost varies by season.
+-- Spring = 300 MJ, Summer = 150 MJ, Fall = 50 MJ, Winter = 500 MJ.
+-- Python authorises the deduction and sets spawn_caravan_approved=1.
+
+local CARAVAN_SEASON_COST = {
+    [0] = 300000000,  -- Spring
+    [1] = 150000000,  -- Summer
+    [2] =  50000000,  -- Fall
+    [3] = 500000000,  -- Winter
+}
+local SEASON_NAMES = { [0]="Spring", [1]="Summer", [2]="Fall", [3]="Winter" }
+
+local function _cur_season()
+    local s = 0
+    pcall(function() s = df.global.world.cur_season end)
+    return s
+end
+
+local function get_caravan_cost_j()
+    return CARAVAN_SEASON_COST[_cur_season()] or 300000000
+end
+
+local function get_season_name()
+    return SEASON_NAMES[_cur_season()] or "Unknown"
+end
+
+local function call_ap_caravan()
+    if dfhack.persistent.getWorldDataString("dwarfipelago/energy_enabled") ~= "1" then
+        dfhack.gui.showAnnouncement("[AP] Energy Link is not enabled for this slot.", COLOR_YELLOW, true)
+        return
+    end
+    if dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_active") == "1" then
+        dfhack.gui.showAnnouncement("[AP] The AP caravan is already docked.", COLOR_YELLOW, true)
+        return
+    end
+    if dfhack.persistent.getWorldDataString("dwarfipelago/request_caravan") == "1" then
+        dfhack.gui.showAnnouncement("[AP] Caravan request is already pending.", COLOR_YELLOW, true)
+        return
+    end
+    local cost = get_caravan_cost_j()
+    local pool = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/energy_link") or "0") or 0
+    if pool < cost then
+        dfhack.gui.showAnnouncement(
+            ("[AP] Need %d MJ (%s) to call caravan — have %d MJ."):format(
+                math.floor(cost/1000000), get_season_name(), math.floor(pool/1000000)),
+            COLOR_YELLOW, true)
+        return
+    end
+    dfhack.persistent.saveWorldDataString("dwarfipelago/caravan_energy_cost", tostring(cost))
+    dfhack.persistent.saveWorldDataString("dwarfipelago/request_caravan", "1")
+    dfhack.gui.showAnnouncement(
+        ("[AP] Caravan requested — %d MJ (%s). Arriving soon!"):format(
+            math.floor(cost/1000000), get_season_name()),
+        COLOR_CYAN, true)
+    print("[Dwarfipelago] Caravan request queued.")
+end
+
+local function dismiss_ap_caravan()
+    if dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_active") ~= "1" then
+        dfhack.gui.showAnnouncement("[AP] No AP caravan is currently docked.", COLOR_YELLOW, true)
+        return
+    end
+    dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "0")
+    dfhack.gui.showAnnouncement("[AP] The AP caravan has been dismissed.", COLOR_YELLOW, true)
+    print("[Dwarfipelago] AP caravan dismissed.")
+end
+
+-- Poll: once Python approves the energy deduction, spawn the caravan.
+local function _check_spawn_caravan_approved()
+    if dfhack.persistent.getWorldDataString("dwarfipelago/spawn_caravan_approved") ~= "1" then return end
+    dfhack.persistent.saveWorldDataString("dwarfipelago/spawn_caravan_approved", "0")
+    if not spawnCaravan() then
+        dfhack.gui.showAnnouncement("[AP] Caravan approved but spawn failed.", COLOR_RED, true)
+        return
+    end
+    dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "1")
+    local cost = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/caravan_energy_cost") or "0") or 0
+    dfhack.gui.showAnnouncement(
+        ("[AP] The AP caravan has arrived! (%d MJ spent)"):format(math.floor(cost/1000000)),
+        COLOR_GREEN, true)
+    print("[Dwarfipelago] AP caravan spawned.")
+end
+
+-- ── Energy deposits: ale, food, coins ─────────────────────────────────────────
+-- Players remove resources from the fortress to add energy to the AP pool.
+-- Conversion rates:  ale = 1 MJ/unit,  food = 500 kJ/item,  coins = 1 kJ/* value.
+
+local function _energy_enabled()
+    if dfhack.persistent.getWorldDataString("dwarfipelago/energy_enabled") ~= "1" then
+        dfhack.gui.showAnnouncement("[AP] Energy Link is not enabled for this slot.", COLOR_YELLOW, true)
+        return false
+    end
+    return true
+end
+
+local function _add_energy(joules, label)
+    local prev = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/energy_deposit") or "0") or 0
+    dfhack.persistent.saveWorldDataString("dwarfipelago/energy_deposit", tostring(prev + joules))
+    dfhack.persistent.saveWorldDataString("dwarfipelago/use_energy_link", "Y")
+    dfhack.gui.showAnnouncement(
+        ("[AP] %s (%.1f MJ) deposited into the energy network!"):format(label, joules/1000000),
+        COLOR_CYAN, true)
+    print(("[Dwarfipelago] Energy deposit: %s = %d J"):format(label, joules))
+end
+
+-- Deposit up to n ale units (nil = all available).
+local function deposit_ale(n)
+    if not _energy_enabled() then return end
+    local drinks = {}
+    pcall(function() drinks = checks.find_fortress_drinks() end)
+    if #drinks == 0 then
+        dfhack.gui.showAnnouncement("[AP] No ale in stocks to deposit.", COLOR_YELLOW, true)
+        return
+    end
+    local deposited = 0
+    for _, item in ipairs(drinks) do
+        if n and deposited >= n then break end
+        local qty = item.stack_size or 1
+        if n and (deposited + qty) > n then
+            local take = n - deposited
+            pcall(function() item.stack_size = item.stack_size - take end)
+            deposited = deposited + take
+            break
+        end
+        pcall(function() dfhack.items.remove(item) end)
+        deposited = deposited + qty
+    end
+    if deposited == 0 then
+        dfhack.gui.showAnnouncement("[AP] Could not remove any ale.", COLOR_RED, true)
+        return
+    end
+    _add_energy(deposited * 100000, ("%d ale"):format(deposited))
+end
+
+-- Deposit up to n food items (nil = all available).
+local function deposit_food(n)
+    if not _energy_enabled() then return end
+    local food = {}
+    pcall(function() food = checks.find_fortress_food() end)
+    if #food == 0 then
+        dfhack.gui.showAnnouncement("[AP] No food in stocks to deposit.", COLOR_YELLOW, true)
+        return
+    end
+    local count = n and math.min(n, #food) or #food
+    local deposited = 0
+    for i = 1, count do
+        local ok = pcall(function() dfhack.items.remove(food[i]) end)
+        if ok then deposited = deposited + 1 end
+    end
+    if deposited == 0 then
+        dfhack.gui.showAnnouncement("[AP] Could not remove any food.", COLOR_RED, true)
+        return
+    end
+    _add_energy(deposited * 50000, ("%d food"):format(deposited))
+end
+
+-- Deposit all available minted coins.
+-- Deposit up to target_val * of minted coin face value (1 * = 1 kJ).
+-- Handles partial stacks so removal is accurate to the coin.
+local function deposit_coins(target_val)
+    if not _energy_enabled() then return end
+    if not target_val or target_val <= 0 then
+        dfhack.gui.showAnnouncement("[AP] Specify a coin value (*) amount to deposit.", COLOR_YELLOW, true)
+        return
+    end
+    local coin_items, total_j = {}, 0
+    pcall(function() coin_items, total_j = checks.find_fortress_coins_energy() end)
+    local avail_val = math.floor(total_j / 1000)
+    if #coin_items == 0 or avail_val == 0 then
+        dfhack.gui.showAnnouncement("[AP] No minted coins to deposit.", COLOR_YELLOW, true)
+        return
+    end
+    if target_val > avail_val then
+        dfhack.gui.showAnnouncement(
+            ("[AP] Only %d * available (requested %d *) — depositing all."):format(avail_val, target_val),
+            COLOR_YELLOW, true)
+        target_val = avail_val
+    end
+    local deposited_val = 0
+    for _, entry in ipairs(coin_items) do
+        if deposited_val >= target_val then break end
+        local stack     = entry.item.stack_size or 1
+        local val_each  = math.max(1, math.floor(entry.j / stack / 1000))
+        local need      = target_val - deposited_val
+        local take      = math.min(stack, math.ceil(need / val_each))
+        if take >= stack then
+            pcall(function() dfhack.items.remove(entry.item) end)
+        else
+            pcall(function() entry.item.stack_size = entry.item.stack_size - take end)
+        end
+        deposited_val = deposited_val + take * val_each
+    end
+    if deposited_val == 0 then
+        dfhack.gui.showAnnouncement("[AP] Could not remove any coins.", COLOR_RED, true)
+        return
+    end
+    _add_energy(deposited_val * 1000, ("%d * in coins"):format(deposited_val))
+end
 
 -- Detect first trade / first export by checking the fortress exported-wealth
 -- counter. DF increments this when goods are sold to a caravan, so a value
@@ -709,6 +912,7 @@ local function poll_checks()
     detect_egg_hatch()
     detect_caged_megabeast()
     detect_sold_artifact()
+    _check_spawn_caravan_approved()
 
     for _, check in ipairs(checks.checks) do
         if not state.is_location_checked(check.id) then
@@ -1087,7 +1291,9 @@ local function on_item_created(item_id)
 
         -- Adamantine detection: fires the first time any adamantine item is created
         -- (raw adamantine boulders when mined, or strands/wafers in some DF versions).
-        if not checks.production_flag("adamantine") then
+        -- Exclude DOOR items: the Master Builder's Codex delivers an adamantine door
+        -- which would otherwise falsely trigger this check.
+        if not checks.production_flag("adamantine") and t ~= "DOOR" then
             local ok_mat, mat = pcall(dfhack.matinfo.decode, item)
             if ok_mat and mat then
                 local ok_tok, token = pcall(function() return mat:getToken() end)
@@ -1450,6 +1656,16 @@ elseif cmd == "resetseed" then
     print("[Dwarfipelago] Seed expectation cleared. Reconnect the AP client to adopt the new slot's seed.")
 elseif cmd == "panel" then
     reqscript("dwarfipelago-panel").open_panel()
+elseif cmd == "call-caravan" then
+    call_ap_caravan()
+elseif cmd == "dismiss-caravan" then
+    dismiss_ap_caravan()
+elseif cmd == "deposit-ale" then
+    deposit_ale(tonumber(args[2]))
+elseif cmd == "deposit-food" then
+    deposit_food(tonumber(args[2]))
+elseif cmd == "deposit-coins" then
+    deposit_coins(tonumber(args[2]))
 elseif cmd == "receive" then
     local item_name = table.concat(args, " ", 2)
     if item_name == "" then
@@ -1461,5 +1677,5 @@ elseif cmd == "test" then
     -- Manual mechanic verification: dwarfipelago test <name> [args]
     items.run_test(args[2], { table.unpack(args, 3) })
 else
-    print("Usage: dwarfipelago [start|stop|status|reset|resetseed|panel|receive <item>|test <name>]")
+    print("Usage: dwarfipelago [start|stop|status|reset|resetseed|panel|call-caravan|dismiss-caravan|deposit-ale [n]|deposit-food [n]|deposit-coins <value>|receive <item>|test <name>]")
 end
