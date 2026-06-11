@@ -728,8 +728,8 @@ local function recv_cave_bear()
 end
 
 local function recv_vermin_infestation()
-    -- Spawn outside: rodents approach and gnaw their way in.
-    local x, y, z = find_surface_spawn_pos()
+    -- Spawn inside the fortress — rats materialise directly in your stockpiles.
+    local x, y, z = get_fort_spawn_pos()
     local spawned = 0
     local RATS = { "GIANT_RAT", "RAT", "GIANT_MOUSE", "MOUSE", "GIANT_MOLE", "MOLE_DWARF" }
     for _, cr in ipairs(df.global.world.raws.creatures.all) do
@@ -740,14 +740,14 @@ local function recv_vermin_infestation()
     end
     if x then
         for _ = 1, 10 do
-            if create_unit(RATS, {x = x, y = y, z = z}, {civ_id = -1, hostile = true}) then
+            if create_unit(RATS, {x = tonumber(x), y = tonumber(y), z = tonumber(z)}, {civ_id = -1, hostile = true}) then
                 spawned = spawned + 1
             end
         end
     end
-    local spawn_pos = x and {x=x, y=y, z=z} or nil
+    local spawn_pos = x and {x=tonumber(x), y=tonumber(y), z=tonumber(z)} or nil
     if spawned > 0 then
-        announce("Trap: Vermin Infestation! Giant rats swarm from outside!",
+        announce("Trap: Vermin Infestation! Giant rats everywhere!",
             spawn_pos, df.announcement_type.VERMIN_CAGE_ESCAPE)
     else
         local eaten = destroy_food(20)
