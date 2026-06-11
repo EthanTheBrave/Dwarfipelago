@@ -620,14 +620,6 @@ function DwarfipelagoPanel:init()
                             self:dismiss()
                         end,
                     },
-                    widgets.HotkeyLabel{
-                        frame={t=9,l=2}, key="CUSTOM_SHIFT_D",
-                        label="Dismiss Caravan",
-                        on_activate=function()
-                            dfhack.run_command("dwarfipelago", "dismiss-caravan")
-                            self:dismiss()
-                        end,
-                    },
                 }}
             end)(),
         },
