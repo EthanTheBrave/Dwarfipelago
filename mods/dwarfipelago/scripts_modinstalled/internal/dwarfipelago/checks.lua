@@ -864,6 +864,86 @@ function M.clear_craft_counts()
     dfhack.persistent.saveWorldDataString(CRAFT_INDEX_KEY, "")
 end
 
+-- ── Energy Link helpers ───────────────────────────────────────────────────────
+
+-- Count DRINK items in fortress stocks (not carried by traders).
+-- Does NOT filter on in_inventory: items inside barrels/containers in DF have
+-- in_inventory=true transitively, which would exclude all stocked drinks.
+function M.count_fortress_drinks()
+    local count = 0
+    for _, item in ipairs(df.global.world.items.all) do
+        local ok, t = pcall(function() return item:getType() end)
+        if ok and t == df.item_type.DRINK
+                and not item.flags.removed
+                and not item.flags.trader then
+            count = count + (item.stack_size or 1)
+        end
+    end
+    return count
+end
+
+-- Return a list of DRINK items available to deposit (not in active jobs).
+-- Skips items already claimed by a job; in_inventory is not checked because
+-- drinks inside barrels/containers also carry that flag in DF.
+function M.find_fortress_drinks()
+    local drinks = {}
+    for _, item in ipairs(df.global.world.items.all) do
+        local ok, t = pcall(function() return item:getType() end)
+        if ok and t == df.item_type.DRINK
+                and not item.flags.removed
+                and not item.flags.trader
+                and not item.flags.in_job then
+            table.insert(drinks, item)
+        end
+    end
+    return drinks
+end
+
+-- Return all accessible food items in fortress stocks.
+function M.find_fortress_food()
+    local food = {}
+    for _, item in ipairs(df.global.world.items.all) do
+        local ok, t = pcall(function() return item:getType() end)
+        if ok and t == df.item_type.FOOD
+                and not item.flags.removed
+                and not item.flags.trader
+                and not item.flags.in_inventory
+                and not item.flags.in_job then
+            table.insert(food, item)
+        end
+    end
+    return food
+end
+
+-- Return all accessible minted coins in fortress stocks with their energy values.
+-- Each coin item contributes (stack_size × material_value × 1000) joules.
+-- Returns (list_of_{item,j}, total_j).
+function M.find_fortress_coins_energy()
+    local found   = {}
+    local total_j = 0
+    for _, item in ipairs(df.global.world.items.all) do
+        local ok, t = pcall(function() return item:getType() end)
+        if ok and t == df.item_type.COIN
+                and not item.flags.removed
+                and not item.flags.trader
+                and not item.flags.in_inventory
+                and not item.flags.in_job then
+            local j = 0
+            pcall(function()
+                local ok2, mat = pcall(dfhack.matinfo.decode, item.mat_type, item.mat_index)
+                if ok2 and mat and mat.material then
+                    j = (item.stack_size or 1) * (mat.material.material_value or 1) * 1000
+                end
+            end)
+            if j > 0 then
+                table.insert(found, { item = item, j = j })
+                total_j = total_j + j
+            end
+        end
+    end
+    return found, total_j
+end
+
 -- reqscript returns the script's _ENV, not the explicit return value.
 -- Copy all module exports into _ENV so callers can access them as globals.
 for k, v in pairs(M) do _ENV[k] = v end

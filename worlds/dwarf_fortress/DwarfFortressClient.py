@@ -588,6 +588,7 @@ class DwarfFortressContext(CommonContext):
                         await self._apply_pending_items()
                         await self.update_energy()
                         await self.new_energy()
+                        await self._check_caravan_request()
                     else:
                         logger.debug("Trade depot not yet established — holding checks and item delivery")
 
@@ -729,6 +730,8 @@ class DwarfFortressContext(CommonContext):
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/seed", "{self.seed}")')
                     write()
                     self.init_crafting_locations()
+                # Energy link flag — Lua reads this to know the feature is on.
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/energy_enabled", "{1 if self.energy_link_enabled else 0}")')
                 # Always re-sync these flags so Lua uses the correct key format
                 # even on reconnects or if the initial write was interrupted.
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_enabled", "{craftsanity_enabled}")')
@@ -894,35 +897,56 @@ class DwarfFortressContext(CommonContext):
             last_material = self._crafting_locations[crafts]["material"]
     
     async def update_energy(self):
-        if self.energy_link_enabled and self.last_energy != self.current_energy:
-            self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/energy_link", "{self.current_energy}")')
-            self.last_energy = self.current_energy
+        if self.energy_link_enabled and self.last_energy != self.current_energy_link_value:
+            self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/energy_link", "{int(self.current_energy_link_value or 0)}")')
+            self.last_energy = self.current_energy_link_value
 
     async def new_energy(self):
         if self.energy_link_enabled:
             used_energy = self.dfhack.run_command("lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/use_energy_link") or "N")')
-            if used_energy == "Y":
-                energy = self.dfhack.run_command("lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/energy_link") or "0")')
-                if energy != "0":
-                    self.current_energy = int(energy)
-                    difference = self.current_energy - self.last_energy
-                    if difference <= 0:
-                        self.last_deplete = time.time()
-                        await self.send_msgs([{
-                            "cmd": "Set", "key": self.energylink_key, "operations":
-                                [{"operation": "add", "value": difference},
-                                {"operation": "max", "value": 0}],
-                            "last_deplete": self.last_deplete
-                        }])
-                        logger.debug(f"EnergyLink: Used {format_SI_prefix(difference)}*")
-                    else:
-                        await self.send_msgs([{
-                            "cmd": "Set", "key": self.energylink_key, "operations":
-                                [{"operation": "add", "value": difference}]
-                        }])
-                        logger.debug(f"EnergyLink: Sent {format_SI_prefix(difference)}*")
-                    self.last_energy = self.current_energy
-                    self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/use_energy_link", "N")')
+            if used_energy and used_energy.strip() == "Y":
+                deposit_raw = self.dfhack.run_command("lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/energy_deposit") or "0")')
+                try:
+                    deposit = int((deposit_raw or "0").strip())
+                except ValueError:
+                    deposit = 0
+                if deposit > 0:
+                    await self.send_msgs([{
+                        "cmd": "Set", "key": self.energylink_key, "operations":
+                            [{"operation": "add", "value": deposit}]
+                    }])
+                    logger.debug(f"EnergyLink: Sent {format_SI_prefix(deposit)}*")
+                self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/energy_deposit", "0")')
+                self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/use_energy_link", "N")')
+
+    async def _check_caravan_request(self):
+        """Handle caravan call: deduct seasonal energy cost from pool, then approve spawn in Lua."""
+        if not self.energy_link_enabled:
+            return
+        flag = self.dfhack.run_command("lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/request_caravan") or "0")')
+        if not (flag and flag.strip() == "1"):
+            return
+        self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/request_caravan", "0")')
+        cost_raw = self.dfhack.run_command("lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/caravan_energy_cost") or "0")')
+        try:
+            cost = int((cost_raw or "0").strip())
+        except ValueError:
+            cost = 0
+        if cost <= 0:
+            return
+        pool = self.current_energy_link_value
+        if pool is None or pool < cost:
+            logger.debug(f"EnergyLink: Caravan denied — need {format_SI_prefix(cost)}*, have {format_SI_prefix(pool or 0)}*")
+            return
+        self.last_deplete = time.time()
+        await self.send_msgs([{
+            "cmd": "Set", "key": self.energylink_key,
+            "operations": [{"operation": "add", "value": -cost},
+                           {"operation": "max", "value": 0}],
+            "last_deplete": self.last_deplete
+        }])
+        self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/spawn_caravan_approved", "1")')
+        logger.debug(f"EnergyLink: Caravan approved, deducted {format_SI_prefix(cost)}*")
 
 
     async def _crafting_location_checks(self):
@@ -1097,7 +1121,6 @@ class DwarfFortressContext(CommonContext):
                     if gained:
                         logger.debug(f"EnergyLink: Received {gained_text}. "
                                      f"{format_SI_prefix(args['value'])}* remaining.")
-                        self.new_energy = gained
 
     def on_print_json(self, args: dict[Any, Any]):
         if self.ui:
