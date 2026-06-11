@@ -1305,7 +1305,9 @@ local function on_item_created(item_id)
 
         -- Adamantine detection: fires the first time any adamantine item is created
         -- (raw adamantine boulders when mined, or strands/wafers in some DF versions).
-        if not checks.production_flag("adamantine") then
+        -- Exclude DOOR items: the Master Builder's Codex delivers an adamantine door
+        -- which would otherwise falsely trigger this check.
+        if not checks.production_flag("adamantine") and t ~= "DOOR" then
             local ok_mat, mat = pcall(dfhack.matinfo.decode, item)
             if ok_mat and mat then
                 local ok_tok, token = pcall(function() return mat:getToken() end)
