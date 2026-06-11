@@ -555,24 +555,46 @@ local function deposit_food(n)
 end
 
 -- Deposit all available minted coins.
-local function deposit_coins()
+-- Deposit up to target_val ☼ of minted coin face value (1 ☼ = 1 kJ).
+-- Handles partial stacks so removal is accurate to the coin.
+local function deposit_coins(target_val)
     if not _energy_enabled() then return end
+    if not target_val or target_val <= 0 then
+        dfhack.gui.showAnnouncement("[AP] Specify a coin value (☼) amount to deposit.", COLOR_YELLOW, true)
+        return
+    end
     local coin_items, total_j = {}, 0
     pcall(function() coin_items, total_j = checks.find_fortress_coins_energy() end)
-    if #coin_items == 0 or total_j == 0 then
+    local avail_val = math.floor(total_j / 1000)
+    if #coin_items == 0 or avail_val == 0 then
         dfhack.gui.showAnnouncement("[AP] No minted coins to deposit.", COLOR_YELLOW, true)
         return
     end
-    local deposited_j = 0
-    for _, entry in ipairs(coin_items) do
-        local ok = pcall(function() dfhack.items.remove(entry.item) end)
-        if ok then deposited_j = deposited_j + entry.j end
+    if target_val > avail_val then
+        dfhack.gui.showAnnouncement(
+            ("[AP] Only %d ☼ available (requested %d ☼) — depositing all."):format(avail_val, target_val),
+            COLOR_YELLOW, true)
+        target_val = avail_val
     end
-    if deposited_j == 0 then
+    local deposited_val = 0
+    for _, entry in ipairs(coin_items) do
+        if deposited_val >= target_val then break end
+        local stack     = entry.item.stack_size or 1
+        local val_each  = math.max(1, math.floor(entry.j / stack / 1000))
+        local need      = target_val - deposited_val
+        local take      = math.min(stack, math.ceil(need / val_each))
+        if take >= stack then
+            pcall(function() dfhack.items.remove(entry.item) end)
+        else
+            pcall(function() entry.item.stack_size = entry.item.stack_size - take end)
+        end
+        deposited_val = deposited_val + take * val_each
+    end
+    if deposited_val == 0 then
         dfhack.gui.showAnnouncement("[AP] Could not remove any coins.", COLOR_RED, true)
         return
     end
-    _add_energy(deposited_j, "all coins")
+    _add_energy(deposited_val * 1000, ("%d ☼ in coins"):format(deposited_val))
 end
 
 -- Poll: keep the AP caravan from departing by removing its Return timed event.
@@ -1679,7 +1701,7 @@ elseif cmd == "deposit-ale" then
 elseif cmd == "deposit-food" then
     deposit_food(tonumber(args[2]))
 elseif cmd == "deposit-coins" then
-    deposit_coins()
+    deposit_coins(tonumber(args[2]))
 elseif cmd == "receive" then
     local item_name = table.concat(args, " ", 2)
     if item_name == "" then
@@ -1691,5 +1713,5 @@ elseif cmd == "test" then
     -- Manual mechanic verification: dwarfipelago test <name> [args]
     items.run_test(args[2], { table.unpack(args, 3) })
 else
-    print("Usage: dwarfipelago [start|stop|status|reset|resetseed|panel|call-caravan|dismiss-caravan|deposit-ale [n]|deposit-food [n]|deposit-coins|receive <item>|test <name>]")
+    print("Usage: dwarfipelago [start|stop|status|reset|resetseed|panel|call-caravan|dismiss-caravan|deposit-ale [n]|deposit-food [n]|deposit-coins <value>|receive <item>|test <name>]")
 end
