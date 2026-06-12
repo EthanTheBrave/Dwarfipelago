@@ -146,12 +146,13 @@ M.checks = {
     { id = 37370120, name = "First Minecart Made",     fn = function() return M.production_flag("minecart")       end },
 
     -- Trade / export milestones
-    { id = 37370200, name = "First Trade Completed",    fn = function() return M.trade_flag("trade_completed")    end },
-    { id = 37370201, name = "First Export",             fn = function() return M.trade_flag("first_export")       end },
     { id = 37370202, name = "Dwarven Caravan Visit",    fn = function() return M.trade_flag("dwarven_caravan")    end },
     { id = 37370203, name = "Elven Caravan Visit",      fn = function() return M.trade_flag("elven_caravan")      end },
     { id = 37370204, name = "Human Caravan Visit",      fn = function() return M.trade_flag("human_caravan")      end },
     { id = 37370205, name = "Outpost Liaison Meeting",  fn = function() return M.trade_flag("liaison_met")        end },
+    { id = 37370206, name = "First Raid",               fn = function() return M.trade_flag("first_raid")         end },
+    { id = 37370207, name = "First Artifact Recovery",  fn = function() return M.trade_flag("first_recovery")     end },
+    { id = 37370208, name = "First Act of Diplomacy",   fn = function() return M.trade_flag("first_diplomacy")    end },
 
     -- Fortress status / noble appointments
     -- Position codes match vanilla DF entity_default.txt. KING covers both king
@@ -193,7 +194,7 @@ M.checks = {
     { id = 37370721, name = "Second Cavern Breached", fn = function() return M.mining_flag("cavern2") end },
     { id = 37370722, name = "Third Cavern Breached",  fn = function() return M.mining_flag("cavern3") end },
     { id = 37370723, name = "Reached the Magma Sea",  fn = function() return M.mining_flag("magma")   end },
-    { id = 37370724, name = "Breached the Circus",    fn = function() return M.mining_flag("circus")  end },
+    { id = 37370724, name = "Welcome to the Circus",   fn = function() return M.mining_flag("circus")  end },
 
     -- Farming: cumulative harvested crops (PLANT items).
     { id = 37370730, name = "Harvest 50 Crops",    fn = function() return M.crops_harvested() >= 50   end },
@@ -209,7 +210,7 @@ M.checks = {
 
     -- Biology / animals.
     { id = 37370750, name = "First Eggs Hatched", fn = function() return M.production_flag("egg_hatched")     end },
-    { id = 37370751, name = "Caged a Megabeast",  fn = function() return M.production_flag("caged_megabeast") end },
+    { id = 37370751, name = "Caged a Hostile Beast", fn = function() return M.production_flag("caged_hostile_beast") end },
 
     -- Deep / endgame.
     { id = 37370760, name = "Mined Adamantine", fn = function() return M.production_flag("adamantine")    end },
@@ -236,6 +237,43 @@ end
 function M.trade_flag(flag)
     local val = dfhack.persistent.getWorldDataString("dwarfipelago/trade/" .. flag)
     return val == "1"
+end
+
+function M.detect_mission_checks()
+    local all_done = M.trade_flag("first_raid")
+                 and M.trade_flag("first_recovery")
+                 and M.trade_flag("first_diplomacy")
+    if all_done then return end
+
+    local civ_id = df.global.plotinfo.civ_id
+    local SITE_INVASION   = df.army_controller_goal_type.SITE_INVASION
+    local RECOVER_ARTIFACT = df.army_controller_goal_type.RECOVER_ARTIFACT
+    local DIPLOMACY        = df.army_controller_goal_type.DIPLOMACY
+
+    for _, squad in ipairs(df.global.world.squads.all) do
+        if squad.entity_id == civ_id then
+            local ctrl_id = squad.assigned_army_controller_id
+            if ctrl_id ~= -1 then
+                local ctrl = nil
+                for _, c in ipairs(df.global.world.army_controllers.all) do
+                    if c.id == ctrl_id then ctrl = c; break end
+                end
+                if ctrl then
+                    local goal = ctrl.goal
+                    if goal == SITE_INVASION and not M.trade_flag("first_raid") then
+                        M.set_trade_flag("first_raid")
+                        print("[Dwarfipelago] First raid detected")
+                    elseif goal == RECOVER_ARTIFACT and not M.trade_flag("first_recovery") then
+                        M.set_trade_flag("first_recovery")
+                        print("[Dwarfipelago] First artifact recovery detected")
+                    elseif goal == DIPLOMACY and not M.trade_flag("first_diplomacy") then
+                        M.set_trade_flag("first_diplomacy")
+                        print("[Dwarfipelago] First diplomacy mission detected")
+                    end
+                end
+            end
+        end
+    end
 end
 
 -- ── Mining helpers ────────────────────────────────────────────────────────────

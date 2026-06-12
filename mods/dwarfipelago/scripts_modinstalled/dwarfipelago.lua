@@ -25,6 +25,17 @@ local SCRIPT_NAME = "dwarfipelago"
 local SCRIPT_VERSION = "1.0.5"
 local POLL_TICKS  = 100  -- poll wealth/trade/goal checks every N ticks
 
+local function fmt_energy(j)
+    j = math.max(0, math.floor(j or 0))
+    if j >= 1000000 then
+        return string.format("%.2f MJ", j / 1000000)
+    elseif j >= 1000 then
+        return string.format("%.1f kJ", j / 1000)
+    else
+        return string.format("%d J", j)
+    end
+end
+
 -- Set to true while we are applying a received DeathLink so that the death
 -- hook does not count those kills toward our own outgoing DeathLink threshold.
 local applying_recv_deathlink = false
@@ -441,16 +452,16 @@ local function call_ap_caravan()
     local pool = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/energy_link") or "0") or 0
     if pool < cost then
         dfhack.gui.showAnnouncement(
-            ("[AP] Need %d MJ (%s) to call caravan — have %d MJ."):format(
-                math.floor(cost/1000000), get_season_name(), math.floor(pool/1000000)),
+            ("[AP] Need %s (%s) to call caravan — have %s."):format(
+                fmt_energy(cost), get_season_name(), fmt_energy(pool)),
             COLOR_YELLOW, true)
         return
     end
     dfhack.persistent.saveWorldDataString("dwarfipelago/caravan_energy_cost", tostring(cost))
     dfhack.persistent.saveWorldDataString("dwarfipelago/request_caravan", "1")
     dfhack.gui.showAnnouncement(
-        ("[AP] Caravan requested — %d MJ (%s). Arriving soon!"):format(
-            math.floor(cost/1000000), get_season_name()),
+        ("[AP] Caravan requested — %s (%s). Arriving soon!"):format(
+            fmt_energy(cost), get_season_name()),
         COLOR_CYAN, true)
     print("[Dwarfipelago] Caravan request queued.")
 end
@@ -476,7 +487,7 @@ local function _check_spawn_caravan_approved()
     dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "1")
     local cost = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/caravan_energy_cost") or "0") or 0
     dfhack.gui.showAnnouncement(
-        ("[AP] The AP caravan has arrived! (%d MJ spent)"):format(math.floor(cost/1000000)),
+        ("[AP] The AP caravan has arrived! (%s spent)"):format(fmt_energy(cost)),
         COLOR_GREEN, true)
     print("[Dwarfipelago] AP caravan spawned.")
 end
@@ -498,7 +509,7 @@ local function _add_energy(joules, label)
     dfhack.persistent.saveWorldDataString("dwarfipelago/energy_deposit", tostring(prev + joules))
     dfhack.persistent.saveWorldDataString("dwarfipelago/use_energy_link", "Y")
     dfhack.gui.showAnnouncement(
-        ("[AP] %s (%.1f MJ) deposited into the energy network!"):format(label, joules/1000000),
+        ("[AP] %s (%s) deposited into the energy network!"):format(label, fmt_energy(joules)),
         COLOR_CYAN, true)
     print(("[Dwarfipelago] Energy deposit: %s = %d J"):format(label, joules))
 end
@@ -597,31 +608,6 @@ local function deposit_coins(target_val)
     _add_energy(deposited_val * 1000, ("%d * in coins"):format(deposited_val))
 end
 
--- Detect first trade / first export by checking the fortress exported-wealth
--- counter. DF increments this when goods are sold to a caravan, so a value
--- above zero means at least one trade has been completed.
-local function detect_trade_export()
-    if checks.trade_flag("trade_completed") and checks.trade_flag("first_export") then
-        return  -- both already fired
-    end
-
-    -- Use the same multi-path lookup that checks.lua uses for wealth-gate checks.
-    -- DF50 Steam nests exported wealth as tasks.wealth.exported; Classic uses a
-    -- flat tasks.wealth_exported field.  exported_wealth() tries both forms and
-    -- both global bases (plotinfo / ui) so we don't miss either variant.
-    local exported = checks.exported_wealth()
-
-    if exported > 0 then
-        if not checks.trade_flag("trade_completed") then
-            checks.set_trade_flag("trade_completed")
-            print("[Dwarfipelago] First trade detected (exported wealth > 0)")
-        end
-        if not checks.trade_flag("first_export") then
-            checks.set_trade_flag("first_export")
-            print("[Dwarfipelago] First export detected (exported wealth > 0)")
-        end
-    end
-end
 
 -- ── Megabeast goal: remove natural megabeasts ────────────────────────────────
 -- For the slay_megabeast goal, all naturally-spawned megabeasts are silently
@@ -786,11 +772,9 @@ local function detect_pump_activity()
                 if liq == "water" and not checks.production_flag("pump_water") then
                     checks.set_production_flag("pump_water")
                     dfhack.gui.showAnnouncement("[AP] Water has been pumped!", COLOR_GREEN, true)
-                    print("[Dwarfipelago] Check: Pumped Water")
                 elseif liq == "magma" and not checks.production_flag("pump_magma") then
                     checks.set_production_flag("pump_magma")
                     dfhack.gui.showAnnouncement("[AP] Magma has been pumped!", COLOR_GREEN, true)
-                    print("[Dwarfipelago] Check: Pumped Magma")
                 end
             end
             if checks.production_flag("pump_water") and checks.production_flag("pump_magma") then return end
@@ -809,26 +793,24 @@ local function detect_egg_hatch()
             if ok and from_egg then
                 checks.set_production_flag("egg_hatched")
                 dfhack.gui.showAnnouncement("[AP] Eggs have hatched in the fortress!", COLOR_GREEN, true)
-                print("[Dwarfipelago] Check: First Eggs Hatched")
                 return
             end
         end
     end)
 end
 
--- ── Caged megabeast detection ─────────────────────────────────────────────────
-local function detect_caged_megabeast()
-    if checks.production_flag("caged_megabeast") then return end
+-- ── Caged hostile beast detection ────────────────────────────────────────────
+local function detect_caged_hostile_beast()
+    if checks.production_flag("caged_hostile_beast") then return end
     pcall(function()
         for _, unit in ipairs(df.global.world.units.active) do
-            local ok, is_mega = pcall(dfhack.units.isMegabeast, unit)
-            if ok and is_mega then
+            local ok, is_enemy = pcall(dfhack.units.isEnemy, unit)
+            if ok and is_enemy then
                 local caged = false
                 pcall(function() caged = unit.flags1.caged end)
                 if caged then
-                    checks.set_production_flag("caged_megabeast")
-                    dfhack.gui.showAnnouncement("[AP] A megabeast has been caged!", COLOR_GREEN, true)
-                    print("[Dwarfipelago] Check: Caged a Megabeast")
+                    checks.set_production_flag("caged_hostile_beast")
+                    dfhack.gui.showAnnouncement("[AP] A hostile beast has been caged!", COLOR_GREEN, true)
                     return
                 end
             end
@@ -856,7 +838,6 @@ local function detect_sold_artifact()
             if gone then
                 checks.set_production_flag("sold_artifact")
                 dfhack.gui.showAnnouncement("[AP] An artifact has left the fortress!", COLOR_GREEN, true)
-                print("[Dwarfipelago] Check: Sold an Artifact")
                 return
             end
             ::skip_art::
@@ -907,10 +888,10 @@ local function poll_checks()
     check_goal_by_poll()
     check_locked_notifications()
     detect_caravans()
-    detect_trade_export()
+    checks.detect_mission_checks()
     detect_pump_activity()
     detect_egg_hatch()
-    detect_caged_megabeast()
+    detect_caged_hostile_beast()
     detect_sold_artifact()
     _check_spawn_caravan_approved()
 
@@ -952,7 +933,6 @@ local function on_job_completed(job)
             if ok_t and btype == df.building_type.Well then
                 checks.set_production_flag("well")
                 dfhack.gui.showAnnouncement("[AP] A well has been constructed!", COLOR_GREEN, true)
-                print("[Dwarfipelago] Check: Built a Well")
             end
         end
     end
@@ -1006,7 +986,7 @@ local function on_job_completed(job)
                     elseif t:find("magma_core") then
                         set_mining_milestone("magma", "You have reached the Magma Sea!")
                     elseif t:find("underworld") then
-                        set_mining_milestone("circus", "You have breached the Circus — the end is nigh!")
+                        set_mining_milestone("circus", "Welcome to the Circus — the end is nigh!")
                     end
                 end
             end
@@ -1299,8 +1279,7 @@ local function on_item_created(item_id)
                 local ok_tok, token = pcall(function() return mat:getToken() end)
                 if ok_tok and token and token:upper():find("ADAMANTINE") then
                     checks.set_production_flag("adamantine")
-                    dfhack.gui.showAnnouncement("[AP] Adamantine has been discovered!", COLOR_CYAN, true)
-                    print("[Dwarfipelago] Check: Mined Adamantine")
+                    dfhack.gui.showAnnouncement("[AP] Adamantine has been discovered!", COLOR_GREEN, true)
                 end
             end
         end
