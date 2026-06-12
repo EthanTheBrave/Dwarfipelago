@@ -112,7 +112,7 @@ class DwarfFortressWorld(World):
                 self.ap_item_pool.remove(item)
         elif self.options.craftpermits == CraftingPermits.option_on:
             self.starting_inventory = ["Beds Permit", "Charcoal Permit", "Leather Permit",
-                "Cloth Permit", "Alcohol Permit", "Prepared Meal Permit"]
+                "Cloth Permit", "Alcohol Permit", "Prepared Meal Permit", "Barrel Permit"]
             remove_ap_pool = []
             for item in self.item_name_to_id:
                 if item in self.starting_inventory:

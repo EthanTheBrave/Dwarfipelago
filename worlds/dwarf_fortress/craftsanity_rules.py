@@ -66,6 +66,8 @@ class DynamicCraftingLocationRules:
             else:
                 return (state.has("Wood Furnace Blueprint", self.player) and state.has("Kiln Blueprint", self.player) and \
                 state.has("Charcoal Permit", self.player)) or state.has("Magma Kiln Blueprint", self.player)
+        elif resource == "farming":
+                return state.has("Farm Plot Blueprint", self.player)
         else:
             print("Missing Resource Type for process_resource function")
             return False
@@ -257,8 +259,10 @@ class DynamicCraftingLocationRules:
             return self.wood(state) and state.has("Corkscrew Permit", self.player)
     def metal_corkscrew(self, state:CollectionState) -> bool:
             return self.metal(state) and state.has("Corkscrew Permit", self.player)
-    def wood_or_metal_corkscrew(self, state:CollectionState) -> bool:
-            return self.wood_or_metal(state) and state.has("Corkscrew Permit", self.player)
+    def glass_corkscrew(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Corkscrew Permit", self.player)
+    def wood_or_metal_or_glass_corkscrew(self, state:CollectionState) -> bool:
+            return self.wood_or_metal_or_glass(state) and state.has("Corkscrew Permit", self.player)
 
     def wood_spike(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Spike Permit", self.player)
@@ -899,11 +903,16 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.metal_corkscrew)
                     else:
                         set_rule(loc, self.metal)
+                elif material_type == "Glass":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.glass_corkscrew)
+                    else:
+                        set_rule(loc, self.glass)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.wood_or_metal_corkscrew)
+                        set_rule(loc, self.wood_or_metal_or_glass_corkscrew)
                     else:
-                        set_rule(loc, self.wood_or_metal)
+                        set_rule(loc, self.wood_or_metal_or_glass)
             case "Spike":
                 if material_type == "Wood":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
@@ -954,17 +963,17 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.wood_or_metal)
             case "Barrel":
                 if material_type == "Wood":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                    if self.world.options.craftpermits == CraftingPermits.option_all:
                         set_rule(loc, self.wood_barrel)
                     else:
                         set_rule(loc, self.wood)
                 elif material_type == "Metal":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                    if self.world.options.craftpermits == CraftingPermits.option_all:
                         set_rule(loc, self.metal_barrel)
                     else:
                         set_rule(loc, self.metal)
                 else:
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                    if self.world.options.craftpermits == CraftingPermits.option_all:
                         set_rule(loc, self.wood_or_metal_barrel)
                     else:
                         set_rule(loc, self.wood_or_metal)
