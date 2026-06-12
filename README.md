@@ -94,7 +94,7 @@ Configurable per-slot in your options YAML. Every goal also requires a minimum n
 | `legendary_wealth` | Accumulate a configurable treasury value in **minted coins and cut gems** (default: 100,000☼) | 3 |
 | `slay_megabeast` | Kill a dragon, titan, or other megabeast | 2 |
 | `mountainhome` | Achieve Mountainhome status - the monarch takes residence in your fortress (very difficult) | 5 |
-| `kings_remains` | Treasure hunters, Kobolds and Goblins has plundered our great halls and took the remains of our great king. They have traded them outside of our realm and we need our friends to help find them. We need to find all X remains to bring our great king back into our halls. | 0 |
+| `king_remains` | Treasure hunters, Kobolds and Goblins has plundered our great halls and took the remains of our great king. They have traded them outside of our realm and we need our friends to help find them. We need to find all X remains (`remains_great_king`, default 10) to bring our great king back into our halls. | 0 |
 
 </details>
 
@@ -107,7 +107,7 @@ Completing these milestones sends items to other players:
 
 - **Treasury milestones** - Humble Beginnings (1,000☼) through Legendary Vault (500,000☼) — based on the combined value of **minted coins and cut gems** in fortress stocks, not total fortress wealth
 - **First production** - first weapon forged, armor crafted, meal prepared, brew completed, metal bar smelted, gem cut, and more (18 milestones)
-- **Trade & diplomacy** - first caravan trade, first export, dwarven/elven/human caravan visits, outpost liaison meeting (an elven/human caravan-visit check auto-completes if that civilisation doesn't exist in your world, so it can't soft-lock the seed)
+- **Trade & diplomacy** - dwarven/elven/human caravan visits, outpost liaison meeting, first raid, first artifact recovery, first act of diplomacy (an elven/human caravan-visit check auto-completes if that civilisation doesn't exist in your world, so it can't soft-lock the seed)
 - **Fortress status** - noble appointments and civilisation recognition milestones
 - **Fortress titles** - Hamlet, Village, Town, City, Metropolis (population + wealth thresholds)
 - **Mining** - depth milestones (10/25/50/75/100 levels below the surface), tiles excavated (100 → 10,000), and breach events (First/Second/Third Cavern, Reached the Magma Sea, Welcome to the Circus)
@@ -181,6 +181,70 @@ craftsanity_threshold: 5
 ---
 
 <details>
+<summary>Crafting Permits</summary>
+
+Crafting Permits turn item production itself into a progression gate: until you receive the permit for an item, any job that would make it is cancelled in-game with a one-time notice (the same enforcement style as workshop blueprints). Permits arrive from the multiworld as their own items.
+
+This is an **opt-in** layer on top of Craftsanity — **Craftsanity must be enabled**, because permits add 97 additional items to the pool.
+
+Set `craftpermits` in your options YAML:
+
+| Value | Behaviour |
+|-------|-----------|
+| `off` | No permits required - craft anything you have the workshop for (default) |
+| `on` | You **start with** permits for Beds, Charcoal, Leather, Cloth, Alcohol, and Prepared Meal; every other permitted item must be unlocked from the multiworld |
+| `all` | Every permitted item is gated - you start with no permits |
+
+Permit enforcement is goal-independent and stacks with the workshop blueprint gate: you need both the workshop's blueprint *and* the item's permit before a dwarf will complete the job.
+
+### Example YAML
+
+```yaml
+craftsanity: on        # required - permits do nothing without craftsanity
+craftpermits: on       # off | on | all
+```
+
+</details>
+
+---
+
+<details>
+<summary>Energy Link</summary>
+
+Energy Link connects your fortress to the multiworld's shared energy pool. You contribute surplus production into the pool, and spend energy to call a caravan early when you need to trade.
+
+Enable it with `energy_link: true` in your options YAML (off by default).
+
+### Depositing energy
+
+From the **Energy** tab of the in-game panel (or the console commands below) you can convert fortress goods into shared energy:
+
+| Resource | Rate |
+|----------|------|
+| Alcohol | 100 kJ per unit |
+| Prepared food | 50 kJ per item |
+| Minted coins | 1 kJ per ☼ of face value |
+
+Deposited energy is sent to the shared pool and is available to every Energy Link player in the session.
+
+### Calling a caravan early
+
+Spend energy from the pool to **request a caravan** before its normal seasonal arrival. The mod calculates the energy cost, the client deducts it from the shared pool if you can afford it, and the caravan is then spawned and arrives - leaving again on its own schedule like any normal caravan. If the pool can't cover the cost, the request is declined.
+
+### Console commands
+
+```
+# Deposit a specific coin value (☼) into the shared pool
+dwarfipelago deposit-coins 500
+```
+
+Ale and food deposits, the current pool balance (shown in MJ and raw kJ), and the "call a caravan" action are all available from the panel's **Energy** tab.
+
+</details>
+
+---
+
+<details>
 <summary>Items Received</summary>
 
 | Type | Examples |
@@ -192,7 +256,8 @@ craftsanity_threshold: 5
 | Resources | Food bundles, wood bundles, iron ore, coal |
 | Industry materials | Flux stone, pig iron, charcoal, cloth bolts, tanned leather, **bags of sand** (glassmaking), raw clay (kaolinite for porcelain), plus rare low-grade copper tools (pick/axe/sword) |
 | Traps | Goblin ambush, cave bear incursion, vermin infestation, tantrum trigger, lost caravan |
-| Crafting Items | Jobs listed in Craftsanity now requires a item that allows you to do those jobs. Can't make table without the Crafting Table Item. |
+| Crafting Permits | When `craftpermits` is enabled, each permit item unlocks the ability to craft one item type (e.g. you can't make a table until the Table permit arrives). See the Crafting Permits section. |
+| Remains of the Great King | Treasure-hunt goal item - collect all of them (`king_remains` goal) to win. |
 
 All received goods are delivered to the **trade depot**.
 
