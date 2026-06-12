@@ -51,12 +51,13 @@ PRODUCTION_LOCATIONS: list[LocationData] = [
 
 # ── Trade / Export Milestones ─────────────────────────────────────────────────
 TRADE_LOCATIONS: list[LocationData] = [
-    LocationData("First Trade Completed",          BASE_ID + 200, "Fortress"),
-    LocationData("First Export",                   BASE_ID + 201, "Fortress"),
     LocationData("Dwarven Caravan Visit",          BASE_ID + 202, "Fortress"),
     LocationData("Elven Caravan Visit",            BASE_ID + 203, "Fortress"),
     LocationData("Human Caravan Visit",            BASE_ID + 204, "Fortress"),
     LocationData("Outpost Liaison Meeting",        BASE_ID + 205, "Fortress"),
+    LocationData("First Raid",                     BASE_ID + 206, "Fortress"),
+    LocationData("First Artifact Recovery",        BASE_ID + 207, "Fortress"),
+    LocationData("First Act of Diplomacy",         BASE_ID + 208, "Fortress"),
 ]
 
 # ── Fortress Status / Noble Appointments ──────────────────────────────────────
@@ -102,7 +103,7 @@ MINING_LOCATIONS: list[LocationData] = [
     LocationData("Second Cavern Breached",       BASE_ID + 721, "Fortress"),
     LocationData("Third Cavern Breached",        BASE_ID + 722, "Fortress"),
     LocationData("Reached the Magma Sea",        BASE_ID + 723, "Fortress"),
-    LocationData("Breached the Circus",          BASE_ID + 724, "Fortress"),
+    LocationData("Welcome to the Circus",          BASE_ID + 724, "Fortress"),
 ]
 
 # ── Farming Milestones ────────────────────────────────────────────────────────
@@ -126,7 +127,7 @@ INFRASTRUCTURE_LOCATIONS: list[LocationData] = [
 # ── Biology / Animal Milestones ───────────────────────────────────────────────
 BIOLOGY_LOCATIONS: list[LocationData] = [
     LocationData("First Eggs Hatched",  BASE_ID + 750, "Fortress"),
-    LocationData("Caged a Megabeast",   BASE_ID + 751, "Fortress"),
+    LocationData("Caged a Hostile Beast",   BASE_ID + 751, "Fortress"),
 ]
 
 # ── Deep / Endgame Milestones ─────────────────────────────────────────────────

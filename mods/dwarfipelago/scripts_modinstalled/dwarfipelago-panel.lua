@@ -246,15 +246,16 @@ local function build_progress_lines()
     blank()
     hdr("Trade & Diplomacy")
     local function tf(key) return checks.trade_flag(key) end
-    row(("  Trade done: %-3s      First export: %-3s"):format(
-        tf("trade_completed") and "YES" or "no",
-        tf("first_export") and "YES" or "no"))
     row(("  Dwarven caravan: %-3s  Liaison: %-3s"):format(
         tf("dwarven_caravan") and "YES" or "no",
         tf("liaison_met") and "YES" or "no"))
     row(("  Elven caravan:  %-3s  Human caravan: %-3s"):format(
         tf("elven_caravan") and "YES" or "no",
         tf("human_caravan") and "YES" or "no"))
+    row(("  Raid: %-3s  Recovery: %-3s  Diplomacy: %-3s"):format(
+        tf("first_raid") and "YES" or "no",
+        tf("first_recovery") and "YES" or "no",
+        tf("first_diplomacy") and "YES" or "no"))
 
     -- Nobles
     blank()
