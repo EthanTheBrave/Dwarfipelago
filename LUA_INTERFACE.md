@@ -49,7 +49,7 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/craft_count/<flag>` | Integer string | Lua | Cumulative crafts completed for that flag |
 | `dwarfipelago/craft_count_index` | JSON `string[]` | Lua | Every craft flag that has been incremented this world; lets `status` enumerate dynamic material-split keys |
 | `dwarfipelago/blueprint/<name>` | `"1"` or absent | Lua | Set when a blueprint item has been received |
-| `dwarfipelago/unlock/wealth_coffers` | Integer string | Lua | How many Merchant's Coffers received (0–5); gates wealth tier checks |
+| `dwarfipelago/unlock/wealth_coffers` | Integer string | Lua | How many Merchant's Coffers received (0–5); gates wealth tier checks. Coffers also cap coin minting / gem cutting, but **only when `goal` is `"1"` (legendary_wealth)** — under other goals minting/cutting is never blocked |
 | `dwarfipelago/unlock/immigration_waves` | Integer string | Lua | How many Immigration Waves received (0–5); gates title/population checks |
 | `dwarfipelago/unlock/baron_charter` | `"1"` or absent | Lua | Set when Baron's Charter received; gates Baron Appointed check |
 | `dwarfipelago/unlock/count_charter` | `"1"` or absent | Lua | Set when Count's Charter received; gates Count Appointed check |
@@ -59,6 +59,8 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/unlock/artifact_weapon` | `"1"` or absent | Lua | Set when Artifact Weapon received; gates slay_megabeast and mountainhome goals |
 | `dwarfipelago/unlock/artifact_armor` | `"1"` or absent | Lua | Set when Artifact Armor received; gates population_boom prestige requirement |
 | `dwarfipelago/unlock/master_builders_codex` | `"1"` or absent | Lua | Set when Master Builder's Codex received; gates legendary_wealth, mountainhome, and population_boom goals |
+| `dwarfipelago/unlock/RotGK` | Integer string | Lua | How many Remains of the Great King received; the king_remains goal completes when this reaches `king_remains_goal` |
+| `dwarfipelago/craftlock/<flag>` | `"1"` or absent | Lua | Set when the Crafting Permit for `<flag>` is received. When `crafting_permits` is non-zero, jobs producing an item whose flag is unset are cancelled |
 | `dwarfipelago/depot_built` | `"1"` or absent | Lua | Set once the starting trade depot has been placed or adopted |
 | `dwarfipelago/megabeast/spawned` | `"1"` or absent | Lua | Set once the AP target megabeast has been summoned (Military Training tier 4); prevents re-summoning on reload |
 | `dwarfipelago/megabeast/target_id` | Integer string | Lua | Unit ID of a pinned target megabeast, if used (natural megabeasts are cleared at load so the forced beast is the only one) |
@@ -74,9 +76,19 @@ All keys are namespaced under `dwarfipelago/`.
 
 | Key | Format | Written by | Description |
 |-----|--------|------------|-------------|
-| `dwarfipelago/goal` | `"0"`–`"3"` | Python | Goal type from slot data |
+| `dwarfipelago/goal` | `"0"`–`"4"` | Python | Goal type from slot data (0=slay_megabeast, 1=legendary_wealth, 2=population_boom, 3=mountainhome, 4=king_remains) |
 | `dwarfipelago/wealth_goal` | Integer string | Python | Wealth target for legendary_wealth goal |
 | `dwarfipelago/pop_goal` | Integer string | Python | Population target for population_boom goal |
+| `dwarfipelago/king_remains_goal` | Integer string | Python | Number of Remains of the Great King required for the king_remains goal |
+| `dwarfipelago/crafting_permits` | `"0"`, `"1"`, or `"2"` | Python | Crafting Permits mode: 0=off, 1=on (start with a basic set), 2=all. When non-zero, Lua cancels jobs for items whose `craftlock/<flag>` is not set |
+| `dwarfipelago/energy_enabled` | `"0"` or `"1"` | Python | Whether Energy Link is enabled for this slot |
+| `dwarfipelago/energy_link` | Integer string | Python | Current shared energy pool balance (kJ) available to spend; read by Lua to price/approve an early caravan |
+| `dwarfipelago/caravan_energy_cost` | Integer string | Lua | Energy cost (kJ) of a requested early caravan, for Python to deduct from the pool |
+| `dwarfipelago/request_caravan` | `"1"` or `"0"` | Lua | Set to `"1"` when the player requests an early caravan; Python deducts the cost and responds |
+| `dwarfipelago/spawn_caravan_approved` | `"1"` or `"0"` | Python | Python sets `"1"` once the energy cost is deducted; Lua spawns the caravan then clears it |
+| `dwarfipelago/ap_caravan_active` | `"1"` or `"0"` | Lua | Tracks whether an AP-summoned caravan is currently present (prevents stacking requests) |
+| `dwarfipelago/energy_deposit` | Integer string | Lua | Energy (joules) the player has deposited (ale/food/coins) awaiting send to the pool; Python reads and clears |
+| `dwarfipelago/use_energy_link` | `"Y"` or absent | Lua | Set when a deposit has occurred, signalling Python to process `energy_deposit` |
 | `dwarfipelago/deathlink_threshold` | Integer string | Python | Dwarves (or % of pop) per DeathLink send/receive; option max is 50 |
 | `dwarfipelago/deathlink_percentage` | `"0"` or `"1"` | Python | When `"1"`, threshold is treated as % of current population instead of a flat count |
 | `dwarfipelago/seed` | Integer string | Python | World identity — used to scope AP storage keys and detect wrong-world loads |
@@ -272,14 +284,17 @@ It is a DFHack overlay widget + ZScreen popup. Open it three ways:
 - Run `dwarfipelago panel` from the DFHack console
 - Run `dwarfipelago-panel` directly from the DFHack console
 
-The popup is a resizable `widgets.Window` containing a `widgets.TabBar` + `widgets.Pages`
-with three tabs, each a `widgets.Panel`:
+The popup is a resizable `widgets.Window` containing a `widgets.TabBar` + `widgets.Pages`,
+each page a `widgets.Panel`. The tabs are `{"Status", "Unlocks", "Progress", "Crafts", "Controls", "Energy"}`:
 
 | Tab | Contents |
 |-----|----------|
 | **Status** | enabled state, goal, completion, depot status |
 | **Unlocks** | progression unlock counts/flags — **built dynamically** from `items.UNLOCK_DEFS` |
+| **Progress** | goal progress (wealth/population/remains toward target) |
+| **Crafts** | craftsanity craft counts and craftlock/permit status |
 | **Controls** | Restart/Start (`Shift+S`), Reset all AP state (`Shift+R`), Reset seed (`Shift+D`) |
+| **Energy** | Energy Link pool balance (MJ + raw kJ), Deposit Ale/Food/Coins, and call-a-caravan (only meaningful when `energy_enabled` is `"1"`) |
 
 `open_panel()` toggles: calling it again while open dismisses the existing instance.
 
@@ -350,6 +365,9 @@ dwarfipelago resetseed
 
 # Manually deliver an item (for testing)
 dwarfipelago receive "Gold Bar"
+
+# Deposit a coin value (☼) into the shared Energy Link pool (requires energy_enabled)
+dwarfipelago deposit-coins 500
 
 # Run a mechanic verification test (no name = list them). Tests:
 #   spawn [RACE] | find <substr> | goblin | cavebear | vermin | spider
