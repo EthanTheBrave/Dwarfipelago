@@ -217,6 +217,8 @@ local function build_progress_lines()
     row(("  Elven caravan:  %-3s  Human caravan: %-3s"):format(
         tf("elven_caravan") and "YES" or "no",
         tf("human_caravan") and "YES" or "no"))
+    row(("  Expedition sent: %-3s"):format(
+        tf("first_expedition") and "YES" or "no"))
 
     -- Nobles
     blank()

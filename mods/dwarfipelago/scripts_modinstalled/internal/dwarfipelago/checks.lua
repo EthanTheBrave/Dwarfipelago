@@ -150,6 +150,7 @@ M.checks = {
     { id = 37370203, name = "Elven Caravan Visit",      fn = function() return M.trade_flag("elven_caravan")      end },
     { id = 37370204, name = "Human Caravan Visit",      fn = function() return M.trade_flag("human_caravan")      end },
     { id = 37370205, name = "Outpost Liaison Meeting",  fn = function() return M.trade_flag("liaison_met")        end },
+    { id = 37370206, name = "First Expedition",         fn = function() return M.trade_flag("first_expedition")   end },
 
     -- Fortress status / noble appointments
     -- Position codes match vanilla DF entity_default.txt. KING covers both king
@@ -234,6 +235,15 @@ end
 function M.trade_flag(flag)
     local val = dfhack.persistent.getWorldDataString("dwarfipelago/trade/" .. flag)
     return val == "1"
+end
+
+function M.detect_first_expedition()
+    if M.trade_flag("first_expedition") then return end
+    local ok, missions = pcall(function() return df.global.plotinfo.tasks.missions end)
+    if ok and missions and #missions > 0 then
+        M.set_trade_flag("first_expedition")
+        print("[Dwarfipelago] First expedition detected")
+    end
 end
 
 -- ── Mining helpers ────────────────────────────────────────────────────────────
