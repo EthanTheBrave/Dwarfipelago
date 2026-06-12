@@ -51,8 +51,6 @@ PRODUCTION_LOCATIONS: list[LocationData] = [
 
 # ── Trade / Export Milestones ─────────────────────────────────────────────────
 TRADE_LOCATIONS: list[LocationData] = [
-    LocationData("First Trade Completed",          BASE_ID + 200, "Fortress"),
-    LocationData("First Export",                   BASE_ID + 201, "Fortress"),
     LocationData("Dwarven Caravan Visit",          BASE_ID + 202, "Fortress"),
     LocationData("Elven Caravan Visit",            BASE_ID + 203, "Fortress"),
     LocationData("Human Caravan Visit",            BASE_ID + 204, "Fortress"),
