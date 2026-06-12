@@ -800,18 +800,12 @@ local function detect_egg_hatch()
 end
 
 -- ── Caged hostile beast detection ────────────────────────────────────────────
-local function _is_hostile_beast(unit)
-    local ok1, r1 = pcall(dfhack.units.isMegabeast,     unit)
-    local ok2, r2 = pcall(dfhack.units.isSemiMegabeast,  unit)
-    local ok3, r3 = pcall(dfhack.units.isForgottenBeast, unit)
-    return (ok1 and r1) or (ok2 and r2) or (ok3 and r3)
-end
-
 local function detect_caged_hostile_beast()
     if checks.production_flag("caged_hostile_beast") then return end
     pcall(function()
         for _, unit in ipairs(df.global.world.units.active) do
-            if _is_hostile_beast(unit) then
+            local ok, is_enemy = pcall(dfhack.units.isEnemy, unit)
+            if ok and is_enemy then
                 local caged = false
                 pcall(function() caged = unit.flags1.caged end)
                 if caged then
