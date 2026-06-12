@@ -159,7 +159,7 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         loc.access_rule = lambda state: (dynamic_rules.metal(state) or dynamic_rules.glass(state)) # magma safe materials
     else:
         loc.access_rule = lambda state: (dynamic_rules.metal_corkscrew(state) or dynamic_rules.glass_corkscrew(state)) \
-        and (dynamic_rules.glass_blocks(state) or dynamic_rules.glass_blocks(state) or dynamic_rules.metal_blocks(state)) \
+        and (dynamic_rules.stone_blocks(state) or dynamic_rules.glass_blocks(state) or dynamic_rules.metal_blocks(state)) \
         and (dynamic_rules.glass_pipesection(state) or dynamic_rules.metal_pipesection(state))
     
     # ── Biology / Animal Milestones ───────────────────────────────────────────────
