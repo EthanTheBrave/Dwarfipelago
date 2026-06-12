@@ -799,6 +799,16 @@ local function detect_egg_hatch()
     end)
 end
 
+-- ── Cave adaptation suppression ──────────────────────────────────────────────
+local function suppress_cave_adaptation()
+    if dfhack.persistent.getWorldDataString("dwarfipelago/unlock/sunlight_tonic") ~= "1" then return end
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(unit) then
+            unit.status.cave_adapt = 0
+        end
+    end
+end
+
 -- ── Caged hostile beast detection ────────────────────────────────────────────
 local function detect_caged_hostile_beast()
     if checks.production_flag("caged_hostile_beast") then return end
@@ -892,6 +902,7 @@ local function poll_checks()
     detect_pump_activity()
     detect_egg_hatch()
     detect_caged_hostile_beast()
+    suppress_cave_adaptation()
     detect_sold_artifact()
     _check_spawn_caravan_approved()
 
