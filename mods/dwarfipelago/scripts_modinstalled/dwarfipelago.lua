@@ -1032,6 +1032,11 @@ tjmap("CutGems")
 local function check_treasury_job_gate(job)
     if not TREASURY_JOB_TYPES[job.job_type] then return end
 
+    -- Coffers only cap coin minting / gem cutting for the Legendary Wealth goal.
+    -- Under any other goal the wealth-tier checks don't exist, so minting and
+    -- cutting must never be blocked. (goal 1 = legendary_wealth)
+    if goal_setting("goal", -1) ~= 1 then return end
+
     local coffers = goal_setting("unlock/wealth_coffers", 0)
 
     -- No coffers yet — block all minting and cutting.
