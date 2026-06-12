@@ -454,6 +454,11 @@ local function recv_adamantine_fiber()
     announce_at_depot("Received: Adamantine Fiber!")
 end
 
+local function recv_sunlight_tonic()
+    dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/sunlight_tonic", "1")
+    announce_at_depot("Sunlight Tonic received! Your dwarves may now walk freely in sunlight.")
+end
+
 -- ── Item handlers: progression gate items ────────────────────────────────────
 -- These items are purely flag-based — receiving them writes a persistent key
 -- that the goal-completion checks in dwarfipelago.lua read back.
@@ -1241,6 +1246,7 @@ M.UNLOCK_DEFS = {
     { key = "master_builders_codex", label = "Master Builder's Codex" },
     { key = "artifact_weapon",       label = "Artifact Weapon" },
     { key = "artifact_armor",        label = "Artifact Armor" },
+    { key = "sunlight_tonic",        label = "Sunlight Tonic" },
 }
 
 -- ── Dispatch table ────────────────────────────────────────────────────────────
@@ -1270,6 +1276,7 @@ M.handlers = {
     ["Dwarven Steel Sword"]  = recv_dwarven_steel_sword,
     ["Fine Cloth"]           = recv_fine_cloth,
     ["Adamantine Fiber"]     = recv_adamantine_fiber,
+    ["Sunlight Tonic"]       = recv_sunlight_tonic,
 
     -- Progression items
     ["Artifact Weapon"]        = recv_artifact_weapon,
