@@ -146,8 +146,6 @@ M.checks = {
     { id = 37370120, name = "First Minecart Made",     fn = function() return M.production_flag("minecart")       end },
 
     -- Trade / export milestones
-    { id = 37370200, name = "First Trade Completed",    fn = function() return M.trade_flag("trade_completed")    end },
-    { id = 37370201, name = "First Export",             fn = function() return M.trade_flag("first_export")       end },
     { id = 37370202, name = "Dwarven Caravan Visit",    fn = function() return M.trade_flag("dwarven_caravan")    end },
     { id = 37370203, name = "Elven Caravan Visit",      fn = function() return M.trade_flag("elven_caravan")      end },
     { id = 37370204, name = "Human Caravan Visit",      fn = function() return M.trade_flag("human_caravan")      end },

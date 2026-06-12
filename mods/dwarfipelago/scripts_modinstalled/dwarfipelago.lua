@@ -597,31 +597,6 @@ local function deposit_coins(target_val)
     _add_energy(deposited_val * 1000, ("%d * in coins"):format(deposited_val))
 end
 
--- Detect first trade / first export by checking the fortress exported-wealth
--- counter. DF increments this when goods are sold to a caravan, so a value
--- above zero means at least one trade has been completed.
-local function detect_trade_export()
-    if checks.trade_flag("trade_completed") and checks.trade_flag("first_export") then
-        return  -- both already fired
-    end
-
-    -- Use the same multi-path lookup that checks.lua uses for wealth-gate checks.
-    -- DF50 Steam nests exported wealth as tasks.wealth.exported; Classic uses a
-    -- flat tasks.wealth_exported field.  exported_wealth() tries both forms and
-    -- both global bases (plotinfo / ui) so we don't miss either variant.
-    local exported = checks.exported_wealth()
-
-    if exported > 0 then
-        if not checks.trade_flag("trade_completed") then
-            checks.set_trade_flag("trade_completed")
-            print("[Dwarfipelago] First trade detected (exported wealth > 0)")
-        end
-        if not checks.trade_flag("first_export") then
-            checks.set_trade_flag("first_export")
-            print("[Dwarfipelago] First export detected (exported wealth > 0)")
-        end
-    end
-end
 
 -- ── Megabeast goal: remove natural megabeasts ────────────────────────────────
 -- For the slay_megabeast goal, all naturally-spawned megabeasts are silently
@@ -907,7 +882,6 @@ local function poll_checks()
     check_goal_by_poll()
     check_locked_notifications()
     detect_caravans()
-    detect_trade_export()
     detect_pump_activity()
     detect_egg_hatch()
     detect_caged_megabeast()
