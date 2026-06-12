@@ -121,6 +121,56 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     loc = multiworld.get_location("First Metal Bar Smelted", player)
     dynamic_rules.df_location_rule(loc, "Metal Bars", "")
 
+    # -- Harvesting Gates ------------------------------------------------------
+    loc = multiworld.get_location("Harvest 50 Crops", player)
+    loc.access_rule = lambda state: dynamic_rules.process_resource(state, "farming")
+
+    loc = multiworld.get_location("Harvest 100 Crops", player)
+    loc.access_rule = lambda state: dynamic_rules.process_resource(state, "farming")
+
+    loc = multiworld.get_location("Harvest 250 Crops", player)
+    loc.access_rule = lambda state: dynamic_rules.process_resource(state, "farming")
+
+    loc = multiworld.get_location("Harvest 500 Crops", player)
+    loc.access_rule = lambda state: dynamic_rules.process_resource(state, "farming")
+
+    loc = multiworld.get_location("Harvest 1,000 Crops", player)
+    loc.access_rule = lambda state: dynamic_rules.process_resource(state, "farming")
+
+    # -- Infrastructure ---------------------------------------------------------
+    loc = multiworld.get_location("Built a Well", player)
+    if options.craftpermits == CraftingPermits.option_off:
+        loc.access_rule = lambda state: (dynamic_rules.metal(state) or dynamic_rules.wood(state))  \
+              and dynamic_rules.mechanic_workshop(state)
+    else:
+        loc.access_rule = lambda state: dynamic_rules.metal_or_cloth_ropechain(state) \
+        and dynamic_rules.wood_or_stone_or_metal_or_glass_or_ceramic_blocks(state) and dynamic_rules.mechanic_mechanism(state) \
+        and dynamic_rules.wood_or_metal_bucket(state)
+    
+    loc = multiworld.get_location("Pumped Water", player)
+    if options.craftpermits == CraftingPermits.option_off:
+        loc.access_rule = lambda state: (dynamic_rules.metal(state) or dynamic_rules.wood(state))
+    else:
+        loc.access_rule = lambda state: dynamic_rules.wood_or_metal_or_glass_corkscrew(state) \
+        and dynamic_rules.wood_or_stone_or_metal_or_glass_or_ceramic_blocks(state) and dynamic_rules.wood_or_metal_or_glass_pipesection(state) 
+
+    loc = multiworld.get_location("Pumped Magma", player)
+    if options.craftpermits == CraftingPermits.option_off:
+        loc.access_rule = lambda state: (dynamic_rules.metal(state) or dynamic_rules.glass(state)) # magma safe materials
+    else:
+        loc.access_rule = lambda state: (dynamic_rules.metal_corkscrew(state) or dynamic_rules.glass_corkscrew(state)) \
+        and (dynamic_rules.glass_blocks(state) or dynamic_rules.glass_blocks(state) or dynamic_rules.metal_blocks(state)) \
+        and (dynamic_rules.glass_pipesection(state) or dynamic_rules.metal_pipesection(state))
+    
+    # ── Biology / Animal Milestones ───────────────────────────────────────────────
+    loc = multiworld.get_location("First Eggs Hatched", player)
+    loc.access_rule = lambda state: dynamic_rules.metal(state) or dynamic_rules.glass(state) \
+    or dynamic_rules.craftdwarf_workshop(state)
+
+    loc = multiworld.get_location("Caged a Hostile Beast", player)
+    dynamic_rules.df_location_rule(loc, "Cage", "")
+
+
     # ── Progressive Coffer gates (wealth tier locations) ──────────────────────
     if options.goal == DwarfFortressGoal.option_legendary_wealth:
         for loc_name, coffers_needed in WEALTH_COFFER_RULES:
