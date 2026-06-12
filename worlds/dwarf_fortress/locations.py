@@ -55,7 +55,9 @@ TRADE_LOCATIONS: list[LocationData] = [
     LocationData("Elven Caravan Visit",            BASE_ID + 203, "Fortress"),
     LocationData("Human Caravan Visit",            BASE_ID + 204, "Fortress"),
     LocationData("Outpost Liaison Meeting",        BASE_ID + 205, "Fortress"),
-    LocationData("First Expedition",               BASE_ID + 206, "Fortress"),
+    LocationData("First Raid",                     BASE_ID + 206, "Fortress"),
+    LocationData("First Artifact Recovery",        BASE_ID + 207, "Fortress"),
+    LocationData("First Act of Diplomacy",         BASE_ID + 208, "Fortress"),
 ]
 
 # ── Fortress Status / Noble Appointments ──────────────────────────────────────

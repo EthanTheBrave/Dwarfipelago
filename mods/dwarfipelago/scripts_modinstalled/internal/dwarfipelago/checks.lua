@@ -150,7 +150,9 @@ M.checks = {
     { id = 37370203, name = "Elven Caravan Visit",      fn = function() return M.trade_flag("elven_caravan")      end },
     { id = 37370204, name = "Human Caravan Visit",      fn = function() return M.trade_flag("human_caravan")      end },
     { id = 37370205, name = "Outpost Liaison Meeting",  fn = function() return M.trade_flag("liaison_met")        end },
-    { id = 37370206, name = "First Expedition",         fn = function() return M.trade_flag("first_expedition")   end },
+    { id = 37370206, name = "First Raid",               fn = function() return M.trade_flag("first_raid")         end },
+    { id = 37370207, name = "First Artifact Recovery",  fn = function() return M.trade_flag("first_recovery")     end },
+    { id = 37370208, name = "First Act of Diplomacy",   fn = function() return M.trade_flag("first_diplomacy")    end },
 
     -- Fortress status / noble appointments
     -- Position codes match vanilla DF entity_default.txt. KING covers both king
@@ -237,12 +239,25 @@ function M.trade_flag(flag)
     return val == "1"
 end
 
-function M.detect_first_expedition()
-    if M.trade_flag("first_expedition") then return end
+function M.detect_mission_checks()
+    local all_done = M.trade_flag("first_raid")
+                 and M.trade_flag("first_recovery")
+                 and M.trade_flag("first_diplomacy")
+    if all_done then return end
     local ok, missions = pcall(function() return df.global.plotinfo.tasks.missions end)
-    if ok and missions and #missions > 0 then
-        M.set_trade_flag("first_expedition")
-        print("[Dwarfipelago] First expedition detected")
+    if not ok or not missions then return end
+    for _, mission in ipairs(missions) do
+        local t = mission.type
+        if t == df.mission_type.Raid and not M.trade_flag("first_raid") then
+            M.set_trade_flag("first_raid")
+            print("[Dwarfipelago] First raid detected")
+        elseif t == df.mission_type.Recover and not M.trade_flag("first_recovery") then
+            M.set_trade_flag("first_recovery")
+            print("[Dwarfipelago] First artifact recovery detected")
+        elseif t == df.mission_type.Diplomacy and not M.trade_flag("first_diplomacy") then
+            M.set_trade_flag("first_diplomacy")
+            print("[Dwarfipelago] First diplomacy mission detected")
+        end
     end
 end
 
