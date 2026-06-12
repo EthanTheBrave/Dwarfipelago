@@ -194,7 +194,7 @@ M.checks = {
     { id = 37370721, name = "Second Cavern Breached", fn = function() return M.mining_flag("cavern2") end },
     { id = 37370722, name = "Third Cavern Breached",  fn = function() return M.mining_flag("cavern3") end },
     { id = 37370723, name = "Reached the Magma Sea",  fn = function() return M.mining_flag("magma")   end },
-    { id = 37370724, name = "Breached the Circus",    fn = function() return M.mining_flag("circus")  end },
+    { id = 37370724, name = "Welcome to the Circus",   fn = function() return M.mining_flag("circus")  end },
 
     -- Farming: cumulative harvested crops (PLANT items).
     { id = 37370730, name = "Harvest 50 Crops",    fn = function() return M.crops_harvested() >= 50   end },
@@ -210,7 +210,7 @@ M.checks = {
 
     -- Biology / animals.
     { id = 37370750, name = "First Eggs Hatched", fn = function() return M.production_flag("egg_hatched")     end },
-    { id = 37370751, name = "Caged a Megabeast",  fn = function() return M.production_flag("caged_megabeast") end },
+    { id = 37370751, name = "Caged a Hostile Beast", fn = function() return M.production_flag("caged_hostile_beast") end },
 
     -- Deep / endgame.
     { id = 37370760, name = "Mined Adamantine", fn = function() return M.production_flag("adamantine")    end },
