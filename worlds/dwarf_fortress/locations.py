@@ -103,7 +103,7 @@ MINING_LOCATIONS: list[LocationData] = [
     LocationData("Second Cavern Breached",       BASE_ID + 721, "Fortress"),
     LocationData("Third Cavern Breached",        BASE_ID + 722, "Fortress"),
     LocationData("Reached the Magma Sea",        BASE_ID + 723, "Fortress"),
-    LocationData("Breached the Circus",          BASE_ID + 724, "Fortress"),
+    LocationData("Welcome to the Circus",          BASE_ID + 724, "Fortress"),
 ]
 
 # ── Farming Milestones ────────────────────────────────────────────────────────
@@ -127,7 +127,7 @@ INFRASTRUCTURE_LOCATIONS: list[LocationData] = [
 # ── Biology / Animal Milestones ───────────────────────────────────────────────
 BIOLOGY_LOCATIONS: list[LocationData] = [
     LocationData("First Eggs Hatched",  BASE_ID + 750, "Fortress"),
-    LocationData("Caged a Megabeast",   BASE_ID + 751, "Fortress"),
+    LocationData("Caged a Hostile Beast",   BASE_ID + 751, "Fortress"),
 ]
 
 # ── Deep / Endgame Milestones ─────────────────────────────────────────────────

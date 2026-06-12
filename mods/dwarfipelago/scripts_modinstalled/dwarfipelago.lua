@@ -799,18 +799,24 @@ local function detect_egg_hatch()
     end)
 end
 
--- ── Caged megabeast detection ─────────────────────────────────────────────────
-local function detect_caged_megabeast()
-    if checks.production_flag("caged_megabeast") then return end
+-- ── Caged hostile beast detection ────────────────────────────────────────────
+local function _is_hostile_beast(unit)
+    local ok1, r1 = pcall(dfhack.units.isMegabeast,     unit)
+    local ok2, r2 = pcall(dfhack.units.isSemiMegabeast,  unit)
+    local ok3, r3 = pcall(dfhack.units.isForgottenBeast, unit)
+    return (ok1 and r1) or (ok2 and r2) or (ok3 and r3)
+end
+
+local function detect_caged_hostile_beast()
+    if checks.production_flag("caged_hostile_beast") then return end
     pcall(function()
         for _, unit in ipairs(df.global.world.units.active) do
-            local ok, is_mega = pcall(dfhack.units.isMegabeast, unit)
-            if ok and is_mega then
+            if _is_hostile_beast(unit) then
                 local caged = false
                 pcall(function() caged = unit.flags1.caged end)
                 if caged then
-                    checks.set_production_flag("caged_megabeast")
-                    dfhack.gui.showAnnouncement("[AP] A megabeast has been caged!", COLOR_GREEN, true)
+                    checks.set_production_flag("caged_hostile_beast")
+                    dfhack.gui.showAnnouncement("[AP] A hostile beast has been caged!", COLOR_GREEN, true)
                     return
                 end
             end
@@ -891,7 +897,7 @@ local function poll_checks()
     checks.detect_mission_checks()
     detect_pump_activity()
     detect_egg_hatch()
-    detect_caged_megabeast()
+    detect_caged_hostile_beast()
     detect_sold_artifact()
     _check_spawn_caravan_approved()
 
@@ -986,7 +992,7 @@ local function on_job_completed(job)
                     elseif t:find("magma_core") then
                         set_mining_milestone("magma", "You have reached the Magma Sea!")
                     elseif t:find("underworld") then
-                        set_mining_milestone("circus", "You have breached the Circus — the end is nigh!")
+                        set_mining_milestone("circus", "Welcome to the Circus — the end is nigh!")
                     end
                 end
             end
