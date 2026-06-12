@@ -244,19 +244,34 @@ function M.detect_mission_checks()
                  and M.trade_flag("first_recovery")
                  and M.trade_flag("first_diplomacy")
     if all_done then return end
-    local ok, missions = pcall(function() return df.global.plotinfo.tasks.missions end)
-    if not ok or not missions then return end
-    for _, mission in ipairs(missions) do
-        local t = mission.type
-        if t == df.mission_type.Raid and not M.trade_flag("first_raid") then
-            M.set_trade_flag("first_raid")
-            print("[Dwarfipelago] First raid detected")
-        elseif t == df.mission_type.Recover and not M.trade_flag("first_recovery") then
-            M.set_trade_flag("first_recovery")
-            print("[Dwarfipelago] First artifact recovery detected")
-        elseif t == df.mission_type.Diplomacy and not M.trade_flag("first_diplomacy") then
-            M.set_trade_flag("first_diplomacy")
-            print("[Dwarfipelago] First diplomacy mission detected")
+
+    local civ_id = df.global.plotinfo.civ_id
+    local SITE_INVASION   = df.army_controller_goal_type.SITE_INVASION
+    local RECOVER_ARTIFACT = df.army_controller_goal_type.RECOVER_ARTIFACT
+    local DIPLOMACY        = df.army_controller_goal_type.DIPLOMACY
+
+    for _, squad in ipairs(df.global.world.squads.all) do
+        if squad.entity_id == civ_id then
+            local ctrl_id = squad.assigned_army_controller_id
+            if ctrl_id ~= -1 then
+                local ctrl = nil
+                for _, c in ipairs(df.global.world.army_controllers.all) do
+                    if c.id == ctrl_id then ctrl = c; break end
+                end
+                if ctrl then
+                    local goal = ctrl.goal
+                    if goal == SITE_INVASION and not M.trade_flag("first_raid") then
+                        M.set_trade_flag("first_raid")
+                        print("[Dwarfipelago] First raid detected")
+                    elseif goal == RECOVER_ARTIFACT and not M.trade_flag("first_recovery") then
+                        M.set_trade_flag("first_recovery")
+                        print("[Dwarfipelago] First artifact recovery detected")
+                    elseif goal == DIPLOMACY and not M.trade_flag("first_diplomacy") then
+                        M.set_trade_flag("first_diplomacy")
+                        print("[Dwarfipelago] First diplomacy mission detected")
+                    end
+                end
+            end
         end
     end
 end
