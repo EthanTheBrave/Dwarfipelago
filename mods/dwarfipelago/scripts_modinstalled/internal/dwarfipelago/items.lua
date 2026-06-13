@@ -502,9 +502,10 @@ local function spawn_livestock(race_token, name)
                 unit.pos.x, unit.pos.y, unit.pos.z = dx, dy, dz
             end
             df.global.world.units.active:insert('#', unit)
-            unit.flags2.tame           = true
-            unit.flags1.active_invader = false
-            unit.flags1.marauder       = false
+            pcall(function() unit.flags2.tame = true end)
+            pcall(function() unit.flags3.tame = true end)
+            pcall(function() unit.flags1.active_invader = false end)
+            pcall(function() unit.flags1.marauder       = false end)
             dfhack.units.makeown(unit)
             spawned = spawned + 1
         end)
