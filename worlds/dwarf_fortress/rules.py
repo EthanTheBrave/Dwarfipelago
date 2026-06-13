@@ -163,9 +163,10 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         and (dynamic_rules.glass_pipesection(state) or dynamic_rules.metal_pipesection(state))
     
     # ── Biology / Animal Milestones ───────────────────────────────────────────────
-    # Eggs hatch in a nest box, which is built only at the Craftsdwarf's Workshop.
-    loc = multiworld.get_location("First Eggs Hatched", player)
-    loc.access_rule = lambda state: dynamic_rules.craftdwarf_workshop(state)
+    # "First Eggs Hatched" disabled: hatch detection unreliable on DF v50. Re-enable
+    # together with the location in locations.py and the check in checks.lua.
+    # loc = multiworld.get_location("First Eggs Hatched", player)
+    # loc.access_rule = lambda state: dynamic_rules.craftdwarf_workshop(state)
 
     # Catching a hostile beast needs a cage trap = a cage plus a mechanism (built
     # at the Mechanic's Workshop), so require both.

@@ -759,8 +759,11 @@ local function detect_pump_activity()
         local flow = 0
         pcall(function() flow = des.flow_size end)
         if flow == 0 then return nil end
+        -- liquid_type is the tile_liquid enum (Water=0, Magma=1). Comparing the
+        -- raw value as a boolean is wrong: 0 is truthy in Lua, so it would always
+        -- report "magma". Compare explicitly against Magma.
         local is_magma = false
-        pcall(function() is_magma = des.liquid_type end)
+        pcall(function() is_magma = (des.liquid_type == df.tile_liquid.Magma) end)
         return is_magma and "magma" or "water"
     end
 
@@ -769,10 +772,10 @@ local function detect_pump_activity()
             local ok_t, btype = pcall(function() return bld:getType() end)
             if not (ok_t and btype == df.building_type.ScrewPump) then goto skip_pump end
 
-            -- Must be connected to a machine network (power source present).
-            local connected = false
-            pcall(function() connected = bld.machine_id >= 0 end)
-            if not connected then goto skip_pump end
+            -- A screw pump pumps either when powered by a machine network OR when
+            -- hand-cranked by a dwarf (machine_id == -1 in that case). The old
+            -- code required machine_id >= 0, so hand-pumped water/magma never
+            -- counted. We now accept any built pump adjacent to the liquid.
 
             -- Check the five tiles that could be the intake: directly below,
             -- and the four horizontal neighbours one level down.
@@ -794,13 +797,24 @@ local function detect_pump_activity()
 end
 
 -- ── Egg hatch detection ───────────────────────────────────────────────────────
--- Scans active units for the born_from_egg flag (set on chicks/hatchlings).
+-- DISABLED for now: no reliable hatch signal on DF v50 (no born_from_egg flag,
+-- and the tame-baby-egg-layer scan didn't fire in testing). Re-enable together
+-- with the "First Eggs Hatched" location/rule/check in the .py and checks.lua.
+--[[
+local function caste_lays_eggs(unit)
+    local lays = false
+    pcall(function()
+        lays = df.creature_raw.find(unit.race).caste[unit.caste].flags.LAYS_EGGS
+    end)
+    return lays == true
+end
+
 local function detect_egg_hatch()
     if checks.production_flag("egg_hatched") then return end
     pcall(function()
         for _, unit in ipairs(df.global.world.units.active) do
-            local ok, from_egg = pcall(function() return unit.flags2.born_from_egg end)
-            if ok and from_egg then
+            if dfhack.units.isTame(unit) and dfhack.units.isBaby(unit)
+                    and caste_lays_eggs(unit) then
                 checks.set_production_flag("egg_hatched")
                 dfhack.gui.showAnnouncement("[AP] Eggs have hatched in the fortress!", COLOR_GREEN, true)
                 return
@@ -808,6 +822,7 @@ local function detect_egg_hatch()
         end
     end)
 end
+--]]
 
 -- ── Cave adaptation suppression ──────────────────────────────────────────────
 local function suppress_cave_adaptation()
@@ -845,10 +860,15 @@ local function detect_sold_artifact()
     if checks.production_flag("sold_artifact") then return end
     pcall(function()
         for _, artifact in ipairs(df.global.world.artifacts.all) do
-            local item_id = -1
-            pcall(function() item_id = artifact.item_id end)
-            if item_id < 0 then goto skip_art end
-            local item = df.item.find(item_id)
+            -- artifact_record links its item via a pointer field (`item`) in
+            -- DF v50; older layouts used `item_id`. Support both.
+            local item = nil
+            pcall(function() item = artifact.item end)
+            if not item then
+                local item_id = -1
+                pcall(function() item_id = artifact.item_id end)
+                if item_id >= 0 then item = df.item.find(item_id) end
+            end
             if not item then goto skip_art end
             local gone = false
             pcall(function() gone = item.flags.removed end)
@@ -910,7 +930,7 @@ local function poll_checks()
     detect_caravans()
     checks.detect_mission_checks()
     detect_pump_activity()
-    detect_egg_hatch()
+    -- detect_egg_hatch()  -- disabled: hatch detection unreliable on DF v50
     detect_caged_hostile_beast()
     suppress_cave_adaptation()
     detect_sold_artifact()
