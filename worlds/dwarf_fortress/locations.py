@@ -126,7 +126,8 @@ INFRASTRUCTURE_LOCATIONS: list[LocationData] = [
 
 # ── Biology / Animal Milestones ───────────────────────────────────────────────
 BIOLOGY_LOCATIONS: list[LocationData] = [
-    LocationData("First Eggs Hatched",  BASE_ID + 750, "Fortress"),
+    # "First Eggs Hatched" (BASE_ID + 750) disabled: hatch detection unreliable on DF v50.
+    # LocationData("First Eggs Hatched",  BASE_ID + 750, "Fortress"),
     LocationData("Caged a Hostile Beast",   BASE_ID + 751, "Fortress"),
 ]
 
