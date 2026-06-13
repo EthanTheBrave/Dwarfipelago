@@ -683,7 +683,7 @@ end
 -- craft flag from the order itself (it carries the same job_type/item_subtype/
 -- mat_type fields a job does). Manual jobs still count via on_job_completed, so
 -- this only fills the work-order gap and does not double-count.
-local _order_amounts    = {}     -- order id -> last seen amount_left
+local _order_amounts    = {}     -- order id -> { left=amount_left, total=amount_total }
 local _order_probe_logged = false
 
 local function poll_manager_orders()
@@ -704,28 +704,38 @@ local function poll_manager_orders()
     for _, order in ipairs(list) do
         local id   = order.id
         local left = order.amount_left
+        local total = nil
+        pcall(function() total = order.amount_total end)
         if id ~= nil and left ~= nil then
             seen[id] = true
             local prev = _order_amounts[id]
-            if prev and left < prev then
-                local delta = prev - left
-                local flag
-                pcall(function() flag = checks.job_to_craft_flag(order) end)
-                if flag then
-                    for _ = 1, delta do checks.increment_craft_count(flag) end
-                    if flag == "honey" then
-                        for _ = 1, delta do checks.increment_craft_count("bee_wax") end
-                    elseif flag == "oil" then
-                        for _ = 1, delta do checks.increment_craft_count("press_cake") end
+            if prev and left < prev.left then
+                local delta = prev.left - left
+                -- Subtract any reduction in the order's requested total so that
+                -- resizing an order down (e.g. x50 → x25) doesn't count as
+                -- completed crafts; only actual job completions should count.
+                if prev.total and total and total < prev.total then
+                    delta = delta - (prev.total - total)
+                end
+                if delta > 0 then
+                    local flag
+                    pcall(function() flag = checks.job_to_craft_flag(order) end)
+                    if flag then
+                        for _ = 1, delta do checks.increment_craft_count(flag) end
+                        if flag == "honey" then
+                            for _ = 1, delta do checks.increment_craft_count("bee_wax") end
+                        elseif flag == "oil" then
+                            for _ = 1, delta do checks.increment_craft_count("press_cake") end
+                        end
+                    end
+                    local pflag
+                    pcall(function() pflag = checks.job_to_production_flag(order) end)
+                    if pflag and not checks.production_flag(pflag) then
+                        checks.set_production_flag(pflag)
                     end
                 end
-                local pflag
-                pcall(function() pflag = checks.job_to_production_flag(order) end)
-                if pflag and not checks.production_flag(pflag) then
-                    checks.set_production_flag(pflag)
-                end
             end
-            _order_amounts[id] = left
+            _order_amounts[id] = { left = left, total = total }
         end
     end
     -- Drop tracking for orders that no longer exist.
