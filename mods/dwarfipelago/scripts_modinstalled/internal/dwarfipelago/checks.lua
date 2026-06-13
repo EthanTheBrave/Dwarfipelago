@@ -209,7 +209,8 @@ M.checks = {
     { id = 37370742, name = "Pumped Magma",  fn = function() return M.production_flag("pump_magma") end },
 
     -- Biology / animals.
-    { id = 37370750, name = "First Eggs Hatched", fn = function() return M.production_flag("egg_hatched")     end },
+    -- "First Eggs Hatched" (37370750) disabled: hatch detection unreliable on DF v50.
+    -- { id = 37370750, name = "First Eggs Hatched", fn = function() return M.production_flag("egg_hatched")     end },
     { id = 37370751, name = "Caged a Hostile Beast", fn = function() return M.production_flag("caged_hostile_beast") end },
 
     -- Deep / endgame.
@@ -372,8 +373,12 @@ map("ProcessPlants",           "cloth")   -- also produces thread
 map("TanHide",                 "leather")
 map("CutGems",                 "gem")
 map("EncrustedWithGems",       "gem")
--- Traps
-map("ConstructTrap",           "trap")
+-- Traps. DF v50 has no ConstructTrap job_type; arming a trap is one of the
+-- Load*Trap jobs, and wiring a lever/pressure plate is LinkBuildingToTrigger.
+map("ConstructTrap",           "trap")  -- kept for older DF; nil-skipped on v50
+map("LoadCageTrap",            "trap")
+map("LoadStoneTrap",           "trap")
+map("LoadWeaponTrap",          "trap")
 map("LinkBuildingToTrigger",   "trap")
 -- Standalone production checks
 map("ForgeAnvil",              "anvil")
@@ -384,13 +389,28 @@ map("MakeTool",                "TOOL_FIRST")  -- subtype dispatch below
 -- Minecart subtype: MakeTool item_subtype 16
 local TOOL_FIRST_FLAG = { [16] = "minecart" }
 
+-- Some "production" jobs have no dedicated job_type in DF v50 — they complete as
+-- CustomReaction jobs and are identified by reaction_name (this is the same way
+-- the craft-count path resolves them via REACTION_SUBTYPE_FLAG, which is why the
+-- craftsanity Alcohol checks already work). Map those reaction names to the
+-- first-production flag so e.g. "First Brew Complete" fires too.
+local REACTION_TO_PROD = {}
+local function rprod(name, flag) REACTION_TO_PROD[name] = flag end
+rprod("BREW_DRINK_FROM_PLANT",        "brew")
+rprod("BREW_DRINK_FROM_PLANT_GROWTH", "brew")
+rprod("TAN_A_HIDE",                   "leather")
+
 function M.job_to_production_flag(job)
     if job and job.job_type then
         local flag = JOB_TO_FLAG[job.job_type]
         if flag == "TOOL_FIRST" then
             return TOOL_FIRST_FLAG[tonumber(job.item_subtype)]
         end
-        return flag
+        if flag then return flag end
+        -- Fall back to reaction-name matching for CustomReaction jobs.
+        local rname = ""
+        pcall(function() rname = job.reaction_name or "" end)
+        if rname ~= "" then return REACTION_TO_PROD[rname] end
     end
     return nil
 end
@@ -603,6 +623,7 @@ reaction_subtype("PRESS_PLANT_PAPER",               "sheet")
 reaction_subtype("MAKE_SHEET_FROM_PLANT",           "sheet")
 reaction_subtype("BREW_DRINK_FROM_PLANT",           "alcohol")
 reaction_subtype("BREW_DRINK_FROM_PLANT_GROWTH",    "alcohol")
+reaction_subtype("TAN_A_HIDE",                      "leather")
 reaction_subtype("MAKE_MILK_OF_LIME",               "milk_of_lime")
 reaction_subtype("RENDER_FAT",                      "tallow")
 reaction_subtype("PRESS_OIL_FRUIT",                 "oil")
