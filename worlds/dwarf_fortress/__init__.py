@@ -97,30 +97,28 @@ class DwarfFortressWorld(World):
         #populates dynamic_locations and names
         generate_location_data(self)
 
-         # remove the crafting items from the pool depending on the options
+        # Decide which crafting-permit items this slot puts in the pool.
+        # Both item_name_to_id and AP_ITEM_POOL are shared, class-level objects:
+        # item_name_to_id IS the DataPackage — mutating it makes the generated
+        # multidata's checksum disagree with a fresh load of the apworld, so the
+        # server rejects the file ("checksum mismatch") — and AP_ITEM_POOL is
+        # reused for every slot in the generation. So we never mutate either: we
+        # work on a per-instance copy of the pool and always leave every craft
+        # item in the DataPackage regardless of options. (Mirrors the same
+        # rule already applied to location_name_to_id above.)
+        self.ap_item_pool = list(AP_ITEM_POOL)
+        craft_item_names = {i.name for i in CRAFT_ITEMS}
+
         if self.options.craftpermits == CraftingPermits.option_off or not self.options.craftsanity:
-            remove_list = []
-            remove_ap_pool = []
-            for item in self.item_name_to_id:
-                match = [i for i in CRAFT_ITEMS if i.name == item]
-                if len(match) > 0:
-                    remove_list.append(item)
-                    remove_ap_pool.append(match[0])
-            for item in remove_list:
-                del self.item_name_to_id[item]
-            for item in remove_ap_pool:
-                self.ap_item_pool.remove(item)
+            # Permits disabled — no craft-permit items go into the pool at all.
+            self.ap_item_pool = [d for d in self.ap_item_pool if d.name not in craft_item_names]
         elif self.options.craftpermits == CraftingPermits.option_on:
+            # Start with a basic permit set; don't also place those in the pool.
             self.starting_inventory = ["Beds Permit", "Charcoal Permit", "Leather Permit",
                 "Cloth Permit", "Alcohol Permit", "Prepared Meal Permit", "Barrel Permit"]
-            remove_ap_pool = []
-            for item in self.item_name_to_id:
-                if item in self.starting_inventory:
-                    match = [i for i in CRAFT_ITEMS if i.name == item]
-                    remove_ap_pool.append(match[0])
-            for item in remove_ap_pool:
-                self.ap_item_pool.remove(item)
-        
+            self.ap_item_pool = [d for d in self.ap_item_pool
+                                 if d.name not in self.starting_inventory]
+
         if self.options.craftpermits != CraftingPermits.option_off and len(CRAFT_ITEMS) > len(self.dynamic_locations):
             raise OptionError(
                 f"{self.player_name}: You do not have enough crafting locations enabled to use the crafting items feature."
