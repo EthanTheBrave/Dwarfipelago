@@ -1556,6 +1556,11 @@ local TEST_LIST = {
     { "spider",    "Precursor threat (giant cave spider, underground)", function() spawn_precursor_threat() end },
     { "megabeast", "Force the goal megabeast (once per world)",        function() spawn_target_megabeast() end },
     { "migrants",  "Add a wave of citizen dwarves",                    function() recv_immigration_wave() end },
+    { "pigs",      "Spawn a breeding group of pigs",                  function() recv_breeding_pigs()     end },
+    { "chickens",  "Spawn a breeding group of chickens",              function() recv_breeding_chickens() end },
+    { "llamas",    "Spawn a breeding group of llamas",                function() recv_breeding_llamas()   end },
+    { "cows",      "Spawn a breeding group of cows",                  function() recv_breeding_cows()     end },
+    { "sheep",     "Spawn a breeding group of sheep",                 function() recv_breeding_sheep()    end },
     { "caravan",   "Force a caravan (arg: dwarf|elf|human|goblin; default = parent civ)",
                    function(rest)
                        local token = ({ dwarf = "DWARF", elf = "ELF",
