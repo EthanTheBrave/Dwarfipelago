@@ -454,6 +454,91 @@ local function recv_adamantine_fiber()
     announce_at_depot("Received: Adamantine Fiber!")
 end
 
+-- ── Item handlers: livestock ──────────────────────────────────────────────────
+-- Spawns a small group of tame, fortress-owned animals. Always guarantees at
+-- least one male (caste 0) and one female (caste 1) so the pair can breed.
+-- Total count is 2–5; extras are random sex.
+
+local function spawn_livestock(race_token, name)
+    local tokens = type(race_token) == "table" and race_token or {race_token}
+    local race_idx
+    for _, tok in ipairs(tokens) do
+        for i, cr in ipairs(df.global.world.raws.creatures.all) do
+            if cr.creature_id == tok then race_idx = i; break end
+        end
+        if race_idx then break end
+    end
+    if not race_idx then
+        log.error("spawn_livestock: creature not found in raws: " .. table.concat(tokens, "/"))
+        announce_at_depot(("Received: %s! (spawn failed — creature absent from world raws)"):format(name))
+        return
+    end
+
+    local ncastes = 0
+    pcall(function()
+        for _ in ipairs(df.global.world.raws.creatures.all[race_idx].caste) do
+            ncastes = ncastes + 1
+        end
+    end)
+    local female_caste = math.max(1, ncastes - 1)
+
+    -- Guaranteed pair first, then 0–3 random extras for a total of 2–5.
+    local count = math.random(2, 5)
+    local castes_to_spawn = {0, female_caste}
+    for _ = 1, count - 2 do
+        table.insert(castes_to_spawn, math.random(0, female_caste))
+    end
+
+    local dx, dy, dz = find_trade_depot_center()
+    if not dx then
+        local sx, sy, sz = get_fort_spawn_pos()
+        dx, dy, dz = tonumber(sx), tonumber(sy), tonumber(sz)
+    end
+
+    local cur_year = df.global.cur_year
+    local spawned = 0
+    for _, caste in ipairs(castes_to_spawn) do
+        local ok, err = pcall(function()
+            local unit = dfhack.units.create(race_idx, caste)
+            if not unit then error("create returned nil") end
+            pcall(function() unit.birth_year = cur_year - math.random(2, 5) end)
+            if not dfhack.units.teleport(unit, {x = dx, y = dy, z = dz}) then
+                unit.pos.x, unit.pos.y, unit.pos.z = dx, dy, dz
+            end
+            df.global.world.units.active:insert('#', unit)
+            -- Assign to the player's civilization so the animal appears as owned.
+            pcall(function() unit.civ_id = df.global.plotinfo.civ_id end)
+            pcall(function() unit.civ_id = df.global.ui.civ_id end)
+            pcall(function() unit.flags1.tame = true end)
+            pcall(function() unit.flags2.tame = true end)
+            pcall(function() unit.flags3.tame = true end)
+            pcall(function() unit.flags1.active_invader = false end)
+            pcall(function() unit.flags1.marauder       = false end)
+            pcall(function()
+                unit.training_level = df.animal_training_level.Domesticated
+            end)
+            dfhack.units.makeown(unit)
+            spawned = spawned + 1
+        end)
+        if not ok then
+            log.error(("spawn_livestock(%s): %s"):format(race_token, tostring(err)))
+        end
+    end
+
+    if spawned > 0 then
+        announce_at_depot(("Received: %s! %d animal(s) have joined the fortress."):format(name, spawned))
+    else
+        announce_at_depot(("Received: %s! (spawn failed — check DFHack console)"):format(name))
+    end
+end
+
+local function recv_breeding_pigs()     spawn_livestock("PIG",                  "Breeding Pigs")     end
+local function recv_breeding_chickens() spawn_livestock("BIRD_CHICKEN",          "Breeding Chickens") end
+local function recv_breeding_alpacas()  spawn_livestock("ALPACA",                "Breeding Alpacas")  end
+local function recv_breeding_cows()     spawn_livestock({"CATTLE", "COW"},       "Breeding Cows")     end
+local function recv_breeding_sheep()    spawn_livestock("SHEEP",                 "Breeding Sheep")    end
+local function recv_breeding_yaks()     spawn_livestock("YAK",                   "Breeding Yaks")     end
+
 local function recv_sunlight_tonic()
     dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/sunlight_tonic", "1")
     announce_at_depot("Sunlight Tonic received! Your dwarves may now walk freely in sunlight.")
@@ -597,6 +682,55 @@ local function recv_goblin_trophy()
     -- A goblin-bone totem — the classic war trophy.
     spawn_item("TOTEM", "CREATURE_MAT:GOBLIN:BONE")
     announce_at_depot("A goblin trophy has been delivered. Someone out there is mocking you.")
+end
+
+-- Search for a walkable surface tile (outside == true) near a map edge.
+-- Biases toward the embark perimeter so spawned hostiles have to path inward,
+-- giving dwarves time to react. Returns x, y, z or nil on failure.
+local function find_surface_spawn_pos()
+    if not dfhack.isMapLoaded() then return nil end
+    local map = df.global.world.map
+
+    -- Estimate surface z from a living citizen (fallback: upper portion of map).
+    local surface_z = math.floor(map.z_count * 0.7)
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+            surface_z = unit.pos.z
+            break
+        end
+    end
+
+    local z_lo = math.max(0, surface_z - 3)
+    local z_hi = math.min(map.z_count - 1, surface_z + 5)
+    local m    = 4  -- stay off the very map edge to avoid bound issues
+
+    -- Four generators, one per embark edge (N/S/W/E).
+    local edge_gens = {
+        function() return math.random(m, map.x_count-1-m), math.random(m, 10)                   end,
+        function() return math.random(m, map.x_count-1-m), math.random(map.y_count-11, map.y_count-1-m) end,
+        function() return math.random(m, 10),               math.random(m, map.y_count-1-m)     end,
+        function() return math.random(map.x_count-11, map.x_count-1-m), math.random(m, map.y_count-1-m) end,
+    }
+
+    for z = z_hi, z_lo, -1 do
+        for _ = 1, 60 do
+            local x, y = edge_gens[math.random(4)]()
+            local block = dfhack.maps.getTileBlock(x, y, z)
+            if block then
+                local lx, ly = x % 16, y % 16
+                local ok = false
+                pcall(function()
+                    local des   = block.designation[lx][ly]
+                    local shape = df.tiletype.attrs[block.tiletype[lx][ly]].shape
+                    ok = des.outside and des.flow_size == 0
+                      and (shape == df.tiletype_shape.FLOOR
+                        or shape == df.tiletype_shape.RAMP)
+                end)
+                if ok then return x, y, z end
+            end
+        end
+    end
+    return nil
 end
 
 -- ── Item handlers: traps ──────────────────────────────────────────────────────
@@ -751,6 +885,54 @@ local function recv_cave_bear()
     end
 end
 
+local function recv_catsplosion()
+    local count = math.random(10, 20)
+    local race_idx
+    for i, cr in ipairs(df.global.world.raws.creatures.all) do
+        if cr.creature_id == "CAT" then race_idx = i; break end
+    end
+    if not race_idx then
+        announce("Trap: Catsplosion! (no cats in world raws — the cats escaped to another timeline)")
+        return
+    end
+    local dx, dy, dz = find_trade_depot_center()
+    if not dx then
+        local sx, sy, sz = get_fort_spawn_pos()
+        dx, dy, dz = tonumber(sx), tonumber(sy), tonumber(sz)
+    end
+    local cur_year = df.global.cur_year
+    local spawned = 0
+    for i = 1, count do
+        local caste = (i <= 2) and (i - 1) or math.random(0, 1)
+        local ok, err = pcall(function()
+            local unit = dfhack.units.create(race_idx, caste)
+            if not unit then error("create returned nil") end
+            pcall(function() unit.birth_year = cur_year - math.random(1, 4) end)
+            if not dfhack.units.teleport(unit, {x = dx, y = dy, z = dz}) then
+                unit.pos.x, unit.pos.y, unit.pos.z = dx, dy, dz
+            end
+            df.global.world.units.active:insert('#', unit)
+            pcall(function() unit.civ_id = df.global.plotinfo.civ_id end)
+            pcall(function() unit.civ_id = df.global.ui.civ_id end)
+            pcall(function() unit.flags1.tame = true end)
+            pcall(function() unit.flags2.tame = true end)
+            pcall(function() unit.flags3.tame = true end)
+            pcall(function() unit.flags1.active_invader = false end)
+            pcall(function() unit.flags1.marauder       = false end)
+            pcall(function() unit.training_level = df.animal_training_level.Domesticated end)
+            dfhack.units.makeown(unit)
+            spawned = spawned + 1
+        end)
+        if not ok then log.error(("catsplosion: %s"):format(tostring(err))) end
+    end
+    local pos = dx and {x=dx, y=dy, z=dz} or nil
+    if spawned > 0 then
+        announce(("Trap: Catsplosion! %d cats have invaded the fortress!"):format(spawned), pos)
+    else
+        announce("Trap: Catsplosion! The cats are... somewhere. Good luck.")
+    end
+end
+
 -- Return a random tile inside a stockpile. Prefers food stockpiles; falls back
 -- to any stockpile; falls back to get_fort_spawn_pos if none exist.
 local function find_stockpile_pos()
@@ -869,55 +1051,6 @@ local function find_underground_spawn()
                         and not block.designation[lx][ly].outside then
                     return x, y, z
                 end
-            end
-        end
-    end
-    return nil
-end
-
--- Search for a walkable surface tile (outside == true) near a map edge.
--- Biases toward the embark perimeter so spawned hostiles have to path inward,
--- giving dwarves time to react. Returns x, y, z or nil on failure.
-local function find_surface_spawn_pos()
-    if not dfhack.isMapLoaded() then return nil end
-    local map = df.global.world.map
-
-    -- Estimate surface z from a living citizen (fallback: upper portion of map).
-    local surface_z = math.floor(map.z_count * 0.7)
-    for _, unit in ipairs(df.global.world.units.active) do
-        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
-            surface_z = unit.pos.z
-            break
-        end
-    end
-
-    local z_lo = math.max(0, surface_z - 3)
-    local z_hi = math.min(map.z_count - 1, surface_z + 5)
-    local m    = 4  -- stay off the very map edge to avoid bound issues
-
-    -- Four generators, one per embark edge (N/S/W/E).
-    local edge_gens = {
-        function() return math.random(m, map.x_count-1-m), math.random(m, 10)                   end,
-        function() return math.random(m, map.x_count-1-m), math.random(map.y_count-11, map.y_count-1-m) end,
-        function() return math.random(m, 10),               math.random(m, map.y_count-1-m)     end,
-        function() return math.random(map.x_count-11, map.x_count-1-m), math.random(m, map.y_count-1-m) end,
-    }
-
-    for z = z_hi, z_lo, -1 do
-        for _ = 1, 60 do
-            local x, y = edge_gens[math.random(4)]()
-            local block = dfhack.maps.getTileBlock(x, y, z)
-            if block then
-                local lx, ly = x % 16, y % 16
-                local ok = false
-                pcall(function()
-                    local des   = block.designation[lx][ly]
-                    local shape = df.tiletype.attrs[block.tiletype[lx][ly]].shape
-                    ok = des.outside and des.flow_size == 0
-                      and (shape == df.tiletype_shape.FLOOR
-                        or shape == df.tiletype_shape.RAMP)
-                end)
-                if ok then return x, y, z end
             end
         end
     end
@@ -1278,6 +1411,14 @@ M.handlers = {
     ["Adamantine Fiber"]     = recv_adamantine_fiber,
     ["Sunlight Tonic"]       = recv_sunlight_tonic,
 
+    -- Livestock
+    ["Breeding Pigs"]        = recv_breeding_pigs,
+    ["Breeding Chickens"]    = recv_breeding_chickens,
+    ["Breeding Alpacas"]     = recv_breeding_alpacas,
+    ["Breeding Cows"]        = recv_breeding_cows,
+    ["Breeding Sheep"]       = recv_breeding_sheep,
+    ["Breeding Yaks"]        = recv_breeding_yaks,
+
     -- Progression items
     ["Artifact Weapon"]        = recv_artifact_weapon,
     ["Artifact Armor"]         = recv_artifact_armor,
@@ -1307,6 +1448,7 @@ M.handlers = {
     ["Vermin Infestation"]   = recv_vermin_infestation,
     ["Tantrum Trigger"]      = recv_tantrum_trigger,
     ["Lost Caravan"]         = recv_lost_caravan,
+    ["Catsplosion"]          = recv_catsplosion,
 
     ["Merchant's Coffer"]    = recv_merchants_coffer,
     ["Immigration Wave"]     = recv_immigration_wave,
@@ -1480,10 +1622,30 @@ local TEST_LIST = {
                    function(rest) test_find(rest[1]) end },
     { "goblin",    "Goblin Ambush trap (3 hostile goblins)",          function() recv_goblin_ambush() end },
     { "cavebear",  "Cave Bear Incursion trap",                        function() recv_cave_bear() end },
+    { "catsplosion", "Catsplosion trap (10-20 fortress cats)",        function() recv_catsplosion() end },
     { "vermin",    "Vermin Infestation trap (rodents)",               function() recv_vermin_infestation() end },
     { "spider",    "Precursor threat (giant cave spider, underground)", function() spawn_precursor_threat() end },
     { "megabeast", "Force the goal megabeast (once per world)",        function() spawn_target_megabeast() end },
     { "migrants",  "Add a wave of citizen dwarves",                    function() recv_immigration_wave() end },
+    { "spawn-livestock", "Spawn a breeding group of livestock (arg: pigs|chickens|alpacas|cows|sheep|yaks)",
+                   function(rest)
+                       local LIVESTOCK = {
+                           pigs     = recv_breeding_pigs,
+                           chickens = recv_breeding_chickens,
+                           alpacas  = recv_breeding_alpacas,
+                           cows     = recv_breeding_cows,
+                           sheep    = recv_breeding_sheep,
+                           yaks     = recv_breeding_yaks,
+                       }
+                       local animal = (rest[1] or ""):lower()
+                       local fn = LIVESTOCK[animal]
+                       if fn then
+                           fn()
+                       else
+                           print("[test] Usage: dwarfipelago test spawn-livestock <animal>")
+                           print("[test] Valid animals: " .. table.concat({"pigs","chickens","alpacas","cows","sheep","yaks"}, ", "))
+                       end
+                   end },
     { "caravan",   "Force a caravan (arg: dwarf|elf|human|goblin; default = parent civ)",
                    function(rest)
                        local token = ({ dwarf = "DWARF", elf = "ELF",
@@ -1514,7 +1676,7 @@ function M.run_test(name, rest)
     if not name or name == "" or name == "list" then
         print("[Dwarfipelago] Tests — run as: dwarfipelago test <name> [args]")
         for _, t in ipairs(TEST_LIST) do
-            print(("  %-10s %s"):format(t[1], t[2]))
+            print(("  %-20s %s"):format(t[1], t[2]))
         end
         return
     end

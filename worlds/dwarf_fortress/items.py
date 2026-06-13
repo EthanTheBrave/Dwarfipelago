@@ -92,6 +92,12 @@ USEFUL_ITEMS: list[ItemData] = [
     ItemData("Fine Cloth",             BASE_ID + 512, ItemClassification.useful),
     ItemData("Adamantine Fiber",       BASE_ID + 513, ItemClassification.useful),
     ItemData("Sunlight Tonic",         BASE_ID + 514, ItemClassification.useful),
+    ItemData("Breeding Pigs",          BASE_ID + 515, ItemClassification.useful),
+    ItemData("Breeding Chickens",      BASE_ID + 516, ItemClassification.useful),
+    ItemData("Breeding Alpacas",       BASE_ID + 517, ItemClassification.useful),
+    ItemData("Breeding Cows",          BASE_ID + 518, ItemClassification.useful),
+    ItemData("Breeding Sheep",         BASE_ID + 519, ItemClassification.useful),
+    ItemData("Breeding Yaks",          BASE_ID + 538, ItemClassification.useful),
 ]
 
 FILLER_ITEMS: list[ItemData] = [
@@ -249,6 +255,7 @@ RECEIVED_TRAPS: list[ItemData] = [
     ItemData("Vermin Infestation",     BASE_ID + 622, ItemClassification.trap),
     ItemData("Tantrum Trigger",        BASE_ID + 623, ItemClassification.trap),
     ItemData("Lost Caravan",           BASE_ID + 624, ItemClassification.trap),
+    ItemData("Catsplosion",            BASE_ID + 625, ItemClassification.trap),
 ]
 
 # Pool that goes into the AP multiworld.
