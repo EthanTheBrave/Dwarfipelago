@@ -1570,12 +1570,25 @@ local TEST_LIST = {
     { "spider",    "Precursor threat (giant cave spider, underground)", function() spawn_precursor_threat() end },
     { "megabeast", "Force the goal megabeast (once per world)",        function() spawn_target_megabeast() end },
     { "migrants",  "Add a wave of citizen dwarves",                    function() recv_immigration_wave() end },
-    { "pigs",      "Spawn a breeding group of pigs",                  function() recv_breeding_pigs()     end },
-    { "chickens",  "Spawn a breeding group of chickens",              function() recv_breeding_chickens() end },
-    { "alpacas",   "Spawn a breeding group of alpacas",               function() recv_breeding_alpacas()  end },
-    { "cows",      "Spawn a breeding group of cows",                  function() recv_breeding_cows()     end },
-    { "sheep",     "Spawn a breeding group of sheep",                 function() recv_breeding_sheep()    end },
-    { "yaks",      "Spawn a breeding group of yaks",                  function() recv_breeding_yaks()     end },
+    { "spawn-livestock", "Spawn a breeding group of livestock (arg: pigs|chickens|alpacas|cows|sheep|yaks)",
+                   function(rest)
+                       local LIVESTOCK = {
+                           pigs     = recv_breeding_pigs,
+                           chickens = recv_breeding_chickens,
+                           alpacas  = recv_breeding_alpacas,
+                           cows     = recv_breeding_cows,
+                           sheep    = recv_breeding_sheep,
+                           yaks     = recv_breeding_yaks,
+                       }
+                       local animal = (rest[1] or ""):lower()
+                       local fn = LIVESTOCK[animal]
+                       if fn then
+                           fn()
+                       else
+                           print("[test] Usage: dwarfipelago test spawn-livestock <animal>")
+                           print("[test] Valid animals: " .. table.concat({"pigs","chickens","alpacas","cows","sheep","yaks"}, ", "))
+                       end
+                   end },
     { "caravan",   "Force a caravan (arg: dwarf|elf|human|goblin; default = parent civ)",
                    function(rest)
                        local token = ({ dwarf = "DWARF", elf = "ELF",
