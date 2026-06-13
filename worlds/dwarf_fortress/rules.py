@@ -163,12 +163,19 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         and (dynamic_rules.glass_pipesection(state) or dynamic_rules.metal_pipesection(state))
     
     # ── Biology / Animal Milestones ───────────────────────────────────────────────
+    # Eggs hatch in a nest box, which is built only at the Craftsdwarf's Workshop.
     loc = multiworld.get_location("First Eggs Hatched", player)
-    loc.access_rule = lambda state: dynamic_rules.metal(state) or dynamic_rules.glass(state) \
-    or dynamic_rules.craftdwarf_workshop(state)
+    loc.access_rule = lambda state: dynamic_rules.craftdwarf_workshop(state)
 
+    # Catching a hostile beast needs a cage trap = a cage plus a mechanism (built
+    # at the Mechanic's Workshop), so require both.
     loc = multiworld.get_location("Caged a Hostile Beast", player)
-    dynamic_rules.df_location_rule(loc, "Cage", "")
+    if options.craftpermits == CraftingPermits.option_off:
+        loc.access_rule = lambda state: dynamic_rules.wood_or_metal_or_glass(state) \
+            and dynamic_rules.mechanic_workshop(state)
+    else:
+        loc.access_rule = lambda state: dynamic_rules.wood_or_metal_or_glass_cage(state) \
+            and dynamic_rules.mechanic_mechanism(state)
 
 
     # ── Progressive Coffer gates (wealth tier locations) ──────────────────────
