@@ -254,6 +254,7 @@ RECEIVED_TRAPS: list[ItemData] = [
     ItemData("Vermin Infestation",     BASE_ID + 622, ItemClassification.trap),
     ItemData("Tantrum Trigger",        BASE_ID + 623, ItemClassification.trap),
     ItemData("Lost Caravan",           BASE_ID + 624, ItemClassification.trap),
+    ItemData("Catsplosion",            BASE_ID + 625, ItemClassification.trap),
 ]
 
 # Pool that goes into the AP multiworld.

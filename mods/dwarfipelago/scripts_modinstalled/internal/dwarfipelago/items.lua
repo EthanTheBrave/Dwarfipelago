@@ -679,6 +679,55 @@ local function recv_goblin_trophy()
     announce_at_depot("A goblin trophy has been delivered. Someone out there is mocking you.")
 end
 
+-- Search for a walkable surface tile (outside == true) near a map edge.
+-- Biases toward the embark perimeter so spawned hostiles have to path inward,
+-- giving dwarves time to react. Returns x, y, z or nil on failure.
+local function find_surface_spawn_pos()
+    if not dfhack.isMapLoaded() then return nil end
+    local map = df.global.world.map
+
+    -- Estimate surface z from a living citizen (fallback: upper portion of map).
+    local surface_z = math.floor(map.z_count * 0.7)
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+            surface_z = unit.pos.z
+            break
+        end
+    end
+
+    local z_lo = math.max(0, surface_z - 3)
+    local z_hi = math.min(map.z_count - 1, surface_z + 5)
+    local m    = 4  -- stay off the very map edge to avoid bound issues
+
+    -- Four generators, one per embark edge (N/S/W/E).
+    local edge_gens = {
+        function() return math.random(m, map.x_count-1-m), math.random(m, 10)                   end,
+        function() return math.random(m, map.x_count-1-m), math.random(map.y_count-11, map.y_count-1-m) end,
+        function() return math.random(m, 10),               math.random(m, map.y_count-1-m)     end,
+        function() return math.random(map.x_count-11, map.x_count-1-m), math.random(m, map.y_count-1-m) end,
+    }
+
+    for z = z_hi, z_lo, -1 do
+        for _ = 1, 60 do
+            local x, y = edge_gens[math.random(4)]()
+            local block = dfhack.maps.getTileBlock(x, y, z)
+            if block then
+                local lx, ly = x % 16, y % 16
+                local ok = false
+                pcall(function()
+                    local des   = block.designation[lx][ly]
+                    local shape = df.tiletype.attrs[block.tiletype[lx][ly]].shape
+                    ok = des.outside and des.flow_size == 0
+                      and (shape == df.tiletype_shape.FLOOR
+                        or shape == df.tiletype_shape.RAMP)
+                end)
+                if ok then return x, y, z end
+            end
+        end
+    end
+    return nil
+end
+
 -- ── Item handlers: traps ──────────────────────────────────────────────────────
 -- Hostile-spawn traps create units directly through the dfhack.units API instead
 -- of the modtools/create-unit script (which errors on this build:
@@ -831,6 +880,54 @@ local function recv_cave_bear()
     end
 end
 
+local function recv_catsplosion()
+    local count = math.random(10, 20)
+    local race_idx
+    for i, cr in ipairs(df.global.world.raws.creatures.all) do
+        if cr.creature_id == "CAT" then race_idx = i; break end
+    end
+    if not race_idx then
+        announce("Trap: Catsplosion! (no cats in world raws — the cats escaped to another timeline)")
+        return
+    end
+    local dx, dy, dz = find_trade_depot_center()
+    if not dx then
+        local sx, sy, sz = get_fort_spawn_pos()
+        dx, dy, dz = tonumber(sx), tonumber(sy), tonumber(sz)
+    end
+    local cur_year = df.global.cur_year
+    local spawned = 0
+    for i = 1, count do
+        local caste = (i <= 2) and (i - 1) or math.random(0, 1)
+        local ok, err = pcall(function()
+            local unit = dfhack.units.create(race_idx, caste)
+            if not unit then error("create returned nil") end
+            pcall(function() unit.birth_year = cur_year - math.random(1, 4) end)
+            if not dfhack.units.teleport(unit, {x = dx, y = dy, z = dz}) then
+                unit.pos.x, unit.pos.y, unit.pos.z = dx, dy, dz
+            end
+            df.global.world.units.active:insert('#', unit)
+            pcall(function() unit.civ_id = df.global.plotinfo.civ_id end)
+            pcall(function() unit.civ_id = df.global.ui.civ_id end)
+            pcall(function() unit.flags1.tame = true end)
+            pcall(function() unit.flags2.tame = true end)
+            pcall(function() unit.flags3.tame = true end)
+            pcall(function() unit.flags1.active_invader = false end)
+            pcall(function() unit.flags1.marauder       = false end)
+            pcall(function() unit.training_level = df.animal_training_level.Domesticated end)
+            dfhack.units.makeown(unit)
+            spawned = spawned + 1
+        end)
+        if not ok then log.error(("catsplosion: %s"):format(tostring(err))) end
+    end
+    local pos = dx and {x=dx, y=dy, z=dz} or nil
+    if spawned > 0 then
+        announce(("Trap: Catsplosion! %d cats have invaded the fortress!"):format(spawned), pos)
+    else
+        announce("Trap: Catsplosion! The cats are... somewhere. Good luck.")
+    end
+end
+
 -- Return a random tile inside a stockpile. Prefers food stockpiles; falls back
 -- to any stockpile; falls back to get_fort_spawn_pos if none exist.
 local function find_stockpile_pos()
@@ -949,55 +1046,6 @@ local function find_underground_spawn()
                         and not block.designation[lx][ly].outside then
                     return x, y, z
                 end
-            end
-        end
-    end
-    return nil
-end
-
--- Search for a walkable surface tile (outside == true) near a map edge.
--- Biases toward the embark perimeter so spawned hostiles have to path inward,
--- giving dwarves time to react. Returns x, y, z or nil on failure.
-local function find_surface_spawn_pos()
-    if not dfhack.isMapLoaded() then return nil end
-    local map = df.global.world.map
-
-    -- Estimate surface z from a living citizen (fallback: upper portion of map).
-    local surface_z = math.floor(map.z_count * 0.7)
-    for _, unit in ipairs(df.global.world.units.active) do
-        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
-            surface_z = unit.pos.z
-            break
-        end
-    end
-
-    local z_lo = math.max(0, surface_z - 3)
-    local z_hi = math.min(map.z_count - 1, surface_z + 5)
-    local m    = 4  -- stay off the very map edge to avoid bound issues
-
-    -- Four generators, one per embark edge (N/S/W/E).
-    local edge_gens = {
-        function() return math.random(m, map.x_count-1-m), math.random(m, 10)                   end,
-        function() return math.random(m, map.x_count-1-m), math.random(map.y_count-11, map.y_count-1-m) end,
-        function() return math.random(m, 10),               math.random(m, map.y_count-1-m)     end,
-        function() return math.random(map.x_count-11, map.x_count-1-m), math.random(m, map.y_count-1-m) end,
-    }
-
-    for z = z_hi, z_lo, -1 do
-        for _ = 1, 60 do
-            local x, y = edge_gens[math.random(4)]()
-            local block = dfhack.maps.getTileBlock(x, y, z)
-            if block then
-                local lx, ly = x % 16, y % 16
-                local ok = false
-                pcall(function()
-                    local des   = block.designation[lx][ly]
-                    local shape = df.tiletype.attrs[block.tiletype[lx][ly]].shape
-                    ok = des.outside and des.flow_size == 0
-                      and (shape == df.tiletype_shape.FLOOR
-                        or shape == df.tiletype_shape.RAMP)
-                end)
-                if ok then return x, y, z end
             end
         end
     end
@@ -1393,6 +1441,7 @@ M.handlers = {
     ["Vermin Infestation"]   = recv_vermin_infestation,
     ["Tantrum Trigger"]      = recv_tantrum_trigger,
     ["Lost Caravan"]         = recv_lost_caravan,
+    ["Catsplosion"]          = recv_catsplosion,
 
     ["Merchant's Coffer"]    = recv_merchants_coffer,
     ["Immigration Wave"]     = recv_immigration_wave,
@@ -1566,6 +1615,7 @@ local TEST_LIST = {
                    function(rest) test_find(rest[1]) end },
     { "goblin",    "Goblin Ambush trap (3 hostile goblins)",          function() recv_goblin_ambush() end },
     { "cavebear",  "Cave Bear Incursion trap",                        function() recv_cave_bear() end },
+    { "catsplosion", "Catsplosion trap (10-20 fortress cats)",        function() recv_catsplosion() end },
     { "vermin",    "Vermin Infestation trap (rodents)",               function() recv_vermin_infestation() end },
     { "spider",    "Precursor threat (giant cave spider, underground)", function() spawn_precursor_threat() end },
     { "megabeast", "Force the goal megabeast (once per world)",        function() spawn_target_megabeast() end },
