@@ -93,9 +93,10 @@ USEFUL_ITEMS: list[ItemData] = [
     ItemData("Adamantine Fiber",       BASE_ID + 513, ItemClassification.useful),
     ItemData("Breeding Pigs",          BASE_ID + 515, ItemClassification.useful),
     ItemData("Breeding Chickens",      BASE_ID + 516, ItemClassification.useful),
-    ItemData("Breeding Llamas",        BASE_ID + 517, ItemClassification.useful),
+    ItemData("Breeding Alpacas",       BASE_ID + 517, ItemClassification.useful),
     ItemData("Breeding Cows",          BASE_ID + 518, ItemClassification.useful),
     ItemData("Breeding Sheep",         BASE_ID + 519, ItemClassification.useful),
+    ItemData("Breeding Yaks",          BASE_ID + 538, ItemClassification.useful),
 ]
 
 FILLER_ITEMS: list[ItemData] = [

@@ -460,12 +460,16 @@ end
 -- Total count is 2–5; extras are random sex.
 
 local function spawn_livestock(race_token, name)
+    local tokens = type(race_token) == "table" and race_token or {race_token}
     local race_idx
-    for i, cr in ipairs(df.global.world.raws.creatures.all) do
-        if cr.creature_id == race_token then race_idx = i; break end
+    for _, tok in ipairs(tokens) do
+        for i, cr in ipairs(df.global.world.raws.creatures.all) do
+            if cr.creature_id == tok then race_idx = i; break end
+        end
+        if race_idx then break end
     end
     if not race_idx then
-        log.error("spawn_livestock: creature not found in raws: " .. race_token)
+        log.error("spawn_livestock: creature not found in raws: " .. table.concat(tokens, "/"))
         announce_at_depot(("Received: %s! (spawn failed — creature absent from world raws)"):format(name))
         return
     end
@@ -528,11 +532,12 @@ local function spawn_livestock(race_token, name)
     end
 end
 
-local function recv_breeding_pigs()     spawn_livestock("PIG",         "Breeding Pigs")     end
-local function recv_breeding_chickens() spawn_livestock("BIRD_CHICKEN", "Breeding Chickens") end
-local function recv_breeding_llamas()   spawn_livestock("LLAMA",        "Breeding Llamas")   end
-local function recv_breeding_cows()     spawn_livestock("CATTLE",       "Breeding Cows")     end
-local function recv_breeding_sheep()    spawn_livestock("SHEEP",        "Breeding Sheep")    end
+local function recv_breeding_pigs()     spawn_livestock("PIG",                  "Breeding Pigs")     end
+local function recv_breeding_chickens() spawn_livestock("BIRD_CHICKEN",          "Breeding Chickens") end
+local function recv_breeding_alpacas()  spawn_livestock("ALPACA",                "Breeding Alpacas")  end
+local function recv_breeding_cows()     spawn_livestock({"CATTLE", "COW"},       "Breeding Cows")     end
+local function recv_breeding_sheep()    spawn_livestock("SHEEP",                 "Breeding Sheep")    end
+local function recv_breeding_yaks()     spawn_livestock("YAK",                   "Breeding Yaks")     end
 
 -- ── Item handlers: progression gate items ────────────────────────────────────
 -- These items are purely flag-based — receiving them writes a persistent key
@@ -1354,9 +1359,10 @@ M.handlers = {
     -- Livestock
     ["Breeding Pigs"]        = recv_breeding_pigs,
     ["Breeding Chickens"]    = recv_breeding_chickens,
-    ["Breeding Llamas"]      = recv_breeding_llamas,
+    ["Breeding Alpacas"]     = recv_breeding_alpacas,
     ["Breeding Cows"]        = recv_breeding_cows,
     ["Breeding Sheep"]       = recv_breeding_sheep,
+    ["Breeding Yaks"]        = recv_breeding_yaks,
 
     -- Progression items
     ["Artifact Weapon"]        = recv_artifact_weapon,
@@ -1566,9 +1572,10 @@ local TEST_LIST = {
     { "migrants",  "Add a wave of citizen dwarves",                    function() recv_immigration_wave() end },
     { "pigs",      "Spawn a breeding group of pigs",                  function() recv_breeding_pigs()     end },
     { "chickens",  "Spawn a breeding group of chickens",              function() recv_breeding_chickens() end },
-    { "llamas",    "Spawn a breeding group of llamas",                function() recv_breeding_llamas()   end },
+    { "alpacas",   "Spawn a breeding group of alpacas",               function() recv_breeding_alpacas()  end },
     { "cows",      "Spawn a breeding group of cows",                  function() recv_breeding_cows()     end },
     { "sheep",     "Spawn a breeding group of sheep",                 function() recv_breeding_sheep()    end },
+    { "yaks",      "Spawn a breeding group of yaks",                  function() recv_breeding_yaks()     end },
     { "caravan",   "Force a caravan (arg: dwarf|elf|human|goblin; default = parent civ)",
                    function(rest)
                        local token = ({ dwarf = "DWARF", elf = "ELF",
