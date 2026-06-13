@@ -1619,7 +1619,7 @@ function M.run_test(name, rest)
     if not name or name == "" or name == "list" then
         print("[Dwarfipelago] Tests — run as: dwarfipelago test <name> [args]")
         for _, t in ipairs(TEST_LIST) do
-            print(("  %-18s %s"):format(t[1], t[2]))
+            print(("  %-20s %s"):format(t[1], t[2]))
         end
         return
     end
