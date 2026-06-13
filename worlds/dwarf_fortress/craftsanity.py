@@ -161,9 +161,9 @@ def calulate_check_count(world: "DwarfFortressWorld"):
         return checks
     
 def valid_materialitem(material: str, item: str) -> bool:
-    if material in {"Wood", "Metal"} and item in {"Animal Trap", "Barrel", "Bin", "Bucket", "Crutch", "Minecart", "Splint", "Stepladder", "Wheelbarrow", "Ballista Arrows", "Corkscrew"}:
+    if material in {"Wood", "Metal"} and item in {"Animal Trap", "Barrel", "Bin", "Bucket", "Crutch", "Minecart", "Splint", "Stepladder", "Wheelbarrow", "Ballista Arrows"}:
         return True
-    if material in {"Wood", "Metal", "Glass"} and item in {"Spike", "Cage", "Ball", "Pipe Section"}:
+    if material in {"Wood", "Metal", "Glass"} and item in {"Spike", "Cage", "Ball", "Pipe Section", "Corkscrew"}:
         return True
     if material in {"Wood", "Metal", "Leather"} and item in {"Buckler", "Shield"}:
         return True

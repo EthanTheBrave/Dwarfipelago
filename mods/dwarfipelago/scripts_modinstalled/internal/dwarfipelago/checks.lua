@@ -245,13 +245,13 @@ function M.detect_mission_checks()
                  and M.trade_flag("first_diplomacy")
     if all_done then return end
 
-    local civ_id = df.global.plotinfo.civ_id
+    local group_id = df.global.plotinfo.group_id  -- fortress entity; civ_id is the mountainhome and doesn't match player squads
     local SITE_INVASION   = df.army_controller_goal_type.SITE_INVASION
     local RECOVER_ARTIFACT = df.army_controller_goal_type.RECOVER_ARTIFACT
     local DIPLOMACY        = df.army_controller_goal_type.DIPLOMACY
 
     for _, squad in ipairs(df.global.world.squads.all) do
-        if squad.entity_id == civ_id then
+        if squad.entity_id == group_id then
             local ctrl_id = squad.assigned_army_controller_id
             if ctrl_id ~= -1 then
                 local ctrl = nil

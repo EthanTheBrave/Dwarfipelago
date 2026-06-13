@@ -12,6 +12,7 @@ local dialogs = require('gui.dialogs')
 local state   = reqscript('internal/dwarfipelago/state')
 local items   = reqscript('internal/dwarfipelago/items')
 local checks  = reqscript('internal/dwarfipelago/checks')
+local log     = reqscript("internal/dwarfipelago/log")
 
 -- ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -371,6 +372,60 @@ local function build_crafts_lines()
     return lines
 end
 
+-- ── Permit list ──────────────────────────────────────────────────────────
+
+local function build_permit_lines()
+    local lines = {}
+    local function hdr(s)      table.insert(lines, {text=s, pen=COLOR_CYAN})     end
+    local function row(s, pen) table.insert(lines, {text=s, pen=pen or COLOR_WHITE}) end
+    local function blank()     table.insert(lines, {text=""})                    end
+
+    blank()
+    row(("  %-26s  %6s"):format("Item", "Permit Obtained"), COLOR_CYAN)
+    row("  " .. string.rep("-", 52), COLOR_DARKGRAY)
+
+    -- Build display list
+    local craft_counts = checks.get_all_craft_counts()
+    local list = {}
+    for _, item_name in pairs(items.CRAFTING_LOCK_ITEMS) do
+        local flag = item_name:lower():gsub(" ", "_")
+        local done_flag = ps("craftlock/" .. flag, "0")
+        if done_flag == "0" then
+            done_flag = 0
+        else
+            done_flag = 1
+        end
+
+        table.insert(list, {
+            label = item_name,
+            done  = done_flag,
+        })
+    end
+    -- -- Sort: done (alpha) → not done (alpha) 
+    table.sort(list, function(a, b)
+        return a.done > b.done
+    end)
+    
+    local n_done = 0
+    for _, e in ipairs(list) do
+        if e.done == 1 then
+            n_done = n_done + 1
+            row(("  %-26s  %6s"):format(
+                e.label, "DONE"),
+                COLOR_GREEN)
+        else
+            row(("  %-26s  %6s"):format(
+                e.label, "N/A"),
+                COLOR_WHITE)
+        end
+    end
+    blank()
+    row("  " .. string.rep("-", 52), COLOR_DARKGRAY)
+    row(("  Items complete: %d / %d"):format(n_done, #list),
+        n_done >= #list and COLOR_GREEN or COLOR_WHITE)
+    return lines
+end
+
 -- ── Status / control popup ────────────────────────────────────────────────────
 
 local _panel_instance = nil
@@ -392,6 +447,8 @@ function DwarfipelagoPanel:init()
     local depot    = ps("depot_built",   "0") == "1"
 
     local goal_str = GOAL_NAMES[goal_key] or "Not synced"
+    local tab_list = {}
+
 
     -- Goal-specific target string
     local target_str
@@ -416,249 +473,285 @@ function DwarfipelagoPanel:init()
 
     local W, H = 62, 48
 
+    -- Tab 1 Status -----------------------
+    function StatusTab()
+        table.insert(tab_list, "Status")
+        return widgets.Panel{
+            subviews = {
+                widgets.Label{
+                    frame = {t=0, l=0},
+                    text  = {
+                        "Status:   ",
+                        {text=enabled and "RUNNING" or "STOPPED",
+                        pen=enabled and COLOR_GREEN or COLOR_RED},
+                    },
+                },
+                widgets.Label{
+                    frame = {t=1, l=0},
+                    text  = {"Goal:     ", goal_str},
+                },
+                widgets.Label{
+                    frame = {t=2, l=0},
+                    text  = target_str or "",
+                },
+                widgets.Label{
+                    frame = {t=3, l=0},
+                    text  = {"Complete: ", yn(complete)},
+                },
+                widgets.Label{
+                    frame = {t=4, l=0},
+                    text  = {
+                        "Depot:    ",
+                        {text=depot and "built" or "pending",
+                        pen=depot and COLOR_GREEN or COLOR_YELLOW},
+                    },
+                },
+                widgets.Label{
+                    frame = {t=5, l=0},
+                    text  = {
+                        "DeathLink: ",
+                        {text=dl_on and "ON" or "off",
+                        pen=dl_on and COLOR_GREEN or COLOR_DARKGRAY},
+                        {text=dl_detail, pen=COLOR_WHITE},
+                    },
+                },
+                (function()
+                    local energy_on = ps("energy_enabled", "0") == "1"
+                    if not energy_on then return widgets.Label{frame={t=6,l=0}, text=""} end
+                    local pool     = tonumber(ps("energy_link", "0")) or 0
+                    local caravan  = ps("ap_caravan_active", "0") == "1"
+                    return widgets.Label{
+                        frame = {t=6, l=0},
+                        text  = {
+                            "Energy:   ",
+                            {text=fmt_energy(pool), pen=COLOR_CYAN},
+                            {text=caravan and "  [Caravan docked]" or "", pen=COLOR_GREEN},
+                        },
+                    }
+                end)(),
+            },
+        }
+    end
+
+    -- ── Tab 2: Unlocks ────────────────────────────────────────────────
+    local function UnlocksTab()
+        table.insert(tab_list, "Unlocks")
+        return widgets.Panel{
+            subviews = { make_list(build_unlocks_lines()) },
+        }
+    end
+
+    -- ── Tab 3: Progress ───────────────────────────────────────────────
+    local function ProgressTab()
+        table.insert(tab_list, "Progress")
+        return widgets.Panel{
+            subviews = { make_list(build_progress_lines()) },
+        }
+    end
+
+    -- ── Tab 4: Crafts ─────────────────────────────────────────────────
+    local function CraftsanityTab()
+        table.insert(tab_list, "Crafts")
+        return widgets.Panel{
+            subviews = { make_list(build_crafts_lines()) },
+        }
+    end
+
+    -- ── Tab 5: Controls ──────────────────────────────────────────────
+
+    local function ControlsTab()
+        table.insert(tab_list, "Controls")
+        return widgets.Panel{
+            subviews = {
+                widgets.Label{frame={t=0, l=0}, text="Controls:"},
+                widgets.HotkeyLabel{
+                    frame = {t=2, l=2},
+                    key   = "CUSTOM_SHIFT_S",
+                    label = enabled and "Restart mod" or "Start mod",
+                    on_activate = function()
+                        if enabled then
+                            dfhack.run_command("dwarfipelago", "stop")
+                            dfhack.run_command("dwarfipelago", "start")
+                        else
+                            dfhack.run_command("dwarfipelago", "start")
+                        end
+                        self:dismiss()
+                    end,
+                },
+                widgets.HotkeyLabel{
+                    frame = {t=3, l=2},
+                    key   = "CUSTOM_SHIFT_R",
+                    label = "Reset all AP state",
+                    on_activate = function()
+                        dfhack.run_command("dwarfipelago", "reset")
+                        self:dismiss()
+                    end,
+                },
+                widgets.HotkeyLabel{
+                    frame = {t=4, l=2},
+                    key   = "CUSTOM_SHIFT_D",
+                    label = "Reset seed",
+                    on_activate = function()
+                        dfhack.run_command("dwarfipelago", "resetseed")
+                        self:dismiss()
+                    end,
+                },
+            },
+        }
+    end
+
+    -- ── Tab 6: Energy ─────────────────────────────────────────────────
+    function EnergyTab()
+        local pool    = tonumber(ps("energy_link", "0")) or 0
+        local caravan = ps("ap_caravan_active", "0") == "1"
+        local pending = ps("request_caravan", "0") == "1"
+
+        local season = 0
+        pcall(function() season = df.global.world.cur_season end)
+        local snames = {"Spring","Summer","Fall","Winter"}
+        local scosts = {300, 150, 50, 500}
+        local sname  = snames[(season % 4) + 1]
+        local scost  = scosts[(season % 4) + 1]
+
+        local ale_count = 0
+        pcall(function() ale_count = checks.count_fortress_drinks() end)
+        local food_count = 0
+        pcall(function() food_count = #checks.find_fortress_food() end)
+        local _, coins_j = 0, 0
+        pcall(function() _, coins_j = checks.find_fortress_coins_energy() end)
+        local coins_val = math.floor(coins_j / 1000)  -- ☼ face value
+
+        local status_tag = caravan and "  [Caravan docked]"
+                    or (pending and "  [Request pending]" or "")
+        local status_pen = caravan and COLOR_GREEN or COLOR_YELLOW
+
+        local pool_mj_str  = fmt_energy(pool)
+        local pool_kj_str  = pool >= 1000000
+            and ("(" .. fmt_num(math.floor(pool / 1000)) .. " kJ)") or ""
+        table.insert(tab_list, "Energy")
+        return widgets.Panel{ subviews = {
+            widgets.Label{frame={t=0,l=0}, text={
+                "Pool:     ",
+                {text=pool_mj_str,  pen=COLOR_CYAN},
+                "  ",
+                {text=pool_kj_str,  pen=COLOR_DARKGRAY},
+                {text=status_tag,   pen=status_pen},
+            }},
+            widgets.Label{frame={t=1,l=0}, text={
+                "Season:   ",
+                {text=sname, pen=COLOR_WHITE},
+                "  Caravan cost: ",
+                {text=fmt_num(scost).." MJ",
+                pen=(pool >= scost * 1000000) and COLOR_GREEN or COLOR_RED},
+            }},
+            widgets.Label{frame={t=2,l=0}, text={
+                "Stocks:   ",
+                {text=fmt_num(ale_count).." ale", pen=COLOR_YELLOW},
+                "  ",
+                {text=fmt_num(food_count).." food", pen=COLOR_YELLOW},
+                "  ",
+                {text=fmt_num(coins_val).." * in coins", pen=COLOR_YELLOW},
+            }},
+            widgets.HotkeyLabel{
+                frame={t=4,l=2}, key="CUSTOM_SHIFT_A",
+                label="Deposit Ale",
+                on_activate=function()
+                    self:dismiss()
+                    local avail = 0
+                    pcall(function() avail = checks.count_fortress_drinks() end)
+                    dialogs.showInputPrompt(
+                        "Deposit Ale",
+                        ("Ale units to deposit (available: %d, 100 kJ each):"):format(avail),
+                        COLOR_WHITE, "",
+                        function(text)
+                            local n = math.floor(tonumber(text) or 0)
+                            if n > 0 then
+                                dfhack.run_command("dwarfipelago", "deposit-ale", tostring(n))
+                            end
+                        end
+                    )
+                end,
+            },
+            widgets.HotkeyLabel{
+                frame={t=5,l=2}, key="CUSTOM_SHIFT_F",
+                label="Deposit Food",
+                on_activate=function()
+                    self:dismiss()
+                    local avail = 0
+                    pcall(function() avail = #checks.find_fortress_food() end)
+                    dialogs.showInputPrompt(
+                        "Deposit Food",
+                        ("Food items to deposit (available: %d, 50 kJ each):"):format(avail),
+                        COLOR_WHITE, "",
+                        function(text)
+                            local n = math.floor(tonumber(text) or 0)
+                            if n > 0 then
+                                dfhack.run_command("dwarfipelago", "deposit-food", tostring(n))
+                            end
+                        end
+                    )
+                end,
+            },
+            widgets.HotkeyLabel{
+                frame={t=6,l=2}, key="CUSTOM_SHIFT_C",
+                label=("Deposit Coins (%s * avail)"):format(fmt_num(coins_val)),
+                on_activate=function()
+                    self:dismiss()
+                    local avail = 0
+                    pcall(function()
+                        local _, cj = checks.find_fortress_coins_energy()
+                        avail = math.floor(cj / 1000)
+                    end)
+                    dialogs.showInputPrompt(
+                        "Deposit Coins",
+                        ("Coin value to deposit in * (available: %s *, 1 kJ per *):"):format(fmt_num(avail)),
+                        COLOR_WHITE, "",
+                        function(text)
+                            local n = math.floor(tonumber(text) or 0)
+                            if n > 0 then
+                                dfhack.run_command("dwarfipelago", "deposit-coins", tostring(n))
+                            end
+                        end
+                    )
+                end,
+            },
+            widgets.HotkeyLabel{
+                frame={t=8,l=2}, key="CUSTOM_SHIFT_V",
+                label=("Call Caravan (%d MJ, %s)"):format(scost, sname),
+                on_activate=function()
+                    dfhack.run_command("dwarfipelago", "call-caravan")
+                    self:dismiss()
+                end,
+            },
+        }}
+    end
+
+    -- ── Tab 7: Permits ─────────────────────────────────────────────────
+    function PermitsTab()
+        table.insert(tab_list, "Permits")
+        return widgets.Panel{
+            subviews = { make_list(build_permit_lines()) },
+        }
+    end
+
+    local tabviews = {}
+    table.insert(tabviews, StatusTab())
+    table.insert(tabviews, UnlocksTab())
+    table.insert(tabviews, ProgressTab())
+    if ps("craftsanity_enabled", "0") ~= "0" then
+        table.insert(tabviews, CraftsanityTab())
+    end   
+    table.insert(tabviews, ControlsTab())
+    if ps("energy_enabled", "0") ~= "0" then
+        table.insert(tabviews, EnergyTab())
+    end
+    if ps("crafting_permits", "0") ~= "0" then
+        table.insert(tabviews, PermitsTab())
+    end
+
     local pages = widgets.Pages{
         frame = {t=4, b=2},
-        subviews = {
-            -- ── Tab 1: Status ────────────────────────────────────────────────
-            widgets.Panel{
-                subviews = {
-                    widgets.Label{
-                        frame = {t=0, l=0},
-                        text  = {
-                            "Status:   ",
-                            {text=enabled and "RUNNING" or "STOPPED",
-                             pen=enabled and COLOR_GREEN or COLOR_RED},
-                        },
-                    },
-                    widgets.Label{
-                        frame = {t=1, l=0},
-                        text  = {"Goal:     ", goal_str},
-                    },
-                    widgets.Label{
-                        frame = {t=2, l=0},
-                        text  = target_str or "",
-                    },
-                    widgets.Label{
-                        frame = {t=3, l=0},
-                        text  = {"Complete: ", yn(complete)},
-                    },
-                    widgets.Label{
-                        frame = {t=4, l=0},
-                        text  = {
-                            "Depot:    ",
-                            {text=depot and "built" or "pending",
-                             pen=depot and COLOR_GREEN or COLOR_YELLOW},
-                        },
-                    },
-                    widgets.Label{
-                        frame = {t=5, l=0},
-                        text  = {
-                            "DeathLink: ",
-                            {text=dl_on and "ON" or "off",
-                             pen=dl_on and COLOR_GREEN or COLOR_DARKGRAY},
-                            {text=dl_detail, pen=COLOR_WHITE},
-                        },
-                    },
-                    (function()
-                        local energy_on = ps("energy_enabled", "0") == "1"
-                        if not energy_on then return widgets.Label{frame={t=6,l=0}, text=""} end
-                        local pool     = tonumber(ps("energy_link", "0")) or 0
-                        local caravan  = ps("ap_caravan_active", "0") == "1"
-                        return widgets.Label{
-                            frame = {t=6, l=0},
-                            text  = {
-                                "Energy:   ",
-                                {text=fmt_energy(pool), pen=COLOR_CYAN},
-                                {text=caravan and "  [Caravan docked]" or "", pen=COLOR_GREEN},
-                            },
-                        }
-                    end)(),
-                },
-            },
-            -- ── Tab 2: Unlocks ────────────────────────────────────────────────
-            widgets.Panel{
-                subviews = { make_list(build_unlocks_lines()) },
-            },
-            -- ── Tab 3: Progress ───────────────────────────────────────────────
-            widgets.Panel{
-                subviews = { make_list(build_progress_lines()) },
-            },
-            -- ── Tab 4: Crafts ─────────────────────────────────────────────────
-            widgets.Panel{
-                subviews = { make_list(build_crafts_lines()) },
-            },
-            -- ── Tab 5: Controls ──────────────────────────────────────────────
-            widgets.Panel{
-                subviews = {
-                    widgets.Label{frame={t=0, l=0}, text="Controls:"},
-                    widgets.HotkeyLabel{
-                        frame = {t=2, l=2},
-                        key   = "CUSTOM_SHIFT_S",
-                        label = enabled and "Restart mod" or "Start mod",
-                        on_activate = function()
-                            if enabled then
-                                dfhack.run_command("dwarfipelago", "stop")
-                                dfhack.run_command("dwarfipelago", "start")
-                            else
-                                dfhack.run_command("dwarfipelago", "start")
-                            end
-                            self:dismiss()
-                        end,
-                    },
-                    widgets.HotkeyLabel{
-                        frame = {t=3, l=2},
-                        key   = "CUSTOM_SHIFT_R",
-                        label = "Reset all AP state",
-                        on_activate = function()
-                            dfhack.run_command("dwarfipelago", "reset")
-                            self:dismiss()
-                        end,
-                    },
-                    widgets.HotkeyLabel{
-                        frame = {t=4, l=2},
-                        key   = "CUSTOM_SHIFT_D",
-                        label = "Reset seed",
-                        on_activate = function()
-                            dfhack.run_command("dwarfipelago", "resetseed")
-                            self:dismiss()
-                        end,
-                    },
-                },
-            },
-            -- ── Tab 6: Energy ─────────────────────────────────────────────────
-            (function()
-                if ps("energy_enabled", "0") ~= "1" then
-                    return widgets.Panel{ subviews = {
-                        widgets.Label{frame={t=1,l=1}, text={
-                            {text="Energy Link not enabled for this slot.", pen=COLOR_DARKGRAY}
-                        }},
-                    }}
-                end
-
-                local pool    = tonumber(ps("energy_link", "0")) or 0
-                local caravan = ps("ap_caravan_active", "0") == "1"
-                local pending = ps("request_caravan", "0") == "1"
-
-                local season = 0
-                pcall(function() season = df.global.world.cur_season end)
-                local snames = {"Spring","Summer","Fall","Winter"}
-                local scosts = {300, 150, 50, 500}
-                local sname  = snames[(season % 4) + 1]
-                local scost  = scosts[(season % 4) + 1]
-
-                local ale_count = 0
-                pcall(function() ale_count = checks.count_fortress_drinks() end)
-                local food_count = 0
-                pcall(function() food_count = #checks.find_fortress_food() end)
-                local _, coins_j = 0, 0
-                pcall(function() _, coins_j = checks.find_fortress_coins_energy() end)
-                local coins_val = math.floor(coins_j / 1000)  -- ☼ face value
-
-                local status_tag = caravan and "  [Caravan docked]"
-                               or (pending and "  [Request pending]" or "")
-                local status_pen = caravan and COLOR_GREEN or COLOR_YELLOW
-
-                local pool_mj_str  = fmt_energy(pool)
-                local pool_kj_str  = pool >= 1000000
-                    and ("(" .. fmt_num(math.floor(pool / 1000)) .. " kJ)") or ""
-
-                return widgets.Panel{ subviews = {
-                    widgets.Label{frame={t=0,l=0}, text={
-                        "Pool:     ",
-                        {text=pool_mj_str,  pen=COLOR_CYAN},
-                        "  ",
-                        {text=pool_kj_str,  pen=COLOR_DARKGRAY},
-                        {text=status_tag,   pen=status_pen},
-                    }},
-                    widgets.Label{frame={t=1,l=0}, text={
-                        "Season:   ",
-                        {text=sname, pen=COLOR_WHITE},
-                        "  Caravan cost: ",
-                        {text=fmt_num(scost).." MJ",
-                         pen=(pool >= scost * 1000000) and COLOR_GREEN or COLOR_RED},
-                    }},
-                    widgets.Label{frame={t=2,l=0}, text={
-                        "Stocks:   ",
-                        {text=fmt_num(ale_count).." ale", pen=COLOR_YELLOW},
-                        "  ",
-                        {text=fmt_num(food_count).." food", pen=COLOR_YELLOW},
-                        "  ",
-                        {text=fmt_num(coins_val).." ☼ in coins", pen=COLOR_YELLOW},
-                    }},
-                    widgets.HotkeyLabel{
-                        frame={t=4,l=2}, key="CUSTOM_SHIFT_A",
-                        label="Deposit Ale",
-                        on_activate=function()
-                            self:dismiss()
-                            local avail = 0
-                            pcall(function() avail = checks.count_fortress_drinks() end)
-                            dialogs.showInputPrompt(
-                                "Deposit Ale",
-                                ("Ale units to deposit (available: %d, 100 kJ each):"):format(avail),
-                                COLOR_WHITE, "",
-                                function(text)
-                                    local n = math.floor(tonumber(text) or 0)
-                                    if n > 0 then
-                                        dfhack.run_command("dwarfipelago", "deposit-ale", tostring(n))
-                                    end
-                                end
-                            )
-                        end,
-                    },
-                    widgets.HotkeyLabel{
-                        frame={t=5,l=2}, key="CUSTOM_SHIFT_F",
-                        label="Deposit Food",
-                        on_activate=function()
-                            self:dismiss()
-                            local avail = 0
-                            pcall(function() avail = #checks.find_fortress_food() end)
-                            dialogs.showInputPrompt(
-                                "Deposit Food",
-                                ("Food items to deposit (available: %d, 50 kJ each):"):format(avail),
-                                COLOR_WHITE, "",
-                                function(text)
-                                    local n = math.floor(tonumber(text) or 0)
-                                    if n > 0 then
-                                        dfhack.run_command("dwarfipelago", "deposit-food", tostring(n))
-                                    end
-                                end
-                            )
-                        end,
-                    },
-                    widgets.HotkeyLabel{
-                        frame={t=6,l=2}, key="CUSTOM_SHIFT_C",
-                        label=("Deposit Coins (%s ☼ avail)"):format(fmt_num(coins_val)),
-                        on_activate=function()
-                            self:dismiss()
-                            local avail = 0
-                            pcall(function()
-                                local _, cj = checks.find_fortress_coins_energy()
-                                avail = math.floor(cj / 1000)
-                            end)
-                            dialogs.showInputPrompt(
-                                "Deposit Coins",
-                                ("Coin value to deposit in ☼ (available: %s ☼, 1 kJ per ☼):"):format(fmt_num(avail)),
-                                COLOR_WHITE, "",
-                                function(text)
-                                    local n = math.floor(tonumber(text) or 0)
-                                    if n > 0 then
-                                        dfhack.run_command("dwarfipelago", "deposit-coins", tostring(n))
-                                    end
-                                end
-                            )
-                        end,
-                    },
-                    widgets.HotkeyLabel{
-                        frame={t=8,l=2}, key="CUSTOM_SHIFT_V",
-                        label=("Call Caravan (%d MJ, %s)"):format(scost, sname),
-                        on_activate=function()
-                            dfhack.run_command("dwarfipelago", "call-caravan")
-                            self:dismiss()
-                        end,
-                    },
-                }}
-            end)(),
-        },
+        subviews = tabviews,
     }
 
     self:addviews{
@@ -670,7 +763,7 @@ function DwarfipelagoPanel:init()
             subviews    = {
                 widgets.TabBar{
                     frame        = {t=0, l=0},
-                    labels       = {"Status", "Unlocks", "Progress", "Crafts", "Controls", "Energy"},
+                    labels       = tab_list,
                     on_select    = function(idx) pages:setSelected(idx) end,
                     get_cur_page = function() return pages:getSelected() end,
                 },

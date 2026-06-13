@@ -91,6 +91,7 @@ USEFUL_ITEMS: list[ItemData] = [
     ItemData("Dwarven Steel Sword",    BASE_ID + 511, ItemClassification.useful),
     ItemData("Fine Cloth",             BASE_ID + 512, ItemClassification.useful),
     ItemData("Adamantine Fiber",       BASE_ID + 513, ItemClassification.useful),
+    ItemData("Sunlight Tonic",         BASE_ID + 514, ItemClassification.useful),
     ItemData("Breeding Pigs",          BASE_ID + 515, ItemClassification.useful),
     ItemData("Breeding Chickens",      BASE_ID + 516, ItemClassification.useful),
     ItemData("Breeding Alpacas",       BASE_ID + 517, ItemClassification.useful),
