@@ -505,10 +505,14 @@ local function spawn_livestock(race_token, name)
             -- Assign to the player's civilization so the animal appears as owned.
             pcall(function() unit.civ_id = df.global.plotinfo.civ_id end)
             pcall(function() unit.civ_id = df.global.ui.civ_id end)
+            pcall(function() unit.flags1.tame = true end)
             pcall(function() unit.flags2.tame = true end)
             pcall(function() unit.flags3.tame = true end)
             pcall(function() unit.flags1.active_invader = false end)
             pcall(function() unit.flags1.marauder       = false end)
+            pcall(function()
+                unit.training_level = df.animal_training_level.Domesticated
+            end)
             dfhack.units.makeown(unit)
             spawned = spawned + 1
         end)
