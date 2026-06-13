@@ -245,32 +245,26 @@ function M.detect_mission_checks()
                  and M.trade_flag("first_diplomacy")
     if all_done then return end
 
-    local group_id = df.global.plotinfo.group_id  -- fortress entity; civ_id is the mountainhome and doesn't match player squads
+    -- Messenger/contact dispatches don't create a squad — the controller exists
+    -- standalone in army_controllers with entity_id == group_id. Iterating
+    -- controllers directly catches both squad-based missions and lone messengers.
+    local group_id        = df.global.plotinfo.group_id
     local SITE_INVASION   = df.army_controller_goal_type.SITE_INVASION
     local RECOVER_ARTIFACT = df.army_controller_goal_type.RECOVER_ARTIFACT
     local DIPLOMACY        = df.army_controller_goal_type.DIPLOMACY
 
-    for _, squad in ipairs(df.global.world.squads.all) do
-        if squad.entity_id == group_id then
-            local ctrl_id = squad.assigned_army_controller_id
-            if ctrl_id ~= -1 then
-                local ctrl = nil
-                for _, c in ipairs(df.global.world.army_controllers.all) do
-                    if c.id == ctrl_id then ctrl = c; break end
-                end
-                if ctrl then
-                    local goal = ctrl.goal
-                    if goal == SITE_INVASION and not M.trade_flag("first_raid") then
-                        M.set_trade_flag("first_raid")
-                        print("[Dwarfipelago] First raid detected")
-                    elseif goal == RECOVER_ARTIFACT and not M.trade_flag("first_recovery") then
-                        M.set_trade_flag("first_recovery")
-                        print("[Dwarfipelago] First artifact recovery detected")
-                    elseif goal == DIPLOMACY and not M.trade_flag("first_diplomacy") then
-                        M.set_trade_flag("first_diplomacy")
-                        print("[Dwarfipelago] First diplomacy mission detected")
-                    end
-                end
+    for _, ctrl in ipairs(df.global.world.army_controllers.all) do
+        if ctrl.entity_id == group_id then
+            local goal = ctrl.goal
+            if goal == SITE_INVASION and not M.trade_flag("first_raid") then
+                M.set_trade_flag("first_raid")
+                print("[Dwarfipelago] First raid detected")
+            elseif goal == RECOVER_ARTIFACT and not M.trade_flag("first_recovery") then
+                M.set_trade_flag("first_recovery")
+                print("[Dwarfipelago] First artifact recovery detected")
+            elseif goal == DIPLOMACY and not M.trade_flag("first_diplomacy") then
+                M.set_trade_flag("first_diplomacy")
+                print("[Dwarfipelago] First diplomacy mission detected")
             end
         end
     end
