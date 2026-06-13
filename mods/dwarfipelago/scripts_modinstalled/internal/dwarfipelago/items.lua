@@ -502,6 +502,9 @@ local function spawn_livestock(race_token, name)
                 unit.pos.x, unit.pos.y, unit.pos.z = dx, dy, dz
             end
             df.global.world.units.active:insert('#', unit)
+            -- Assign to the player's civilization so the animal appears as owned.
+            pcall(function() unit.civ_id = df.global.plotinfo.civ_id end)
+            pcall(function() unit.civ_id = df.global.ui.civ_id end)
             pcall(function() unit.flags2.tame = true end)
             pcall(function() unit.flags3.tame = true end)
             pcall(function() unit.flags1.active_invader = false end)
