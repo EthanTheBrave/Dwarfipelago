@@ -454,6 +454,78 @@ local function recv_adamantine_fiber()
     announce_at_depot("Received: Adamantine Fiber!")
 end
 
+-- ── Item handlers: livestock ──────────────────────────────────────────────────
+-- Spawns a small group of tame, fortress-owned animals. Always guarantees at
+-- least one male (caste 0) and one female (caste 1) so the pair can breed.
+-- Total count is 2–5; extras are random sex.
+
+local function spawn_livestock(race_token, name)
+    local race_idx
+    for i, cr in ipairs(df.global.world.raws.creatures.all) do
+        if cr.creature_id == race_token then race_idx = i; break end
+    end
+    if not race_idx then
+        log.error("spawn_livestock: creature not found in raws: " .. race_token)
+        announce_at_depot(("Received: %s! (spawn failed — creature absent from world raws)"):format(name))
+        return
+    end
+
+    local ncastes = 0
+    pcall(function()
+        for _ in ipairs(df.global.world.raws.creatures.all[race_idx].caste) do
+            ncastes = ncastes + 1
+        end
+    end)
+    local female_caste = math.max(1, ncastes - 1)
+
+    -- Guaranteed pair first, then 0–3 random extras for a total of 2–5.
+    local count = math.random(2, 5)
+    local castes_to_spawn = {0, female_caste}
+    for _ = 1, count - 2 do
+        table.insert(castes_to_spawn, math.random(0, female_caste))
+    end
+
+    local dx, dy, dz = find_trade_depot_center()
+    if not dx then
+        local sx, sy, sz = get_fort_spawn_pos()
+        dx, dy, dz = tonumber(sx), tonumber(sy), tonumber(sz)
+    end
+
+    local cur_year = df.global.cur_year
+    local spawned = 0
+    for _, caste in ipairs(castes_to_spawn) do
+        local ok, err = pcall(function()
+            local unit = dfhack.units.create(race_idx, caste)
+            if not unit then error("create returned nil") end
+            pcall(function() unit.birth_year = cur_year - math.random(2, 5) end)
+            if not dfhack.units.teleport(unit, {x = dx, y = dy, z = dz}) then
+                unit.pos.x, unit.pos.y, unit.pos.z = dx, dy, dz
+            end
+            df.global.world.units.active:insert('#', unit)
+            unit.flags2.tame           = true
+            unit.flags1.active_invader = false
+            unit.flags1.marauder       = false
+            dfhack.units.makeown(unit)
+            spawned = spawned + 1
+        end)
+        if not ok then
+            log.error(("spawn_livestock(%s): %s"):format(race_token, tostring(err)))
+        end
+    end
+
+    if spawned > 0 then
+        announce_at_depot(("Received: %s! %d animal(s) have joined the fortress."):format(name, spawned))
+    else
+        announce_at_depot(("Received: %s! (spawn failed — check DFHack console)"):format(name))
+    end
+end
+
+local function recv_breeding_pigs()     spawn_livestock("PIG",         "Breeding Pigs")     end
+local function recv_breeding_chickens() spawn_livestock("BIRD_CHICKEN", "Breeding Chickens") end
+local function recv_breeding_llamas()   spawn_livestock("LLAMA",        "Breeding Llamas")   end
+local function recv_breeding_cows()     spawn_livestock("CATTLE",       "Breeding Cows")     end
+local function recv_breeding_sheep()    spawn_livestock("SHEEP",        "Breeding Sheep")    end
+
 -- ── Item handlers: progression gate items ────────────────────────────────────
 -- These items are purely flag-based — receiving them writes a persistent key
 -- that the goal-completion checks in dwarfipelago.lua read back.
@@ -1270,6 +1342,13 @@ M.handlers = {
     ["Dwarven Steel Sword"]  = recv_dwarven_steel_sword,
     ["Fine Cloth"]           = recv_fine_cloth,
     ["Adamantine Fiber"]     = recv_adamantine_fiber,
+
+    -- Livestock
+    ["Breeding Pigs"]        = recv_breeding_pigs,
+    ["Breeding Chickens"]    = recv_breeding_chickens,
+    ["Breeding Llamas"]      = recv_breeding_llamas,
+    ["Breeding Cows"]        = recv_breeding_cows,
+    ["Breeding Sheep"]       = recv_breeding_sheep,
 
     -- Progression items
     ["Artifact Weapon"]        = recv_artifact_weapon,

@@ -91,6 +91,11 @@ USEFUL_ITEMS: list[ItemData] = [
     ItemData("Dwarven Steel Sword",    BASE_ID + 511, ItemClassification.useful),
     ItemData("Fine Cloth",             BASE_ID + 512, ItemClassification.useful),
     ItemData("Adamantine Fiber",       BASE_ID + 513, ItemClassification.useful),
+    ItemData("Breeding Pigs",          BASE_ID + 515, ItemClassification.useful),
+    ItemData("Breeding Chickens",      BASE_ID + 516, ItemClassification.useful),
+    ItemData("Breeding Llamas",        BASE_ID + 517, ItemClassification.useful),
+    ItemData("Breeding Cows",          BASE_ID + 518, ItemClassification.useful),
+    ItemData("Breeding Sheep",         BASE_ID + 519, ItemClassification.useful),
 ]
 
 FILLER_ITEMS: list[ItemData] = [
