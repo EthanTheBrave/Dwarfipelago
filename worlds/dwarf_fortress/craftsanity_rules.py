@@ -91,7 +91,7 @@ class DynamicCraftingLocationRules:
         return state.has("Stoneworker's Workshop Blueprint", self.player)
     
     def leather(self, state:CollectionState) -> bool:
-        return state.has("Tanner's Blueprint", self.player)
+        return state.has("Tanner's Blueprint", self.player) and self.butcher_workshop(state)
 
     def leather_works(self, state:CollectionState) -> bool:
         if self.world.options.trades_inlogic:
@@ -275,6 +275,8 @@ class DynamicCraftingLocationRules:
             return self.wood(state) and state.has("Ball Permit", self.player)
     def metal_ball(self, state:CollectionState) -> bool:
             return self.metal(state) and state.has("Ball Permit", self.player)
+    def glass_ball(self, state:CollectionState) -> bool:
+            return self.glass(state) and state.has("Ball Permit", self.player)
     def wood_or_metal_ball(self, state:CollectionState) -> bool:
             return self.wood_or_metal(state) and state.has("Ball Permit", self.player)
 
@@ -558,16 +560,14 @@ class DynamicCraftingLocationRules:
     def wood_or_stone_or_metal_or_glass_statue(self, state:CollectionState) -> bool:
             return self.wood_or_stone_or_metal_or_glass(state) and state.has("Statue Permit", self.player)
     
-    def wood_bookbinding(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Book Binding Permit", self.player)
-    def stone_bookbinding(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Book Binding Permit", self.player)
+    def wood_or_stone_bookbinding(self, state:CollectionState) -> bool:
+            return self.craftdwarf_workshop(state) and state.has("Book Binding Permit", self.player)
     def metal_bookbinding(self, state:CollectionState) -> bool:
             return self.metal(state) and state.has("Book Binding Permit", self.player)
     def glass_bookbinding(self, state:CollectionState) -> bool:
             return self.glass(state) and state.has("Book Binding Permit", self.player)
-    def wood_or_stone_or_metal_or_glass_bookbinding(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Book Binding Permit", self.player)
+    def craftdwarf_or_metal_or_glass_bookbinding(self, state:CollectionState) -> bool:
+            return self.craftdwarf_or_metal_or_glass(state) and state.has("Book Binding Permit", self.player)
     
     def wood_scrollroller(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Scroll Roller Permit", self.player)
@@ -946,6 +946,11 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.metal_ball)
                     else:
                         set_rule(loc, self.metal)
+                elif material_type == "Glass":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.glass_ball)
+                    else:
+                        set_rule(loc, self.glass)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.wood_or_metal_ball)
@@ -1610,16 +1615,11 @@ class DynamicCraftingLocationRules:
                     else:
                         set_rule(loc, self.wood_or_stone_or_metal_or_glass)
             case "Book Binding":
-                if material_type == "Wood":
+                if material_type in {"Wood", "Stone"}:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.wood_bookbinding)
+                        set_rule(loc, self.wood_or_stone_bookbinding)
                     else:
-                        set_rule(loc, self.wood)
-                elif material_type == "Stone":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.stone_bookbinding)
-                    else:
-                        set_rule(loc, self.stone)
+                        set_rule(loc, self.craftdwarf_workshop)
                 elif material_type == "Metal":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.metal_bookbinding)
@@ -1632,9 +1632,9 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.glass)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.wood_or_stone_or_metal_or_glass_bookbinding)
+                        set_rule(loc, self.craftdwarf_or_metal_or_glass_bookbinding)
                     else:
-                        set_rule(loc, self.wood_or_stone_or_metal_or_glass)
+                        set_rule(loc, self.craftdwarf_or_metal_or_glass)
             case "Scroll Roller":
                 if material_type == "Wood":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
@@ -2236,6 +2236,11 @@ class DynamicCraftingLocationRules:
             case "Mace":
                 if self.world.options.craftpermits != CraftingPermits.option_off:
                     set_rule(loc, self.make_mace)
+                else:
+                    set_rule(loc, self.metal)
+            case "Spear":
+                if self.world.options.craftpermits != CraftingPermits.option_off:
+                    set_rule(loc, self.make_spear)
                 else:
                     set_rule(loc, self.metal)
             case "Pick":
