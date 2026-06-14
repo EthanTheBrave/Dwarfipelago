@@ -639,8 +639,14 @@ class DynamicCraftingLocationRules:
     def stone_slab(self, state:CollectionState) -> bool:
         return self.stone(state) and state.has("Slab Permit", self.player)
     
-    def stone_crafts(self, state:CollectionState) -> bool:
-        return self.stone(state) and state.has("Crafts Permit", self.player)
+    def stone_or_wood_crafts(self, state:CollectionState) -> bool:
+        return self.craftdwarf_workshop(state) and state.has("Crafts Permit", self.player)
+    def metal_crafts(self, state:CollectionState) -> bool:
+        return self.metal(state) and state.has("Crafts Permit", self.player)
+    def glass_crafts(self, state:CollectionState) -> bool:
+        return self.glass(state) and state.has("Crafts Permit", self.player)
+    def craftdwarf_or_metal_or_glass_crafts(self, state:CollectionState) -> bool:
+        return self.craftdwarf_or_metal_or_glass(state) and state.has("Crafts Permit", self.player)
     
     def mechanic_mechanism(self, state:CollectionState) -> bool:
         return self.mechanic_workshop(state) and state.has("Mechanism Permit", self.player)
@@ -1787,10 +1793,26 @@ class DynamicCraftingLocationRules:
                 else:
                     set_rule(loc, self.stone)
             case "Crafts":
-                if self.world.options.craftpermits != CraftingPermits.option_off:
-                    set_rule(loc, self.stone_crafts)
+                if material_type in {"Wood", "Stone"} :
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.stone_or_wood_crafts)
+                    else:
+                        set_rule(loc, self.craftdwarf_workshop)
+                elif material_type == "Glass":  
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.glass_crafts)
+                    else:
+                        set_rule(loc, self.glass)
+                elif material_type == "Metal":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_crafts)
+                    else:
+                        set_rule(loc, self.metal)
                 else:
-                    set_rule(loc, self.stone)
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.craftdwarf_or_metal_or_glass_crafts)
+                    else:
+                        set_rule(loc, self.craftdwarf_or_metal_or_glass)
             case "Mechanism":
                 if self.world.options.craftpermits != CraftingPermits.option_off:
                     set_rule(loc, self.mechanic_mechanism)
