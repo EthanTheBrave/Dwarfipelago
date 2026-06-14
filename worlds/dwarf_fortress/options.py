@@ -197,6 +197,76 @@ class EnergyLink(Toggle):
     """Allow sending energy to other worlds. Used to call a caravan early in the season."""
     display_name = "Energy Link"
 
+class Skillsanity(Toggle):
+    """Dwarves leveling up their skills are checks. (Careful, some skills are harder to train than others)"""
+    display_name = "Skillsanity"
+
+class SkillsanitySkillGroup(Choice):
+    """
+    Selects which skills count as skillsanity location checks.
+    Easy Skills: Miner, Carpenter, Wood Cutter, Bowyer, Mason, Stone Cutter, Stone Carver, Ambusher, Brewer, Cook, Planter, Herbalist,
+     Spinner, Tanner, Wood Burner, Butcher, Furnace Operator, Gem Cutter, Bone Carver, Clothier, Glassmaker,
+     Leatherworker, Potter, Glazer, Stone Crafter, Weaver, Wood Crafter, Mechanic, Pump Operator, Siege Engineer
+
+    Medium Skills: Easy + Engraver, Stone Carver, Animal Trainer, Diagnostician, Cheese Maker, Dyer, Lye Maker, Milker, Miller,
+     Potash Maker, Presser, Shearer, Soaper, Thresher, Fisherdwarf, Fish Cleaner, Fish Dissector, Armorsmith, Metal Crafter,
+     Blacksmith, Weaponsmith, Gem Setter, Book Binder, Papermaker, Siege Operator, Appraiser, Organizer, Record Keeper
+
+    Hard Skills: Easy + Medium + Trapper, Bone Doctor, Sugeon, Suturer, Wound Dresser, Bee Keeper, Gelder, Strand Extractor, Wax Worker,
+     Gelder
+
+    Skillsanity: Every Skill becomes a check.
+    Choose: Pick skills manually using the 'Skillsanity Skills Locations' list below.
+    """
+    display_name = "Skillsanity Skill Group"
+    option_easy = 0
+    option_medium = 1
+    option_hard = 2
+    option_craftsanity = 3
+    option_choose = 4
+    default = 1
+
+class SkillsanityItems(OptionList):
+    """
+    Manual item selection for skillsanity checks.
+    Only active when Skillsanity Item Group is set to 'Choose'.
+    """
+    display_name = "Skillsanity Skills locations"
+    valid_keys = {
+     "Miner", "Carpenter", "Wood Cutter", "Bowyer", "Mason", "Stone Cutter", "Stone Carver", "Ambusher", "Brewer", "Cook", "Planter", "Herbalist",
+     "Spinner", "Tanner", "Wood Burner", "Butcher", "Furnace Operator", "Gem Cutter", "Bone Carver", "Clothier", "Glassmaker",
+     "Leatherworker", "Potter", "Glazer", "Stone Crafter", "Weaver", "Wood Crafter", "Mechanic", "Pump Operator", "Siege Engineer"
+     "Engraver", "Stone Carver", "Animal Trainer", "Diagnostician", "Cheese Maker", "Dyer", "Lye Maker", "Milker", "Miller",
+     "Potash Maker", "Presser", "Shearer", "Soaper", "Thresher", "Fisherdwarf", "Fish Cleaner", "Fish Dissector", "Armorsmith", "Metal Crafter",
+     "Blacksmith", "Weaponsmith", "Gem Setter", "Book Binder", "Papermaker", "Siege Operator", "Appraiser", "Organizer", "Record Keeper"
+     "Trapper", "Bone Doctor", "Sugeon", "Suturer", "Wound Dresser", "Bee Keeper", "Gelder", "Strand Extractor", "Wax Worker", "Gelder"
+    }
+    default = valid_keys.copy() 
+
+class SkillsanityMaxLevel(Range):
+    """
+    Max level for skills as a check.
+    1 = Novice, 15 = Legendary
+    """
+    display_name = "Skillsanity Max Level"
+    range_start = 1
+    range_end = 15
+    default = 15
+
+class SkillsanityLevelMechanic(Choice):
+    """
+    When new dwarves comes in, do you want their skills untouched (level 7 miner = 7 mining checks sent)
+    Or do you want them to come in with skills lowered to match your next check? 
+    eg: If you already have a level 3 Miner on site (meaning 3 mining skill checks already sent), a new level 7
+    miner shows up, their skill lowers to Level 4 and only 1 additional mining check is sent.  
+    1 = Novice, 15 = Legendary
+    """
+    display_name = "Skillsanity Level Mechanic"
+    option_untouched = 0
+    option_lower_skills = 1
+    default = 0
+
+
 @dataclass
 class DwarfFortressOptions(PerGameCommonOptions):
     deathlink: DeathLink
