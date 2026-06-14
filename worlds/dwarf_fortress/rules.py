@@ -137,6 +137,39 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     loc = multiworld.get_location("Harvest 1,000 Crops", player)
     loc.access_rule = lambda state: dynamic_rules.process_resource(state, "farming")
 
+    # -- Iterative milestone ladders --------------------------------------------
+    # These tiers are monotonic in play (you cannot reach a higher one without
+    # passing the lower ones), so each later tier additionally requires the
+    # previous tier to be reachable. Each tier keeps whatever base gate it already
+    # has (farming -> Farm Plot Blueprint; mining depth/tiles -> none), and the
+    # chain bottoms out at an always-reachable first tier, so no new unreachable
+    # locations are introduced.
+    def require_previous(names: list[str]) -> None:
+        for i in range(1, len(names)):
+            tier = multiworld.get_location(names[i], player)
+            tier.access_rule = (lambda state, base=tier.access_rule, prev=names[i - 1]:
+                                 base(state) and state.can_reach_location(prev, player))
+
+    require_previous([
+        "Delved 10 Levels Deep", "Delved 25 Levels Deep", "Delved 50 Levels Deep",
+        "Delved 75 Levels Deep", "Delved 100 Levels Deep",
+    ])
+    require_previous([
+        "Excavator I (100 tiles)", "Excavator II (500 tiles)",
+        "Excavator III (2,000 tiles)", "Excavator IV (5,000 tiles)",
+        "Excavator V (10,000 tiles)",
+    ])
+    require_previous([
+        "Harvest 50 Crops", "Harvest 100 Crops", "Harvest 250 Crops",
+        "Harvest 500 Crops", "Harvest 1,000 Crops",
+    ])
+    # Caverns are breached in strict depth order, then the magma sea, then the
+    # underworld (the Circus), so chain them as one ladder too.
+    require_previous([
+        "First Cavern Breached", "Second Cavern Breached", "Third Cavern Breached",
+        "Reached the Magma Sea", "Welcome to the Circus",
+    ])
+
     # -- Infrastructure ---------------------------------------------------------
     loc = multiworld.get_location("Built a Well", player)
     if options.craftpermits == CraftingPermits.option_off:
