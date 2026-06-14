@@ -854,33 +854,57 @@ local function detect_caged_hostile_beast()
 end
 
 -- ── Artifact departure detection ──────────────────────────────────────────────
--- Fires sold_artifact when any world artifact's item has been removed from the
--- game (i.e. left the fortress via trade, theft, or other departure).
+-- Fires sold_artifact when an artifact that was present in THIS fortress later
+-- leaves (traded away / stolen). world.artifacts.all is the WORLD-WIDE list: on a
+-- fresh embark it already holds every historical artifact, many with items that
+-- are offsite or already removed -- naively checking it fired the moment a world
+-- loaded. So we remember (per artifact id, in world data) the artifacts whose
+-- item is actually here, and only fire when a remembered one is later removed.
 local function detect_sold_artifact()
     if checks.production_flag("sold_artifact") then return end
     pcall(function()
+        local key = "dwarfipelago/artifact_seen"
+        local seen = json.decode(dfhack.persistent.getWorldDataString(key) or "{}") or {}
+        local changed = false
         for _, artifact in ipairs(df.global.world.artifacts.all) do
-            -- artifact_record links its item via a pointer field (`item`) in
-            -- DF v50; older layouts used `item_id`. Support both.
-            local item = nil
-            pcall(function() item = artifact.item end)
-            if not item then
-                local item_id = -1
-                pcall(function() item_id = artifact.item_id end)
-                if item_id >= 0 then item = df.item.find(item_id) end
+            local aid
+            pcall(function() aid = artifact.id end)
+            if aid then
+                local skey = tostring(aid)
+
+                -- Resolve the item (pointer on DF v50, else item_id).
+                local item = nil
+                pcall(function() item = artifact.item end)
+                if not item then
+                    local iid = -1
+                    pcall(function() iid = artifact.item_id end)
+                    if iid >= 0 then item = df.item.find(iid) end
+                end
+
+                -- Present in our fort = item loaded, not removed, on the local map.
+                local exists, removed, onmap = false, true, false
+                if item then
+                    exists = true
+                    pcall(function() removed = item.flags.removed end)
+                    pcall(function() onmap = (item.pos.x >= 0) end)
+                end
+                local present = exists and (not removed) and onmap
+
+                if present then
+                    if not seen[skey] then seen[skey] = true; changed = true end
+                elseif seen[skey] then
+                    -- Previously here. Fire only if it's truly gone (removed or
+                    -- unloaded), NOT merely off-map (being hauled / in a bin).
+                    if (not exists) or removed then
+                        checks.set_production_flag("sold_artifact")
+                        dfhack.gui.showAnnouncement("[AP] An artifact has left the fortress!", COLOR_GREEN, true)
+                        return
+                    end
+                end
             end
-            if not item then goto skip_art end
-            local gone = false
-            pcall(function() gone = item.flags.removed end)
-            if not gone then
-                pcall(function() gone = item.pos.x < 0 end)
-            end
-            if gone then
-                checks.set_production_flag("sold_artifact")
-                dfhack.gui.showAnnouncement("[AP] An artifact has left the fortress!", COLOR_GREEN, true)
-                return
-            end
-            ::skip_art::
+        end
+        if changed then
+            dfhack.persistent.saveWorldDataString(key, json.encode(seen))
         end
     end)
 end
