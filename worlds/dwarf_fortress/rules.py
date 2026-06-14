@@ -2,6 +2,7 @@ from BaseClasses import MultiWorld
 from worlds.dwarf_fortress.craftsanity_rules import DynamicCraftingLocationRules
 from worlds.dwarf_fortress.skillsanity import Skillsanity
 from .options import DwarfFortressGoal, CraftingPermits
+from .locations import SHOP_SLOTS
 
 
 # Wealth tier → how many Merchant's Coffers needed to unlock it.
@@ -219,6 +220,16 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         for loc_name, coffers_needed in WEALTH_COFFER_RULES:
             loc = multiworld.get_location(loc_name, player)
             loc.access_rule = lambda state, n=coffers_needed: state.count("Merchant's Coffer", player) >= n
+
+    # ── Merchant's Shop gates ─────────────────────────────────────────────────
+    # The shop opens 10 slots per Merchant's Coffer received, so "Shop Slot N"
+    # requires ceil(N/10) coffers. Coffers are forced into the pool for any goal
+    # when the shop is on (see create_items), so this is always satisfiable.
+    if options.shop:
+        for slot in range(1, SHOP_SLOTS + 1):
+            tier = (slot - 1) // 10 + 1
+            loc = multiworld.get_location(f"Shop Slot {slot}", player)
+            loc.access_rule = lambda state, n=tier: state.count("Merchant's Coffer", player) >= n
 
     # ── Immigration Wave gates (population / title tier locations) ────────────
     for loc_name, waves_needed in TITLE_WAVE_RULES:
