@@ -502,6 +502,8 @@ class DwarfFortressContext(CommonContext):
         self._skill_locations = {}       # required locations
         self._skill_max_level = 15       # max level
         self._skill_behaviour = 0        # 0 = don't touch levels 1 = lower to next check
+        self._shop_scout_sent = False    # sent LocationScouts for shop slots this AP session
+        self._shop_last_sig = None       # last shop table written to Lua (skip redundant writes)
 
     def debug(self, msg: str):
         """Log only when debug mode is enabled (toggle with /dfdebug)."""
@@ -549,6 +551,7 @@ class DwarfFortressContext(CommonContext):
                         self._slot_data_synced = False
                         self._received_index_loaded = False
                         self._completed_locations_loaded = False
+                        self._shop_last_sig = None  # force a re-write to the next loaded save
                         logger.info("Map unloaded — AP operations paused until a save is loaded")
                     await asyncio.sleep(self._poll_interval)
                     continue
@@ -593,6 +596,8 @@ class DwarfFortressContext(CommonContext):
                         await self.update_energy()
                         await self.new_energy()
                         await self._check_caravan_request()
+                        await self._sync_shop()
+                        await self._check_shop_purchase()
                     else:
                         logger.debug("Trade depot not yet established — holding checks and item delivery")
 
@@ -961,6 +966,89 @@ class DwarfFortressContext(CommonContext):
         self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/spawn_caravan_approved", "1")')
         logger.debug(f"EnergyLink: Caravan approved, deducted {format_SI_prefix(cost)}*")
 
+    async def _sync_shop(self):
+        """
+        Scout the shop-slot locations and write each slot's contents to DFHack
+        storage for the in-game Shop tab: the item name, the player who receives
+        it, the slot's coin price + coffer tier, and whether it's been bought.
+        Sends LocationScouts once per AP session; re-writes only when something
+        (e.g. a bought flag) changes.
+        """
+        shop = self.slot_data.get("shop", {})
+        if not shop:
+            return
+        shop_ids = [int(k) for k in shop.keys()]
+        if not self._shop_scout_sent:
+            await self.send_msgs([{
+                "cmd": "LocationScouts", "locations": shop_ids, "create_as_hint": 0,
+            }])
+            self._shop_scout_sent = True
+
+        entries: dict[str, Any] = {}
+        for sid in shop_ids:
+            info = self.locations_info.get(sid)
+            if not info:
+                continue  # scout reply not in yet for this slot
+            meta = shop[str(sid)]
+            try:
+                item_name = self.item_names.lookup_in_slot(info.item, info.player)
+            except Exception:
+                item_name = str(info.item)
+            player_name = self.player_names.get(info.player, str(info.player))
+            entries[str(meta["slot"])] = {
+                "id": sid,
+                "slot": meta["slot"],
+                "tier": meta["tier"],
+                "price": meta["price"],
+                "item": item_name,
+                "player": player_name,
+                "flags": int(getattr(info, "flags", 0) or 0),
+                "bought": 1 if sid in self.checked_locations else 0,
+            }
+        if not entries:
+            return
+
+        # ensure_ascii keeps cross-game item names safe inside the Lua string;
+        # escape backslashes then quotes so the JSON survives the Lua literal.
+        payload = json.dumps(entries, ensure_ascii=True, sort_keys=True)
+        if payload == self._shop_last_sig:
+            return
+        self._shop_last_sig = payload
+        escaped = payload.replace("\\", "\\\\").replace('"', '\\"')
+        await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: self.dfhack.run_command(
+                "lua",
+                f'dfhack.persistent.saveWorldDataString("dwarfipelago/shop", "{escaped}")',
+            ),
+        )
+        self.debug(f"Shop: wrote {len(entries)} slot(s) to DFHack storage")
+
+    async def _check_shop_purchase(self):
+        """
+        Buy bridge (mirrors _check_caravan_request): the Lua 'buy-shop' command
+        charges the minted coins and sets dwarfipelago/shop_buy = slot number.
+        We send that slot's location check, releasing the item to its recipient.
+        """
+        shop = self.slot_data.get("shop", {})
+        if not shop:
+            return
+        raw = self.dfhack.run_command(
+            "lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/shop_buy") or "0")')
+        try:
+            slot = int((raw or "0").strip())
+        except ValueError:
+            slot = 0
+        if slot <= 0:
+            return
+        self.dfhack.run_command(
+            "lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/shop_buy", "0")')
+        loc_id = next((int(k) for k, m in shop.items() if m["slot"] == slot), None)
+        if loc_id is None or loc_id in self.checked_locations:
+            return
+        await self.send_msgs([{"cmd": "LocationChecks", "locations": [loc_id]}])
+        logger.info(f"Shop: purchased slot {slot} (location {loc_id})")
+
 
     async def _crafting_location_checks(self):
         """Read new crafting location checks from persistent storage and report them to AP."""
@@ -1107,6 +1195,8 @@ class DwarfFortressContext(CommonContext):
             # Start DFHack polling and (when inside AP) the server connection as
             # concurrent asyncio tasks so neither blocks the other.
             self.slot_data: dict[str, Any] = args.get("slot_data", {})
+            self._shop_scout_sent = False  # re-scout shop slots for this AP session
+            self._shop_last_sig = None
             # Register as a DeathLink participant when the option is on. This adds
             # the "DeathLink" tag and sends a ConnectUpdate, which is what tells the
             # server to route DeathLink bounces to/from this slot. Without it the
