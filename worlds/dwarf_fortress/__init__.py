@@ -11,7 +11,10 @@ from .items import (
     ItemData, ITEM_TABLE, AP_ITEM_POOL, FILLER_ITEMS, TRAP_ITEMS,
     PROGRESSION_ITEMS, USEFUL_ITEMS, CRAFT_ITEMS
 )
-from .locations import LocationData, LOCATION_TABLE, ALL_LOCATIONS, SHOP_LOCATIONS, SHOP_SLOTS
+from .locations import (
+    LocationData, LOCATION_TABLE, ALL_LOCATIONS, SHOP_LOCATIONS, SHOP_SLOTS,
+    SHOP_PRICE_MIN, SHOP_PRICE_MAX,
+)
 from .craftsanity import (
     generate_location_data,
     build_craft_location_table,
@@ -304,8 +307,7 @@ class DwarfFortressWorld(World):
         # (as a string for JSON). The client scouts these ids to learn each slot's
         # item/recipient and writes them, with the price, for the in-game shop tab.
         shop_data = {}
-        lo = min(self.options.shop_price_min.value, self.options.shop_price_max.value)
-        hi = max(self.options.shop_price_min.value, self.options.shop_price_max.value)
+        lo, hi = SHOP_PRICE_MIN, SHOP_PRICE_MAX
         for slot, loc in enumerate(SHOP_LOCATIONS, start=1):
             shop_data[str(loc.ap_id)] = {
                 "slot": slot,

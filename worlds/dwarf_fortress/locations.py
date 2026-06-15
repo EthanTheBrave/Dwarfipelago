@@ -1197,12 +1197,15 @@ JOB_SKILLS: list[LocationData] = [
 
 
 # ── Merchant's Shop ───────────────────────────────────────────────────────────
-# 50 shop slots (ids 2000..2049), 10 per Merchant's Coffer tier. They're always in
-# the DataPackage; only active when the shop option is on, and gated by coffer
-# count in rules.py. Buying a slot spends minted coins (handled by the client/mod)
-# and releases that slot's item to its recipient.
+# 50 shop slots (ids 2000..2049), 10 per Merchant's Coffer tier. Always active and
+# gated by coffer count in rules.py. Buying a slot spends minted coins (handled by
+# the client/mod) and releases that slot's item to its recipient.
 # NOTE: ids 800..1084 are reserved for an unimplemented feature; keep clear of it.
 SHOP_SLOTS = 50
+# Per-slot price (minted-coin VALUE) is rolled randomly in this range at gen time.
+# Hardcoded -- the shop has no YAML options.
+SHOP_PRICE_MIN = 2000
+SHOP_PRICE_MAX = 20000
 SHOP_LOCATIONS: list[LocationData] = [
     LocationData(f"Shop Slot {i}", BASE_ID + 1999 + i, "Fortress")
     for i in range(1, SHOP_SLOTS + 1)

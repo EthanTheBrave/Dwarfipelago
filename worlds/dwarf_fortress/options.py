@@ -294,32 +294,11 @@ class SkillsanityLevelMechanic(Choice):
 
 
 
-# The Merchant's Shop is always enabled (not a toggle): spend minted coins to buy
-# AP items. It opens 10 slots per Merchant's Coffer received (up to 50 with all 5),
-# so the coffers are always in the item pool regardless of goal. Each slot holds
-# one multiworld item at a random coin price and is bought once.
-
-
-class ShopPriceMin(Range):
-    """
-    Minimum price for a single shop slot, measured in minted-coin VALUE (the total
-    worth of the coins, not the number of coins), the same way treasury wealth is.
-    """
-    display_name = "Shop Price Minimum"
-    range_start = 50
-    range_end = 1000000
-    default = 2000
-
-
-class ShopPriceMax(Range):
-    """
-    Maximum price for a single shop slot, measured in minted-coin VALUE (the total
-    worth of the coins, not the number of coins), the same way treasury wealth is.
-    """
-    display_name = "Shop Price Maximum"
-    range_start = 50
-    range_end = 1000000
-    default = 20000
+# The Merchant's Shop is always enabled and has no options: spend minted coins to
+# buy AP items. It opens 10 slots per Merchant's Coffer received (up to 50 with all
+# 5), so the coffers are always in the item pool regardless of goal. Each slot
+# holds one multiworld item at a random coin-VALUE price (range hardcoded in
+# locations.SHOP_PRICE_MIN/MAX) and is bought once.
 
 
 @dataclass
@@ -346,8 +325,6 @@ class DwarfFortressOptions(PerGameCommonOptions):
     skillsanity_skills: SkillsanitySkills
     skillsanity_max_level: SkillsanityMaxLevel
     skillsanity_behaviour: SkillsanityLevelMechanic
-    shop_price_min: ShopPriceMin
-    shop_price_max: ShopPriceMax
     trap_item_weight: TrapItemWeight
     start_inventory: StartingDefaultDFInventory
 
