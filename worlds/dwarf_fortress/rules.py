@@ -1,5 +1,6 @@
 from BaseClasses import MultiWorld
 from worlds.dwarf_fortress.craftsanity_rules import DynamicCraftingLocationRules
+from worlds.dwarf_fortress.skillsanity import Skillsanity
 from .options import DwarfFortressGoal, CraftingPermits
 
 
@@ -35,6 +36,7 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     player: int = world.player
     options = world.options
     dynamic_rules = DynamicCraftingLocationRules(world)
+    skillsanity_rules = Skillsanity(world)
 
     # ── Workshop blueprint gates ──────────────────────────────────────────────
     loc = multiworld.get_location("First Minecart Made", player)
@@ -233,6 +235,9 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     if len(world.dynamic_locations) > 0:
         dynamic_rules.set_dynamic_rules()
 
+    # -- Skillsanity location requirements -------------------------------------
+    if len(world.skill_locations) > 0:
+        skillsanity_rules.set_skill_rules()
 
     # ── Goal condition ────────────────────────────────────────────────────────
     goal_location = multiworld.get_location("Goal", player)

@@ -212,8 +212,8 @@ class SkillsanitySkillGroup(Choice):
      Potash Maker, Presser, Shearer, Soaper, Thresher, Fisherdwarf, Fish Cleaner, Fish Dissector, Armorsmith, Metal Crafter,
      Blacksmith, Weaponsmith, Gem Setter, Siege Operator, Appraiser, Organizer, Record Keeper
 
-    All Skills: Easy + Medium + Trapper, Bone Doctor, Sugeon, Suturer, Wound Dresser, Bee Keeper, Gelder, Strand Extractor, Wax Worker,
-     Book Binder, Papermaker, Gelder
+    All Skills: Easy + Medium + Trapper, Bone Doctor, Surgeon, Suturer, Wound Dresser, Beekeeper, Gelder, Strand Extractor, Wax Worker,
+     Bookbinder, Papermaker, Gelder
 
     Choose: Pick skills manually using the 'Skillsanity Skills Locations' list below.
     """
@@ -238,7 +238,7 @@ class SkillsanitySkills(OptionList):
      "Diagnostician", "Cheese Maker", "Dyer", "Lye Maker", "Milker", "Miller", "Potash Maker", "Presser", "Shearer",
      "Soaper", "Thresher", "Fisherdwarf", "Fish Cleaner", "Fish Dissector", "Armorsmith", "Metal Crafter",
      "Blacksmith", "Weaponsmith", "Gem Setter", "Siege Operator", "Appraiser", "Organizer", "Record Keeper",
-     "Trapper", "Bone Doctor", "Sugeon", "Suturer", "Wound Dresser", "Bee Keeper", "Gelder", "Book Binder",
+     "Trapper", "Bone Doctor", "Surgeon", "Suturer", "Wound Dresser", "Beekeeper", "Gelder", "Bookbinder",
      "Papermaker", "Strand Extractor", "Wax Worker", "Gelder"
     }
     default = valid_keys.copy() 
