@@ -162,9 +162,8 @@ class DwarfFortressWorld(World):
             active -= NOBLE_LADDER_LOCATIONS
         for skill_names in self.remove_skill_locations_names:
              active.remove(skill_names)
-        # Shop slots only exist when the shop is enabled (coffer-gated in rules.py).
-        if not self.options.shop:
-            active -= {loc.name for loc in SHOP_LOCATIONS}
+        # The shop is always on, so its 50 slots are always active (coffer-gated
+        # in rules.py).
         # Keep the registry's deterministic order for reproducible fill.
         self.active_location_names = [n for n in _FULL_LOCATION_TABLE if n in active]
 
@@ -237,13 +236,12 @@ class DwarfFortressWorld(World):
             elif self.options.goal == DwarfFortressGoal.option_king_remains and item_data.name == "Remains of the Great King":
                 item_data.quantity = self.options.remains_great_king.value
 
-        # The shop is gated by Merchant's Coffer count, so the coffers must be in
-        # the pool whenever the shop is on -- even for goals whose loop above just
-        # stripped them. Re-add the (x5) coffer item if needed.
-        if self.options.shop:
-            coffer = next((d for d in self.ap_item_pool if d.name == "Merchant's Coffer"), None)
-            if coffer is not None and coffer not in required:
-                required.append(coffer)
+        # The always-on shop is gated by Merchant's Coffer count, so the coffers
+        # must always be in the pool -- even for goals whose loop above stripped
+        # them. Re-add the (x5) coffer item if needed.
+        coffer = next((d for d in self.ap_item_pool if d.name == "Merchant's Coffer"), None)
+        if coffer is not None and coffer not in required:
+            required.append(coffer)
 
         item_pool: list[DwarfFortressItem] = []
 
@@ -306,15 +304,14 @@ class DwarfFortressWorld(World):
         # (as a string for JSON). The client scouts these ids to learn each slot's
         # item/recipient and writes them, with the price, for the in-game shop tab.
         shop_data = {}
-        if self.options.shop:
-            lo = min(self.options.shop_price_min.value, self.options.shop_price_max.value)
-            hi = max(self.options.shop_price_min.value, self.options.shop_price_max.value)
-            for slot, loc in enumerate(SHOP_LOCATIONS, start=1):
-                shop_data[str(loc.ap_id)] = {
-                    "slot": slot,
-                    "tier": (slot - 1) // 10 + 1,
-                    "price": self.random.randint(lo, hi),
-                }
+        lo = min(self.options.shop_price_min.value, self.options.shop_price_max.value)
+        hi = max(self.options.shop_price_min.value, self.options.shop_price_max.value)
+        for slot, loc in enumerate(SHOP_LOCATIONS, start=1):
+            shop_data[str(loc.ap_id)] = {
+                "slot": slot,
+                "tier": (slot - 1) // 10 + 1,
+                "price": self.random.randint(lo, hi),
+            }
         return {
             "goal": self.options.goal.value,
             "wealth_goal_amount": self.options.wealth_goal_amount.value,
