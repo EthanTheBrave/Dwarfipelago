@@ -212,18 +212,16 @@ class SkillsanitySkillGroup(Choice):
      Potash Maker, Presser, Shearer, Soaper, Thresher, Fisherdwarf, Fish Cleaner, Fish Dissector, Armorsmith, Metal Crafter,
      Blacksmith, Weaponsmith, Gem Setter, Siege Operator, Appraiser, Organizer, Record Keeper
 
-    Hard Skills: Easy + Medium + Trapper, Bone Doctor, Sugeon, Suturer, Wound Dresser, Bee Keeper, Gelder, Strand Extractor, Wax Worker,
+    All Skills: Easy + Medium + Trapper, Bone Doctor, Sugeon, Suturer, Wound Dresser, Bee Keeper, Gelder, Strand Extractor, Wax Worker,
      Book Binder, Papermaker, Gelder
 
-    Skillsanity: Every Skill becomes a check.
     Choose: Pick skills manually using the 'Skillsanity Skills Locations' list below.
     """
     display_name = "Skillsanity Skill Group"
     option_easy = 0
     option_medium = 1
-    option_hard = 2
-    option_craftsanity = 3
-    option_choose = 4
+    option_all = 2
+    option_choose = 3
     default = 1
 
 class SkillsanitySkills(OptionList):
