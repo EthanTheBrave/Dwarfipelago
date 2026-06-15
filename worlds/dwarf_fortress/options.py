@@ -210,10 +210,10 @@ class SkillsanitySkillGroup(Choice):
 
     Medium Skills: Easy + Engraver, Stone Carver, Animal Trainer, Diagnostician, Cheese Maker, Dyer, Lye Maker, Milker, Miller,
      Potash Maker, Presser, Shearer, Soaper, Thresher, Fisherdwarf, Fish Cleaner, Fish Dissector, Armorsmith, Metal Crafter,
-     Blacksmith, Weaponsmith, Gem Setter, Book Binder, Papermaker, Siege Operator, Appraiser, Organizer, Record Keeper
+     Blacksmith, Weaponsmith, Gem Setter, Siege Operator, Appraiser, Organizer, Record Keeper
 
     Hard Skills: Easy + Medium + Trapper, Bone Doctor, Sugeon, Suturer, Wound Dresser, Bee Keeper, Gelder, Strand Extractor, Wax Worker,
-     Gelder
+     Book Binder, Papermaker, Gelder
 
     Skillsanity: Every Skill becomes a check.
     Choose: Pick skills manually using the 'Skillsanity Skills Locations' list below.
@@ -226,20 +226,22 @@ class SkillsanitySkillGroup(Choice):
     option_choose = 4
     default = 1
 
-class SkillsanityItems(OptionList):
+class SkillsanitySkills(OptionList):
     """
-    Manual item selection for skillsanity checks.
-    Only active when Skillsanity Item Group is set to 'Choose'.
+    Manual skill selection for skillsanity checks.
+    Only active when Skillsanity Skill Group is set to 'Choose'.
     """
     display_name = "Skillsanity Skills locations"
     valid_keys = {
-     "Miner", "Carpenter", "Wood Cutter", "Bowyer", "Mason", "Stone Cutter", "Stone Carver", "Ambusher", "Brewer", "Cook", "Planter", "Herbalist",
-     "Spinner", "Tanner", "Wood Burner", "Butcher", "Furnace Operator", "Gem Cutter", "Bone Carver", "Clothier", "Glassmaker",
-     "Leatherworker", "Potter", "Glazer", "Stone Crafter", "Weaver", "Wood Crafter", "Mechanic", "Pump Operator", "Siege Engineer"
-     "Engraver", "Stone Carver", "Animal Trainer", "Diagnostician", "Cheese Maker", "Dyer", "Lye Maker", "Milker", "Miller",
-     "Potash Maker", "Presser", "Shearer", "Soaper", "Thresher", "Fisherdwarf", "Fish Cleaner", "Fish Dissector", "Armorsmith", "Metal Crafter",
-     "Blacksmith", "Weaponsmith", "Gem Setter", "Book Binder", "Papermaker", "Siege Operator", "Appraiser", "Organizer", "Record Keeper"
-     "Trapper", "Bone Doctor", "Sugeon", "Suturer", "Wound Dresser", "Bee Keeper", "Gelder", "Strand Extractor", "Wax Worker", "Gelder"
+     "Miner", "Carpenter", "Wood Cutter", "Bowyer", "Mason", "Stonecutter", "Stone Carver", "Ambusher", "Brewer", 
+     "Cook", "Planter", "Herbalist", "Spinner", "Tanner", "Wood Burner", "Butcher", "Furnace Operator", "Gem Cutter",
+     "Bone Carver", "Clothier", "Glassmaker", "Leatherworker", "Potter", "Glazer", "Stone Crafter", "Wood Crafter",
+     "Mechanic", "Pump Operator", "Siege Engineer", "Engraver", "Stone Carver", "Animal Trainer",
+     "Diagnostician", "Cheese Maker", "Dyer", "Lye Maker", "Milker", "Miller", "Potash Maker", "Presser", "Shearer",
+     "Soaper", "Thresher", "Fisherdwarf", "Fish Cleaner", "Fish Dissector", "Armorsmith", "Metal Crafter",
+     "Blacksmith", "Weaponsmith", "Gem Setter", "Siege Operator", "Appraiser", "Organizer", "Record Keeper",
+     "Trapper", "Bone Doctor", "Sugeon", "Suturer", "Wound Dresser", "Bee Keeper", "Gelder", "Book Binder",
+     "Papermaker", "Strand Extractor", "Wax Worker", "Gelder"
     }
     default = valid_keys.copy() 
 
@@ -255,10 +257,10 @@ class SkillsanityMaxLevel(Range):
 
 class SkillsanityLevelMechanic(Choice):
     """
-    When new dwarves comes in, do you want their skills untouched (level 7 miner = 7 mining checks sent)
+    When new dwarves comes in, do you want their skills untouched (level 7 miner = 7 mining checks sent at once)
     Or do you want them to come in with skills lowered to match your next check? 
-    eg: If you already have a level 3 Miner on site (meaning 3 mining skill checks already sent), a new level 7
-    miner shows up, their skill lowers to Level 4 and only 1 additional mining check is sent.  
+    eg: If you already have a level 3 Miner on site (meaning 3 mining skill checks already sent), if a new level 7
+    miner shows up, their mining skill lowers to Level 4 and only 1 additional mining check is sent.  
     1 = Novice, 15 = Legendary
     """
     display_name = "Skillsanity Level Mechanic"
@@ -286,5 +288,10 @@ class DwarfFortressOptions(PerGameCommonOptions):
     craftsanity_materials: CraftsanityMaterials
     craftsanity_max_amount: CraftsanityMaxAmount
     craftsanity_threshold: CraftsanityThreshold
+    skillsanity: Skillsanity
+    skillsanity_skill_group: SkillsanitySkillGroup
+    skillsanity_skills: SkillsanitySkills
+    skillsanity_max_level: SkillsanityMaxLevel
+    skillsanity_behaviour: SkillsanityLevelMechanic
     trap_item_weight: TrapItemWeight
     start_inventory: StartingDefaultDFInventory

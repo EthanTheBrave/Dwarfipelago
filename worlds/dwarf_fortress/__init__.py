@@ -3,6 +3,7 @@ from BaseClasses import Region, Location, Item, ItemClassification, Tutorial
 from worlds.AutoWorld import World, WebWorld
 from Options import OptionError
 from worlds.LauncherComponents import Component, icon_paths, components, Type, launch_subprocess
+from worlds.dwarf_fortress.skillsanity import Skillsanity
 
 from .options import DwarfFortressOptions, DwarfFortressGoal, CraftingPermits
 from .settings import DwarfFortressSettings
@@ -82,6 +83,8 @@ class DwarfFortressWorld(World):
     ap_item_pool = AP_ITEM_POOL
     starting_inventory = []
     active_location_names = []  # per-slot subset of location_name_to_id this slot creates
+    skill_locations = []
+    remove_skill_locations_names = []
     web = DwarfFortressWebWorld()
 
     def generate_early(self) -> None:
@@ -125,6 +128,10 @@ class DwarfFortressWorld(World):
                 f" To increase this, add more crafting item locations, increase the maximum amount or lower the threshold."
                 f" You need {len(CRAFT_ITEMS) - len(self.dynamic_locations)} more locations."
             )
+        
+        #Skillsanity
+        skillsanity = Skillsanity(self)
+        skillsanity.adjust_skill_locations()
 
         # Active set = the static non-craft locations (LOCATION_TABLE) plus the
         # craft subset this slot generated. Goal-based filtering then drops
@@ -151,6 +158,8 @@ class DwarfFortressWorld(World):
             active -= WEALTH_TIER_LOCATIONS
         if self.options.goal != DwarfFortressGoal.option_mountainhome:
             active -= NOBLE_LADDER_LOCATIONS
+        for skill_names in self.remove_skill_locations_names:
+             active.remove(skill_names)
         # Keep the registry's deterministic order for reproducible fill.
         self.active_location_names = [n for n in _FULL_LOCATION_TABLE if n in active]
 
