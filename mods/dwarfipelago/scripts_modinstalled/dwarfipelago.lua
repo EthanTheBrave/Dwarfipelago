@@ -854,33 +854,74 @@ local function detect_caged_hostile_beast()
 end
 
 -- ── Artifact departure detection ──────────────────────────────────────────────
--- Fires sold_artifact when any world artifact's item has been removed from the
--- game (i.e. left the fortress via trade, theft, or other departure).
+-- Fires sold_artifact only when an artifact from THIS fortress is TRADED away to
+-- a caravan. We track each artifact (per id, in world data) through two states:
+--   "here"    = its item is in our fort and belongs to us
+--   "trading" = it has since become trader-owned (we sold it to a caravan)
+-- and we fire only when a "trading" artifact then leaves with the caravan.
+--
+-- This deliberately ignores every NON-sale departure: an artifact carried off by
+-- one of your own squads on a raid/mission never becomes trader-owned (it stays
+-- "here", then just goes off-map), and neither does one stolen by a thief -- so
+-- those no longer register as a sale. (world.artifacts.all is the world-wide
+-- list, full of offsite/lost historical artifacts on a fresh embark, which is why
+-- we only ever act on ones we have personally seen in the fort.)
 local function detect_sold_artifact()
     if checks.production_flag("sold_artifact") then return end
     pcall(function()
+        local key = "dwarfipelago/artifact_seen"
+        local seen = json.decode(dfhack.persistent.getWorldDataString(key) or "{}") or {}
+        local changed = false
         for _, artifact in ipairs(df.global.world.artifacts.all) do
-            -- artifact_record links its item via a pointer field (`item`) in
-            -- DF v50; older layouts used `item_id`. Support both.
-            local item = nil
-            pcall(function() item = artifact.item end)
-            if not item then
-                local item_id = -1
-                pcall(function() item_id = artifact.item_id end)
-                if item_id >= 0 then item = df.item.find(item_id) end
+            local aid
+            pcall(function() aid = artifact.id end)
+            if aid then
+                local skey = tostring(aid)
+
+                -- Resolve the item (pointer on DF v50, else item_id).
+                local item = nil
+                pcall(function() item = artifact.item end)
+                if not item then
+                    local iid = -1
+                    pcall(function() iid = artifact.item_id end)
+                    if iid >= 0 then item = df.item.find(iid) end
+                end
+
+                local exists, removed, onmap, trader = false, true, false, false
+                if item then
+                    exists = true
+                    pcall(function() removed = item.flags.removed end)
+                    pcall(function() onmap  = (item.pos.x >= 0) end)
+                    pcall(function() trader = item.flags.trader end)
+                end
+                local gone  = (not exists) or removed
+                local state = seen[skey]
+
+                if (not gone) and trader then
+                    -- Now the trader's. Treat as a pending sale only if it was one
+                    -- of OUR fort artifacts first ("here"); this ignores artifacts
+                    -- a caravan brought in with it.
+                    if (state == "here" or state == "trading") and state ~= "trading" then
+                        seen[skey] = "trading"; changed = true
+                    end
+                elseif (not gone) and onmap then
+                    -- Sitting in our fort and still ours (not trader-owned).
+                    if state ~= "here" and state ~= "trading" then
+                        seen[skey] = "here"; changed = true
+                    end
+                elseif gone and state == "trading" then
+                    -- A sold artifact has now left with the departing caravan.
+                    checks.set_production_flag("sold_artifact")
+                    dfhack.gui.showAnnouncement("[AP] An artifact has been sold!", COLOR_GREEN, true)
+                    return
+                end
+                -- Everything else is intentionally ignored: gone while still "here"
+                -- (raid/theft/destruction), or in-unit-inventory transit (off-map
+                -- but not removed).
             end
-            if not item then goto skip_art end
-            local gone = false
-            pcall(function() gone = item.flags.removed end)
-            if not gone then
-                pcall(function() gone = item.pos.x < 0 end)
-            end
-            if gone then
-                checks.set_production_flag("sold_artifact")
-                dfhack.gui.showAnnouncement("[AP] An artifact has left the fortress!", COLOR_GREEN, true)
-                return
-            end
-            ::skip_art::
+        end
+        if changed then
+            dfhack.persistent.saveWorldDataString(key, json.encode(seen))
         end
     end)
 end

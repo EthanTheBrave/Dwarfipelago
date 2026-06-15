@@ -38,6 +38,18 @@ local function fortress_wealth()
     return 0
 end
 
+-- True if a unit is carrying the item, directly or nested inside a container it
+-- holds (e.g. coins in a hauler's bag). Use this instead of item.flags.in_inventory,
+-- which is also set for items in your own bins/coffers and wrongly excludes them.
+local function held_by_unit(item)
+    local it = item
+    while it do
+        if dfhack.items.getHolderUnit(it) then return true end
+        it = dfhack.items.getContainer(it)
+    end
+    return false
+end
+
 -- Returns the combined value of all minted coins (COIN) and cut gems (SMALLGEM)
 -- currently in fortress stocks — not carried by any unit, not belonging to traders.
 -- Value per stack = stack_size × material.material_value.
@@ -48,8 +60,8 @@ local function treasury_wealth()
     for _, item in ipairs(df.global.world.items.all) do
         local itype = item:getType()
         if (itype == df.item_type.COIN or itype == df.item_type.SMALLGEM)
-                and not item.flags.in_inventory
-                and not item.flags.trader then
+                and not item.flags.trader
+                and not held_by_unit(item) then
             local ok, mat = pcall(dfhack.matinfo.decode, item.mat_type, item.mat_index)
             local mat_value = 1
             if ok and mat and mat.material then
