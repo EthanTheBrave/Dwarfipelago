@@ -1027,27 +1027,35 @@ class DwarfFortressContext(CommonContext):
     async def _check_shop_purchase(self):
         """
         Buy bridge (mirrors _check_caravan_request): the Lua 'buy-shop' command
-        charges the minted coins and sets dwarfipelago/shop_buy = slot number.
-        We send that slot's location check, releasing the item to its recipient.
+        charges the minted coins and appends the slot number to the JSON queue at
+        dwarfipelago/shop_buy. We drain the queue and send those slots' location
+        checks, releasing each item to its recipient. (A queue, not a single
+        value, so two quick purchases can't clobber each other.)
         """
         shop = self.slot_data.get("shop", {})
         if not shop:
             return
         raw = self.dfhack.run_command(
-            "lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/shop_buy") or "0")')
+            "lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/shop_buy") or "")')
+        raw = (raw or "").strip()
+        if not raw or raw in ("[]", "nil", "0"):
+            return
         try:
-            slot = int((raw or "0").strip())
-        except ValueError:
-            slot = 0
-        if slot <= 0:
+            slots = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            return
+        if not isinstance(slots, list) or not slots:
             return
         self.dfhack.run_command(
-            "lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/shop_buy", "0")')
-        loc_id = next((int(k) for k, m in shop.items() if m["slot"] == slot), None)
-        if loc_id is None or loc_id in self.checked_locations:
-            return
-        await self.send_msgs([{"cmd": "LocationChecks", "locations": [loc_id]}])
-        logger.info(f"Shop: purchased slot {slot} (location {loc_id})")
+            "lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/shop_buy", "[]")')
+        loc_ids = []
+        for slot in slots:
+            loc_id = next((int(k) for k, m in shop.items() if m["slot"] == slot), None)
+            if loc_id is not None and loc_id not in self.checked_locations:
+                loc_ids.append(loc_id)
+        if loc_ids:
+            await self.send_msgs([{"cmd": "LocationChecks", "locations": loc_ids}])
+            logger.info(f"Shop: purchased slots {slots} -> locations {loc_ids}")
 
 
     async def _crafting_location_checks(self):
