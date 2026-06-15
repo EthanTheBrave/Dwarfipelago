@@ -792,6 +792,85 @@ function DwarfipelagoPanel:init()
         }
     end
 
+    -- ── Tab 9: Shop ───────────────────────────────────────────────────
+    -- Coffer-gated merchant shop. Select a slot and press Enter to spend minted
+    -- coins on its item. Slot data is written by the AP client (dwarfipelago/shop).
+    function ShopTab()
+        table.insert(tab_list, "Shop")
+        local sjson = require('json')
+
+        local function read_state()
+            local sraw = ps("shop", "")
+            local shop = (sraw ~= "" and sjson.decode(sraw)) or {}
+            local praw = ps("shop_pending", "")
+            local pending = (praw ~= "" and sjson.decode(praw)) or {}
+            local coffers = tonumber(ps("unlock/wealth_coffers", "0")) or 0
+            local _, total_j = nil, 0
+            pcall(function() _, total_j = checks.find_fortress_coins_energy() end)
+            local coins = math.floor((total_j or 0) / 1000)
+            return shop, pending, coffers, coins
+        end
+
+        local function build_choices(shop, pending, coffers, coins)
+            local choices, slots = {}, {}
+            for k in pairs(shop) do table.insert(slots, tonumber(k)) end
+            table.sort(slots)
+            for _, sn in ipairs(slots) do
+                local e = shop[tostring(sn)]
+                local price = tonumber(e.price) or 0
+                local state, pen, buyable
+                if e.bought == 1 then
+                    state, pen = "SOLD", COLOR_DARKGRAY
+                elseif pending[tostring(sn)] then
+                    state, pen = "PENDING", COLOR_LIGHTBLUE
+                elseif coffers < (e.tier or 1) then
+                    state, pen = ("LOCKED (%d coffers)"):format(e.tier or 1), COLOR_RED
+                elseif coins < price then
+                    state, pen = "need coins", COLOR_YELLOW
+                else
+                    state, pen, buyable = "BUY", COLOR_GREEN, true
+                end
+                local text = ("%-20.20s -> %-12.12s %8s* [%s]"):format(
+                    tostring(e.item or "?"), tostring(e.player or "?"), fmt_num(price), state)
+                table.insert(choices, {text = text, pen = pen, slot = sn, buyable = buyable})
+            end
+            if #choices == 0 then
+                table.insert(choices, {text = "(no shop data yet -- connect the AP client)"})
+            end
+            return choices
+        end
+
+        local coin_label, shop_list
+        local function header_text(coffers, coins)
+            return {
+                "Coins: ", {text = fmt_num(coins) .. "*", pen = COLOR_YELLOW},
+                "   Coffers: ", {text = tostring(coffers) .. "/5", pen = COLOR_CYAN},
+                "   (Enter to buy)",
+            }
+        end
+        local function refresh()
+            local shop, pending, coffers, coins = read_state()
+            if coin_label then coin_label:setText(header_text(coffers, coins)) end
+            if shop_list then shop_list:setChoices(build_choices(shop, pending, coffers, coins)) end
+        end
+
+        local shop0, pending0, coffers0, coins0 = read_state()
+        coin_label = widgets.Label{frame = {t = 0, l = 0}, text = header_text(coffers0, coins0)}
+        shop_list = widgets.List{
+            frame      = {t = 2, b = 0},
+            text_pen   = COLOR_WHITE,
+            cursor_pen = COLOR_CYAN,
+            choices    = build_choices(shop0, pending0, coffers0, coins0),
+            on_submit  = function(_, choice)
+                if choice and choice.buyable and choice.slot then
+                    dfhack.run_command("dwarfipelago", "buy-shop", tostring(choice.slot))
+                    refresh()
+                end
+            end,
+        }
+        return widgets.Panel{ subviews = { coin_label, shop_list } }
+    end
+
     local tabviews = {}
     table.insert(tabviews, StatusTab())
     table.insert(tabviews, UnlocksTab())
@@ -808,6 +887,9 @@ function DwarfipelagoPanel:init()
     end
     if ps("skillsanity_enabled", "0") ~= "0" then
         table.insert(tabviews, SkillsTab())
+    end
+    if ps("shop", "") ~= "" then
+        table.insert(tabviews, ShopTab())
     end
 
     local pages = widgets.Pages{
