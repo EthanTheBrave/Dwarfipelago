@@ -111,7 +111,8 @@ class Skillsanity:
     def df_location_rule(self, loc, location_name) -> None:
         # following doesn't require rules:
         # Miner, Wood Cutter, Engraver, Mason, Stonecutter, Ambusher
-        # Diagnostician, Herbalist, Fisherdwarf, Appraiser
+        # Diagnostician, Beekeeper, Herbalist
+        # Fisherdwarf, Appraiser
         if "Bowyer" in location_name:
             set_rule(loc, self.skill_bowyer)
         elif "Carpenter" in location_name:
