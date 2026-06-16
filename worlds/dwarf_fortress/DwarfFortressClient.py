@@ -976,9 +976,14 @@ class DwarfFortressContext(CommonContext):
         """
         shop = self.slot_data.get("shop", {})
         if not shop:
+            if not getattr(self, "_shop_warned_empty", False):
+                self._shop_warned_empty = True
+                logger.info("Shop: slot_data has no 'shop' entry — this apworld/seed has no shop "
+                            "(or an older apworld was used to generate).")
             return
         shop_ids = [int(k) for k in shop.keys()]
         if not self._shop_scout_sent:
+            logger.info(f"Shop: scouting {len(shop_ids)} shop slots")
             await self.send_msgs([{
                 "cmd": "LocationScouts", "locations": shop_ids, "create_as_hint": 0,
             }])
@@ -1022,7 +1027,7 @@ class DwarfFortressContext(CommonContext):
                 f'dfhack.persistent.saveWorldDataString("dwarfipelago/shop", "{escaped}")',
             ),
         )
-        self.debug(f"Shop: wrote {len(entries)} slot(s) to DFHack storage")
+        logger.info(f"Shop: wrote {len(entries)} slot(s) to DFHack storage")
 
     async def _check_shop_purchase(self):
         """
