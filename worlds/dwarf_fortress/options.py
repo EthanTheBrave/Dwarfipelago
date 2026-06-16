@@ -1,6 +1,10 @@
 from dataclasses import dataclass
-from Options import Choice, Range, PerGameCommonOptions, DeathLink, OptionList, Toggle, StartInventory
+from Options import Choice, Range, PerGameCommonOptions, DeathLink, OptionList, Toggle, StartInventory, OptionGroup
 
+
+# ── General ────────────────────────────────────────────────────────────────
+# High-level options every player sees by default. Everything else lives in
+# a collapsed group below (Goal Settings, Death Link, Craftsanity, etc).
 
 class DwarfFortressGoal(Choice):
     """The win condition for the Dwarf Fortress world."""
@@ -12,6 +16,31 @@ class DwarfFortressGoal(Choice):
     option_king_remains = 4
     default = 2
 
+
+class TrapItemWeight(Range):
+    """Percentage of filler items that are traps (0 = no traps, 100 = all traps)."""
+    display_name = "Trap Item Weight"
+    range_start = 0
+    range_end = 100
+    default = 20
+
+
+class TradesInLogic(Toggle):
+    """
+    Should trading resources be considered in logic?
+    EX: trades for metal bars instead of requiring a Smelter Blueprint
+    """
+    display_name = "Resource Trading in Logic"
+
+
+class EnergyLink(Toggle):
+    """Allow sending energy to other worlds. Used to call a caravan early in the season."""
+    display_name = "Energy Link"
+
+
+# ── Goal Settings ──────────────────────────────────────────────────────────
+# Quantity targets for whichever Goal above is selected. Only the option
+# matching the chosen goal actually does anything.
 
 class WealthGoalAmount(Range):
     """Target fortress wealth when goal is 'Legendary Wealth'."""
@@ -28,26 +57,22 @@ class PopulationGoalAmount(Range):
     range_end = 500
     default = 300
 
+
 class RemainsoftheGreatKing(Range):
     """
     "Treasure hunters, Kobolds and Goblins has plundered our great halls and took the remains of our great king.
     They have traded them outside of our realm and we need our friends to help find them.
     We need to find all X remains to bring our great king back into our halls."
     Craftsanity may be required depending on how many remains are shuffled.
-    When goal is 'King Remains'."""
+    When goal is 'King Remains'.
+    """
     display_name = "Remains of the Great King"
     range_start = 5
     range_end = 100
     default = 10
 
 
-class TrapItemWeight(Range):
-    """Percentage of filler items that are traps (0 = no traps, 100 = all traps)."""
-    display_name = "Trap Item Weight"
-    range_start = 0
-    range_end = 100
-    default = 20
-
+# ── Death Link ────────────────────────────────────────────────────────────
 
 class DeathLinkThreshold(Range):
     """
@@ -70,12 +95,8 @@ class DeathLinkPercentage(Toggle):
     """
     display_name = "Death Link Percentage"
 
-class TradesInLogic(Toggle):
-    """
-    Should trading resources be considered in logic?
-    EX: trades for metal bars instead of requiring a Smelter Blueprint
-    """
-    display_name = "Resource Trading in Logic"
+
+# ── Craftsanity ───────────────────────────────────────────────────────────
 
 class EnableCraftsanity(Choice):
     """
@@ -89,16 +110,31 @@ class EnableCraftsanity(Choice):
     default = 1
 
 
+class CraftingPermits(Choice):
+    """
+    If Crafting Permits is enabled, you cannot craft certian items until you got the appropriate permit.
+    When set to "on", you start with the following permits:
+    Beds, Charcoal, Leather, Cloth, Alcohol, Prepared Meal, Barrels
+    When set to "all", all permits are required
+    Craftsanity must be enabled to use this feature as it adds 97 additional items.
+    """
+    display_name = "Crafting Permits"
+    option_off = 0
+    option_on = 1
+    option_all = 2
+    default = 0
+
+
 class CraftsanityItemGroup(Choice):
     """
     Selects which items count as craftsanity location checks.
-    Easy: 10 basic items craftable from the very start. 
+    Easy: 10 basic items craftable from the very start.
     (Beds, Blocks, Alcohol, Chair, Table, Door, Barrel, Bucket, Container, Cloth)
 
-    Medium: 25 early-game items across common workshops. 
+    Medium: 25 early-game items across common workshops.
     (Easy + Crafts, Mechanism, Cage, Leather, Prepared Meal, Bin, Cabinet, Floodgate, Animal Trap, Statue, Armor Stand, Pedestal, Weapon Rack, Corkscrew, Bookcase)
 
-    Hard: ~45 items spanning early and late game production. 
+    Hard: ~45 items spanning early and late game production.
     (Easy + Medium + Metal Bars, Glass, Ash, Charcoal, Helm, Upper Body Armor, Gauntlets, Lower Body Armor, Crossbow, Bolt, Battle Axe, Short Sword,
     War Hammer, Anvil, Rope/Chain, Coins, Goblet, Tallow, Oil, Dye, Traction Bench)
     Craftsanity: Every craftable item becomes a check.
@@ -135,14 +171,16 @@ class CraftsanityItems(OptionList):
         "Lower Body Armor", "Footwear", "Dye", "Bag", "Rope/Chain", "Battle Axe", "Mace",
         "Pick", "Short Sword", "Spear", "War Hammer", "Anvil", "Coins", "Soap"
     }
-    default = valid_keys.copy() 
+    default = valid_keys.copy()
+
 
 class CraftsanityEnableMaterials(Toggle):
     """
     If craftsanity is enabled, Do you want seperate crafting checks based on material type?
-    EX: Craft X amount of "Y" Item. Here is where "Y" matters if enabled 
+    EX: Craft X amount of "Y" Item. Here is where "Y" matters if enabled
     """
     display_name = "Enable Craftsanity Material Type"
+
 
 class CraftsanityMaterials(OptionList):
     """
@@ -152,7 +190,8 @@ class CraftsanityMaterials(OptionList):
     valid_keys = {
         "Stone", "Wood", "Metal", "Glass", "Leather", "Cloth", "Bone", "Ceramic"
     }
-    default = valid_keys.copy() 
+    default = valid_keys.copy()
+
 
 class CraftsanityMaxAmount(Range):
     """
@@ -163,39 +202,25 @@ class CraftsanityMaxAmount(Range):
     range_end = 500
     default = 15
 
+
 class CraftsanityThreshold(Range):
     """
     If Craftsanity is enabled, How many items crafted is a check?
-    ex: 10 = every 10 crafted items is a check 
+    ex: 10 = every 10 crafted items is a check
     """
     display_name = "Craftsanity Check Threshold"
     range_start = 5
     range_end = 500
     default = 5
 
-class CraftingPermits(Choice):
-    """
-    If Crafting Permits is enabled, you cannot craft certian items until you got the appropriate permit. 
-    When set to "on", you start with the following permits:
-    Beds, Charcoal, Leather, Cloth, Alcohol, Prepared Meal, Barrels
-    When set to "all", all permits are required 
-    Craftsanity must be enabled to use this feature as it adds 97 additional items.
-    """
-    display_name = "Crafting Permits"
-    option_off = 0
-    option_on = 1
-    option_all = 2
-    default = 0
 
+# ── Item & Location Options ───────────────────────────────────────────────
 
 class StartingDefaultDFInventory(StartInventory):
     """Starting Blueprints to make your starting game less "fun" """
     display_name = "Start Inventory"
     default = {"Carpenter's Workshop Blueprint": 1, "Stoneworker's Workshop Blueprint": 1, "Still Blueprint": 1, "Farm Plot Blueprint": 1}
 
-class EnergyLink(Toggle):
-    """Allow sending energy to other worlds. Used to call a caravan early in the season."""
-    display_name = "Energy Link"
 
 class Skillsanity(Toggle):
     """Dwarves leveling up their skills are checks. (Careful, some skills are harder to train than others)"""
@@ -272,7 +297,7 @@ class DwarfFortressOptions(PerGameCommonOptions):
     deathlink: DeathLink
     deathlink_threshold: DeathLinkThreshold
     deathlink_percentage: DeathLinkPercentage
-    energy_link:EnergyLink
+    energy_link: EnergyLink
     goal: DwarfFortressGoal
     wealth_goal_amount: WealthGoalAmount
     population_goal_amount: PopulationGoalAmount
@@ -293,3 +318,35 @@ class DwarfFortressOptions(PerGameCommonOptions):
     skillsanity_behaviour: SkillsanityLevelMechanic
     trap_item_weight: TrapItemWeight
     start_inventory: StartingDefaultDFInventory
+
+
+# ── Option Groups ─────────────────────────────────────────────────────────
+# Anything not listed here falls into the default "Game Options" group, which
+# always renders expanded. Only the truly high-level options (goal, trap
+# weight, the two broad toggles) are left ungrouped; everything else is
+# tucked into a collapsed group on the WebHost options page.
+dwarf_fortress_option_groups = [
+    OptionGroup("Goal Settings", [
+        WealthGoalAmount,
+        PopulationGoalAmount,
+        RemainsoftheGreatKing,
+    ], start_collapsed=True),
+    OptionGroup("Death Link", [
+        DeathLink,
+        DeathLinkThreshold,
+        DeathLinkPercentage,
+    ], start_collapsed=True),
+    OptionGroup("Craftsanity", [
+        EnableCraftsanity,
+        CraftingPermits,
+        CraftsanityItemGroup,
+        CraftsanityItems,
+        CraftsanityEnableMaterials,
+        CraftsanityMaterials,
+        CraftsanityMaxAmount,
+        CraftsanityThreshold,
+    ], start_collapsed=True),
+    OptionGroup("Item & Location Options", [
+        StartingDefaultDFInventory,
+    ], start_collapsed=True),
+]
