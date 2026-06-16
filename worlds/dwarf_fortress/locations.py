@@ -1177,6 +1177,22 @@ JOB_SKILLS: list[LocationData] = [
     LocationData("High Master Tanner",          BASE_ID + 1772, "Fortress", False, "", "", 13),
     LocationData("Grand Master Tanner",         BASE_ID + 1773, "Fortress", False, "", "", 14),
     LocationData("Legendary Tanner",            BASE_ID + 1774, "Fortress", False, "", "", 15),
+
+    LocationData("Novice Weaver",               BASE_ID + 1775, "Fortress", False, "", "",  1),
+    LocationData("Adequate Weaver",             BASE_ID + 1776, "Fortress", False, "", "",  2),
+    LocationData("Competent Weaver",            BASE_ID + 1777, "Fortress", False, "", "",  3),
+    LocationData("Skilled Weaver",              BASE_ID + 1778, "Fortress", False, "", "",  4),
+    LocationData("Proficient Weaver",           BASE_ID + 1779, "Fortress", False, "", "",  5),
+    LocationData("Talented Weaver",             BASE_ID + 1780, "Fortress", False, "", "",  6),
+    LocationData("Adept Weaver",                BASE_ID + 1781, "Fortress", False, "", "",  7),
+    LocationData("Expert Weaver",               BASE_ID + 1782, "Fortress", False, "", "",  8),
+    LocationData("Professional Weaver",         BASE_ID + 1783, "Fortress", False, "", "",  9),
+    LocationData("Accomplished Weaver",         BASE_ID + 1784, "Fortress", False, "", "", 10),
+    LocationData("Great Weaver",                BASE_ID + 1785, "Fortress", False, "", "", 11),
+    LocationData("Master Weaver",               BASE_ID + 1786, "Fortress", False, "", "", 12),
+    LocationData("High Master Weaver",          BASE_ID + 1787, "Fortress", False, "", "", 13),
+    LocationData("Grand Master Weaver",         BASE_ID + 1788, "Fortress", False, "", "", 14),
+    LocationData("Legendary Weaver",            BASE_ID + 1789, "Fortress", False, "", "", 15),
 ]
 
 

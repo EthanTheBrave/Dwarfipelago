@@ -264,7 +264,7 @@ class SkillsanitySkills(OptionList):
      "Soaper", "Thresher", "Fisherdwarf", "Fish Cleaner", "Fish Dissector", "Armorsmith", "Metal Crafter",
      "Blacksmith", "Weaponsmith", "Gem Setter", "Siege Operator", "Appraiser", "Organizer", "Record Keeper",
      "Trapper", "Bone Doctor", "Surgeon", "Suturer", "Wound Dresser", "Beekeeper", "Gelder", "Bookbinder",
-     "Papermaker", "Strand Extractor", "Wax Worker", "Gelder"
+     "Papermaker", "Strand Extractor", "Wax Worker", "Gelder", "Weaver"
     }
     default = valid_keys.copy() 
 
