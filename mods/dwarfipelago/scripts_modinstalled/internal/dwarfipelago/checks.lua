@@ -52,7 +52,8 @@ end
 
 -- Returns the combined value of all minted coins (COIN) and cut gems (SMALLGEM)
 -- currently in fortress stocks — not carried by any unit, not belonging to traders.
--- Value per stack = stack_size × material.material_value.
+-- A coin stack is worth 10 × material_value for a full 500 stack, i.e. each coin
+-- is material_value × 10 / 500; a cut gem is worth its material_value.
 -- Both item types require AP-gated blueprints (Screw Press and Jeweler's Workshop)
 -- and their material values vary widely, keeping embark-site luck meaningful.
 local function treasury_wealth()
@@ -67,10 +68,15 @@ local function treasury_wealth()
             if ok and mat and mat.material then
                 mat_value = mat.material.material_value or 1
             end
-            total = total + (item.stack_size or 1) * mat_value
+            local stack = item.stack_size or 1
+            if itype == df.item_type.COIN then
+                total = total + stack * mat_value * 10 / 500
+            else
+                total = total + stack * mat_value
+            end
         end
     end
-    return total
+    return math.floor(total)
 end
 
 -- ── Progression lock helpers ──────────────────────────────────────────────────
@@ -981,7 +987,8 @@ function M.find_fortress_food()
 end
 
 -- Return all accessible minted coins in fortress stocks with their energy values.
--- Each coin item contributes (stack_size × material_value × 1000) joules.
+-- A coin stack is worth 10 × material_value per 500 coins, so each coin item
+-- contributes (stack_size × material_value × 10 / 500 × 1000) joules.
 -- Returns (list_of_{item,j}, total_j).
 function M.find_fortress_coins_energy()
     local found   = {}
@@ -997,7 +1004,9 @@ function M.find_fortress_coins_energy()
             pcall(function()
                 local ok2, mat = pcall(dfhack.matinfo.decode, item.mat_type, item.mat_index)
                 if ok2 and mat and mat.material then
-                    j = (item.stack_size or 1) * (mat.material.material_value or 1) * 1000
+                    -- Coin value: a stack of 500 is worth 10 * material_value, so a
+                    -- coin is material_value * 10 / 500. Energy uses 1 val = 1000 J.
+                    j = (item.stack_size or 1) * (mat.material.material_value or 1) * 10 / 500 * 1000
                 end
             end)
             if j > 0 then
