@@ -182,6 +182,9 @@ class DynamicCraftingLocationRules:
     def craftdwarf_or_metal_or_glass(self, state:CollectionState) -> bool:
         return self.craftdwarf_workshop(state) or self.metal(state) or self.glass(state)
     
+    def craftdwarf_or_metal_or_glass_or_ceramic(self, state:CollectionState) -> bool:
+         return self.craftdwarf_workshop(state) or self.metal(state) or self.glass(state) or self.ceramic(state)
+    
     def wooden_traction_bench(self, state:CollectionState) -> bool:
         return self.wood(state) and self.mechanic_workshop(state) and \
         (self.metal(state) or self.clothier_workshop(state))
@@ -382,18 +385,16 @@ class DynamicCraftingLocationRules:
     def wood_or_stone_or_metal_or_glass_or_ceramic_pot(self, state:CollectionState) -> bool:
             return self.wood_or_stone_or_metal_or_glass_or_ceramic(state) and state.has("Large Pot Permit", self.player)
     
-    def wood_hive(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Hive Permit", self.player)
-    def stone_hive(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Hive Permit", self.player)
+    def wood_or_stone_hive(self, state:CollectionState) -> bool:
+            return self.craftdwarf_workshop(state) and state.has("Hive Permit", self.player)
     def metal_hive(self, state:CollectionState) -> bool:
             return self.metal(state) and state.has("Hive Permit", self.player)
     def glass_hive(self, state:CollectionState) -> bool:
             return self.glass(state) and state.has("Hive Permit", self.player)
     def ceramic_hive(self, state:CollectionState) -> bool:
             return self.ceramic(state) and state.has("Hive Permit", self.player)
-    def wood_or_stone_or_metal_or_glass_or_ceramic_hive(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass_or_ceramic(state) and state.has("Hive Permit", self.player)
+    def craftdwarf_or_metal_or_glass_or_ceramic_hive(self, state:CollectionState) -> bool:
+            return self.craftdwarf_or_metal_or_glass_or_ceramic(state) and state.has("Hive Permit", self.player)
     
     def wood_altar(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Altar Permit", self.player)
@@ -1194,16 +1195,11 @@ class DynamicCraftingLocationRules:
                     else:
                         set_rule(loc, self.wood_or_stone_or_metal_or_glass_or_ceramic)
             case "Hive":
-                if material_type == "Wood":
+                if material_type in {"Wood", "Stone"}:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.wood_hive)
+                        set_rule(loc, self.wood_or_stone_hive)
                     else:
-                        set_rule(loc, self.wood)
-                elif material_type == "Stone":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.stone_hive)
-                    else:
-                        set_rule(loc, self.stone)
+                        set_rule(loc, self.craftdwarf_workshop)
                 elif material_type == "Metal":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.metal_hive)
@@ -1221,9 +1217,9 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.ceramic)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.wood_or_stone_or_metal_or_glass_or_ceramic_hive)
+                        set_rule(loc, self.craftdwarf_or_metal_or_glass_or_ceramic_hive)
                     else:
-                        set_rule(loc, self.wood_or_stone_or_metal_or_glass_or_ceramic)
+                        set_rule(loc, self.craftdwarf_or_metal_or_glass_or_ceramic)
             case "Altar":
                 if material_type == "Wood":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
