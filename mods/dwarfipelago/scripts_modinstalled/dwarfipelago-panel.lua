@@ -808,10 +808,13 @@ function DwarfipelagoPanel:init()
             local _, total_j = nil, 0
             pcall(function() _, total_j = checks.find_fortress_coins_energy() end)
             local coins = math.floor((total_j or 0) / 1000)
-            return shop, pending, coffers, coins
+            local unlocked = ps("shop_unlocked", "0") == "1"
+            local prograw = ps("shrine_progress", "")
+            local prog = (prograw ~= "" and sjson.decode(prograw)) or {}
+            return shop, pending, coffers, coins, unlocked, prog
         end
 
-        local function build_choices(shop, pending, coffers, coins)
+        local function build_choices(shop, pending, coffers, coins, unlocked)
             local choices, slots = {}, {}
             for k in pairs(shop) do table.insert(slots, tonumber(k)) end
             table.sort(slots)
@@ -823,6 +826,8 @@ function DwarfipelagoPanel:init()
                     state, pen = "SOLD", COLOR_DARKGRAY
                 elseif pending[tostring(sn)] then
                     state, pen = "PENDING", COLOR_LIGHTBLUE
+                elseif not unlocked then
+                    state, pen = "shrine needed", COLOR_DARKGRAY
                 elseif coffers < (e.tier or 1) then
                     state, pen = ("LOCKED (%d coffers)"):format(e.tier or 1), COLOR_RED
                 elseif coins < price then
@@ -840,7 +845,7 @@ function DwarfipelagoPanel:init()
             return choices
         end
 
-        local coin_label, shop_list
+        local coin_label, shrine_label, shop_list
         local function header_text(coffers, coins)
             return {
                 "Coins: ", {text = fmt_num(coins) .. "*", pen = COLOR_YELLOW},
@@ -848,19 +853,31 @@ function DwarfipelagoPanel:init()
                 "   (Enter to buy)",
             }
         end
+        local function chk(b) return b and {text = "yes", pen = COLOR_GREEN} or {text = "no", pen = COLOR_RED} end
+        local function shrine_text(unlocked, prog)
+            if unlocked then return {{text = "Shrine: OPEN", pen = COLOR_GREEN}} end
+            return {
+                {text = "Shrine LOCKED  ", pen = COLOR_RED},
+                ("value %s/%s  "):format(fmt_num(prog.value or 0), fmt_num(prog.value_req or 5000)),
+                ("bars %d/%d  "):format(prog.bars or 0, prog.bars_req or 5),
+                "altar ", chk(prog.altar), "  bin ", chk(prog.bin),
+            }
+        end
         local function refresh()
-            local shop, pending, coffers, coins = read_state()
+            local shop, pending, coffers, coins, unlocked, prog = read_state()
             if coin_label then coin_label:setText(header_text(coffers, coins)) end
-            if shop_list then shop_list:setChoices(build_choices(shop, pending, coffers, coins)) end
+            if shrine_label then shrine_label:setText(shrine_text(unlocked, prog)) end
+            if shop_list then shop_list:setChoices(build_choices(shop, pending, coffers, coins, unlocked)) end
         end
 
-        local shop0, pending0, coffers0, coins0 = read_state()
+        local shop0, pending0, coffers0, coins0, unlocked0, prog0 = read_state()
         coin_label = widgets.Label{frame = {t = 0, l = 0}, text = header_text(coffers0, coins0)}
+        shrine_label = widgets.Label{frame = {t = 1, l = 0}, text = shrine_text(unlocked0, prog0)}
         shop_list = widgets.List{
-            frame      = {t = 2, b = 0},
+            frame      = {t = 3, b = 0},
             text_pen   = COLOR_WHITE,
             cursor_pen = COLOR_CYAN,
-            choices    = build_choices(shop0, pending0, coffers0, coins0),
+            choices    = build_choices(shop0, pending0, coffers0, coins0, unlocked0),
             on_submit  = function(_, choice)
                 if choice and choice.buyable and choice.slot then
                     dfhack.run_command("dwarfipelago", "buy-shop", tostring(choice.slot))
@@ -868,7 +885,7 @@ function DwarfipelagoPanel:init()
                 end
             end,
         }
-        return widgets.Panel{ subviews = { coin_label, shop_list } }
+        return widgets.Panel{ subviews = { coin_label, shrine_label, shop_list } }
     end
 
     local tabviews = {}
