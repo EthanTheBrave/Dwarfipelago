@@ -5,7 +5,7 @@ from Options import OptionError
 from worlds.LauncherComponents import Component, icon_paths, components, Type, launch_subprocess
 from worlds.dwarf_fortress.skillsanity import Skillsanity
 
-from .options import DwarfFortressOptions, DwarfFortressGoal, CraftingPermits
+from .options import DwarfFortressOptions, DwarfFortressGoal, CraftingPermits, dwarf_fortress_option_groups
 from .settings import DwarfFortressSettings
 from .items import (
     ItemData, ITEM_TABLE, AP_ITEM_POOL, FILLER_ITEMS, TRAP_ITEMS,
@@ -41,6 +41,7 @@ except Exception as _client_err:
 
 class DwarfFortressWebWorld(WebWorld):
     theme = "dirt"
+    option_groups = dwarf_fortress_option_groups
     tutorials = [
         Tutorial(
             tutorial_name="Setup Guide",
