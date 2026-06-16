@@ -489,6 +489,16 @@ function DwarfipelagoPanel:onDismiss()
     _panel_instance = nil
 end
 
+-- Live-refresh the Shop tab (shrine status can change while the panel is open).
+-- Throttled so we rebuild the list only a couple of times a second.
+function DwarfipelagoPanel:onRenderFrame(dc, rect)
+    DwarfipelagoPanel.super.onRenderFrame(self, dc, rect)
+    self._refresh_tick = (self._refresh_tick or 0) + 1
+    if self._shop_refresh and self._refresh_tick % 30 == 0 then
+        pcall(self._shop_refresh)
+    end
+end
+
 function DwarfipelagoPanel:init()
     local enabled  = state.is_enabled()
     local version  = ps("version",       "?")
@@ -845,36 +855,49 @@ function DwarfipelagoPanel:init()
             return choices
         end
 
-        local coin_label, shrine_label, shop_list
-        local function header_text(coffers, coins)
+        local chk = function(b) return b and {text = "yes", pen = COLOR_GREEN} or {text = "no", pen = COLOR_RED} end
+        local shrine_head, shrine_detail, coin_label, shop_list
+
+        local function head_text(unlocked)
+            if unlocked then
+                return {{text = "Merchant Shrine: DETECTED", pen = COLOR_GREEN}, "   (shop is open)"}
+            end
+            return {{text = "Merchant Shrine: NOT DETECTED", pen = COLOR_RED},
+                    "  - build/repair the temple to open the shop"}
+        end
+        local function detail_text(prog)
+            local vc = (prog.value or 0) >= (prog.value_req or 5000) and COLOR_GREEN or COLOR_YELLOW
+            local bc = (prog.bars or 0)  >= (prog.bars_req or 5)     and COLOR_GREEN or COLOR_YELLOW
             return {
-                "Coins: ", {text = fmt_num(coins) .. "*", pen = COLOR_YELLOW},
+                "  value ", {text = fmt_num(prog.value or 0) .. "/" .. fmt_num(prog.value_req or 5000), pen = vc},
+                "   gold bars ", {text = ("%d/%d"):format(prog.bars or 0, prog.bars_req or 5), pen = bc},
+                "   altar ", chk(prog.altar), "   container ", chk(prog.bin),
+            }
+        end
+        local function coin_text(coffers, coins)
+            return {
+                "  Coins: ", {text = fmt_num(coins) .. "*", pen = COLOR_YELLOW},
                 "   Coffers: ", {text = tostring(coffers) .. "/5", pen = COLOR_CYAN},
                 "   (Enter to buy)",
             }
         end
-        local function chk(b) return b and {text = "yes", pen = COLOR_GREEN} or {text = "no", pen = COLOR_RED} end
-        local function shrine_text(unlocked, prog)
-            if unlocked then return {{text = "Shrine: OPEN", pen = COLOR_GREEN}} end
-            return {
-                {text = "Shrine LOCKED  ", pen = COLOR_RED},
-                ("value %s/%s  "):format(fmt_num(prog.value or 0), fmt_num(prog.value_req or 5000)),
-                ("bars %d/%d  "):format(prog.bars or 0, prog.bars_req or 5),
-                "altar ", chk(prog.altar), "  bin ", chk(prog.bin),
-            }
-        end
         local function refresh()
             local shop, pending, coffers, coins, unlocked, prog = read_state()
-            if coin_label then coin_label:setText(header_text(coffers, coins)) end
-            if shrine_label then shrine_label:setText(shrine_text(unlocked, prog)) end
-            if shop_list then shop_list:setChoices(build_choices(shop, pending, coffers, coins, unlocked)) end
+            if shrine_head   then shrine_head:setText(head_text(unlocked)) end
+            if shrine_detail then shrine_detail:setText(detail_text(prog)) end
+            if coin_label    then coin_label:setText(coin_text(coffers, coins)) end
+            if shop_list then
+                shop_list:setChoices(build_choices(shop, pending, coffers, coins, unlocked),
+                                     shop_list:getSelected())
+            end
         end
 
         local shop0, pending0, coffers0, coins0, unlocked0, prog0 = read_state()
-        coin_label = widgets.Label{frame = {t = 0, l = 0}, text = header_text(coffers0, coins0)}
-        shrine_label = widgets.Label{frame = {t = 1, l = 0}, text = shrine_text(unlocked0, prog0)}
+        shrine_head   = widgets.Label{frame = {t = 0, l = 0}, text = head_text(unlocked0)}
+        shrine_detail = widgets.Label{frame = {t = 1, l = 0}, text = detail_text(prog0)}
+        coin_label    = widgets.Label{frame = {t = 2, l = 0}, text = coin_text(coffers0, coins0)}
         shop_list = widgets.List{
-            frame      = {t = 3, b = 0},
+            frame      = {t = 4, b = 0},
             text_pen   = COLOR_WHITE,
             cursor_pen = COLOR_CYAN,
             choices    = build_choices(shop0, pending0, coffers0, coins0, unlocked0),
@@ -885,7 +908,8 @@ function DwarfipelagoPanel:init()
                 end
             end,
         }
-        return widgets.Panel{ subviews = { coin_label, shrine_label, shop_list } }
+        self._shop_refresh = refresh   -- onRenderFrame calls this to live-update
+        return widgets.Panel{ subviews = { shrine_head, shrine_detail, coin_label, shop_list } }
     end
 
     local tabviews = {}
