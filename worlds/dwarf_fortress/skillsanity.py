@@ -111,7 +111,8 @@ class Skillsanity:
     def df_location_rule(self, loc, location_name) -> None:
         # following doesn't require rules:
         # Miner, Wood Cutter, Engraver, Mason, Stonecutter, Ambusher
-        # Diagnostician, Suturer (adamantine), 
+        # Diagnostician, Suturer (adamantine), Beekeeper, Herbalist
+        # 
         if "Bowyer" in location_name:
             set_rule(loc, self.skill_bowyer)
         elif "Carpenter" in location_name:
@@ -128,6 +129,28 @@ class Skillsanity:
             set_rule(loc, self.skill_surgeon)
         elif "Wound Dresser" in location_name:
             set_rule(loc, self.skill_wounddresser)
+        elif "Beekeeper" in location_name:
+            set_rule(loc, self.skill_beekeeper)
+        elif "Brewer" in location_name:
+            set_rule(loc, self.skill_brewer)
+        elif "Butcher" in location_name:
+            set_rule(loc, self.skill_butcher)
+        elif "Cheese Maker" in location_name:
+            set_rule(loc, self.skill_cheesemaker)
+        elif "Cook" in location_name:
+            set_rule(loc, self.skill_cook)
+        elif "Dyer" in location_name:
+            set_rule(loc, self.skill_dyer)
+        elif "Gelder" in location_name:
+            set_rule(loc, self.skill_gelder)
+        elif "Planter" in location_name:
+            set_rule(loc, self.skill_planter)
+        elif "Lye Maker" in location_name:
+            set_rule(loc, self.skill_lyemaker)
+        elif "Milker" in location_name:
+            set_rule(loc, self.skill_milker)
+        elif "Miller" in location_name:
+            set_rule(loc, self.skill_miller)
 
     def skill_bowyer(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
@@ -224,14 +247,75 @@ class Skillsanity:
                 or dynamic_rules.any_traction_bench(state) or dynamic_rules.bed(state)
             
     def skill_wounddresser(self, state:CollectionState) -> bool:
+        dynamic_rules = DynamicCraftingLocationRules(self.world)
+        if self.world.options.craftpermits == CraftingPermits.option_off:
+            return dynamic_rules.soap(state) and dynamic_rules.cloth(state)
+        elif self.world.options.craftpermits == CraftingPermits.option_on:
+            return dynamic_rules.make_soap(state) and dynamic_rules.cloth(state)
+        else:
+            return dynamic_rules.make_soap(state) and dynamic_rules.make_cloth(state)
+            
+    def skill_beekeeper(self, state:CollectionState) -> bool:
         if self.world.options.trades_inlogic == True:
             return True
         else:
             dynamic_rules = DynamicCraftingLocationRules(self.world)
             if self.world.options.craftpermits == CraftingPermits.option_off:
-                return dynamic_rules.soap(state) and dynamic_rules.cloth(state)
-            elif self.world.options.craftpermits == CraftingPermits.option_on:
-                return dynamic_rules.make_soap(state) and dynamic_rules.cloth(state)
+                return dynamic_rules.craftdwarf_or_metal_or_glass_or_ceramic(state)
             else:
-                return dynamic_rules.make_soap(state) and dynamic_rules.make_cloth(state)
+                return dynamic_rules.craftdwarf_or_metal_or_glass_or_ceramic_hive(state)
+    
+    def skill_brewer(self, state:CollectionState) -> bool:
+        dynamic_rules = DynamicCraftingLocationRules(self.world)
+        if self.world.options.craftpermits != CraftingPermits.option_all:
+            return dynamic_rules.process_resource(state, "farming") and dynamic_rules.still(state)
+        else:
+            return dynamic_rules.process_resource(state, "farming") and dynamic_rules.make_alcohol(state)
         
+    def skill_butcher(self, state:CollectionState) -> bool:
+        dynamic_rules = DynamicCraftingLocationRules(self.world)
+        return dynamic_rules.butcher_workshop(state)
+    
+    def skill_cheesemaker(self, state:CollectionState) -> bool:
+        dynamic_rules = DynamicCraftingLocationRules(self.world)
+        return dynamic_rules.famer_workshop(state)
+    
+    def skill_cook(self, state:CollectionState) -> bool:
+        dynamic_rules = DynamicCraftingLocationRules(self.world)
+        return dynamic_rules.kitchen_and_butchershop(state)
+    
+    def skill_dyer(self, state:CollectionState) -> bool:
+        dynamic_rules = DynamicCraftingLocationRules(self.world)
+        if self.world.options.craftpermits == CraftingPermits.option_off:
+            return dynamic_rules.dye(state)
+        else:
+            return dynamic_rules.dye_dye(state)
+        
+    def skill_gelder(self, state:CollectionState) -> bool:
+        dynamic_rules = DynamicCraftingLocationRules(self.world)
+        return dynamic_rules.famer_workshop(state)
+    
+    def skill_planter(self, state:CollectionState) -> bool:
+        dynamic_rules = DynamicCraftingLocationRules(self.world)
+        return dynamic_rules.process_resource(state, "farming")
+
+    def skill_lyemaker(self, state:CollectionState) -> bool:
+        dynamic_rules = DynamicCraftingLocationRules(self.world)
+        if self.world.options.craftpermits == CraftingPermits.option_off:
+            return dynamic_rules.ashery(state) and dynamic_rules.wood_furnace(state)
+        else:
+            return dynamic_rules.ash(state) and dynamic_rules.ashery(state)
+        
+    def skill_milker(self, state:CollectionState) -> bool:
+        dynamic_rules = DynamicCraftingLocationRules(self.world)
+        if self.world.options.craftpermits == CraftingPermits.option_off:
+            return dynamic_rules.famer_workshop(state)
+        else:
+            return dynamic_rules.famer_workshop(state) and dynamic_rules.wood_or_metal_bucket(state)
+        
+    def skill_miller(self, state:CollectionState) -> bool:
+        dynamic_rules = DynamicCraftingLocationRules(self.world)
+        if self.world.options.craftpermits == CraftingPermits.option_off:
+            return True
+        else:
+            return dynamic_rules.stone_quern(state) or (dynamic_rules.stone_millstone(state) and dynamic_rules.mechanic_mechanism(state))
