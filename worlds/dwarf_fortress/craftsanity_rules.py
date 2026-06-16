@@ -159,7 +159,15 @@ class DynamicCraftingLocationRules:
         return state.has("Still Blueprint", self.player)
     
     def ashery(self, state:CollectionState) -> bool:
-        return state.has("Ashery Blueprint", self.player)
+        if self.world.options.trades_inlogic == True \
+        or self.world.options.craftpermits == CraftingPermits.option_off:
+            return state.has("Ashery Blueprint", self.player)
+        elif self.world.options.craftpermits == CraftingPermits.option_on:
+            return state.has("Ashery Blueprint", self.player) and self.wood_or_metal_bucket(state)
+        else:
+            return state.has("Ashery Blueprint", self.player) and self.wood_or_metal_bucket(state) \
+            and self.wood_or_metal_barrel(state)
+
     
     def kitchen(self, state:CollectionState) -> bool:
         return state.has("Kitchen Blueprint", self.player)
@@ -869,7 +877,8 @@ class DynamicCraftingLocationRules:
     def make_soap(self, state:CollectionState) -> bool:
         return self.ashery_and_wood_furnace_lye(state) and (self.make_tallow(state) or self.make_oil(state)) \
         and state.has("Soap Permit", self.player)
-    
+
+        
     def set_dynamic_rules(self) -> None:
         for location in self.world.dynamic_locations:
             self.world.multiworld
