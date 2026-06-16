@@ -153,13 +153,24 @@ class DynamicCraftingLocationRules:
         return state.has("Wood Furnace Blueprint", self.player)
     
     def screw_press(self, state:CollectionState) -> bool:
-        return state.has("Screw Press Blueprint", self.player)
+        if self.world.options.trades_inlogic == True or self.world.options.craftpermits == CraftingPermits.option_off:
+            return state.has("Screw Press Blueprint", self.player)
+        else:
+            return state.has("Screw Press Blueprint", self.player) and self.mechanic_mechanism(state)
     
     def still(self, state:CollectionState) -> bool:
         return state.has("Still Blueprint", self.player)
     
     def ashery(self, state:CollectionState) -> bool:
-        return state.has("Ashery Blueprint", self.player)
+        if self.world.options.trades_inlogic == True \
+        or self.world.options.craftpermits == CraftingPermits.option_off:
+            return state.has("Ashery Blueprint", self.player)
+        elif self.world.options.craftpermits == CraftingPermits.option_on:
+            return state.has("Ashery Blueprint", self.player) and self.wood_or_metal_bucket(state)
+        else:
+            return state.has("Ashery Blueprint", self.player) and self.wood_or_metal_bucket(state) \
+            and self.wood_or_metal_barrel(state)
+
     
     def kitchen(self, state:CollectionState) -> bool:
         return state.has("Kitchen Blueprint", self.player)
@@ -831,7 +842,7 @@ class DynamicCraftingLocationRules:
         return self.metal_or_cloth_or_leather(state) and state.has("Footwear Permit", self.player)
     
     def dye_dye(self, state:CollectionState) -> bool:
-        return self.dye(state) and state.has("Dye Permit", self.player)
+        return self.dye(state) and state.has("Dye Permit", self.player) and self.wood_or_metal_bucket(state)
     
     def cloth_bag(self, state:CollectionState) -> bool:
         return self.clothier_workshop(state) and state.has("Bag Permit", self.player)
@@ -868,8 +879,10 @@ class DynamicCraftingLocationRules:
     
     def make_soap(self, state:CollectionState) -> bool:
         return self.ashery_and_wood_furnace_lye(state) and (self.make_tallow(state) or self.make_oil(state)) \
-        and state.has("Soap Permit", self.player)
-    
+        and state.has("Soap Permit", self.player) and (state.has("Soap Maker's Workshop Blueprint", self.player) \
+        and self.wood_or_metal_bucket(state))
+
+        
     def set_dynamic_rules(self) -> None:
         for location in self.world.dynamic_locations:
             self.world.multiworld
