@@ -287,6 +287,9 @@ class DwarfFortressWorld(World):
         crafting_location_data = {}
         for locations in self.dynamic_locations:
             crafting_location_data[locations.ap_id] = {"item": locations.df_item, "material": locations.material_type, "threshold": locations.threshold, "location_name": locations.name}
+        skill_location_data = {}
+        for locations in self.skill_locations:
+            skill_location_data[locations.ap_id] = {"location_name": locations.name, "threshold": locations.threshold, "skill": locations.df_item}
         return {
             "goal": self.options.goal.value,
             "wealth_goal_amount": self.options.wealth_goal_amount.value,
@@ -302,6 +305,10 @@ class DwarfFortressWorld(World):
             "craftsanity_enabled": self.options.craftsanity.value,
             "craftsanity_materials": self.options.craftsanity_enable_materials.value,
             "crafting_permits": self.options.craftpermits.value,
+            "skillsanity_enabled": self.options.skillsanity.value,
+            "skillsanity_max_level": self.options.skillsanity_max_level.value,
+            "skillsanity_behaviour": self.options.skillsanity_behaviour.value,
+            "skillsanity_locations": skill_location_data,
             "deathlink_percentage": self.options.deathlink_percentage.value,
             "energy_link": self.options.energy_link.value,
             "version": f"{self.world_version.as_simple_string()}",
