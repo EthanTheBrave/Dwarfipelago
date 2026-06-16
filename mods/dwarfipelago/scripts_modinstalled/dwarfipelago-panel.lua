@@ -850,7 +850,8 @@ function DwarfipelagoPanel:init()
                 table.insert(choices, {text = text, pen = pen, slot = sn, buyable = buyable})
             end
             if #choices == 0 then
-                table.insert(choices, {text = "(no shop data yet -- connect the AP client)"})
+                table.insert(choices, {text = "(waiting for the AP client -- shop items load shortly)",
+                                       pen = COLOR_DARKGRAY})
             end
             return choices
         end
@@ -929,9 +930,9 @@ function DwarfipelagoPanel:init()
     if ps("skillsanity_enabled", "0") ~= "0" then
         table.insert(tabviews, SkillsTab())
     end
-    if ps("shop", "") ~= "" then
-        table.insert(tabviews, ShopTab())
-    end
+    -- Shop tab is always present so the shrine status shows immediately; the slot
+    -- list fills in once the AP client writes shop data (refreshed by onRenderFrame).
+    table.insert(tabviews, ShopTab())
 
     local pages = widgets.Pages{
         frame = {t=4, b=2},
