@@ -122,17 +122,17 @@ class DwarfFortressWorld(World):
                 "Cloth Permit", "Alcohol Permit", "Prepared Meal Permit", "Barrel Permit"]
             self.ap_item_pool = [d for d in self.ap_item_pool
                                  if d.name not in self.starting_inventory]
-
-        if self.options.craftpermits != CraftingPermits.option_off and len(CRAFT_ITEMS) > len(self.dynamic_locations):
-            raise OptionError(
-                f"{self.player_name}: You do not have enough crafting locations enabled to use the crafting items feature."
-                f" To increase this, add more crafting item locations, increase the maximum amount or lower the threshold."
-                f" You need {len(CRAFT_ITEMS) - len(self.dynamic_locations)} more locations."
-            )
         
         #Skillsanity
         skillsanity = Skillsanity(self)
         skillsanity.adjust_skill_locations()
+
+        if self.options.craftpermits != CraftingPermits.option_off and len(CRAFT_ITEMS) > len(self.dynamic_locations) + len(self.skill_locations):
+            raise OptionError(
+                f"{self.player_name}: You do not have enough craftsanity or skillsanity locations enabled to use the permits feature."
+                f" To increase this, add more crafting item locations, increase the maximum amount or lower the threshold."
+                f" You need {len(CRAFT_ITEMS) - len(self.dynamic_locations)} more locations."
+            )
 
         # Active set = the static non-craft locations (LOCATION_TABLE) plus the
         # craft subset this slot generated. Goal-based filtering then drops

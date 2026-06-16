@@ -63,7 +63,7 @@ class RemainsoftheGreatKing(Range):
     "Treasure hunters, Kobolds and Goblins has plundered our great halls and took the remains of our great king.
     They have traded them outside of our realm and we need our friends to help find them.
     We need to find all X remains to bring our great king back into our halls."
-    Craftsanity may be required depending on how many remains are shuffled.
+    Craftsanity or Skillsanity may be required depending on how many remains are shuffled.
     When goal is 'King Remains'.
     """
     display_name = "Remains of the Great King"
@@ -221,6 +221,7 @@ class StartingDefaultDFInventory(StartInventory):
     display_name = "Start Inventory"
     default = {"Carpenter's Workshop Blueprint": 1, "Stoneworker's Workshop Blueprint": 1, "Still Blueprint": 1, "Farm Plot Blueprint": 1}
 
+# -- Skillsanity -----------------------------------------------------------
 
 class Skillsanity(Toggle):
     """Dwarves leveling up their skills are checks. (Careful, some skills are harder to train than others)"""
