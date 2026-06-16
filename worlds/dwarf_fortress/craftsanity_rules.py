@@ -106,6 +106,12 @@ class DynamicCraftingLocationRules:
     def cloth(self, state:CollectionState) -> bool:
         return state.has("Loom Blueprint", self.player)
     
+    def thread(self, state:CollectionState) -> bool:
+        if self.world.options.trades_inlogic:
+             return True
+        else:
+            return state.has("Farmer's Workshop Blueprint", self.player) or state.has("Loom Blueprint", self.player)
+    
     def clothier_workshop(self, state:CollectionState) -> bool:
         if self.world.options.trades_inlogic:
             return state.has("Clothier's Shop Blueprint", self.player)
@@ -371,9 +377,9 @@ class DynamicCraftingLocationRules:
             return self.wood_or_stone_or_metal_or_glass_or_ceramic(state) and state.has("Blocks Permit", self.player)
     
     def wood_jug(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Jug Permit", self.player)
+            return self.craftdwarf_workshop(state) and state.has("Jug Permit", self.player)
     def stone_jug(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Jug Permit", self.player)
+            return self.craftdwarf_workshop(state) and state.has("Jug Permit", self.player)
     def metal_jug(self, state:CollectionState) -> bool:
             return self.metal(state) and state.has("Jug Permit", self.player)
     def glass_jug(self, state:CollectionState) -> bool:
@@ -384,9 +390,9 @@ class DynamicCraftingLocationRules:
             return self.wood_or_stone_or_metal_or_glass_or_ceramic(state) and state.has("Jug Permit", self.player)
     
     def wood_pot(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Large Pot Permit", self.player)
+            return self.craftdwarf_workshop(state) and state.has("Large Pot Permit", self.player)
     def stone_pot(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Large Pot Permit", self.player)
+            return self.craftdwarf_workshop(state) and state.has("Large Pot Permit", self.player)
     def metal_pot(self, state:CollectionState) -> bool:
             return self.metal(state) and state.has("Large Pot Permit", self.player)
     def glass_pot(self, state:CollectionState) -> bool:
@@ -691,6 +697,8 @@ class DynamicCraftingLocationRules:
     
     def metal_or_glass_cup(self, state:CollectionState) -> bool:
         return self.metal_or_glass(state) and state.has("Cup Permit", self.player)
+    def metal_cup(self, state:CollectionState) -> bool:
+        return self.metal(state) and state.has("Cup Permit", self.player)
     def stone_cup(self, state:CollectionState) -> bool:
         return self.craftdwarf_workshop(state) and state.has("Cup Permit", self.player)
     def wood_cup(self, state:CollectionState) -> bool:
@@ -788,7 +796,11 @@ class DynamicCraftingLocationRules:
         return self.screw_press(state) and state.has("Oil Permit", self.player)
     
     def make_honey(self, state:CollectionState) -> bool:
-        return self.screw_press(state) and state.has("Honey Permit", self.player)
+        if self.world.options.trades_inlogic == True:
+             return self.screw_press(state) and state.has("Honey Permit", self.player) 
+        else:
+            return self.screw_press(state) and self.wood_or_stone_or_metal_or_glass_or_ceramic_jug(state) \
+            and state.has("Honey Permit", self.player) 
     
     def cloth_headgear(self, state:CollectionState) -> bool:
         return self.clothier_workshop(state) and state.has("Headgear Clothing Permit", self.player)
