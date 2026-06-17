@@ -709,14 +709,20 @@ end
 
 -- Merchant shrine detector: opens the shop when the player has a temple zone (a
 -- Civzone assigned to a location) holding a built altar (OfferingPlace), a
--- container, >=5 gold bars, and a total item/furniture value >= the threshold.
+-- container, the chosen bar type/count, and total item/furniture value >= threshold.
+-- Bar type (gold/coke/silver) is read from dwarfipelago/shrine_bar_type each poll.
 -- Runs every poll, so the shrine must STAY intact for the shop to remain open.
 -- Writes dwarfipelago/shop_unlocked + dwarfipelago/shrine_progress (for the panel).
-local SHRINE_VALUE_REQ     = 5000
-local SHRINE_GOLD_BARS_REQ = 5
+local SHRINE_VALUE_REQ = 5000
+local SHRINE_BAR_REQS  = {gold=5, coke=20, silver=10}
+local SHRINE_BAR_TOKS  = {gold="GOLD", coke="COKE", silver="SILVER"}
 
 local function detect_shrine()
-    local best = { value = 0, bars = 0, altar = false, bin = false, ok = false, score = -1 }
+    local bar_type = dfhack.persistent.getWorldDataString("dwarfipelago/shrine_bar_type") or "gold"
+    local bar_req  = SHRINE_BAR_REQS[bar_type] or 5
+    local bar_tok  = SHRINE_BAR_TOKS[bar_type] or "GOLD"
+
+    local best = {value=0, bars=0, altar=false, bin=false, ok=false, score=-1}
     pcall(function()
         for _, z in ipairs(df.global.world.buildings.all) do
             local okt, t = pcall(function() return z:getType() end)
@@ -738,7 +744,7 @@ local function detect_shrine()
                         end
                     end
 
-                    -- items in the zone: total value, gold bar count, container present
+                    -- items in the zone: total value, matching bar count, container present
                     local value, bars, bin = 0, 0, false
                     for _, it in ipairs(df.global.world.items.all) do
                         local p = it.pos
@@ -753,18 +759,18 @@ local function detect_shrine()
                                     local m = dfhack.matinfo.decode(it.mat_type, it.mat_index)
                                     tok = (m and m:getToken()) or ""
                                 end)
-                                if tok:find("GOLD") then bars = bars + (it.stack_size or 1) end
+                                if tok:find(bar_tok) then bars = bars + (it.stack_size or 1) end
                             end
                         end
                     end
 
                     local score = (altar and 1 or 0) + (bin and 1 or 0)
-                        + math.min(bars, SHRINE_GOLD_BARS_REQ) / SHRINE_GOLD_BARS_REQ
+                        + math.min(bars, bar_req) / bar_req
                         + math.min(value, SHRINE_VALUE_REQ) / SHRINE_VALUE_REQ
                     if score > best.score then
                         best = {
-                            value = value, bars = bars, altar = altar, bin = bin, score = score,
-                            ok = altar and bin and bars >= SHRINE_GOLD_BARS_REQ and value >= SHRINE_VALUE_REQ,
+                            value=value, bars=bars, altar=altar, bin=bin, score=score,
+                            ok = altar and bin and bars >= bar_req and value >= SHRINE_VALUE_REQ,
                         }
                     end
                 end
@@ -774,9 +780,9 @@ local function detect_shrine()
 
     dfhack.persistent.saveWorldDataString("dwarfipelago/shop_unlocked", best.ok and "1" or "0")
     dfhack.persistent.saveWorldDataString("dwarfipelago/shrine_progress", json.encode({
-        value = best.value, value_req = SHRINE_VALUE_REQ,
-        bars = best.bars, bars_req = SHRINE_GOLD_BARS_REQ,
-        altar = best.altar, bin = best.bin, ok = best.ok,
+        value=best.value, value_req=SHRINE_VALUE_REQ,
+        bars=best.bars,   bars_req=bar_req,
+        altar=best.altar, bin=best.bin, ok=best.ok,
     }))
 
     if best.ok then

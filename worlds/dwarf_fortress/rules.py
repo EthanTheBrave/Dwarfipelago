@@ -222,13 +222,23 @@ def set_rules(world: "DwarfFortressWorld") -> None:
             loc.access_rule = lambda state, n=coffers_needed: state.count("Merchant's Coffer", player) >= n
 
     # ── Merchant's Shop gates ─────────────────────────────────────────────────
-    # The always-on shop opens 10 slots per Merchant's Coffer received, so
-    # "Shop Slot N" requires ceil(N/10) coffers. Coffers are always in the pool
-    # (see create_items), so this is always satisfiable.
+    # Shop slots require:
+    #   1. Enough Merchant's Coffers for the tier (10 slots per coffer).
+    #   2. The ability to mint coins — needs metal smelting; with craft permits
+    #      also requires a Coins Permit so the player can actually produce currency.
     for slot in range(1, SHOP_SLOTS + 1):
         tier = (slot - 1) // 10 + 1
         loc = multiworld.get_location(f"Shop Slot {slot}", player)
-        loc.access_rule = lambda state, n=tier: state.count("Merchant's Coffer", player) >= n
+        if options.craftpermits == CraftingPermits.option_off:
+            loc.access_rule = lambda state, n=tier: (
+                state.count("Merchant's Coffer", player) >= n
+                and dynamic_rules.metal(state)
+            )
+        else:
+            loc.access_rule = lambda state, n=tier: (
+                state.count("Merchant's Coffer", player) >= n
+                and dynamic_rules.make_coins(state)
+            )
 
     # ── Immigration Wave gates (population / title tier locations) ────────────
     for loc_name, waves_needed in TITLE_WAVE_RULES:

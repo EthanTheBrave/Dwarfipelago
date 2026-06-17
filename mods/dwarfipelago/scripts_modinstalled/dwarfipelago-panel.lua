@@ -909,49 +909,77 @@ function DwarfipelagoPanel:init()
             return choices
         end
 
-        local chk = function(b) return b and {text = "yes", pen = COLOR_GREEN} or {text = "no", pen = COLOR_RED} end
-        local shrine_head, shrine_detail, coin_label, shop_list
+        local chk = function(b) return b and {text="yes", pen=COLOR_GREEN} or {text="no", pen=COLOR_RED} end
+        local shrine_head, req_label, bar_sel, coin_label, shop_list
+
+        -- Bar type options: value stored to persistent state so the AP client can read it
+        local BAR_REQ = {gold=5, coke=20, silver=10}
+        local BAR_OPTS = {
+            {label="Gold   (5 req)",   value="gold"},
+            {label="Coke   (20 req)",  value="coke"},
+            {label="Silver (10 req)",  value="silver"},
+        }
 
         local function head_text(unlocked)
             if unlocked then
-                return {{text = "Merchant Shrine: DETECTED", pen = COLOR_GREEN}, "   (shop is open)"}
+                return {{text="Shrine: DETECTED", pen=COLOR_GREEN}, "  (shop is open)"}
             end
-            return {{text = "Merchant Shrine: NOT DETECTED", pen = COLOR_RED},
+            return {{text="Shrine: NOT DETECTED", pen=COLOR_RED},
                     "  - build/repair the temple to open the shop"}
         end
-        local function detail_text(prog)
-            local vc = (prog.value or 0) >= (prog.value_req or 5000) and COLOR_GREEN or COLOR_YELLOW
-            local bc = (prog.bars or 0)  >= (prog.bars_req or 5)     and COLOR_GREEN or COLOR_YELLOW
+
+        local function req_text(prog, btype)
+            local req = BAR_REQ[btype] or 5
+            local vc  = (prog.value  or 0) >= (prog.value_req or 5000) and COLOR_GREEN or COLOR_YELLOW
+            local bc  = (prog.bars   or 0) >= req                      and COLOR_GREEN or COLOR_YELLOW
             return {
-                "  value ", {text = fmt_num(prog.value or 0) .. "/" .. fmt_num(prog.value_req or 5000), pen = vc},
-                "   gold bars ", {text = ("%d/%d"):format(prog.bars or 0, prog.bars_req or 5), pen = bc},
-                "   altar ", chk(prog.altar), "   container ", chk(prog.bin),
+                "  Value: ",  {text=fmt_num(prog.value or 0).."/"..fmt_num(prog.value_req or 5000), pen=vc},
+                "   Altar: ", chk(prog.altar),
+                "   Box: ",   chk(prog.bin),
+                "   Bars: ",  {text=("%d/%d"):format(prog.bars or 0, req), pen=bc},
             }
         end
+
         local function coin_text(coffers, coins)
             return {
-                "  Coins: ", {text = fmt_num(coins) .. "*", pen = COLOR_YELLOW},
-                "   Coffers: ", {text = tostring(coffers) .. "/5", pen = COLOR_CYAN},
+                "  Coins: ", {text=fmt_num(coins).."*",      pen=COLOR_YELLOW},
+                "   Coffers: ",       {text=tostring(coffers).."/5",  pen=COLOR_CYAN},
                 "   (Enter to buy)",
             }
         end
+
         local function refresh()
             local shop, pending, coffers, coins, unlocked, prog = read_state()
-            if shrine_head   then shrine_head:setText(head_text(unlocked)) end
-            if shrine_detail then shrine_detail:setText(detail_text(prog)) end
-            if coin_label    then coin_label:setText(coin_text(coffers, coins)) end
-            if shop_list then
+            local btype = bar_sel and bar_sel:getOptionValue() or
+                          dfhack.persistent.getWorldDataString("dwarfipelago/shrine_bar_type") or "gold"
+            if shrine_head then shrine_head:setText(head_text(unlocked)) end
+            if req_label   then req_label:setText(req_text(prog, btype)) end
+            if coin_label  then coin_label:setText(coin_text(coffers, coins)) end
+            if shop_list   then
                 shop_list:setChoices(build_choices(shop, pending, coffers, coins, unlocked),
                                      shop_list:getSelected())
             end
         end
 
         local shop0, pending0, coffers0, coins0, unlocked0, prog0 = read_state()
-        shrine_head   = widgets.Label{frame = {t = 0, l = 0}, text = head_text(unlocked0)}
-        shrine_detail = widgets.Label{frame = {t = 1, l = 0}, text = detail_text(prog0)}
-        coin_label    = widgets.Label{frame = {t = 2, l = 0}, text = coin_text(coffers0, coins0)}
+        local init_bar = dfhack.persistent.getWorldDataString("dwarfipelago/shrine_bar_type") or "gold"
+
+        shrine_head = widgets.Label{frame={t=0, l=0}, text=head_text(unlocked0)}
+        req_label   = widgets.Label{frame={t=1, l=0}, text=req_text(prog0, init_bar)}
+        bar_sel = widgets.CycleHotkeyLabel{
+            frame          = {t=2, l=0},
+            key            = "CUSTOM_B",
+            label          = "  Bar type: ",
+            options        = BAR_OPTS,
+            initial_option = init_bar,
+            on_change      = function(value)
+                dfhack.persistent.saveWorldDataString("dwarfipelago/shrine_bar_type", value)
+                refresh()
+            end,
+        }
+        coin_label = widgets.Label{frame={t=3, l=0}, text=coin_text(coffers0, coins0)}
         shop_list = widgets.List{
-            frame      = {t = 4, b = 0},
+            frame      = {t=5, b=0},
             text_pen   = COLOR_WHITE,
             cursor_pen = COLOR_CYAN,
             choices    = build_choices(shop0, pending0, coffers0, coins0, unlocked0),
@@ -963,7 +991,7 @@ function DwarfipelagoPanel:init()
             end,
         }
         self._shop_refresh = refresh   -- onRenderFrame calls this to live-update
-        return widgets.Panel{ subviews = { shrine_head, shrine_detail, coin_label, shop_list } }
+        return widgets.Panel{subviews={shrine_head, req_label, bar_sel, coin_label, shop_list}}
     end
 
     local tabviews = {}
