@@ -33,7 +33,8 @@ try:
     def run_client():
         from .DwarfFortressClient import main  # lazy import
         launch_subprocess(main)
-    components.append(Component("Dwarf Fortress Client", func=run_client, component_type=Type.CLIENT,))
+    components.append(Component("Dwarf Fortress Client", func=run_client, component_type=Type.CLIENT, icon='DFAP Icon'))
+    icon_paths['DFAP Icon'] = "ap:worlds.dwarf_fortress/icon.png"
 except Exception as _client_err:
     import logging as _logging
     _logging.warning(f"[Dwarfipelago] Failed to register launcher components: {_client_err}")
