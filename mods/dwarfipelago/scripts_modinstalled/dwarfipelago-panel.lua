@@ -136,6 +136,8 @@ local function build_unlocks_lines()
             or def.key == "count_charter" or def.key == "duke_charter"
             or def.key == "monarch_invitation" or def.key == "wealth_coffers" then
                 goto continue
+            elseif def.key == "RotGK" then
+                def.max = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/king_remains_goal") or 99)
             end
         end
         local raw = ps("unlock/" .. def.key, "0")
