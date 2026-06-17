@@ -1009,6 +1009,105 @@ function M.find_fortress_coins_energy()
     return found, total_j
 end
 
+-- ── Skill count helpers ───────────────────────────────────────────────────────
+-- Cumulative counts of completed job skills per flag, persisted in world
+-- data under "dwarfipelago/skill/<flag_name>".
+-- Incremented by the eventful job hook in dwarfipelago.lua.
+-- The AP client polls these directly to decide when a milestone threshold is met.
+
+local SKILL_COUNT_PREFIX = "dwarfipelago/skill/"
+
+local SKILL_LIST = {
+    { key = df.job_skill["CUT_STONE"], skill = "stonecutter", name = "Stonecutter"},
+    { key = df.job_skill["ENGRAVE_STONE"], skill = "engraver", name = "Engraver"},
+    { key = df.job_skill["MINING"], skill = "miner", name = "Miner"},
+    { key = df.job_skill["WOODCUTTING"], skill = "woodcutter", name = "Wood Cutter"},
+    { key = df.job_skill["HERBALISM"], skill = "herbalist", name = "Herbalist"},
+    { key = df.job_skill["SPINNING"], skill = "spinner", name = "Spinner"},
+    { key = df.job_skill["FISH"], skill = "fisherdwarf", name = "Fisherdwarf"},
+    { key = df.job_skill["SNEAK"], skill = "ambusher", name = "Ambusher"},
+    { key = df.job_skill["TRAPPING"], skill = "trapper", name = "Trapper"},
+    { key = df.job_skill["GLASSMAKER"], skill = "glassmaker", name = "Glassmaker"},
+    { key = df.job_skill["METALCRAFT"], skill = "metalcrafter", name = "Metal Crafter"},
+    { key = df.job_skill["CUTGEM"], skill = "gemcutter", name = "Gem Cutter"},
+    { key = df.job_skill["STONECRAFT"], skill = "stonecrafter", name = "Stone Crafter"},
+    { key = df.job_skill["WOODCRAFT"], skill = "woodcrafter", name = "Wood Crafter"},
+    { key = df.job_skill["ENCRUSTGEM"], skill = "gemsetter", name = "Gem Setter"},
+    { key = df.job_skill["SMELT"], skill = "furnaceoperator", name = "Furnace Operator"},
+    { key = df.job_skill["EXTRACT_STRAND"], skill = "strandextractor", name = "Strand Extractor"},
+    { key = df.job_skill["PLANT"], skill = "planter", name = "Planter"},
+    { key = df.job_skill["ANIMALTRAIN"], skill = "animaltrainer", name = "Animal Trainer"},
+    { key = df.job_skill["SIEGECRAFT"], skill = "siegeengineer", name = "Siege Engineer"},
+    { key = df.job_skill["FORGE_WEAPON"], skill = "weaponsmith", name = "Weaponsmith"},
+    { key = df.job_skill["FORGE_ARMOR"], skill = "armorsmith", name = "Armorsmith"},
+    { key = df.job_skill["BUTCHER"], skill = "butcher", name = "Butcher"},
+    { key = df.job_skill["PROCESSFISH"], skill = "fishcleaner", name = "Fish Cleaner"},
+    { key = df.job_skill["MILLING"], skill = "miller", name = "Miller"},
+    { key = df.job_skill["MILK"], skill = "milker", name = "Milker"},
+    { key = df.job_skill["CHEESEMAKING"], skill = "cheesemaker", name = "Cheese Maker"},
+    { key = df.job_skill["PROCESSPLANTS"], skill = "thresher", name = "Thresher"},
+    { key = df.job_skill["COOK"], skill = "cook", name = "Cook"},
+    { key = df.job_skill["BONECARVE"], skill = "bonecarver", name = "Bone Carver"},
+    { key = df.job_skill["SIEGEOPERATE"], skill = "siegeoperator", name = "Siege Operator"},
+    { key = df.job_skill["MECHANICS"], skill = "mechanic", name = "Mechanic"},
+    { key = df.job_skill["DIAGNOSE"], skill = "diagnostician", name = "Diagnostician"},
+    { key = df.job_skill["SET_BONE"], skill = "bonedoctor", name = "Bone Doctor"},
+    { key = df.job_skill["DRESS_WOUNDS"], skill = "wounddresser", name = "Wound Dresser"},
+    { key = df.job_skill["SURGERY"], skill = "surgeon", name = "Surgeon"},
+    { key = df.job_skill["SUTURE"], skill = "suturer", name = "Suturer"},
+    { key = df.job_skill["WOOD_BURNING"], skill = "woodburner", name = "Wood Burner"},
+    { key = df.job_skill["LYE_MAKING"], skill = "lyemaker", name = "Lye Maker"},
+    { key = df.job_skill["POTASH_MAKING"], skill = "potashmaker", name = "Potash Maker"},
+    { key = df.job_skill["DYER"], skill = "dyer", name = "Dyer"},
+    { key = df.job_skill["OPERATE_PUMP"], skill = "pumpoperator", name = "Pump Operator"},
+    { key = df.job_skill["SHEARING"], skill = "shearer", name = "Shearer"},
+    { key = df.job_skill["GELD"], skill = "gelder", name = "Gelder"},
+    { key = df.job_skill["CARPENTRY"], skill = "carpenter", name = "Carpenter"},
+    { key = df.job_skill["MASONRY"], skill = "mason", name = "Mason"},
+    { key = df.job_skill["DISSECT_FISH"], skill = "fishdissector", name = "Fish Dissector"},
+    { key = df.job_skill["LEATHERWORK"], skill = "leatherworker", name = "Leatherworker"},
+    { key = df.job_skill["CLOTHESMAKING"], skill = "clothier", name = "Clothier"},
+    { key = df.job_skill["FORGE_FURNITURE"], skill = "blacksmith", name = "Blacksmith"},
+    { key = df.job_skill["BOWYER"], skill = "bowyer", name = "Bowyer"},
+    { key = df.job_skill["SOAP_MAKING"], skill = "soaper", name = "Soaper"},
+    { key = df.job_skill["POTTERY"], skill = "potter", name = "Potter"},
+    { key = df.job_skill["GLAZING"], skill = "glazer", name = "Glazer"},
+    { key = df.job_skill["PRESSING"], skill = "presser", name = "Presser"},
+    { key = df.job_skill["BEEKEEPING"], skill = "beekeeper", name = "Beekeeper"},
+    { key = df.job_skill["WAX_WORKING"], skill = "waxworker", name = "Wax Worker"},
+    { key = df.job_skill["PAPERMAKING"], skill = "papermaker", name = "Papermaker"},
+    { key = df.job_skill["BOOKBINDING"], skill = "bookbinder", name = "Bookbinder"},
+    { key = df.job_skill["RECORD_KEEPING"], skill = "recordkeeper", name = "Record Keeper"},
+    { key = df.job_skill["ORGANIZATION"], skill = "organizer", name = "Organizer"},
+    { key = df.job_skill["APPRAISAL"], skill = "appraiser", name = "Appraiser"},
+    { key = df.job_skill["BREWING"], skill = "brewer", name = "Brewer"},
+    { key = df.job_skill["CARVE_STONE"], skill = "stonecarver", name = "Stone Carver"},
+    { key = df.job_skill["TANNER"], skill = "tanner", name = "Tanner"},
+    { key = df.job_skill["WEAVING"], skill = "weaver", name = "Weaver"},
+}
+
+function M.get_skill_count(flag)
+    return tonumber(dfhack.persistent.getWorldDataString(SKILL_COUNT_PREFIX .. flag)) or 0
+end
+
+-- Returns { flag = count } for every craft flag recorded this world (count > 0).
+function M.get_all_skill_counts()
+    local out = {}
+    for _, skilltype in ipairs(SKILL_LIST) do
+        local n = tonumber(dfhack.persistent.getWorldDataString(SKILL_COUNT_PREFIX .. skilltype.skill)) or -1
+        if n >= 0 then out[skilltype.name] = n end
+    end
+    return out
+end
+
+-- Clears all recorded craft counts and the index (used by 'dwarfipelago reset').
+function M.clear_skill_counts()
+    for _, skilltype in ipairs(SKILL_LIST) do
+        local n = tonumber(dfhack.persistent.getWorldDataString(SKILL_COUNT_PREFIX .. skilltype.skill)) or -1
+        if n >= 0 then dfhack.persistent.saveWorldDataString(SKILL_COUNT_PREFIX .. skilltype.skill, "0") end
+    end
+end
+
 -- reqscript returns the script's _ENV, not the explicit return value.
 -- Copy all module exports into _ENV so callers can access them as globals.
 for k, v in pairs(M) do _ENV[k] = v end
