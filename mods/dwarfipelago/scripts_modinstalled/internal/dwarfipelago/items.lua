@@ -1371,7 +1371,7 @@ M.UNLOCK_DEFS = {
     { key = "wealth_coffers",        label = "Merchant's Coffers",     max = 5 },
     { key = "immigration_waves",     label = "Immigration Waves",      max = 5 },
     { key = "military_training",     label = "Military Training",      max = 4 },
-    { key = "RotGK",                 label = "Remains of the Great King", max = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/king_remains_goal"))},
+    { key = "RotGK",                 label = "Remains of the Great King"},
     { key = "baron_charter",         label = "Baron's Charter" },
     { key = "count_charter",         label = "Count's Charter" },
     { key = "duke_charter",          label = "Duke's Charter" },
