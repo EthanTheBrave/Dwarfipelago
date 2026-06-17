@@ -5,14 +5,67 @@
 --   2. Run: dwarfipelago panel
 --   3. Run directly: dwarfipelago-panel
 
-local gui     = require('gui')
-local overlay = require('plugins.overlay')
-local widgets = require('gui.widgets')
-local dialogs = require('gui.dialogs')
-local state   = reqscript('internal/dwarfipelago/state')
-local items   = reqscript('internal/dwarfipelago/items')
-local checks  = reqscript('internal/dwarfipelago/checks')
-local log     = reqscript("internal/dwarfipelago/log")
+local gui           = require('gui')
+local overlay       = require('plugins.overlay')
+local widgets       = require('gui.widgets')
+local dialogs       = require('gui.dialogs')
+local textures      = require('gui.textures')
+local scriptmanager = require('script-manager')
+local state    = reqscript('internal/dwarfipelago/state')
+local items    = reqscript('internal/dwarfipelago/items')
+local checks   = reqscript('internal/dwarfipelago/checks')
+local log      = reqscript("internal/dwarfipelago/log")
+
+local to_pen = dfhack.pen.parse
+
+-- ── Archipelago panel frame style ─────────────────────────────────────────────
+-- Builds a custom frame table each render (stored as a function so paint_frame
+-- calls it with the current resizable state, keeping texpos values fresh across
+-- graphics resets).
+--
+-- Art upgrade path: replace `tp` below with a handle table loaded from a
+-- custom PNG shipped with the mod:
+--   local ap_handles = dfhack.textures.loadTileset(
+--       dfhack.getModRootPath('dwarfipelago') .. '/art/ap-border.png', 8, 12, true)
+--   local function tp(offset) return dfhack.textures.getTexposByHandle(ap_handles[offset]) end
+-- The PNG must be a 22×1 tile sheet (8×12 px per tile) matching DFHack's
+-- border tile index layout (indices 1–21 used by make_frame).
+local function make_ap_frame(_resizable)
+    local tp = textures.tp_border_window
+    local fg = COLOR_LIGHTCYAN
+    local bg = COLOR_BLACK
+    return {
+        frame_pen          = to_pen{ch=206,  fg=fg, bg=bg},
+        title_pen          = to_pen{fg=COLOR_BLACK, bg=COLOR_CYAN},
+        inactive_title_pen = to_pen{fg=COLOR_CYAN,  bg=bg},
+        signature_pen      = false,
+        paused_pen         = to_pen{fg=COLOR_RED, bg=bg},
+        -- corners
+        lt_frame_pen  = to_pen{tile=tp(1),  ch=201, fg=fg, bg=bg},
+        rt_frame_pen  = to_pen{tile=tp(3),  ch=187, fg=fg, bg=bg},
+        lb_frame_pen  = to_pen{tile=tp(15), ch=200, fg=fg, bg=bg},
+        rb_frame_pen  = to_pen{tile=tp(17), ch=188, fg=fg, bg=bg},
+        -- outer edges
+        t_frame_pen   = to_pen{tile=tp(2),  ch=205, fg=fg, bg=bg},
+        b_frame_pen   = to_pen{tile=tp(16), ch=205, fg=fg, bg=bg},
+        l_frame_pen   = to_pen{tile=tp(8),  ch=186, fg=fg, bg=bg},
+        r_frame_pen   = to_pen{tile=tp(10), ch=186, fg=fg, bg=bg},
+        -- inner T-junctions (tab bar divider line meets the border)
+        tTi_frame_pen = to_pen{tile=tp(21), ch=203, fg=fg, bg=bg},
+        bTi_frame_pen = to_pen{tile=tp(20), ch=202, fg=fg, bg=bg},
+        lTi_frame_pen = to_pen{tile=tp(19), ch=204, fg=fg, bg=bg},
+        rTi_frame_pen = to_pen{tile=tp(18), ch=185, fg=fg, bg=bg},
+        -- outer T-junctions
+        tTe_frame_pen = to_pen{tile=tp(11), ch=203, fg=fg, bg=bg},
+        bTe_frame_pen = to_pen{tile=tp(12), ch=202, fg=fg, bg=bg},
+        lTe_frame_pen = to_pen{tile=tp(13), ch=204, fg=fg, bg=bg},
+        rTe_frame_pen = to_pen{tile=tp(14), ch=185, fg=fg, bg=bg},
+        -- internal divider bars and cross
+        v_frame_pen   = to_pen{tile=tp(5),  ch=179, fg=fg, bg=bg},
+        h_frame_pen   = to_pen{tile=tp(6),  ch=196, fg=fg, bg=bg},
+        x_frame_pen   = to_pen{tile=tp(4),  ch=197, fg=fg, bg=bg},
+    }
+end
 
 -- ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -941,10 +994,12 @@ function DwarfipelagoPanel:init()
 
     self:addviews{
         widgets.Window{
-            frame_title = ("Dwarfipelago v%s"):format(version),
-            frame       = {w=W, h=H, t=3, l=3},
-            resizable   = true,
-            resize_min  = {w=46, h=20},
+            frame_title       = ("Dwarfipelago v%s"):format(version),
+            frame             = {w=W, h=H, t=3, l=3},
+            resizable         = true,
+            resize_min        = {w=46, h=20},
+            frame_style       = make_ap_frame,
+            frame_background  = to_pen{ch=32, fg=0, bg=COLOR_BLACK, write_to_lower=true},
             subviews    = {
                 widgets.TabBar{
                     frame        = {t=0, l=0},
@@ -964,29 +1019,70 @@ function DwarfipelagoPanel:init()
     }
 end
 
+-- ── Archipelago logo tileset ──────────────────────────────────────────────────
+
+local _ap_logo_handles = nil
+local function load_ap_logo()
+    if _ap_logo_handles then return end
+    local mod_path = scriptmanager.getModSourcePath('dwarfipelago')
+    if not mod_path then return end
+    local path = mod_path .. 'scripts_modinstalled/art/ap-logo.png'
+    local ok, result = pcall(dfhack.textures.loadTileset, path, 24, 36, true)
+    if ok and result and #result > 0 then
+        _ap_logo_handles = result
+    end
+end
+
 -- ── Corner hotspot widget ─────────────────────────────────────────────────────
+
+local _ap_hotspot_positioned = false
 
 DwarfipelagoHotspot = defclass(DwarfipelagoHotspot, overlay.OverlayWidget)
 DwarfipelagoHotspot.ATTRS{
     desc            = "Dwarfipelago: click [AP] to open the status and control panel",
-    default_pos     = {x=6, y=2},
+    default_pos     = {x=42, y=-1},
     default_enabled = true,
     hotspot         = true,
     viewscreens     = {"dwarfmode"},
-    frame           = {w=4, h=1},
+    frame           = {w=4, h=3},
 }
 
 function DwarfipelagoHotspot:init()
+    self.frame_background = to_pen{ch=32, fg=COLOR_LIGHTCYAN, bg=COLOR_BLUE}
+    pcall(load_ap_logo)
     self:addviews{
         widgets.Label{
             frame = {t=0, l=0},
-            text  = {{text="[AP]", pen=COLOR_CYAN}},
+            text_pen = to_pen{fg=COLOR_LIGHTCYAN, bg=COLOR_BLUE},
+            text = 'AP',
+            visible = function() return not _ap_logo_handles end,
         },
     }
 end
 
+function DwarfipelagoHotspot:onRenderBody(dc)
+    if not _ap_logo_handles then
+        self:renderSubviews(dc)
+        return
+    end
+    local W, H = 4, 3
+    local idx = 1
+    for row = 0, H - 1 do
+        for col = 0, W - 1 do
+            if idx <= #_ap_logo_handles then
+                local texpos = dfhack.textures.getTexposByHandle(_ap_logo_handles[idx])
+                dc:seek(col, row):char(219, to_pen{ch=219, tile=texpos, fg=COLOR_WHITE, bg=COLOR_BLUE})
+                idx = idx + 1
+            end
+        end
+    end
+end
+
 function DwarfipelagoHotspot:overlay_onupdate()
-    -- no automatic trigger; opens on click only
+    if not _ap_hotspot_positioned then
+        _ap_hotspot_positioned = true
+        dfhack.run_command('overlay', 'position', 'dwarfipelago-panel.hotspot', 'default')
+    end
 end
 
 function DwarfipelagoHotspot:onInput(keys)
