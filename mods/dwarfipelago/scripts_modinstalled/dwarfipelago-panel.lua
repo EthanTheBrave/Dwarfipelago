@@ -426,6 +426,54 @@ local function build_permit_lines()
     return lines
 end
 
+
+-- ── Skill list ──────────────────────────────────────────────────────────
+
+local function build_skill_lines()
+    local lines = {}
+    local function hdr(s)      table.insert(lines, {text=s, pen=COLOR_CYAN})     end
+    local function row(s, pen) table.insert(lines, {text=s, pen=pen or COLOR_WHITE}) end
+    local function blank()     table.insert(lines, {text=""})                    end
+
+    blank()
+    row(("  %-26s  %6s"):format("Skill Name", "Skill Level"), COLOR_CYAN)
+    row("  " .. string.rep("-", 52), COLOR_DARKGRAY)
+
+    -- Build display list
+    local skill_counts = checks.get_all_skill_counts()
+    local list = {}
+    local max_level = tonumber(ps("skillsanity_max_level", "15"))
+    for skill_name, skill_level in pairs(skill_counts) do
+        table.insert(list, {
+            label = skill_name,
+            level  = skill_level,
+        })
+    end
+    -- -- Sort: done (alpha) → not done (alpha) 
+    table.sort(list, function(a, b)
+        return a.level > b.level
+    end)
+    
+    local n_done = 0
+    for _, e in ipairs(list) do
+        if e.level >= max_level then
+            n_done = n_done + 1
+            row(("  %-26s  %6s"):format(
+                e.label, tostring(max_level) .. "/" .. tostring(max_level)),
+                COLOR_GREEN)
+        else
+            row(("  %-26s  %6s"):format(
+                e.label, tostring(e.level) .. "/" .. tostring(max_level)),
+                COLOR_WHITE)
+        end
+    end
+    blank()
+    row("  " .. string.rep("-", 52), COLOR_DARKGRAY)
+    row(("  Items complete: %d / %d"):format(n_done, #list),
+        n_done >= #list and COLOR_GREEN or COLOR_WHITE)
+    return lines
+end
+
 -- ── Status / control popup ────────────────────────────────────────────────────
 
 local _panel_instance = nil
@@ -734,6 +782,14 @@ function DwarfipelagoPanel:init()
         }
     end
 
+    -- ── Tab 8: Skills ─────────────────────────────────────────────────
+    function SkillsTab()
+        table.insert(tab_list, "Skills")
+        return widgets.Panel{
+            subviews = { make_list(build_skill_lines()) },
+        }
+    end
+
     local tabviews = {}
     table.insert(tabviews, StatusTab())
     table.insert(tabviews, UnlocksTab())
@@ -747,6 +803,9 @@ function DwarfipelagoPanel:init()
     end
     if ps("crafting_permits", "0") ~= "0" then
         table.insert(tabviews, PermitsTab())
+    end
+    if ps("skillsanity_enabled", "0") ~= "0" then
+        table.insert(tabviews, SkillsTab())
     end
 
     local pages = widgets.Pages{
