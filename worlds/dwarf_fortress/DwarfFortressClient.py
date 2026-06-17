@@ -498,6 +498,10 @@ class DwarfFortressContext(CommonContext):
         self.last_deplete = 0            # energy link
         self.last_energy = 0             # energy link
         self.current_energy = 0          # energy link
+        self._skillsanity_enabled = 0    # Skillsanity
+        self._skill_locations = {}       # required locations
+        self._skill_max_level = 15       # max level
+        self._skill_behaviour = 0        # 0 = don't touch levels 1 = lower to next check
 
     def debug(self, msg: str):
         """Log only when debug mode is enabled (toggle with /dfdebug)."""
@@ -707,6 +711,10 @@ class DwarfFortressContext(CommonContext):
         materials_enabled = slot_data.get("craftsanity_materials")
         king_remains_amt = slot_data.get("remains_great_king")
         craftingpermits = slot_data.get("crafting_permits")
+        self._skillsanity_enabled = slot_data.get("skillsanity_enabled")
+        self._skill_locations = slot_data.get("skillsanity_locations")
+        self._skill_max_level = slot_data.get("skillsanity_max_level")
+        self._skill_behaviour = slot_data.get("skillsanity_behaviour")
         current_seed = self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("dwarfipelago/seed"))')
         current_seed = (current_seed or "").strip()
         # A blank/"nil" stored seed means this world has no AP identity yet (fresh,
@@ -730,6 +738,7 @@ class DwarfFortressContext(CommonContext):
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/seed", "{self.seed}")')
                     write()
                     self.init_crafting_locations()
+                    self.init_skill_locations()
                 # Energy link flag — Lua reads this to know the feature is on.
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/energy_enabled", "{1 if self.energy_link_enabled else 0}")')
                 # Always re-sync these flags so Lua uses the correct key format
@@ -737,6 +746,10 @@ class DwarfFortressContext(CommonContext):
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_enabled", "{craftsanity_enabled}")')
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_materials", "{materials_enabled}")')
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/crafting_permits", "{craftingpermits}")')
+                #skillsanity
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/skillsanity_enabled", "{self._skillsanity_enabled}")')
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/skillsanity_max_level", "{self._skill_max_level}")')
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/skillsanity_behaviour", "{self._skill_behaviour}")')
                 # Craftsanity metadata for the in-game panel tab.
                 # Written on every sync so the panel works after reconnects.
                 if self._craftsanity_threshold and self._craftsanity_max_value:
@@ -1048,6 +1061,14 @@ class DwarfFortressContext(CommonContext):
             self.dfhack.run_command(
                 "lua", f'dfhack.gui.showAnnouncement("{location_name} Completed!", COLOR_GREEN)'
             )
+    
+    def init_skill_locations(self):
+        for skill in self._skill_locations:
+            storage_name ="dwarfipelago/skill/"
+            if self._skill_locations[skill]['threshold'] == 1:
+                storage_name += self._skill_locations[skill]["skill"]
+            storage_name = storage_name.lower()
+            self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("{storage_name}", "0")')
 
     async def setAPKeyValue(self, key:str, value:list[int]):
         await self.send_msgs([{

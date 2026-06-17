@@ -3,6 +3,7 @@ from BaseClasses import Region, Location, Item, ItemClassification, Tutorial
 from worlds.AutoWorld import World, WebWorld
 from Options import OptionError
 from worlds.LauncherComponents import Component, icon_paths, components, Type, launch_subprocess
+from worlds.dwarf_fortress.skillsanity import Skillsanity
 
 from .options import DwarfFortressOptions, DwarfFortressGoal, CraftingPermits, dwarf_fortress_option_groups
 from .settings import DwarfFortressSettings
@@ -83,6 +84,8 @@ class DwarfFortressWorld(World):
     ap_item_pool = AP_ITEM_POOL
     starting_inventory = []
     active_location_names = []  # per-slot subset of location_name_to_id this slot creates
+    skill_locations = []
+    remove_skill_locations_names = []
     web = DwarfFortressWebWorld()
 
     def generate_early(self) -> None:
@@ -119,10 +122,14 @@ class DwarfFortressWorld(World):
                 "Cloth Permit", "Alcohol Permit", "Prepared Meal Permit", "Barrel Permit"]
             self.ap_item_pool = [d for d in self.ap_item_pool
                                  if d.name not in self.starting_inventory]
+        
+        #Skillsanity
+        skillsanity = Skillsanity(self)
+        skillsanity.adjust_skill_locations()
 
-        if self.options.craftpermits != CraftingPermits.option_off and len(CRAFT_ITEMS) > len(self.dynamic_locations):
+        if self.options.craftpermits != CraftingPermits.option_off and len(CRAFT_ITEMS) > len(self.dynamic_locations) + len(self.skill_locations):
             raise OptionError(
-                f"{self.player_name}: You do not have enough crafting locations enabled to use the crafting items feature."
+                f"{self.player_name}: You do not have enough craftsanity or skillsanity locations enabled to use the permits feature."
                 f" To increase this, add more crafting item locations, increase the maximum amount or lower the threshold."
                 f" You need {len(CRAFT_ITEMS) - len(self.dynamic_locations)} more locations."
             )
@@ -152,6 +159,8 @@ class DwarfFortressWorld(World):
             active -= WEALTH_TIER_LOCATIONS
         if self.options.goal != DwarfFortressGoal.option_mountainhome:
             active -= NOBLE_LADDER_LOCATIONS
+        for skill_names in self.remove_skill_locations_names:
+             active.remove(skill_names)
         # Keep the registry's deterministic order for reproducible fill.
         self.active_location_names = [n for n in _FULL_LOCATION_TABLE if n in active]
 
@@ -278,6 +287,9 @@ class DwarfFortressWorld(World):
         crafting_location_data = {}
         for locations in self.dynamic_locations:
             crafting_location_data[locations.ap_id] = {"item": locations.df_item, "material": locations.material_type, "threshold": locations.threshold, "location_name": locations.name}
+        skill_location_data = {}
+        for locations in self.skill_locations:
+            skill_location_data[locations.ap_id] = {"location_name": locations.name, "threshold": locations.threshold, "skill": locations.df_item}
         return {
             "goal": self.options.goal.value,
             "wealth_goal_amount": self.options.wealth_goal_amount.value,
@@ -293,6 +305,10 @@ class DwarfFortressWorld(World):
             "craftsanity_enabled": self.options.craftsanity.value,
             "craftsanity_materials": self.options.craftsanity_enable_materials.value,
             "crafting_permits": self.options.craftpermits.value,
+            "skillsanity_enabled": self.options.skillsanity.value,
+            "skillsanity_max_level": self.options.skillsanity_max_level.value,
+            "skillsanity_behaviour": self.options.skillsanity_behaviour.value,
+            "skillsanity_locations": skill_location_data,
             "deathlink_percentage": self.options.deathlink_percentage.value,
             "energy_link": self.options.energy_link.value,
             "version": f"{self.world_version.as_simple_string()}",
