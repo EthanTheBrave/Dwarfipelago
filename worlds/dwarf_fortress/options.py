@@ -293,6 +293,14 @@ class SkillsanityLevelMechanic(Choice):
     default = 0
 
 
+
+# The Merchant's Shop is always enabled and has no options: spend minted coins to
+# buy AP items. It opens 10 slots per Merchant's Coffer received (up to 50 with all
+# 5), so the coffers are always in the item pool regardless of goal. Each slot
+# holds one multiworld item at a random coin-VALUE price (range hardcoded in
+# locations.SHOP_PRICE_MIN/MAX) and is bought once.
+
+
 @dataclass
 class DwarfFortressOptions(PerGameCommonOptions):
     deathlink: DeathLink
