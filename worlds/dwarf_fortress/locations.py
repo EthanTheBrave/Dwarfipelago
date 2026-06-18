@@ -1196,6 +1196,21 @@ JOB_SKILLS: list[LocationData] = [
 ]
 
 
+# ── Merchant's Shop ───────────────────────────────────────────────────────────
+# 50 shop slots (ids 2000..2049), 10 per Merchant's Coffer tier. Always active and
+# gated by coffer count in rules.py. Buying a slot spends minted coins (handled by
+# the client/mod) and releases that slot's item to its recipient.
+# NOTE: ids 800..1084 are reserved for an unimplemented feature; keep clear of it.
+SHOP_SLOTS = 50
+# Per-slot price (minted-coin VALUE) is rolled randomly in this range at gen time.
+# Hardcoded -- the shop has no YAML options.
+SHOP_PRICE_MIN = 2000
+SHOP_PRICE_MAX = 20000
+SHOP_LOCATIONS: list[LocationData] = [
+    LocationData(f"Shop Slot {i}", BASE_ID + 1999 + i, "Fortress")
+    for i in range(1, SHOP_SLOTS + 1)
+]
+
 # Craft locations are NOT included here. They are computed deterministically by
 # craftsanity.build_craft_location_table() and merged into the World's
 # location_name_to_id in __init__.py (see _FULL_LOCATION_TABLE). Keeping them out
@@ -1204,6 +1219,6 @@ ALL_LOCATIONS: list[LocationData] = (
     WEALTH_LOCATIONS + PRODUCTION_LOCATIONS + TRADE_LOCATIONS
     + STATUS_LOCATIONS + TITLE_LOCATIONS + MINING_LOCATIONS
     + FARMING_LOCATIONS + INFRASTRUCTURE_LOCATIONS
-    + BIOLOGY_LOCATIONS + ENDGAME_LOCATIONS + JOB_SKILLS
+    + BIOLOGY_LOCATIONS + ENDGAME_LOCATIONS + JOB_SKILLS + SHOP_LOCATIONS
 )
 LOCATION_TABLE: dict[str, int] = {loc.name: loc.ap_id for loc in ALL_LOCATIONS}

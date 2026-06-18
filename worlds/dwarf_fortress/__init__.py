@@ -11,7 +11,10 @@ from .items import (
     ItemData, ITEM_TABLE, AP_ITEM_POOL, FILLER_ITEMS, TRAP_ITEMS,
     PROGRESSION_ITEMS, USEFUL_ITEMS, CRAFT_ITEMS
 )
-from .locations import LocationData, LOCATION_TABLE, ALL_LOCATIONS
+from .locations import (
+    LocationData, LOCATION_TABLE, ALL_LOCATIONS, SHOP_LOCATIONS, SHOP_SLOTS,
+    SHOP_PRICE_MIN, SHOP_PRICE_MAX,
+)
 from .craftsanity import (
     generate_location_data,
     build_craft_location_table,
@@ -162,6 +165,8 @@ class DwarfFortressWorld(World):
             active -= NOBLE_LADDER_LOCATIONS
         for skill_names in self.remove_skill_locations_names:
              active.remove(skill_names)
+        # The shop is always on, so its 50 slots are always active (coffer-gated
+        # in rules.py).
         # Keep the registry's deterministic order for reproducible fill.
         self.active_location_names = [n for n in _FULL_LOCATION_TABLE if n in active]
 
@@ -234,6 +239,13 @@ class DwarfFortressWorld(World):
             elif self.options.goal == DwarfFortressGoal.option_king_remains and item_data.name == "Remains of the Great King":
                 item_data.quantity = self.options.remains_great_king.value
 
+        # The always-on shop is gated by Merchant's Coffer count, so the coffers
+        # must always be in the pool -- even for goals whose loop above stripped
+        # them. Re-add the (x5) coffer item if needed.
+        coffer = next((d for d in self.ap_item_pool if d.name == "Merchant's Coffer"), None)
+        if coffer is not None and coffer not in required:
+            required.append(coffer)
+
         item_pool: list[DwarfFortressItem] = []
 
         # Items granted via start_inventory are auto-precollected by AP core.
@@ -291,6 +303,17 @@ class DwarfFortressWorld(World):
         skill_location_data = {}
         for locations in self.skill_locations:
             skill_location_data[locations.ap_id] = {"location_name": locations.name, "threshold": locations.threshold, "skill": locations.df_item}
+        # Shop slots: per-slot random coin price + coffer tier, keyed by location id
+        # (as a string for JSON). The client scouts these ids to learn each slot's
+        # item/recipient and writes them, with the price, for the in-game shop tab.
+        shop_data = {}
+        lo, hi = SHOP_PRICE_MIN, SHOP_PRICE_MAX
+        for slot, loc in enumerate(SHOP_LOCATIONS, start=1):
+            shop_data[str(loc.ap_id)] = {
+                "slot": slot,
+                "tier": (slot - 1) // 10 + 1,
+                "price": self.random.randint(lo, hi),
+            }
         return {
             "goal": self.options.goal.value,
             "wealth_goal_amount": self.options.wealth_goal_amount.value,
@@ -312,6 +335,7 @@ class DwarfFortressWorld(World):
             "skillsanity_locations": skill_location_data,
             "deathlink_percentage": self.options.deathlink_percentage.value,
             "energy_link": self.options.energy_link.value,
+            "shop": shop_data,
             "version": f"{self.world_version.as_simple_string()}",
         }
 

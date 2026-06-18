@@ -5,14 +5,67 @@
 --   2. Run: dwarfipelago panel
 --   3. Run directly: dwarfipelago-panel
 
-local gui     = require('gui')
-local overlay = require('plugins.overlay')
-local widgets = require('gui.widgets')
-local dialogs = require('gui.dialogs')
-local state   = reqscript('internal/dwarfipelago/state')
-local items   = reqscript('internal/dwarfipelago/items')
-local checks  = reqscript('internal/dwarfipelago/checks')
-local log     = reqscript("internal/dwarfipelago/log")
+local gui           = require('gui')
+local overlay       = require('plugins.overlay')
+local widgets       = require('gui.widgets')
+local dialogs       = require('gui.dialogs')
+local textures      = require('gui.textures')
+local scriptmanager = require('script-manager')
+local state    = reqscript('internal/dwarfipelago/state')
+local items    = reqscript('internal/dwarfipelago/items')
+local checks   = reqscript('internal/dwarfipelago/checks')
+local log      = reqscript("internal/dwarfipelago/log")
+
+local to_pen = dfhack.pen.parse
+
+-- ── Archipelago panel frame style ─────────────────────────────────────────────
+-- Builds a custom frame table each render (stored as a function so paint_frame
+-- calls it with the current resizable state, keeping texpos values fresh across
+-- graphics resets).
+--
+-- Art upgrade path: replace `tp` below with a handle table loaded from a
+-- custom PNG shipped with the mod:
+--   local ap_handles = dfhack.textures.loadTileset(
+--       dfhack.getModRootPath('dwarfipelago') .. '/art/ap-border.png', 8, 12, true)
+--   local function tp(offset) return dfhack.textures.getTexposByHandle(ap_handles[offset]) end
+-- The PNG must be a 22×1 tile sheet (8×12 px per tile) matching DFHack's
+-- border tile index layout (indices 1–21 used by make_frame).
+local function make_ap_frame(_resizable)
+    local tp = textures.tp_border_window
+    local fg = COLOR_LIGHTCYAN
+    local bg = COLOR_BLACK
+    return {
+        frame_pen          = to_pen{ch=206,  fg=fg, bg=bg},
+        title_pen          = to_pen{fg=COLOR_BLACK, bg=COLOR_CYAN},
+        inactive_title_pen = to_pen{fg=COLOR_CYAN,  bg=bg},
+        signature_pen      = false,
+        paused_pen         = to_pen{fg=COLOR_RED, bg=bg},
+        -- corners
+        lt_frame_pen  = to_pen{tile=tp(1),  ch=201, fg=fg, bg=bg},
+        rt_frame_pen  = to_pen{tile=tp(3),  ch=187, fg=fg, bg=bg},
+        lb_frame_pen  = to_pen{tile=tp(15), ch=200, fg=fg, bg=bg},
+        rb_frame_pen  = to_pen{tile=tp(17), ch=188, fg=fg, bg=bg},
+        -- outer edges
+        t_frame_pen   = to_pen{tile=tp(2),  ch=205, fg=fg, bg=bg},
+        b_frame_pen   = to_pen{tile=tp(16), ch=205, fg=fg, bg=bg},
+        l_frame_pen   = to_pen{tile=tp(8),  ch=186, fg=fg, bg=bg},
+        r_frame_pen   = to_pen{tile=tp(10), ch=186, fg=fg, bg=bg},
+        -- inner T-junctions (tab bar divider line meets the border)
+        tTi_frame_pen = to_pen{tile=tp(21), ch=203, fg=fg, bg=bg},
+        bTi_frame_pen = to_pen{tile=tp(20), ch=202, fg=fg, bg=bg},
+        lTi_frame_pen = to_pen{tile=tp(19), ch=204, fg=fg, bg=bg},
+        rTi_frame_pen = to_pen{tile=tp(18), ch=185, fg=fg, bg=bg},
+        -- outer T-junctions
+        tTe_frame_pen = to_pen{tile=tp(11), ch=203, fg=fg, bg=bg},
+        bTe_frame_pen = to_pen{tile=tp(12), ch=202, fg=fg, bg=bg},
+        lTe_frame_pen = to_pen{tile=tp(13), ch=204, fg=fg, bg=bg},
+        rTe_frame_pen = to_pen{tile=tp(14), ch=185, fg=fg, bg=bg},
+        -- internal divider bars and cross
+        v_frame_pen   = to_pen{tile=tp(5),  ch=179, fg=fg, bg=bg},
+        h_frame_pen   = to_pen{tile=tp(6),  ch=196, fg=fg, bg=bg},
+        x_frame_pen   = to_pen{tile=tp(4),  ch=197, fg=fg, bg=bg},
+    }
+end
 
 -- ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -489,6 +542,16 @@ function DwarfipelagoPanel:onDismiss()
     _panel_instance = nil
 end
 
+-- Live-refresh the Shop tab (shrine status can change while the panel is open).
+-- Throttled so we rebuild the list only a couple of times a second.
+function DwarfipelagoPanel:onRenderFrame(dc, rect)
+    DwarfipelagoPanel.super.onRenderFrame(self, dc, rect)
+    self._refresh_tick = (self._refresh_tick or 0) + 1
+    if self._shop_refresh and self._refresh_tick % 30 == 0 then
+        pcall(self._shop_refresh)
+    end
+end
+
 function DwarfipelagoPanel:init()
     local enabled  = state.is_enabled()
     local version  = ps("version",       "?")
@@ -792,6 +855,145 @@ function DwarfipelagoPanel:init()
         }
     end
 
+    -- ── Tab 9: Shop ───────────────────────────────────────────────────
+    -- Coffer-gated merchant shop. Select a slot and press Enter to spend minted
+    -- coins on its item. Slot data is written by the AP client (dwarfipelago/shop).
+    function ShopTab()
+        table.insert(tab_list, "Shop")
+        local sjson = require('json')
+
+        local function read_state()
+            local sraw = ps("shop", "")
+            local shop = (sraw ~= "" and sjson.decode(sraw)) or {}
+            local praw = ps("shop_pending", "")
+            local pending = (praw ~= "" and sjson.decode(praw)) or {}
+            local coffers = tonumber(ps("unlock/wealth_coffers", "0")) or 0
+            local _, total_j = nil, 0
+            pcall(function() _, total_j = checks.find_fortress_coins_energy() end)
+            local coins = math.floor((total_j or 0) / 1000)
+            local unlocked = ps("shop_unlocked", "0") == "1"
+            local prograw = ps("shrine_progress", "")
+            local prog = (prograw ~= "" and sjson.decode(prograw)) or {}
+            return shop, pending, coffers, coins, unlocked, prog
+        end
+
+        local function build_choices(shop, pending, coffers, coins, unlocked)
+            local choices, slots = {}, {}
+            for k in pairs(shop) do table.insert(slots, tonumber(k)) end
+            table.sort(slots)
+            for _, sn in ipairs(slots) do
+                local e = shop[tostring(sn)]
+                local price = tonumber(e.price) or 0
+                local state, pen, buyable
+                if e.bought == 1 then
+                    state, pen = "SOLD", COLOR_DARKGRAY
+                elseif pending[tostring(sn)] then
+                    state, pen = "PENDING", COLOR_LIGHTBLUE
+                elseif not unlocked then
+                    state, pen = "shrine needed", COLOR_DARKGRAY
+                elseif coffers < (e.tier or 1) then
+                    state, pen = ("LOCKED (%d coffers)"):format(e.tier or 1), COLOR_RED
+                elseif coins < price then
+                    state, pen = "need coins", COLOR_YELLOW
+                else
+                    state, pen, buyable = "BUY", COLOR_GREEN, true
+                end
+                local text = ("%-20.20s -> %-12.12s %8s* [%s]"):format(
+                    tostring(e.item or "?"), tostring(e.player or "?"), fmt_num(price), state)
+                table.insert(choices, {text = text, pen = pen, slot = sn, buyable = buyable})
+            end
+            if #choices == 0 then
+                table.insert(choices, {text = "(waiting for the AP client -- shop items load shortly)",
+                                       pen = COLOR_DARKGRAY})
+            end
+            return choices
+        end
+
+        local chk = function(b) return b and {text="yes", pen=COLOR_GREEN} or {text="no", pen=COLOR_RED} end
+        local shrine_head, req_label, bar_sel, coin_label, shop_list
+
+        -- Bar type options: value stored to persistent state so the AP client can read it
+        local BAR_REQ = {gold=5, coke=20, silver=10}
+        local BAR_OPTS = {
+            {label="Gold   (5 req)",   value="gold"},
+            {label="Coke   (20 req)",  value="coke"},
+            {label="Silver (10 req)",  value="silver"},
+        }
+
+        local function head_text(unlocked)
+            if unlocked then
+                return {{text="Shrine: DETECTED", pen=COLOR_GREEN}, "  (shop is open)"}
+            end
+            return {{text="Shrine: NOT DETECTED", pen=COLOR_RED},
+                    "  - build/repair the temple to open the shop"}
+        end
+
+        local function req_text(prog, btype)
+            local req = BAR_REQ[btype] or 5
+            local vc  = (prog.value  or 0) >= (prog.value_req or 5000) and COLOR_GREEN or COLOR_YELLOW
+            local bc  = (prog.bars   or 0) >= req                      and COLOR_GREEN or COLOR_YELLOW
+            return {
+                "  Value: ",  {text=fmt_num(prog.value or 0).."/"..fmt_num(prog.value_req or 5000), pen=vc},
+                "   Altar: ", chk(prog.altar),
+                "   Box: ",   chk(prog.bin),
+                "   Bars: ",  {text=("%d/%d"):format(prog.bars or 0, req), pen=bc},
+            }
+        end
+
+        local function coin_text(coffers, coins)
+            return {
+                "  Coins: ", {text=fmt_num(coins).."*",      pen=COLOR_YELLOW},
+                "   Coffers: ",       {text=tostring(coffers).."/5",  pen=COLOR_CYAN},
+                "   (Enter to buy)",
+            }
+        end
+
+        local function refresh()
+            local shop, pending, coffers, coins, unlocked, prog = read_state()
+            local btype = bar_sel and bar_sel:getOptionValue() or
+                          dfhack.persistent.getWorldDataString("dwarfipelago/shrine_bar_type") or "gold"
+            if shrine_head then shrine_head:setText(head_text(unlocked)) end
+            if req_label   then req_label:setText(req_text(prog, btype)) end
+            if coin_label  then coin_label:setText(coin_text(coffers, coins)) end
+            if shop_list   then
+                shop_list:setChoices(build_choices(shop, pending, coffers, coins, unlocked),
+                                     shop_list:getSelected())
+            end
+        end
+
+        local shop0, pending0, coffers0, coins0, unlocked0, prog0 = read_state()
+        local init_bar = dfhack.persistent.getWorldDataString("dwarfipelago/shrine_bar_type") or "gold"
+
+        shrine_head = widgets.Label{frame={t=0, l=0}, text=head_text(unlocked0)}
+        req_label   = widgets.Label{frame={t=1, l=0}, text=req_text(prog0, init_bar)}
+        bar_sel = widgets.CycleHotkeyLabel{
+            frame          = {t=2, l=0},
+            key            = "CUSTOM_B",
+            label          = "  Bar type: ",
+            options        = BAR_OPTS,
+            initial_option = init_bar,
+            on_change      = function(value)
+                dfhack.persistent.saveWorldDataString("dwarfipelago/shrine_bar_type", value)
+                refresh()
+            end,
+        }
+        coin_label = widgets.Label{frame={t=3, l=0}, text=coin_text(coffers0, coins0)}
+        shop_list = widgets.List{
+            frame      = {t=5, b=0},
+            text_pen   = COLOR_WHITE,
+            cursor_pen = COLOR_CYAN,
+            choices    = build_choices(shop0, pending0, coffers0, coins0, unlocked0),
+            on_submit  = function(_, choice)
+                if choice and choice.buyable and choice.slot then
+                    dfhack.run_command("dwarfipelago", "buy-shop", tostring(choice.slot))
+                    refresh()
+                end
+            end,
+        }
+        self._shop_refresh = refresh   -- onRenderFrame calls this to live-update
+        return widgets.Panel{subviews={shrine_head, req_label, bar_sel, coin_label, shop_list}}
+    end
+
     local tabviews = {}
     table.insert(tabviews, StatusTab())
     table.insert(tabviews, UnlocksTab())
@@ -809,6 +1011,9 @@ function DwarfipelagoPanel:init()
     if ps("skillsanity_enabled", "0") ~= "0" then
         table.insert(tabviews, SkillsTab())
     end
+    -- Shop tab is always present so the shrine status shows immediately; the slot
+    -- list fills in once the AP client writes shop data (refreshed by onRenderFrame).
+    table.insert(tabviews, ShopTab())
 
     local pages = widgets.Pages{
         frame = {t=4, b=2},
@@ -817,10 +1022,12 @@ function DwarfipelagoPanel:init()
 
     self:addviews{
         widgets.Window{
-            frame_title = ("Dwarfipelago v%s"):format(version),
-            frame       = {w=W, h=H, t=3, l=3},
-            resizable   = true,
-            resize_min  = {w=46, h=20},
+            frame_title       = ("Dwarfipelago v%s"):format(version),
+            frame             = {w=W, h=H, t=3, l=3},
+            resizable         = true,
+            resize_min        = {w=46, h=20},
+            frame_style       = make_ap_frame,
+            frame_background  = to_pen{ch=32, fg=0, bg=COLOR_BLACK, write_to_lower=true},
             subviews    = {
                 widgets.TabBar{
                     frame        = {t=0, l=0},
@@ -840,29 +1047,70 @@ function DwarfipelagoPanel:init()
     }
 end
 
+-- ── Archipelago logo tileset ──────────────────────────────────────────────────
+
+local _ap_logo_handles = nil
+local function load_ap_logo()
+    if _ap_logo_handles then return end
+    local mod_path = scriptmanager.getModSourcePath('dwarfipelago')
+    if not mod_path then return end
+    local path = mod_path .. 'scripts_modinstalled/art/ap-logo.png'
+    local ok, result = pcall(dfhack.textures.loadTileset, path, 24, 36, true)
+    if ok and result and #result > 0 then
+        _ap_logo_handles = result
+    end
+end
+
 -- ── Corner hotspot widget ─────────────────────────────────────────────────────
+
+local _ap_hotspot_positioned = false
 
 DwarfipelagoHotspot = defclass(DwarfipelagoHotspot, overlay.OverlayWidget)
 DwarfipelagoHotspot.ATTRS{
     desc            = "Dwarfipelago: click [AP] to open the status and control panel",
-    default_pos     = {x=6, y=2},
+    default_pos     = {x=42, y=-1},
     default_enabled = true,
     hotspot         = true,
     viewscreens     = {"dwarfmode"},
-    frame           = {w=4, h=1},
+    frame           = {w=4, h=3},
 }
 
 function DwarfipelagoHotspot:init()
+    self.frame_background = to_pen{ch=32, fg=COLOR_LIGHTCYAN, bg=COLOR_BLUE}
+    pcall(load_ap_logo)
     self:addviews{
         widgets.Label{
             frame = {t=0, l=0},
-            text  = {{text="[AP]", pen=COLOR_CYAN}},
+            text_pen = to_pen{fg=COLOR_LIGHTCYAN, bg=COLOR_BLUE},
+            text = 'AP',
+            visible = function() return not _ap_logo_handles end,
         },
     }
 end
 
+function DwarfipelagoHotspot:onRenderBody(dc)
+    if not _ap_logo_handles then
+        self:renderSubviews(dc)
+        return
+    end
+    local W, H = 4, 3
+    local idx = 1
+    for row = 0, H - 1 do
+        for col = 0, W - 1 do
+            if idx <= #_ap_logo_handles then
+                local texpos = dfhack.textures.getTexposByHandle(_ap_logo_handles[idx])
+                dc:seek(col, row):char(219, to_pen{ch=219, tile=texpos, fg=COLOR_WHITE, bg=COLOR_BLUE})
+                idx = idx + 1
+            end
+        end
+    end
+end
+
 function DwarfipelagoHotspot:overlay_onupdate()
-    -- no automatic trigger; opens on click only
+    if not _ap_hotspot_positioned then
+        _ap_hotspot_positioned = true
+        dfhack.run_command('overlay', 'position', 'dwarfipelago-panel.hotspot', 'default')
+    end
 end
 
 function DwarfipelagoHotspot:onInput(keys)
