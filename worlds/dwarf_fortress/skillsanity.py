@@ -119,6 +119,8 @@ class Skillsanity:
             set_rule(loc, self.skill_carpentry)
         elif "Stone Carver" in location_name:
             set_rule(loc, self.skill_stonecarver)
+        elif "Ambusher" in location_name:
+            set_rule(loc, self.skill_ambusher)
         elif "Animal Trainer" in location_name:
             set_rule(loc, self.skill_animaltrainer)
         elif "Trapper" in location_name:
@@ -276,6 +278,13 @@ class Skillsanity:
             or dynamic_rules.stone_slab(state) or dynamic_rules.stone_millstone(state) \
             or dynamic_rules.stone_quern(state) or dynamic_rules.stone_statue(state) \
             or dynamic_rules.stone_table(state) or dynamic_rules.stone_weaponrack(state)
+
+    def skill_ambusher(self, state:CollectionState) -> bool:
+        dynamic_rules = DynamicCraftingLocationRules(self.world)
+        if self.world.options.craftpermits == CraftingPermits.option_off:
+            return dynamic_rules.bowyer_workshop(state) and (dynamic_rules.craftdwarf_workshop(state) or dynamic_rules.metal(state))
+        else:
+            return dynamic_rules.bowyer_or_metal_crossbow(state) and dynamic_rules.woodcraft_or_bonecraft_or_metal_bolt(state)
 
     def skill_animaltrainer(self, state:CollectionState) -> bool:
         if self.world.options.trades_inlogic == True:
