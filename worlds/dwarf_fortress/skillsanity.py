@@ -614,7 +614,7 @@ class Skillsanity:
         
     def skill_weaver(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
-        if self.world.options.craftpermits == CraftingPermits.option_off:
+        if self.world.options.craftpermits != CraftingPermits.option_all:
             return dynamic_rules.cloth(state)
         else:
             return dynamic_rules.make_cloth(state)
@@ -624,8 +624,9 @@ class Skillsanity:
         if self.world.options.craftpermits == CraftingPermits.option_off:
             return dynamic_rules.craftdwarf_workshop(state)
         else:
-            return dynamic_rules.stone_or_wood_crafts(state) or dynamic_rules.wood_or_bone_bolt(state) \
-            or dynamic_rules.wood_jug(state) or dynamic_rules.wood_or_stone_hive(state)
+            return dynamic_rules.stone_or_wood_crafts(state) or dynamic_rules.wood_bolt(state) \
+            or dynamic_rules.wood_jug(state) or dynamic_rules.wood_or_stone_hive(state) \
+            or dynamic_rules.bone_bolt(state)
         
     def skill_mechanic(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
