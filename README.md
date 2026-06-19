@@ -31,7 +31,7 @@ Dwarfipelago is balanced for a **Small world** (65×65 region tiles). A recommen
 
 ### Setup
 
-1. Copy `prefs/world_gen.txt` from this repo into your Dwarf Fortress `prefs/` folder (create the folder if it doesn't exist)
+1. Launch the **Dwarf Fortress Client** from the AP launcher and run `/dfinstall` once to add the preset to your `prefs/world_gen.txt`
 2. When creating a new world in DF, open the world gen menu and select **"DwarfipelagoWorld"** from the saved presets list
 3. Generate and embark as normal
 
@@ -40,17 +40,15 @@ Dwarfipelago is balanced for a **Small world** (65×65 region tiles). A recommen
 | Setting | Value | Reason |
 |---------|-------|--------|
 | World size | Small (65×65) | Balanced play duration; faster gen than Medium/Large |
-| History length | 150 years | Short enough to keep human/elf civs alive; longer runs often leave only goblins |
+| History length | 120 years | Short enough to keep human/elf civs alive; longer runs often leave only goblins |
 | Civilizations | 20 | Ensures human, elf, dwarf, and goblin civs all exist |
 | Playable civ required | Yes | Rejects worlds with no dwarf civ to embark with |
-| Forest regions (min) | 300 sq / 3 regions | Guarantees elf habitat (~7% of map) |
-| Grassland regions (min) | 300 sq / 3 regions | Guarantees human habitat (~7% of map) |
-| Mountain regions (min) | 200 sq / 2 regions | Guarantees dwarf homeland and peak embark sites |
+| Forest regions (min) | 2 regions | Guarantees elf habitat exists |
+| Grassland regions (min) | 2 regions | Guarantees human habitat exists |
 | Volcanoes (min) | 5 | Ensures magma access for deep AP checks |
-| Megabeasts | 20 cap | Enough for the Slay Megabeast goal without overwhelming |
+| Megabeasts | 4 cap | Enough for the Slay Megabeast goal without overwhelming |
 | Cavern layers | 3 full layers | Required for all cavern breach AP checks |
 | Magma sea + HFS | Enabled | Required for Reached the Magma Sea and Welcome to the Circus checks |
-| Z-level depth | ~200 levels of rock | Required for the 100-levels-deep AP milestone |
 | Mineral scarcity | 100 (standard) | Full mineral density — not scarce |
 
 ### If you use a different preset

@@ -163,6 +163,164 @@ def _get_df_executable() -> Optional[str]:
     return None
 
 
+# ── World gen preset install ───────────────────────────────────────────────────
+# Moved here from the old DFHack console script (dwarfipelago-worldgen-install.lua)
+# so players install the preset from the AP client with "/dfinstall" instead of
+# running a console command inside DF.
+
+WORLD_GEN_PRESET_TITLE = "DwarfipelagoWorld"
+
+WORLD_GEN_PRESET = (
+    "\n"
+    "[WORLD_GEN]\n"
+    "\t[TITLE:DwarfipelagoWorld]\n"
+    "\t[DIM:65:65]\n"
+    "\t[EMBARK_POINTS:1504]\n"
+    "\t[END_YEAR:120]\n"
+    "\t[BEAST_END_YEAR:100:80]\n"
+    "\t[REVEAL_ALL_HISTORY:1]\n"
+    "\t[CULL_HISTORICAL_FIGURES:0]\n"
+    "\t[ELEVATION:1:400:202:202]\n"
+    "\t[RAINFALL:0:100:101:101]\n"
+    "\t[TEMPERATURE:25:75:101:101]\n"
+    "\t[DRAINAGE:0:100:101:101]\n"
+    "\t[VOLCANISM:0:100:101:101]\n"
+    "\t[SAVAGERY:0:100:101:101]\n"
+    "\t[ELEVATION_FREQUENCY:1:1:1:1:1:1]\n"
+    "\t[RAIN_FREQUENCY:1:1:1:1:1:1]\n"
+    "\t[DRAINAGE_FREQUENCY:1:1:1:1:1:1]\n"
+    "\t[TEMPERATURE_FREQUENCY:1:1:1:1:1:1]\n"
+    "\t[SAVAGERY_FREQUENCY:1:1:1:1:1:1]\n"
+    "\t[VOLCANISM_FREQUENCY:1:1:1:1:1:1]\n"
+    "\t[POLE:NORTH_AND_OR_SOUTH]\n"
+    "\t[MINERAL_SCARCITY:100]\n"
+    "\t[MEGABEAST_CAP:4]\n"
+    "\t[SEMIMEGABEAST_CAP:9]\n"
+    "\t[TITAN_NUMBER:3]\n"
+    "\t[TITAN_ATTACK_TRIGGER:3:0:3]\n"
+    "\t[DEMON_NUMBER:22]\n"
+    "\t[NIGHT_TROLL_NUMBER:11]\n"
+    "\t[BOGEYMAN_NUMBER:11]\n"
+    "\t[NIGHTMARE_NUMBER:11]\n"
+    "\t[VAMPIRE_NUMBER:11]\n"
+    "\t[WEREBEAST_NUMBER:11]\n"
+    "\t[WEREBEAST_ATTACK_TRIGGER:2:2:2]\n"
+    "\t[SECRET_NUMBER:22]\n"
+    "\t[REGIONAL_INTERACTION_NUMBER:22]\n"
+    "\t[DISTURBANCE_INTERACTION_NUMBER:22]\n"
+    "\t[EVIL_CLOUD_NUMBER:11]\n"
+    "\t[EVIL_RAIN_NUMBER:11]\n"
+    "\t[GENERATE_DIVINE_MATERIALS:1]\n"
+    "\t[GENERATE_MYTHICAL_MATERIALS:1]\n"
+    "\t[ALLOW_MYTHICAL_HEALING:1]\n"
+    "\t[ALLOW_DIVINATION:1]\n"
+    "\t[ALLOW_DEMONIC_EXPERIMENTS:1]\n"
+    "\t[ALLOW_NECROMANCER_EXPERIMENTS:1]\n"
+    "\t[ALLOW_NECROMANCER_LIEUTENANTS:1]\n"
+    "\t[ALLOW_NECROMANCER_GHOULS:1]\n"
+    "\t[ALLOW_NECROMANCER_SUMMONS:1]\n"
+    "\t[GOOD_SQ_COUNTS:6:63:127]\n"
+    "\t[EVIL_SQ_COUNTS:6:63:127]\n"
+    "\t[PEAK_NUMBER_MIN:3]\n"
+    "\t[PARTIAL_OCEAN_EDGE_MIN:1]\n"
+    "\t[COMPLETE_OCEAN_EDGE_MIN:0]\n"
+    "\t[VOLCANO_MIN:5]\n"
+    "\t[REGION_COUNTS:SWAMP:66:0:0]\n"
+    "\t[REGION_COUNTS:DESERT:66:0:0]\n"
+    "\t[REGION_COUNTS:FOREST:264:2:2]\n"
+    "\t[REGION_COUNTS:MOUNTAINS:528:0:0]\n"
+    "\t[REGION_COUNTS:OCEAN:528:0:0]\n"
+    "\t[REGION_COUNTS:GLACIER:0:0:0]\n"
+    "\t[REGION_COUNTS:TUNDRA:0:0:0]\n"
+    "\t[REGION_COUNTS:GRASSLAND:264:2:2]\n"
+    "\t[REGION_COUNTS:HILLS:528:0:0]\n"
+    "\t[EROSION_CYCLE_COUNT:250]\n"
+    "\t[RIVER_MINS:25:25]\n"
+    "\t[PERIODICALLY_ERODE_EXTREMES:1]\n"
+    "\t[OROGRAPHIC_PRECIPITATION:1]\n"
+    "\t[SUBREGION_MAX:2750]\n"
+    "\t[CAVERN_LAYER_COUNT:3]\n"
+    "\t[CAVERN_LAYER_OPENNESS_MIN:0]\n"
+    "\t[CAVERN_LAYER_OPENNESS_MAX:100]\n"
+    "\t[CAVERN_LAYER_PASSAGE_DENSITY_MIN:0]\n"
+    "\t[CAVERN_LAYER_PASSAGE_DENSITY_MAX:100]\n"
+    "\t[CAVERN_LAYER_WATER_MIN:0]\n"
+    "\t[CAVERN_LAYER_WATER_MAX:100]\n"
+    "\t[HAVE_BOTTOM_LAYER_1:1]\n"
+    "\t[HAVE_BOTTOM_LAYER_2:1]\n"
+    "\t[LEVELS_ABOVE_GROUND:15]\n"
+    "\t[LEVELS_ABOVE_LAYER_1:5]\n"
+    "\t[LEVELS_ABOVE_LAYER_2:1]\n"
+    "\t[LEVELS_ABOVE_LAYER_3:1]\n"
+    "\t[LEVELS_ABOVE_LAYER_4:1]\n"
+    "\t[LEVELS_ABOVE_LAYER_5:2]\n"
+    "\t[LEVELS_AT_BOTTOM:1]\n"
+    "\t[CAVE_MIN_SIZE:5]\n"
+    "\t[CAVE_MAX_SIZE:25]\n"
+    "\t[MOUNTAIN_CAVE_MIN:6]\n"
+    "\t[NON_MOUNTAIN_CAVE_MIN:12]\n"
+    "\t[MYTHICAL_SITE_NUM:200]\n"
+    "\t[ALL_CAVES_VISIBLE:0]\n"
+    "\t[SHOW_EMBARK_TUNNEL:2]\n"
+    "\t[TOTAL_CIV_NUMBER:20]\n"
+    "\t[TOTAL_CIV_POPULATION:15000]\n"
+    "\t[SITE_CAP:400]\n"
+    "\t[PLAYABLE_CIVILIZATION_REQUIRED:1]\n"
+    "\t[ELEVATION_RANGES:528:1056:528]\n"
+    "\t[RAIN_RANGES:264:528:264]\n"
+    "\t[DRAINAGE_RANGES:264:528:264]\n"
+    "\t[SAVAGERY_RANGES:264:528:264]\n"
+    "\t[VOLCANISM_RANGES:264:528:264]\n"
+)
+
+
+def _find_worldgen_prefs_path() -> Optional[str]:
+    """
+    Locate the DF prefs/world_gen.txt file across platforms.
+
+    Steam DF on Windows redirects user prefs to %APPDATA%\\Bay 12 Games\\Dwarf
+    Fortress\\ rather than the install directory. Linux/macOS keep prefs
+    alongside the install, so we derive it from the DF executable location.
+    """
+    if sys.platform == "win32":
+        appdata = os.environ.get("APPDATA")
+        if not appdata:
+            return None
+        return os.path.join(appdata, "Bay 12 Games", "Dwarf Fortress", "prefs", "world_gen.txt")
+
+    exe = _get_df_executable()
+    if not exe:
+        return None
+    return os.path.join(os.path.dirname(exe), "prefs", "world_gen.txt")
+
+
+def install_worldgen_preset() -> str:
+    """
+    Append the Dwarfipelago world-gen preset to the player's world_gen.txt if it
+    isn't already present. Safe to call repeatedly. Returns a status message
+    for printing to the AP client console.
+    """
+    prefs_path = _find_worldgen_prefs_path()
+    if not prefs_path:
+        return ("Could not locate prefs/world_gen.txt — set 'game_path' in host.yaml "
+                 "to your Dwarf Fortress executable and try again.")
+
+    existing = ""
+    if os.path.isfile(prefs_path):
+        with open(prefs_path, "r", encoding="utf-8") as f:
+            existing = f.read()
+
+    if WORLD_GEN_PRESET_TITLE in existing:
+        return f"World gen preset is already installed in {prefs_path}"
+
+    os.makedirs(os.path.dirname(prefs_path), exist_ok=True)
+    with open(prefs_path, "a", encoding="utf-8") as f:
+        f.write(WORLD_GEN_PRESET)
+
+    return (f"World gen preset installed to {prefs_path}\n"
+            f"Restart Dwarf Fortress for 'DwarfipelagoWorld' to appear in the preset list.")
+
+
 # ── DFHack connection ─────────────────────────────────────────────────────────
 
 class DFHackConnection:
@@ -436,6 +594,13 @@ class DwarfFortressCommandProcessor(ClientCommandProcessor):
     def _cmd_energy_link(self):
         """Print the status of the energy link."""
         self.output(f"Energy Link: {self.ctx.energy_link_status}")
+
+    def _cmd_dfinstall(self):
+        """Install the Dwarfipelago world generation preset into your Dwarf
+        Fortress prefs/world_gen.txt. Run this once before generating a new
+        world. Usage: /dfinstall"""
+        for line in install_worldgen_preset().splitlines():
+            self.output(line)
 
     # def _cmd_send_energy_link(self, amount: str = ""):
     #     """Send energy to test energy link. usage: /send_energy_link <amount>"""
