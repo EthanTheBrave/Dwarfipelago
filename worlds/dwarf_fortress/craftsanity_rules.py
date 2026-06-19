@@ -557,7 +557,9 @@ class DynamicCraftingLocationRules:
             return self.glass(state) and state.has("Statue Permit", self.player)
     def wood_or_stone_or_metal_or_glass_statue(self, state:CollectionState) -> bool:
             return self.wood_or_stone_or_metal_or_glass(state) and state.has("Statue Permit", self.player)
-    
+    def ceramic_statue(self, state:CollectionState) -> bool:
+            return self.ceramic(state) and state.has("Statue Permit", self.player)
+
     def wood_bookbinding(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Book Binding Permit", self.player)
     def stone_bookbinding(self, state:CollectionState) -> bool:
@@ -1598,6 +1600,11 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.glass_statue)
                     else:
                         set_rule(loc, self.glass)
+                elif material_type == "Ceramic":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.ceramic_statue)
+                    else:
+                        set_rule(loc, self.ceramic)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.wood_or_stone_or_metal_or_glass_statue)
