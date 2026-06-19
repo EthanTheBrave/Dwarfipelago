@@ -1,3 +1,13 @@
+-- Appends the DwarfipelagoWorld preset to the DF user prefs/world_gen.txt
+-- if it isn't already there.  Safe to run multiple times.
+--
+-- Usage (DFHack console):
+--     dwarfipelago-worldgen-install
+
+local PRESET_TITLE = "DwarfipelagoWorld"
+
+local PRESET = [==[
+
 [WORLD_GEN]
 	[TITLE:DwarfipelagoWorld]
 	[DIM:65:65]
@@ -97,3 +107,54 @@
 	[DRAINAGE_RANGES:264:528:264]
 	[SAVAGERY_RANGES:264:528:264]
 	[VOLCANISM_RANGES:264:528:264]
+]==]
+
+-- Locate the DF user data directory where world_gen.txt actually lives.
+-- Steam DF on Windows stores user prefs in %APPDATA%\Bay 12 Games\Dwarf Fortress\
+-- not in the DF install directory.
+local function find_prefs_path()
+    local appdata = os.getenv("APPDATA")
+    if appdata and appdata ~= "" then
+        local candidate = appdata .. "/Bay 12 Games/Dwarf Fortress/prefs/world_gen.txt"
+        local f = io.open(candidate, "r")
+        if f then f:close(); return candidate end
+        -- File doesn't exist yet but directory might — still valid path to create into
+        local dir_check = io.open(appdata .. "/Bay 12 Games/Dwarf Fortress/prefs/", "r")
+        if dir_check then dir_check:close(); return candidate end
+    end
+    -- Fallback: DF install dir (classic/Linux/Mac layout)
+    local ok, base = pcall(dfhack.getDFPath)
+    if ok and base and base ~= "" then
+        return base .. "/prefs/world_gen.txt"
+    end
+    return nil
+end
+
+local prefs_path = find_prefs_path()
+if not prefs_path then
+    qerror("Could not locate prefs/world_gen.txt — is DF installed correctly?")
+end
+
+-- Read existing content
+local existing = ""
+local rf = io.open(prefs_path, "r")
+if rf then
+    existing = rf:read("*a")
+    rf:close()
+end
+
+if existing:find(PRESET_TITLE, 1, true) then
+    print("[Dwarfipelago] World gen preset is already installed in " .. prefs_path)
+    return
+end
+
+local wf = io.open(prefs_path, "a")
+if not wf then
+    qerror("Could not open " .. prefs_path .. " for writing")
+end
+wf:write(PRESET)
+wf:close()
+
+print("[Dwarfipelago] World gen preset installed to:")
+print("  " .. prefs_path)
+print("[Dwarfipelago] Restart DF for DwarfipelagoWorld to appear in the preset list.")

@@ -1646,6 +1646,88 @@ local TEST_LIST = {
                            print("[test] Valid animals: " .. table.concat({"pigs","chickens","alpacas","cows","sheep","yaks"}, ", "))
                        end
                    end },
+    { "worldcheck", "Verify this world meets Dwarfipelago requirements (run after world gen, before embark)",
+                   function()
+                       local issues = 0
+                       local function pass(msg) print("[worldcheck] PASS  " .. msg) end
+                       local function warn(msg) print("[worldcheck] WARN  " .. msg); issues = issues + 1 end
+                       local function fail(msg) dfhack.printerr("[worldcheck] FAIL  " .. msg); issues = issues + 1 end
+
+                       -- 1. World dimensions
+                       local w, h
+                       pcall(function()
+                           w = df.global.world.world_data.world_width
+                           h = df.global.world.world_data.world_height
+                       end)
+                       if not w then
+                           fail("Could not read world dimensions — is a world loaded?")
+                           return
+                       end
+                       local SIZE_NAMES = {[17]="Pocket",[33]="Smaller",[65]="Small",[129]="Medium",[257]="Large"}
+                       local size_name = SIZE_NAMES[w] or "Unknown"
+                       if w == 65 and h == 65 then
+                           pass(("Size: %dx%d (Small)"):format(w, h))
+                       else
+                           warn(("Size: %dx%d (%s) — DwarfipelagoWorld preset uses Small (65x65)"):format(w, h, size_name))
+                       end
+
+                       -- 2. History length
+                       local year
+                       pcall(function() year = df.global.cur_year end)
+                       if year then
+                           if year >= 80 then
+                               pass(("History: %d years"):format(year))
+                           elseif year >= 40 then
+                               warn(("History: %d years — shorter history may produce fewer sites and civs"):format(year))
+                           else
+                               fail(("History: %d years — very short, world likely lacks sites and civs needed for AP"):format(year))
+                           end
+                       end
+
+                       -- 3. Civilization presence
+                       local civs = { DWARF=false, HUMAN=false, ELF=false, GOBLIN=false }
+                       local total_ents = 0
+                       pcall(function()
+                           local creatures = df.global.world.raws.creatures.all
+                           for _, ent in ipairs(df.global.world.entities.all) do
+                               total_ents = total_ents + 1
+                               if ent.race >= 0 and ent.race < #creatures then
+                                   local rid = creatures[ent.race].creature_id
+                                   if civs[rid] ~= nil then civs[rid] = true end
+                               end
+                           end
+                       end)
+                       for _, race in ipairs({"DWARF","HUMAN","ELF","GOBLIN"}) do
+                           if civs[race] then
+                               pass("Civ: " .. race)
+                           else
+                               fail("Civ: " .. race .. " not found — related AP goals may be impossible")
+                           end
+                       end
+                       print(("[worldcheck]       (%d total entities in world)"):format(total_ents))
+
+                       -- 4. Active volcanoes (proxy for magma access)
+                       local n_volc = 0
+                       pcall(function()
+                           local vs = df.global.world.world_data.active_volcanoes
+                           if vs then n_volc = #vs end
+                       end)
+                       if n_volc >= 5 then
+                           pass(("Volcanoes: %d active"):format(n_volc))
+                       elseif n_volc >= 1 then
+                           warn(("Volcanoes: %d active — magma access possible but limited; consider rerolling if smelting goals are required"):format(n_volc))
+                       else
+                           warn("Volcanoes: none detected — magma smelting goals may require a different embark site")
+                       end
+
+                       -- Summary
+                       print("")
+                       if issues == 0 then
+                           print("[worldcheck] All checks passed — world is suitable for Dwarfipelago.")
+                       else
+                           print(("[worldcheck] %d issue(s) found — see above. Consider rerolling if critical."):format(issues))
+                       end
+                   end },
     { "caravan",   "Force a caravan (arg: dwarf|elf|human|goblin; default = parent civ)",
                    function(rest)
                        local token = ({ dwarf = "DWARF", elf = "ELF",
