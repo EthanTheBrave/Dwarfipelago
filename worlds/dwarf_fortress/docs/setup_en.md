@@ -51,10 +51,10 @@ Then **enable the mod** in DF's in-game mod manager before generating or loading
 
 ### 3. Install the World Gen Preset
 
-Dwarfipelago works best with a specific world generation profile. Run the following command in the DFHack console **once after installing the mod** to add it to your world gen preset list:
+Dwarfipelago works best with a specific world generation profile. Launch the **Dwarf Fortress Client** from the Archipelago launcher and run the following command **once, before generating a new world**, to add the preset to your world gen preset list:
 
 ```
-dwarfipelago-worldgen-install
+/dfinstall
 ```
 
 > **Back up your world_gen.txt first** if you have custom presets you care about:
@@ -64,6 +64,8 @@ dwarfipelago-worldgen-install
 > The command appends the Dwarfipelago preset without touching your existing entries, but a backup is good practice.
 
 After running the command, restart DF and the **DwarfipelagoWorld** preset will appear in the world generation preset list. Select it when creating a new world.
+
+> **If `/dfinstall` can't find your `world_gen.txt`** (e.g. a non-Steam install), set `game_path` in `host.yaml` to your `Dwarf Fortress.exe`, or copy `prefs/world_gen.txt` from this repo into your DF `prefs/` folder by hand.
 
 #### Verifying your world
 

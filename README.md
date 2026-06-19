@@ -31,7 +31,7 @@ Dwarfipelago is balanced for a **Small world** (65×65 region tiles). A recommen
 
 ### Setup
 
-1. Copy `prefs/world_gen.txt` from this repo into your Dwarf Fortress `prefs/` folder (create the folder if it doesn't exist)
+1. Launch the **Dwarf Fortress Client** from the AP launcher and run `/dfinstall` once to add the preset to your `prefs/world_gen.txt`
 2. When creating a new world in DF, open the world gen menu and select **"DwarfipelagoWorld"** from the saved presets list
 3. Generate and embark as normal
 
