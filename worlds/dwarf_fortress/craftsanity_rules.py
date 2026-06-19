@@ -575,8 +575,10 @@ class DynamicCraftingLocationRules:
             return self.metal(state) and state.has("Statue Permit", self.player)
     def glass_statue(self, state:CollectionState) -> bool:
             return self.glass(state) and state.has("Statue Permit", self.player)
-    def wood_or_stone_or_metal_or_glass_statue(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Statue Permit", self.player)
+    def ceramic_statue(self, state:CollectionState) -> bool:
+            return self.ceramic(state) and state.has("Statue Permit", self.player)
+    def wood_or_stone_or_metal_or_glass_or_ceramic_statue(self, state:CollectionState) -> bool:
+            return self.wood_or_stone_or_metal_or_glass_or_ceramic(state) and state.has("Statue Permit", self.player)
     
     def wood_or_stone_bookbinding(self, state:CollectionState) -> bool:
             return self.craftdwarf_workshop(state) and state.has("Book Binding Permit", self.player)
@@ -1630,11 +1632,16 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.glass_statue)
                     else:
                         set_rule(loc, self.glass)
+                elif material_type == "Ceramic":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.ceramic_statue)
+                    else:
+                        set_rule(loc, self.ceramic)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.wood_or_stone_or_metal_or_glass_statue)
+                        set_rule(loc, self.wood_or_stone_or_metal_or_glass_or_ceramic_statue)
                     else:
-                        set_rule(loc, self.wood_or_stone_or_metal_or_glass)
+                        set_rule(loc, self.wood_or_stone_or_metal_or_glass_or_ceramic)
             case "Book Binding":
                 if material_type in {"Wood", "Stone"}:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
