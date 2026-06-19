@@ -22,7 +22,7 @@ local eventful   = require("plugins.eventful")
 local repeatUtil = require("repeat-util")
 
 local SCRIPT_NAME = "dwarfipelago"
-local SCRIPT_VERSION = "1.1.0"
+local SCRIPT_VERSION = "1.1.2"
 local POLL_TICKS  = 100  -- poll wealth/trade/goal checks every N ticks
 
 local function fmt_energy(j)
@@ -608,6 +608,194 @@ local function deposit_coins(target_val)
     _add_energy(deposited_val * 1000, ("%d * in coins"):format(deposited_val))
 end
 
+-- ── Merchant's Shop ───────────────────────────────────────────────────────────
+-- Remove minted coins worth up to target_val of face value (1 val = 1 kJ worth),
+-- returning the value actually removed. Same partial-stack logic as deposit_coins.
+local function _remove_coin_value(target_val)
+    if not target_val or target_val <= 0 then return 0 end
+    local coin_items, total_j = {}, 0
+    pcall(function() coin_items, total_j = checks.find_fortress_coins_energy() end)
+    local avail_val = math.floor((total_j or 0) / 1000)
+    if #coin_items == 0 or avail_val == 0 then return 0 end
+    if target_val > avail_val then target_val = avail_val end
+    local removed_val = 0
+    for _, entry in ipairs(coin_items) do
+        if removed_val >= target_val then break end
+        local stack    = entry.item.stack_size or 1
+        local val_each = math.max(1, math.floor(entry.j / stack / 1000))
+        local need     = target_val - removed_val
+        local take     = math.min(stack, math.ceil(need / val_each))
+        if take >= stack then
+            pcall(function() dfhack.items.remove(entry.item) end)
+        else
+            pcall(function() entry.item.stack_size = entry.item.stack_size - take end)
+        end
+        removed_val = removed_val + take * val_each
+    end
+    return removed_val
+end
+
+-- Buy a shop slot: validate coffer tier, not-already-bought, and minted-coin
+-- value, then remove the coins, mark the slot pending, and queue the purchase
+-- for the AP client (which sends the location check to release the item).
+local function buy_shop(slot)
+    slot = tonumber(slot)
+    if not slot or slot < 1 then
+        dfhack.gui.showAnnouncement("[AP] Usage: dwarfipelago buy-shop <slot>", COLOR_YELLOW, true)
+        return
+    end
+    local raw = dfhack.persistent.getWorldDataString("dwarfipelago/shop")
+    if not raw or raw == "" then
+        dfhack.gui.showAnnouncement("[AP] The shop is not available yet.", COLOR_YELLOW, true)
+        return
+    end
+    if dfhack.persistent.getWorldDataString("dwarfipelago/shop_unlocked") ~= "1" then
+        dfhack.gui.showAnnouncement(
+            "[AP] The shop is closed -- build the merchant's shrine to open it.", COLOR_YELLOW, true)
+        return
+    end
+    local shop = json.decode(raw) or {}
+    local entry = shop[tostring(slot)]
+    if not entry then
+        dfhack.gui.showAnnouncement("[AP] No such shop slot.", COLOR_YELLOW, true)
+        return
+    end
+
+    local pending = json.decode(dfhack.persistent.getWorldDataString("dwarfipelago/shop_pending") or "{}") or {}
+    if entry.bought == 1 or pending[tostring(slot)] then
+        dfhack.gui.showAnnouncement("[AP] That item has already been purchased.", COLOR_YELLOW, true)
+        return
+    end
+
+    local coffers = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/unlock/wealth_coffers")) or 0
+    local tier = entry.tier or 1
+    if coffers < tier then
+        dfhack.gui.showAnnouncement(
+            ("[AP] Shop tier %d is locked — receive %d Merchant's Coffer(s) first."):format(tier, tier),
+            COLOR_YELLOW, true)
+        return
+    end
+
+    local price = tonumber(entry.price) or 0
+    local _, total_j = nil, 0
+    pcall(function() _, total_j = checks.find_fortress_coins_energy() end)
+    local avail_val = math.floor((total_j or 0) / 1000)
+    if avail_val < price then
+        dfhack.gui.showAnnouncement(
+            ("[AP] Not enough coin value: need %d, have %d."):format(price, avail_val), COLOR_YELLOW, true)
+        return
+    end
+
+    local removed = _remove_coin_value(price)
+    if removed < price then
+        dfhack.gui.showAnnouncement(
+            ("[AP] Purchase failed (removed %d of %d coins)."):format(removed, price), COLOR_RED, true)
+        return
+    end
+
+    -- Mark pending so the panel/buy guard treat it as unavailable until the
+    -- client confirms (then it becomes bought=1 in the shop data).
+    pending[tostring(slot)] = true
+    dfhack.persistent.saveWorldDataString("dwarfipelago/shop_pending", json.encode(pending))
+
+    -- Append to the buy queue for the client.
+    local queue = json.decode(dfhack.persistent.getWorldDataString("dwarfipelago/shop_buy") or "[]") or {}
+    table.insert(queue, slot)
+    dfhack.persistent.saveWorldDataString("dwarfipelago/shop_buy", json.encode(queue))
+
+    dfhack.gui.showAnnouncement(
+        ("[AP] Bought %s for %d coins."):format(tostring(entry.item or "item"), price), COLOR_GREEN, true)
+end
+
+-- Merchant shrine detector: opens the shop when the player has a temple zone (a
+-- Civzone assigned to a location) holding a built altar (OfferingPlace), a
+-- container, the chosen bar type/count, and total item/furniture value >= threshold.
+-- Bar type (gold/coke/silver) is read from dwarfipelago/shrine_bar_type each poll.
+-- Runs every poll, so the shrine must STAY intact for the shop to remain open.
+-- Writes dwarfipelago/shop_unlocked + dwarfipelago/shrine_progress (for the panel).
+local SHRINE_VALUE_REQ = 5000
+local SHRINE_BAR_REQS  = {gold=5, coke=20, silver=10}
+local SHRINE_BAR_TOKS  = {gold="GOLD", coke="COKE", silver="SILVER"}
+
+local function detect_shrine()
+    local bar_type = dfhack.persistent.getWorldDataString("dwarfipelago/shrine_bar_type") or "gold"
+    local bar_req  = SHRINE_BAR_REQS[bar_type] or 5
+    local bar_tok  = SHRINE_BAR_TOKS[bar_type] or "GOLD"
+
+    local best = {value=0, bars=0, altar=false, bin=false, ok=false, score=-1}
+    pcall(function()
+        for _, z in ipairs(df.global.world.buildings.all) do
+            local okt, t = pcall(function() return z:getType() end)
+            if okt and t == df.building_type.Civzone then
+                local loc = -1
+                pcall(function() loc = z.location_id end)
+                if loc and loc >= 0 then   -- assigned to a location (temple/tavern/...)
+                    local x1, x2 = math.min(z.x1, z.x2), math.max(z.x1, z.x2)
+                    local y1, y2 = math.min(z.y1, z.y2), math.max(z.y1, z.y2)
+                    local zz = z.z
+
+                    -- altar = an OfferingPlace building overlapping the zone
+                    local altar = false
+                    for _, b in ipairs(df.global.world.buildings.all) do
+                        if b ~= z and b.z == zz and b.x1 <= x2 and b.x2 >= x1
+                                and b.y1 <= y2 and b.y2 >= y1 then
+                            local okb, bt = pcall(function() return b:getType() end)
+                            if okb and bt == df.building_type.OfferingPlace then altar = true; break end
+                        end
+                    end
+
+                    -- items in the zone: total value, matching bar count, container present
+                    local value, bars, bin = 0, 0, false
+                    for _, it in ipairs(df.global.world.items.all) do
+                        local p = it.pos
+                        if p and p.z == zz and p.x >= x1 and p.x <= x2 and p.y >= y1 and p.y <= y2 then
+                            local v = 0; pcall(function() v = dfhack.items.getValue(it) end)
+                            value = value + v
+                            local ity = it:getType()
+                            if ity == df.item_type.BIN or ity == df.item_type.BOX then bin = true end
+                            if ity == df.item_type.BAR then
+                                local tok = ""
+                                pcall(function()
+                                    local m = dfhack.matinfo.decode(it.mat_type, it.mat_index)
+                                    tok = (m and m:getToken()) or ""
+                                end)
+                                if tok:find(bar_tok) then bars = bars + (it.stack_size or 1) end
+                            end
+                        end
+                    end
+
+                    local score = (altar and 1 or 0) + (bin and 1 or 0)
+                        + math.min(bars, bar_req) / bar_req
+                        + math.min(value, SHRINE_VALUE_REQ) / SHRINE_VALUE_REQ
+                    if score > best.score then
+                        best = {
+                            value=value, bars=bars, altar=altar, bin=bin, score=score,
+                            ok = altar and bin and bars >= bar_req and value >= SHRINE_VALUE_REQ,
+                        }
+                    end
+                end
+            end
+        end
+    end)
+
+    dfhack.persistent.saveWorldDataString("dwarfipelago/shop_unlocked", best.ok and "1" or "0")
+    dfhack.persistent.saveWorldDataString("dwarfipelago/shrine_progress", json.encode({
+        value=best.value, value_req=SHRINE_VALUE_REQ,
+        bars=best.bars,   bars_req=bar_req,
+        altar=best.altar, bin=best.bin, ok=best.ok,
+    }))
+
+    if best.ok then
+        if dfhack.persistent.getWorldDataString("dwarfipelago/shop_unlocked_announced") ~= "1" then
+            dfhack.persistent.saveWorldDataString("dwarfipelago/shop_unlocked_announced", "1")
+            dfhack.gui.showAnnouncement(
+                "[AP] The merchant god accepts your shrine -- the shop is open!", COLOR_GREEN, true)
+        end
+    else
+        dfhack.persistent.saveWorldDataString("dwarfipelago/shop_unlocked_announced", "0")
+    end
+end
+
 
 -- ── Megabeast goal: remove natural megabeasts ────────────────────────────────
 -- For the slay_megabeast goal, all naturally-spawned megabeasts are silently
@@ -759,8 +947,11 @@ local function detect_pump_activity()
         local flow = 0
         pcall(function() flow = des.flow_size end)
         if flow == 0 then return nil end
+        -- liquid_type is the tile_liquid enum (Water=0, Magma=1). Comparing the
+        -- raw value as a boolean is wrong: 0 is truthy in Lua, so it would always
+        -- report "magma". Compare explicitly against Magma.
         local is_magma = false
-        pcall(function() is_magma = des.liquid_type end)
+        pcall(function() is_magma = (des.liquid_type == df.tile_liquid.Magma) end)
         return is_magma and "magma" or "water"
     end
 
@@ -769,10 +960,10 @@ local function detect_pump_activity()
             local ok_t, btype = pcall(function() return bld:getType() end)
             if not (ok_t and btype == df.building_type.ScrewPump) then goto skip_pump end
 
-            -- Must be connected to a machine network (power source present).
-            local connected = false
-            pcall(function() connected = bld.machine_id >= 0 end)
-            if not connected then goto skip_pump end
+            -- A screw pump pumps either when powered by a machine network OR when
+            -- hand-cranked by a dwarf (machine_id == -1 in that case). The old
+            -- code required machine_id >= 0, so hand-pumped water/magma never
+            -- counted. We now accept any built pump adjacent to the liquid.
 
             -- Check the five tiles that could be the intake: directly below,
             -- and the four horizontal neighbours one level down.
@@ -794,13 +985,24 @@ local function detect_pump_activity()
 end
 
 -- ── Egg hatch detection ───────────────────────────────────────────────────────
--- Scans active units for the born_from_egg flag (set on chicks/hatchlings).
+-- DISABLED for now: no reliable hatch signal on DF v50 (no born_from_egg flag,
+-- and the tame-baby-egg-layer scan didn't fire in testing). Re-enable together
+-- with the "First Eggs Hatched" location/rule/check in the .py and checks.lua.
+--[[
+local function caste_lays_eggs(unit)
+    local lays = false
+    pcall(function()
+        lays = df.creature_raw.find(unit.race).caste[unit.caste].flags.LAYS_EGGS
+    end)
+    return lays == true
+end
+
 local function detect_egg_hatch()
     if checks.production_flag("egg_hatched") then return end
     pcall(function()
         for _, unit in ipairs(df.global.world.units.active) do
-            local ok, from_egg = pcall(function() return unit.flags2.born_from_egg end)
-            if ok and from_egg then
+            if dfhack.units.isTame(unit) and dfhack.units.isBaby(unit)
+                    and caste_lays_eggs(unit) then
                 checks.set_production_flag("egg_hatched")
                 dfhack.gui.showAnnouncement("[AP] Eggs have hatched in the fortress!", COLOR_GREEN, true)
                 return
@@ -808,6 +1010,7 @@ local function detect_egg_hatch()
         end
     end)
 end
+--]]
 
 -- ── Cave adaptation suppression ──────────────────────────────────────────────
 local function suppress_cave_adaptation()
@@ -839,28 +1042,74 @@ local function detect_caged_hostile_beast()
 end
 
 -- ── Artifact departure detection ──────────────────────────────────────────────
--- Fires sold_artifact when any world artifact's item has been removed from the
--- game (i.e. left the fortress via trade, theft, or other departure).
+-- Fires sold_artifact only when an artifact from THIS fortress is TRADED away to
+-- a caravan. We track each artifact (per id, in world data) through two states:
+--   "here"    = its item is in our fort and belongs to us
+--   "trading" = it has since become trader-owned (we sold it to a caravan)
+-- and we fire only when a "trading" artifact then leaves with the caravan.
+--
+-- This deliberately ignores every NON-sale departure: an artifact carried off by
+-- one of your own squads on a raid/mission never becomes trader-owned (it stays
+-- "here", then just goes off-map), and neither does one stolen by a thief -- so
+-- those no longer register as a sale. (world.artifacts.all is the world-wide
+-- list, full of offsite/lost historical artifacts on a fresh embark, which is why
+-- we only ever act on ones we have personally seen in the fort.)
 local function detect_sold_artifact()
     if checks.production_flag("sold_artifact") then return end
     pcall(function()
+        local key = "dwarfipelago/artifact_seen"
+        local seen = json.decode(dfhack.persistent.getWorldDataString(key) or "{}") or {}
+        local changed = false
         for _, artifact in ipairs(df.global.world.artifacts.all) do
-            local item_id = -1
-            pcall(function() item_id = artifact.item_id end)
-            if item_id < 0 then goto skip_art end
-            local item = df.item.find(item_id)
-            if not item then goto skip_art end
-            local gone = false
-            pcall(function() gone = item.flags.removed end)
-            if not gone then
-                pcall(function() gone = item.pos.x < 0 end)
+            local aid
+            pcall(function() aid = artifact.id end)
+            if aid then
+                local skey = tostring(aid)
+
+                -- Resolve the item (pointer on DF v50, else item_id).
+                local item = nil
+                pcall(function() item = artifact.item end)
+                if not item then
+                    local iid = -1
+                    pcall(function() iid = artifact.item_id end)
+                    if iid >= 0 then item = df.item.find(iid) end
+                end
+
+                local exists, removed, onmap, trader = false, true, false, false
+                if item then
+                    exists = true
+                    pcall(function() removed = item.flags.removed end)
+                    pcall(function() onmap  = (item.pos.x >= 0) end)
+                    pcall(function() trader = item.flags.trader end)
+                end
+                local gone  = (not exists) or removed
+                local state = seen[skey]
+
+                if (not gone) and trader then
+                    -- Now the trader's. Treat as a pending sale only if it was one
+                    -- of OUR fort artifacts first ("here"); this ignores artifacts
+                    -- a caravan brought in with it.
+                    if (state == "here" or state == "trading") and state ~= "trading" then
+                        seen[skey] = "trading"; changed = true
+                    end
+                elseif (not gone) and onmap then
+                    -- Sitting in our fort and still ours (not trader-owned).
+                    if state ~= "here" and state ~= "trading" then
+                        seen[skey] = "here"; changed = true
+                    end
+                elseif gone and state == "trading" then
+                    -- A sold artifact has now left with the departing caravan.
+                    checks.set_production_flag("sold_artifact")
+                    dfhack.gui.showAnnouncement("[AP] An artifact has been sold!", COLOR_GREEN, true)
+                    return
+                end
+                -- Everything else is intentionally ignored: gone while still "here"
+                -- (raid/theft/destruction), or in-unit-inventory transit (off-map
+                -- but not removed).
             end
-            if gone then
-                checks.set_production_flag("sold_artifact")
-                dfhack.gui.showAnnouncement("[AP] An artifact has left the fortress!", COLOR_GREEN, true)
-                return
-            end
-            ::skip_art::
+        end
+        if changed then
+            dfhack.persistent.saveWorldDataString(key, json.encode(seen))
         end
     end)
 end
@@ -910,10 +1159,11 @@ local function poll_checks()
     detect_caravans()
     checks.detect_mission_checks()
     detect_pump_activity()
-    detect_egg_hatch()
+    -- detect_egg_hatch()  -- disabled: hatch detection unreliable on DF v50
     detect_caged_hostile_beast()
     suppress_cave_adaptation()
     detect_sold_artifact()
+    detect_shrine()
     _check_spawn_caravan_approved()
 
     for _, check in ipairs(checks.checks) do
@@ -1671,6 +1921,8 @@ elseif cmd == "deposit-food" then
     deposit_food(tonumber(args[2]))
 elseif cmd == "deposit-coins" then
     deposit_coins(tonumber(args[2]))
+elseif cmd == "buy-shop" then
+    buy_shop(args[2])
 elseif cmd == "receive" then
     local item_name = table.concat(args, " ", 2)
     if item_name == "" then
@@ -1682,5 +1934,5 @@ elseif cmd == "test" then
     -- Manual mechanic verification: dwarfipelago test <name> [args]
     items.run_test(args[2], { table.unpack(args, 3) })
 else
-    print("Usage: dwarfipelago [start|stop|status|reset|resetseed|panel|call-caravan|dismiss-caravan|deposit-ale [n]|deposit-food [n]|deposit-coins <value>|receive <item>|test <name>]")
+    print("Usage: dwarfipelago [start|stop|status|reset|resetseed|panel|call-caravan|dismiss-caravan|deposit-ale [n]|deposit-food [n]|deposit-coins <value>|buy-shop <slot>|receive <item>|test <name>]")
 end

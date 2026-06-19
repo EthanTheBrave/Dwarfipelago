@@ -38,9 +38,22 @@ local function fortress_wealth()
     return 0
 end
 
+-- True if a unit is carrying the item, directly or nested inside a container it
+-- holds (e.g. coins in a hauler's bag). Use this instead of item.flags.in_inventory,
+-- which is also set for items in your own bins/coffers and wrongly excludes them.
+local function held_by_unit(item)
+    local it = item
+    while it do
+        if dfhack.items.getHolderUnit(it) then return true end
+        it = dfhack.items.getContainer(it)
+    end
+    return false
+end
+
 -- Returns the combined value of all minted coins (COIN) and cut gems (SMALLGEM)
 -- currently in fortress stocks — not carried by any unit, not belonging to traders.
--- Value per stack = stack_size × material.material_value.
+-- A coin stack is worth 10 × material_value for a full 500 stack, i.e. each coin
+-- is material_value × 10 / 500; a cut gem is worth its material_value.
 -- Both item types require AP-gated blueprints (Screw Press and Jeweler's Workshop)
 -- and their material values vary widely, keeping embark-site luck meaningful.
 local function treasury_wealth()
@@ -48,17 +61,22 @@ local function treasury_wealth()
     for _, item in ipairs(df.global.world.items.all) do
         local itype = item:getType()
         if (itype == df.item_type.COIN or itype == df.item_type.SMALLGEM)
-                and not item.flags.in_inventory
-                and not item.flags.trader then
+                and not item.flags.trader
+                and not held_by_unit(item) then
             local ok, mat = pcall(dfhack.matinfo.decode, item.mat_type, item.mat_index)
             local mat_value = 1
             if ok and mat and mat.material then
                 mat_value = mat.material.material_value or 1
             end
-            total = total + (item.stack_size or 1) * mat_value
+            local stack = item.stack_size or 1
+            if itype == df.item_type.COIN then
+                total = total + stack * mat_value * 10 / 500
+            else
+                total = total + stack * mat_value
+            end
         end
     end
-    return total
+    return math.floor(total)
 end
 
 -- ── Progression lock helpers ──────────────────────────────────────────────────
@@ -209,7 +227,8 @@ M.checks = {
     { id = 37370742, name = "Pumped Magma",  fn = function() return M.production_flag("pump_magma") end },
 
     -- Biology / animals.
-    { id = 37370750, name = "First Eggs Hatched", fn = function() return M.production_flag("egg_hatched")     end },
+    -- "First Eggs Hatched" (37370750) disabled: hatch detection unreliable on DF v50.
+    -- { id = 37370750, name = "First Eggs Hatched", fn = function() return M.production_flag("egg_hatched")     end },
     { id = 37370751, name = "Caged a Hostile Beast", fn = function() return M.production_flag("caged_hostile_beast") end },
 
     -- Deep / endgame.
@@ -372,8 +391,12 @@ map("ProcessPlants",           "cloth")   -- also produces thread
 map("TanHide",                 "leather")
 map("CutGems",                 "gem")
 map("EncrustedWithGems",       "gem")
--- Traps
-map("ConstructTrap",           "trap")
+-- Traps. DF v50 has no ConstructTrap job_type; arming a trap is one of the
+-- Load*Trap jobs, and wiring a lever/pressure plate is LinkBuildingToTrigger.
+map("ConstructTrap",           "trap")  -- kept for older DF; nil-skipped on v50
+map("LoadCageTrap",            "trap")
+map("LoadStoneTrap",           "trap")
+map("LoadWeaponTrap",          "trap")
 map("LinkBuildingToTrigger",   "trap")
 -- Standalone production checks
 map("ForgeAnvil",              "anvil")
@@ -384,13 +407,28 @@ map("MakeTool",                "TOOL_FIRST")  -- subtype dispatch below
 -- Minecart subtype: MakeTool item_subtype 16
 local TOOL_FIRST_FLAG = { [16] = "minecart" }
 
+-- Some "production" jobs have no dedicated job_type in DF v50 — they complete as
+-- CustomReaction jobs and are identified by reaction_name (this is the same way
+-- the craft-count path resolves them via REACTION_SUBTYPE_FLAG, which is why the
+-- craftsanity Alcohol checks already work). Map those reaction names to the
+-- first-production flag so e.g. "First Brew Complete" fires too.
+local REACTION_TO_PROD = {}
+local function rprod(name, flag) REACTION_TO_PROD[name] = flag end
+rprod("BREW_DRINK_FROM_PLANT",        "brew")
+rprod("BREW_DRINK_FROM_PLANT_GROWTH", "brew")
+rprod("TAN_A_HIDE",                   "leather")
+
 function M.job_to_production_flag(job)
     if job and job.job_type then
         local flag = JOB_TO_FLAG[job.job_type]
         if flag == "TOOL_FIRST" then
             return TOOL_FIRST_FLAG[tonumber(job.item_subtype)]
         end
-        return flag
+        if flag then return flag end
+        -- Fall back to reaction-name matching for CustomReaction jobs.
+        local rname = ""
+        pcall(function() rname = job.reaction_name or "" end)
+        if rname ~= "" then return REACTION_TO_PROD[rname] end
     end
     return nil
 end
@@ -603,6 +641,7 @@ reaction_subtype("PRESS_PLANT_PAPER",               "sheet")
 reaction_subtype("MAKE_SHEET_FROM_PLANT",           "sheet")
 reaction_subtype("BREW_DRINK_FROM_PLANT",           "alcohol")
 reaction_subtype("BREW_DRINK_FROM_PLANT_GROWTH",    "alcohol")
+reaction_subtype("TAN_A_HIDE",                      "leather")
 reaction_subtype("MAKE_MILK_OF_LIME",               "milk_of_lime")
 reaction_subtype("RENDER_FAT",                      "tallow")
 reaction_subtype("PRESS_OIL_FRUIT",                 "oil")
@@ -948,7 +987,8 @@ function M.find_fortress_food()
 end
 
 -- Return all accessible minted coins in fortress stocks with their energy values.
--- Each coin item contributes (stack_size × material_value × 1000) joules.
+-- A coin stack is worth 10 × material_value per 500 coins, so each coin item
+-- contributes (stack_size × material_value × 10 / 500 × 1000) joules.
 -- Returns (list_of_{item,j}, total_j).
 function M.find_fortress_coins_energy()
     local found   = {}
@@ -964,7 +1004,9 @@ function M.find_fortress_coins_energy()
             pcall(function()
                 local ok2, mat = pcall(dfhack.matinfo.decode, item.mat_type, item.mat_index)
                 if ok2 and mat and mat.material then
-                    j = (item.stack_size or 1) * (mat.material.material_value or 1) * 1000
+                    -- Coin value: a stack of 500 is worth 10 * material_value, so a
+                    -- coin is material_value * 10 / 500. Energy uses 1 val = 1000 J.
+                    j = (item.stack_size or 1) * (mat.material.material_value or 1) * 10 / 500 * 1000
                 end
             end)
             if j > 0 then
@@ -974,6 +1016,105 @@ function M.find_fortress_coins_energy()
         end
     end
     return found, total_j
+end
+
+-- ── Skill count helpers ───────────────────────────────────────────────────────
+-- Cumulative counts of completed job skills per flag, persisted in world
+-- data under "dwarfipelago/skill/<flag_name>".
+-- Incremented by the eventful job hook in dwarfipelago.lua.
+-- The AP client polls these directly to decide when a milestone threshold is met.
+
+local SKILL_COUNT_PREFIX = "dwarfipelago/skill/"
+
+local SKILL_LIST = {
+    { key = df.job_skill["CUT_STONE"], skill = "stonecutter", name = "Stonecutter"},
+    { key = df.job_skill["ENGRAVE_STONE"], skill = "engraver", name = "Engraver"},
+    { key = df.job_skill["MINING"], skill = "miner", name = "Miner"},
+    { key = df.job_skill["WOODCUTTING"], skill = "woodcutter", name = "Wood Cutter"},
+    { key = df.job_skill["HERBALISM"], skill = "herbalist", name = "Herbalist"},
+    { key = df.job_skill["SPINNING"], skill = "spinner", name = "Spinner"},
+    { key = df.job_skill["FISH"], skill = "fisherdwarf", name = "Fisherdwarf"},
+    { key = df.job_skill["SNEAK"], skill = "ambusher", name = "Ambusher"},
+    { key = df.job_skill["TRAPPING"], skill = "trapper", name = "Trapper"},
+    { key = df.job_skill["GLASSMAKER"], skill = "glassmaker", name = "Glassmaker"},
+    { key = df.job_skill["METALCRAFT"], skill = "metalcrafter", name = "Metal Crafter"},
+    { key = df.job_skill["CUTGEM"], skill = "gemcutter", name = "Gem Cutter"},
+    { key = df.job_skill["STONECRAFT"], skill = "stonecrafter", name = "Stone Crafter"},
+    { key = df.job_skill["WOODCRAFT"], skill = "woodcrafter", name = "Wood Crafter"},
+    { key = df.job_skill["ENCRUSTGEM"], skill = "gemsetter", name = "Gem Setter"},
+    { key = df.job_skill["SMELT"], skill = "furnaceoperator", name = "Furnace Operator"},
+    { key = df.job_skill["EXTRACT_STRAND"], skill = "strandextractor", name = "Strand Extractor"},
+    { key = df.job_skill["PLANT"], skill = "planter", name = "Planter"},
+    { key = df.job_skill["ANIMALTRAIN"], skill = "animaltrainer", name = "Animal Trainer"},
+    { key = df.job_skill["SIEGECRAFT"], skill = "siegeengineer", name = "Siege Engineer"},
+    { key = df.job_skill["FORGE_WEAPON"], skill = "weaponsmith", name = "Weaponsmith"},
+    { key = df.job_skill["FORGE_ARMOR"], skill = "armorsmith", name = "Armorsmith"},
+    { key = df.job_skill["BUTCHER"], skill = "butcher", name = "Butcher"},
+    { key = df.job_skill["PROCESSFISH"], skill = "fishcleaner", name = "Fish Cleaner"},
+    { key = df.job_skill["MILLING"], skill = "miller", name = "Miller"},
+    { key = df.job_skill["MILK"], skill = "milker", name = "Milker"},
+    { key = df.job_skill["CHEESEMAKING"], skill = "cheesemaker", name = "Cheese Maker"},
+    { key = df.job_skill["PROCESSPLANTS"], skill = "thresher", name = "Thresher"},
+    { key = df.job_skill["COOK"], skill = "cook", name = "Cook"},
+    { key = df.job_skill["BONECARVE"], skill = "bonecarver", name = "Bone Carver"},
+    { key = df.job_skill["SIEGEOPERATE"], skill = "siegeoperator", name = "Siege Operator"},
+    { key = df.job_skill["MECHANICS"], skill = "mechanic", name = "Mechanic"},
+    { key = df.job_skill["DIAGNOSE"], skill = "diagnostician", name = "Diagnostician"},
+    { key = df.job_skill["SET_BONE"], skill = "bonedoctor", name = "Bone Doctor"},
+    { key = df.job_skill["DRESS_WOUNDS"], skill = "wounddresser", name = "Wound Dresser"},
+    { key = df.job_skill["SURGERY"], skill = "surgeon", name = "Surgeon"},
+    { key = df.job_skill["SUTURE"], skill = "suturer", name = "Suturer"},
+    { key = df.job_skill["WOOD_BURNING"], skill = "woodburner", name = "Wood Burner"},
+    { key = df.job_skill["LYE_MAKING"], skill = "lyemaker", name = "Lye Maker"},
+    { key = df.job_skill["POTASH_MAKING"], skill = "potashmaker", name = "Potash Maker"},
+    { key = df.job_skill["DYER"], skill = "dyer", name = "Dyer"},
+    { key = df.job_skill["OPERATE_PUMP"], skill = "pumpoperator", name = "Pump Operator"},
+    { key = df.job_skill["SHEARING"], skill = "shearer", name = "Shearer"},
+    { key = df.job_skill["GELD"], skill = "gelder", name = "Gelder"},
+    { key = df.job_skill["CARPENTRY"], skill = "carpenter", name = "Carpenter"},
+    { key = df.job_skill["MASONRY"], skill = "mason", name = "Mason"},
+    { key = df.job_skill["DISSECT_FISH"], skill = "fishdissector", name = "Fish Dissector"},
+    { key = df.job_skill["LEATHERWORK"], skill = "leatherworker", name = "Leatherworker"},
+    { key = df.job_skill["CLOTHESMAKING"], skill = "clothier", name = "Clothier"},
+    { key = df.job_skill["FORGE_FURNITURE"], skill = "blacksmith", name = "Blacksmith"},
+    { key = df.job_skill["BOWYER"], skill = "bowyer", name = "Bowyer"},
+    { key = df.job_skill["SOAP_MAKING"], skill = "soaper", name = "Soaper"},
+    { key = df.job_skill["POTTERY"], skill = "potter", name = "Potter"},
+    { key = df.job_skill["GLAZING"], skill = "glazer", name = "Glazer"},
+    { key = df.job_skill["PRESSING"], skill = "presser", name = "Presser"},
+    { key = df.job_skill["BEEKEEPING"], skill = "beekeeper", name = "Beekeeper"},
+    { key = df.job_skill["WAX_WORKING"], skill = "waxworker", name = "Wax Worker"},
+    { key = df.job_skill["PAPERMAKING"], skill = "papermaker", name = "Papermaker"},
+    { key = df.job_skill["BOOKBINDING"], skill = "bookbinder", name = "Bookbinder"},
+    { key = df.job_skill["RECORD_KEEPING"], skill = "recordkeeper", name = "Record Keeper"},
+    { key = df.job_skill["ORGANIZATION"], skill = "organizer", name = "Organizer"},
+    { key = df.job_skill["APPRAISAL"], skill = "appraiser", name = "Appraiser"},
+    { key = df.job_skill["BREWING"], skill = "brewer", name = "Brewer"},
+    { key = df.job_skill["CARVE_STONE"], skill = "stonecarver", name = "Stone Carver"},
+    { key = df.job_skill["TANNER"], skill = "tanner", name = "Tanner"},
+    { key = df.job_skill["WEAVING"], skill = "weaver", name = "Weaver"},
+}
+
+function M.get_skill_count(flag)
+    return tonumber(dfhack.persistent.getWorldDataString(SKILL_COUNT_PREFIX .. flag)) or 0
+end
+
+-- Returns { flag = count } for every craft flag recorded this world (count > 0).
+function M.get_all_skill_counts()
+    local out = {}
+    for _, skilltype in ipairs(SKILL_LIST) do
+        local n = tonumber(dfhack.persistent.getWorldDataString(SKILL_COUNT_PREFIX .. skilltype.skill)) or -1
+        if n >= 0 then out[skilltype.name] = n end
+    end
+    return out
+end
+
+-- Clears all recorded craft counts and the index (used by 'dwarfipelago reset').
+function M.clear_skill_counts()
+    for _, skilltype in ipairs(SKILL_LIST) do
+        local n = tonumber(dfhack.persistent.getWorldDataString(SKILL_COUNT_PREFIX .. skilltype.skill)) or -1
+        if n >= 0 then dfhack.persistent.saveWorldDataString(SKILL_COUNT_PREFIX .. skilltype.skill, "0") end
+    end
 end
 
 -- reqscript returns the script's _ENV, not the explicit return value.

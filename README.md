@@ -40,10 +40,16 @@ Dwarfipelago is balanced for a **Small world** (65×65 region tiles). A recommen
 | Setting | Value | Reason |
 |---------|-------|--------|
 | World size | Small (65×65) | Balanced play duration; faster gen than Medium/Large |
-| Numbered civs | 20 | Ensures human and elf civilizations are present for caravan checks |
-| Forest regions (min) | 2 | Guarantees elf habitat exists |
-| Grassland regions (min) | 2 | Guarantees human habitat exists |
-| Everything else | DF defaults | No other settings are changed |
+| History length | 120 years | Short enough to keep human/elf civs alive; longer runs often leave only goblins |
+| Civilizations | 20 | Ensures human, elf, dwarf, and goblin civs all exist |
+| Playable civ required | Yes | Rejects worlds with no dwarf civ to embark with |
+| Forest regions (min) | 2 regions | Guarantees elf habitat exists |
+| Grassland regions (min) | 2 regions | Guarantees human habitat exists |
+| Volcanoes (min) | 5 | Ensures magma access for deep AP checks |
+| Megabeasts | 4 cap | Enough for the Slay Megabeast goal without overwhelming |
+| Cavern layers | 3 full layers | Required for all cavern breach AP checks |
+| Magma sea + HFS | Enabled | Required for Reached the Magma Sea and Welcome to the Circus checks |
+| Mineral scarcity | 100 (standard) | Full mineral density — not scarce |
 
 ### If you use a different preset
 

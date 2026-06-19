@@ -663,6 +663,12 @@ class DwarfFortressContext(CommonContext):
         self.last_deplete = 0            # energy link
         self.last_energy = 0             # energy link
         self.current_energy = 0          # energy link
+        self._skillsanity_enabled = 0    # Skillsanity
+        self._skill_locations = {}       # required locations
+        self._skill_max_level = 15       # max level
+        self._skill_behaviour = 0        # 0 = don't touch levels 1 = lower to next check
+        self._shop_scout_sent = False    # sent LocationScouts for shop slots this AP session
+        self._shop_last_sig = None       # last shop table written to Lua (skip redundant writes)
 
     def debug(self, msg: str):
         """Log only when debug mode is enabled (toggle with /dfdebug)."""
@@ -710,6 +716,7 @@ class DwarfFortressContext(CommonContext):
                         self._slot_data_synced = False
                         self._received_index_loaded = False
                         self._completed_locations_loaded = False
+                        self._shop_last_sig = None  # force a re-write to the next loaded save
                         logger.info("Map unloaded — AP operations paused until a save is loaded")
                     await asyncio.sleep(self._poll_interval)
                     continue
@@ -754,6 +761,8 @@ class DwarfFortressContext(CommonContext):
                         await self.update_energy()
                         await self.new_energy()
                         await self._check_caravan_request()
+                        await self._sync_shop()
+                        await self._check_shop_purchase()
                     else:
                         logger.debug("Trade depot not yet established — holding checks and item delivery")
 
@@ -872,6 +881,10 @@ class DwarfFortressContext(CommonContext):
         materials_enabled = slot_data.get("craftsanity_materials")
         king_remains_amt = slot_data.get("remains_great_king")
         craftingpermits = slot_data.get("crafting_permits")
+        self._skillsanity_enabled = slot_data.get("skillsanity_enabled")
+        self._skill_locations = slot_data.get("skillsanity_locations")
+        self._skill_max_level = slot_data.get("skillsanity_max_level")
+        self._skill_behaviour = slot_data.get("skillsanity_behaviour")
         current_seed = self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("dwarfipelago/seed"))')
         current_seed = (current_seed or "").strip()
         # A blank/"nil" stored seed means this world has no AP identity yet (fresh,
@@ -895,6 +908,7 @@ class DwarfFortressContext(CommonContext):
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/seed", "{self.seed}")')
                     write()
                     self.init_crafting_locations()
+                    self.init_skill_locations()
                 # Energy link flag — Lua reads this to know the feature is on.
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/energy_enabled", "{1 if self.energy_link_enabled else 0}")')
                 # Always re-sync these flags so Lua uses the correct key format
@@ -902,6 +916,10 @@ class DwarfFortressContext(CommonContext):
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_enabled", "{craftsanity_enabled}")')
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_materials", "{materials_enabled}")')
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/crafting_permits", "{craftingpermits}")')
+                #skillsanity
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/skillsanity_enabled", "{self._skillsanity_enabled}")')
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/skillsanity_max_level", "{self._skill_max_level}")')
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/skillsanity_behaviour", "{self._skill_behaviour}")')
                 # Craftsanity metadata for the in-game panel tab.
                 # Written on every sync so the panel works after reconnects.
                 if self._craftsanity_threshold and self._craftsanity_max_value:
@@ -1113,6 +1131,102 @@ class DwarfFortressContext(CommonContext):
         self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/spawn_caravan_approved", "1")')
         logger.debug(f"EnergyLink: Caravan approved, deducted {format_SI_prefix(cost)}*")
 
+    async def _sync_shop(self):
+        """
+        Scout the shop-slot locations and write each slot's contents to DFHack
+        storage for the in-game Shop tab: the item name, the player who receives
+        it, the slot's coin price + coffer tier, and whether it's been bought.
+        Sends LocationScouts once per AP session; re-writes only when something
+        (e.g. a bought flag) changes.
+        """
+        shop = self.slot_data.get("shop", {})
+        if not shop:
+            if not getattr(self, "_shop_warned_empty", False):
+                self._shop_warned_empty = True
+                logger.info("Shop: slot_data has no 'shop' entry — this apworld/seed has no shop "
+                            "(or an older apworld was used to generate).")
+            return
+        shop_ids = [int(k) for k in shop.keys()]
+        if not self._shop_scout_sent:
+            logger.info(f"Shop: scouting {len(shop_ids)} shop slots")
+            await self.send_msgs([{
+                "cmd": "LocationScouts", "locations": shop_ids, "create_as_hint": 0,
+            }])
+            self._shop_scout_sent = True
+
+        entries: dict[str, Any] = {}
+        for sid in shop_ids:
+            info = self.locations_info.get(sid)
+            if not info:
+                continue  # scout reply not in yet for this slot
+            meta = shop[str(sid)]
+            try:
+                item_name = self.item_names.lookup_in_slot(info.item, info.player)
+            except Exception:
+                item_name = str(info.item)
+            player_name = self.player_names.get(info.player, str(info.player))
+            entries[str(meta["slot"])] = {
+                "id": sid,
+                "slot": meta["slot"],
+                "tier": meta["tier"],
+                "price": meta["price"],
+                "item": item_name,
+                "player": player_name,
+                "flags": int(getattr(info, "flags", 0) or 0),
+                "bought": 1 if sid in self.checked_locations else 0,
+            }
+        if not entries:
+            return
+
+        # ensure_ascii keeps cross-game item names safe inside the Lua string;
+        # escape backslashes then quotes so the JSON survives the Lua literal.
+        payload = json.dumps(entries, ensure_ascii=True, sort_keys=True)
+        if payload == self._shop_last_sig:
+            return
+        self._shop_last_sig = payload
+        escaped = payload.replace("\\", "\\\\").replace('"', '\\"')
+        await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: self.dfhack.run_command(
+                "lua",
+                f'dfhack.persistent.saveWorldDataString("dwarfipelago/shop", "{escaped}")',
+            ),
+        )
+        logger.info(f"Shop: wrote {len(entries)} slot(s) to DFHack storage")
+
+    async def _check_shop_purchase(self):
+        """
+        Buy bridge (mirrors _check_caravan_request): the Lua 'buy-shop' command
+        charges the minted coins and appends the slot number to the JSON queue at
+        dwarfipelago/shop_buy. We drain the queue and send those slots' location
+        checks, releasing each item to its recipient. (A queue, not a single
+        value, so two quick purchases can't clobber each other.)
+        """
+        shop = self.slot_data.get("shop", {})
+        if not shop:
+            return
+        raw = self.dfhack.run_command(
+            "lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/shop_buy") or "")')
+        raw = (raw or "").strip()
+        if not raw or raw in ("[]", "nil", "0"):
+            return
+        try:
+            slots = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            return
+        if not isinstance(slots, list) or not slots:
+            return
+        self.dfhack.run_command(
+            "lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/shop_buy", "[]")')
+        loc_ids = []
+        for slot in slots:
+            loc_id = next((int(k) for k, m in shop.items() if m["slot"] == slot), None)
+            if loc_id is not None and loc_id not in self.checked_locations:
+                loc_ids.append(loc_id)
+        if loc_ids:
+            await self.send_msgs([{"cmd": "LocationChecks", "locations": loc_ids}])
+            logger.info(f"Shop: purchased slots {slots} -> locations {loc_ids}")
+
 
     async def _crafting_location_checks(self):
         """Read new crafting location checks from persistent storage and report them to AP."""
@@ -1213,6 +1327,14 @@ class DwarfFortressContext(CommonContext):
             self.dfhack.run_command(
                 "lua", f'dfhack.gui.showAnnouncement("{location_name} Completed!", COLOR_GREEN)'
             )
+    
+    def init_skill_locations(self):
+        for skill in self._skill_locations:
+            storage_name ="dwarfipelago/skill/"
+            if self._skill_locations[skill]['threshold'] == 1:
+                storage_name += self._skill_locations[skill]["skill"]
+            storage_name = storage_name.lower()
+            self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("{storage_name}", "0")')
 
     async def setAPKeyValue(self, key:str, value:list[int]):
         await self.send_msgs([{
@@ -1251,6 +1373,8 @@ class DwarfFortressContext(CommonContext):
             # Start DFHack polling and (when inside AP) the server connection as
             # concurrent asyncio tasks so neither blocks the other.
             self.slot_data: dict[str, Any] = args.get("slot_data", {})
+            self._shop_scout_sent = False  # re-scout shop slots for this AP session
+            self._shop_last_sig = None
             # Register as a DeathLink participant when the option is on. This adds
             # the "DeathLink" tag and sends a ConnectUpdate, which is what tells the
             # server to route DeathLink bounces to/from this slot. Without it the
