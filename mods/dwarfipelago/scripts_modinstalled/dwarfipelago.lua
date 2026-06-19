@@ -1683,5 +1683,4 @@ elseif cmd == "test" then
     items.run_test(args[2], { table.unpack(args, 3) })
 else
     print("Usage: dwarfipelago [start|stop|status|reset|resetseed|panel|call-caravan|dismiss-caravan|deposit-ale [n]|deposit-food [n]|deposit-coins <value>|receive <item>|test <name>]")
-    print("       dwarfipelago test worldcheck  -- verify world suitability before embarking")
 end
