@@ -25,6 +25,12 @@ class DynamicCraftingLocationRules:
             return self.process_resource(state, "metal") and (state.has("Forge Blueprint", self.player) or \
             state.has("Magma Forge Blueprint", self.player))
         
+    def bone(self, state:CollectionState) -> bool:
+        return self.process_resource(state, "bone")
+    
+    def bonecraft(self, state:CollectionState) -> bool:
+        return self.process_resource(state, "bone") and self.craftdwarf_workshop(state)
+        
     def process_resource(self, state:CollectionState, resource) -> bool: #glass, metal, ceramic
         if resource == "metal":
             if self.world.options.craftpermits == CraftingPermits.option_off:
@@ -66,6 +72,8 @@ class DynamicCraftingLocationRules:
             else:
                 return (state.has("Wood Furnace Blueprint", self.player) and state.has("Kiln Blueprint", self.player) and \
                 state.has("Charcoal Permit", self.player)) or state.has("Magma Kiln Blueprint", self.player)
+        elif resource == "bone":
+             return state.has("Butcher's Shop Blueprint", self.player)
         elif resource == "farming":
                 return state.has("Farm Plot Blueprint", self.player)
         else:
@@ -140,6 +148,9 @@ class DynamicCraftingLocationRules:
     def bowyer_workshop(self, state:CollectionState) -> bool:
         return state.has("Bowyer's Workshop Blueprint", self.player)
     
+    def bone_bowyer_workshop(self, state:CollectionState) -> bool:
+        return state.has("Bowyer's Workshop Blueprint", self.player) and self.bone(state)
+    
     def craftdwarf_workshop(self, state:CollectionState) -> bool:
         return state.has("Craftsdwarf's Workshop Blueprint", self.player)
     
@@ -190,6 +201,9 @@ class DynamicCraftingLocationRules:
     def bowyer_or_metal(self, state:CollectionState) -> bool:
         return self.metal(state) or self.bowyer_workshop(state) 
     
+    def woodcraft_or_bonecraft_or_metal(self, state:CollectionState) -> bool:
+        return self.metal(state) or self.craftdwarf_workshop(state) or self.bonecraft(state)
+
     def craftdwarf_or_metal(self, state:CollectionState) -> bool:
         return self.metal(state) or self.craftdwarf_workshop(state) 
     
@@ -231,13 +245,13 @@ class DynamicCraftingLocationRules:
         return self.metal(state) or self.leather_works(state)
     
     def metal_or_bone(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.craftdwarf_workshop(state)
+        return self.metal(state) or self.bonecraft(state)
     
     def metal_or_cloth(self, state:CollectionState) -> bool:
         return self.metal(state) or self.clothier_workshop(state)
 
     def metal_or_bone_or_leather(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.leather_works(state) or self.craftdwarf_workshop(state)
+        return self.metal(state) or self.leather_works(state) or self.bonecraft(state)
     
     def metal_or_cloth_or_leather(self, state:CollectionState) -> bool:
         return self.metal(state) or self.leather_works(state) or self.clothier_workshop(state)
@@ -636,19 +650,23 @@ class DynamicCraftingLocationRules:
     def wood_or_metal_or_glass_pipesection(self, state:CollectionState) -> bool:
             return self.wood_or_metal_or_glass(state) and state.has("Pipe Section Permit", self.player)
     
-    def wood_or_bone_crossbow(self, state:CollectionState) -> bool:
+    def wood_crossbow(self, state:CollectionState) -> bool:
             return self.bowyer_workshop(state) and state.has("Crossbow Permit", self.player)
+    def bone_crossbow(self, state:CollectionState) -> bool:
+            return self.bowyer_workshop(state) and self.bone(state) and state.has("Crossbow Permit", self.player)
     def metal_crossbow(self, state:CollectionState) -> bool:
             return self.metal(state) and state.has("Crossbow Permit", self.player)
     def bowyer_or_metal_crossbow(self, state:CollectionState) -> bool:
         return self.bowyer_or_metal(state) and state.has("Crossbow Permit", self.player)
     
-    def wood_or_bone_bolt(self, state:CollectionState) -> bool:
+    def wood_bolt(self, state:CollectionState) -> bool:
         return self.craftdwarf_workshop(state) and state.has("Bolt Permit", self.player)
+    def bone_bolt(self, state:CollectionState) -> bool:
+        return self. bonecraft(state) and state.has("Bolt Permit", self.player)
     def metal_bolt(self, state:CollectionState) -> bool:
         return self.metal(state) and state.has("Bolt Permit", self.player)
-    def craftdwarf_or_metal_bolt(self, state:CollectionState) -> bool:
-        return self.craftdwarf_or_metal(state) and state.has("Bolt Permit", self.player)
+    def woodcraft_or_bonecraft_or_metal_bolt(self, state:CollectionState) -> bool:
+        return self.woodcraft_or_bonecraft_or_metal(state) and state.has("Bolt Permit", self.player)
     
     def stone_millstone(self, state:CollectionState) -> bool:
         return self.stone(state) and state.has("Millstone Permit", self.player)
@@ -719,7 +737,7 @@ class DynamicCraftingLocationRules:
         return self.craftdwarf_and_butchery(state) and state.has("Totem Permit", self.player)
     
     def bone_helm(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and state.has("Helm Permit", self.player)
+        return self.bonecraft(state) and state.has("Helm Permit", self.player)
     def metal_helm(self, state:CollectionState) -> bool:
         return self.metal(state) and state.has("Helm Permit", self.player)
     def leather_helm(self, state:CollectionState) -> bool:
@@ -728,7 +746,7 @@ class DynamicCraftingLocationRules:
         return self.metal_or_bone_or_leather(state) and state.has("Helm Permit", self.player)
     
     def bone_lbodyarmor(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and state.has("Lower Body Armor Permit", self.player)
+        return self.bonecraft(state) and state.has("Lower Body Armor Permit", self.player)
     def metal_lbodyarmor(self, state:CollectionState) -> bool:
         return self.metal(state) and state.has("Lower Body Armor Permit", self.player)
     def leather_lbodyarmor(self, state:CollectionState) -> bool:
@@ -842,7 +860,7 @@ class DynamicCraftingLocationRules:
     def metal_gauntlets(self, state:CollectionState) -> bool:
         return self.metal(state) and state.has("Gauntlets Permit", self.player)
     def bone_gauntlets(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and state.has("Gauntlets Permit", self.player)
+        return self.bonecraft(state) and state.has("Gauntlets Permit", self.player)
     def metal_or_bone_gauntlets(self, state:CollectionState) -> bool:
         return self.metal_or_bone(state) and state.has("Gauntlets Permit", self.player)
     
@@ -1774,11 +1792,16 @@ class DynamicCraftingLocationRules:
                     else:
                         set_rule(loc, self.wood_or_metal_or_glass)
             case "Crossbow":
-                if type in {"Wood", "Bone"}:
+                if type == "Wood":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.wood_or_bone_crossbow)
+                        set_rule(loc, self.wood_crossbow)
                     else:
                         set_rule(loc, self.bowyer_workshop)
+                elif type == "Bone":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.bone_crossbow)
+                    else:
+                        set_rule(loc, self.bone_bowyer_workshop)
                 elif material_type == "Metal":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.metal_crossbow)
@@ -1790,11 +1813,16 @@ class DynamicCraftingLocationRules:
                     else:
                         set_rule(loc, self.bowyer_or_metal)
             case "Bolt":
-                if material_type in {"Wood", "Bone"}:
+                if material_type == "Wood":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.wood_or_bone_bolt)
                     else:
                         set_rule(loc, self.craftdwarf_workshop)
+                elif material_type == "Bone":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.bone_bolt)
+                    else:
+                        set_rule(loc, self.bonecraft)
                 elif material_type == "Metal":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.metal_bolt)
@@ -1802,9 +1830,9 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.metal)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.craftdwarf_or_metal_bolt)
+                        set_rule(loc, self.woodcraft_or_bonecraft_or_metal_bolt)
                     else:
-                        set_rule(loc, self.craftdwarf_or_metal)
+                        set_rule(loc, self.woodcraft_or_bonecraft_or_metal)
             case "Millstone":
                 if self.world.options.craftpermits != CraftingPermits.option_off:
                     set_rule(loc, self.stone_millstone)
@@ -2192,7 +2220,7 @@ class DynamicCraftingLocationRules:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.bone_gauntlets)
                     else:
-                        set_rule(loc, self.craftdwarf_workshop)
+                        set_rule(loc, self.bonecraft)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.metal_or_bone_gauntlets)
