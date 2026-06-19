@@ -65,8 +65,9 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     if options.craftpermits == CraftingPermits.option_off:
         loc.access_rule = lambda state: state.has("Mechanic's Workshop Blueprint", player)
     else:
-        loc.access_rule = lambda state: state.has("Mechanic's Workshop Blueprint", player) and \
-            state.has_any(["Spike Permit", "Ball Permit"], player)
+        loc.access_rule = lambda state: (state.has("Mechanic's Workshop Blueprint", player) and \
+            state.has_any(["Spike Permit", "Ball Permit"], player) and state.has("Mechanism Permit", player)) \
+            or (dynamic_rules.df_location_rule(loc, "Spear", "") or dynamic_rules.df_location_rule(loc, "Training Spear", ""))
     
     loc = multiworld.get_location("First Millstone Made", player)
     dynamic_rules.df_location_rule(loc, "Millstone", "")
