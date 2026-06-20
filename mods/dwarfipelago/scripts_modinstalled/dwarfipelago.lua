@@ -1196,14 +1196,27 @@ local function on_job_completed(job)
         checks.set_production_flag(prod_flag)
     end
 
-    -- Well construction detection.
+    -- Well / trap construction detection (both complete as ConstructBuilding jobs).
     if job.job_type == df.job_type.ConstructBuilding then
         local ok_bld, bld = pcall(dfhack.job.getHolder, job)
-        if ok_bld and bld and not checks.production_flag("well") then
+        if ok_bld and bld then
             local ok_t, btype = pcall(function() return bld:getType() end)
-            if ok_t and btype == df.building_type.Well then
-                checks.set_production_flag("well")
-                dfhack.gui.showAnnouncement("[AP] A well has been constructed!", COLOR_GREEN, true)
+            if ok_t then
+                if btype == df.building_type.Well and not checks.production_flag("well") then
+                    checks.set_production_flag("well")
+                    dfhack.gui.showAnnouncement("[AP] A well has been constructed!", COLOR_GREEN, true)
+                end
+
+                -- "First Trap Built": building a Trap (stone-fall/weapon/cage trap,
+                -- lever, pressure plate, track stop) or an upright spear/spike
+                -- (building_type.Weapon) completes here. The Load*Trap jobs only
+                -- fire when ARMING cage/stone/weapon traps, so upright spikes and
+                -- freshly-built unarmed traps were never caught before.
+                if (btype == df.building_type.Trap or btype == df.building_type.Weapon)
+                        and not checks.production_flag("trap") then
+                    checks.set_production_flag("trap")
+                    dfhack.gui.showAnnouncement("[AP] A trap has been built!", COLOR_GREEN, true)
+                end
             end
         end
     end
@@ -1543,6 +1556,14 @@ local function on_item_created(item_id)
             local key = "dwarfipelago/farming/crop_count"
             local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
             dfhack.persistent.saveWorldDataString(key, tostring(n))
+        end
+
+        -- "First Mechanism Made": a mechanism is a TRAPPARTS item. Detecting the
+        -- created item is robust to HOW it was produced — manual workshop job,
+        -- manager work order, etc. — which the job-type path (ConstructMechanisms)
+        -- can miss (manager-order jobs don't fire onJobCompleted).
+        if t == "TRAPPARTS" and not checks.production_flag("mechanism") then
+            checks.set_production_flag("mechanism")
         end
 
         -- Adamantine detection: fires the first time any adamantine item is created
