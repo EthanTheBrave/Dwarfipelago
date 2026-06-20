@@ -741,10 +741,13 @@ local function classify_mat(mat_type, mat_index)
         if token == "" then pcall(function() token = mat:toString() or "" end) end
         local up = token:upper()
 
-        -- Metal is only reliable via the inorganic raw's IS_METAL flag.
+        -- Metal is detected via the material's IS_METAL flag. IS_METAL lives in the
+        -- material_flags enum (mat.material.flags), NOT inorganic_flags — the old
+        -- mat.inorganic.flags.IS_METAL was an invalid index that always resolved
+        -- false, so every metal craft was misclassified as "stone".
         local is_metal = false
         pcall(function()
-            is_metal = (mat.inorganic and mat.inorganic.flags and mat.inorganic.flags.IS_METAL) or false
+            is_metal = (mat.material and mat.material.flags and mat.material.flags.IS_METAL) or false
         end)
         if is_metal then return "metal" end
 
