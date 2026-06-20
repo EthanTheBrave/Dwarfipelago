@@ -217,10 +217,26 @@ def set_rules(world: "DwarfFortressWorld") -> None:
 
 
     # ── Progressive Coffer gates (wealth tier locations) ──────────────────────
+    # Fortress wealth (treasury_wealth in Lua) is the value of minted coins plus
+    # cut gems, so a tier is only logically reachable once the player can produce
+    # one of those. Minting needs metal smelting (plus a Coins Permit when permits
+    # are on); cutting gems needs the Jeweler's Workshop. Either source alone can
+    # reach any threshold, so the capability gate is coins OR gems.
     if options.goal == DwarfFortressGoal.option_legendary_wealth:
+        if options.craftpermits == CraftingPermits.option_off:
+            can_mint_coins = dynamic_rules.metal
+        else:
+            can_mint_coins = dynamic_rules.make_coins
+
+        def can_produce_wealth(state):
+            return can_mint_coins(state) or state.has("Jeweler's Workshop Blueprint", player)
+
         for loc_name, coffers_needed in WEALTH_COFFER_RULES:
             loc = multiworld.get_location(loc_name, player)
-            loc.access_rule = lambda state, n=coffers_needed: state.count("Merchant's Coffer", player) >= n
+            loc.access_rule = lambda state, n=coffers_needed: (
+                state.count("Merchant's Coffer", player) >= n
+                and can_produce_wealth(state)
+            )
 
     # ── Merchant's Shop gates ─────────────────────────────────────────────────
     # Shop slots require:
