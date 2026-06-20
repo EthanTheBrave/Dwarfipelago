@@ -1567,6 +1567,14 @@ local function on_item_created(item_id)
             checks.set_production_flag("mechanism")
         end
 
+        -- Traction bench craft count. Counted from the produced item (not the
+        -- ConstructTractionBench job) so the bench's own material is used and so
+        -- manager-order benches — which don't fire onJobCompleted — still count.
+        if t == "TRACTION_BENCH" then
+            local flag = checks.item_craft_flag("traction_bench", item)
+            if flag then checks.increment_craft_count(flag) end
+        end
+
         -- Adamantine detection: fires the first time any adamantine item is created
         -- (raw adamantine boulders when mined, or strands/wafers in some DF versions).
         -- Exclude DOOR items: the Master Builder's Codex delivers an adamantine door

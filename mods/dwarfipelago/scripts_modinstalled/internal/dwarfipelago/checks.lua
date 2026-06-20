@@ -883,6 +883,13 @@ end
 function M.job_to_craft_flag(job)
     local flag = _job_flag_dispatch(job)
     if not flag then return nil end
+    -- Traction benches are counted from their produced item in on_item_created
+    -- (M.item_craft_flag): the job consumes a table + mechanism + chain of
+    -- different materials, so the bench's own material can't be picked reliably
+    -- from the reagents. Skip the job-side count to avoid a wrong-material or
+    -- double count (the base flag is still exposed via job_to_base_craft_flag
+    -- for the craft-permit gate).
+    if flag == "traction_bench" then return nil end
     if NON_MATERIAL[flag] then return flag end
     local need_mat = dfhack.persistent.getWorldDataString('dwarfipelago/craftsanity_materials')
     if tonumber(need_mat) == 1 then
@@ -891,6 +898,20 @@ function M.job_to_craft_flag(job)
         return flag .. "_" .. material_used
     end
     return flag
+end
+
+-- Like job_to_craft_flag but for a produced ITEM (used when the craft is better
+-- identified by its output than its job — e.g. traction benches). base_flag is
+-- the craftable_items flag; the material suffix is taken from the item itself.
+function M.item_craft_flag(base_flag, item)
+    if NON_MATERIAL[base_flag] then return base_flag end
+    local need_mat = dfhack.persistent.getWorldDataString('dwarfipelago/craftsanity_materials')
+    if tonumber(need_mat) == 1 then
+        local material_used = classify_mat(item.mat_type, item.mat_index)
+        if not material_used then return base_flag end  -- nil guard: base key
+        return base_flag .. "_" .. material_used
+    end
+    return base_flag
 end
 
 -- ── Craft count helpers ───────────────────────────────────────────────────────
