@@ -649,6 +649,16 @@ reaction_subtype("PRESS_OIL",                       "oil")
 reaction_subtype("PRESS_HONEYCOMB",                 "honey")
 reaction_subtype("MAKE_SOAP_FROM_OIL",              "soap")
 reaction_subtype("MAKE_SOAP_FROM_TALLOW",           "soap")
+-- Clay items are fired at a Kiln as CustomReactions (not Construct*/MakeTool jobs),
+-- so they reach here by reaction_name. Their material resolves to "ceramic" (the
+-- clay reagent / fired CERAMIC_* product), giving e.g. "blocks_ceramic". Without
+-- these, ceramic bricks/jugs/pots/hives/statues/crafts never counted.
+reaction_subtype("MAKE_CLAY_BRICKS",                "blocks")
+reaction_subtype("MAKE_CLAY_JUG",                   "jug")
+reaction_subtype("MAKE_LARGE_CLAY_POT",             "large_pot")
+reaction_subtype("MAKE_CLAY_HIVE",                  "hive")
+reaction_subtype("MAKE_CLAY_STATUE",                "statue")
+reaction_subtype("MAKE_CLAY_CRAFTS",                "crafts")
 
 
 local UARMOR_SUBTYPE_FLAG = {}
@@ -762,7 +772,11 @@ local function classify_mat(mat_type, mat_index)
 
         -- Inorganic / builtin / generic (covers nil .mode when mat_index == -1).
         if up:find("GLASS") then return "glass" end
-        if up:find("CLAY") or up:find("PORCELAIN") or up:find("KAOLINITE") then return "ceramic" end
+        -- Ceramic covers raw clay reagents (CLAY/KAOLINITE) and the fired products
+        -- (INORGANIC:CERAMIC_EARTHENWARE / _STONEWARE / _PORCELAIN). The CERAMIC
+        -- check must precede the INORGANIC->stone fallback below, since stoneware's
+        -- token also contains "INORGANIC".
+        if up:find("CLAY") or up:find("KAOLINITE") or up:find("CERAMIC") or up:find("PORCELAIN") then return "ceramic" end
         if up:find("INORGANIC") then return "stone" end
         if up:find(":WOOD") then return "wood" end
     end
