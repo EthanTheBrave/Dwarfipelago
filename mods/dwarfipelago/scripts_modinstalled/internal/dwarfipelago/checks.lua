@@ -390,7 +390,8 @@ map("WeaveCloth",              "cloth")
 map("ProcessPlants",           "cloth")   -- also produces thread
 map("TanHide",                 "leather")
 map("CutGems",                 "gem")
-map("EncrustedWithGems",       "gem")
+map("CutGlass",                "gem")   -- cutting glass also makes a SMALLGEM (CUTGEM skill)
+map("EncrustWithGems",         "gem")   -- was "EncrustedWithGems" (nil in DF v50; real name has no "ed")
 -- Traps. DF v50 has no ConstructTrap job_type; arming a trap is one of the
 -- Load*Trap jobs, and wiring a lever/pressure plate is LinkBuildingToTrigger.
 map("ConstructTrap",           "trap")  -- kept for older DF; nil-skipped on v50
