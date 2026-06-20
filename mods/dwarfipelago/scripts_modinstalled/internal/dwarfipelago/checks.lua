@@ -1021,11 +1021,12 @@ function M.find_fortress_coins_energy()
     return found, total_j
 end
 
--- ── Skill count helpers ───────────────────────────────────────────────────────
--- Cumulative counts of completed job skills per flag, persisted in world
--- data under "dwarfipelago/skill/<flag_name>".
--- Incremented by the eventful job hook in dwarfipelago.lua.
--- The AP client polls these directly to decide when a milestone threshold is met.
+-- ── Skill level helpers ───────────────────────────────────────────────────────
+-- Highest trained level of each tracked job skill among living citizens,
+-- persisted in world data under "dwarfipelago/skill/<flag_name>".
+-- Refreshed each poll tick by M.update_skill_levels (below). The AP client polls
+-- these and fires the matching "<Level> <Skill>" location once the recorded level
+-- reaches that location's threshold (Novice=1 .. Legendary=15).
 
 local SKILL_COUNT_PREFIX = "dwarfipelago/skill/"
 
@@ -1112,11 +1113,86 @@ function M.get_all_skill_counts()
     return out
 end
 
--- Clears all recorded craft counts and the index (used by 'dwarfipelago reset').
+-- Clears all recorded skill levels back to 0 (used by 'dwarfipelago reset').
+-- Only resets skills that were initialised for this slot (level >= 0).
 function M.clear_skill_counts()
     for _, skilltype in ipairs(SKILL_LIST) do
         local n = tonumber(dfhack.persistent.getWorldDataString(SKILL_COUNT_PREFIX .. skilltype.skill)) or -1
         if n >= 0 then dfhack.persistent.saveWorldDataString(SKILL_COUNT_PREFIX .. skilltype.skill, "0") end
+    end
+end
+
+-- Highest level a unit has trained in a job skill (0 if untrained). Reads the
+-- soul's skill vector directly (unit_skill.id == job_skill, .rating == level) so
+-- it doesn't depend on a particular DFHack helper being present.
+local function unit_skill_rating(unit, skill_id)
+    local soul = unit.status and unit.status.current_soul
+    if not soul then return 0 end
+    for _, sk in ipairs(soul.skills) do
+        if sk.id == skill_id then return sk.rating or 0 end
+    end
+    return 0
+end
+
+-- Lower a unit's trained level in a skill to `rating` (for the "lower skills"
+-- mechanic, so a high-level migrant can't complete many checks at once). Clears
+-- accumulated experience so the level doesn't immediately tick back up. No-op if
+-- the unit is already at or below the target.
+local function lower_unit_skill(unit, skill_id, rating)
+    local soul = unit.status and unit.status.current_soul
+    if not soul then return end
+    for _, sk in ipairs(soul.skills) do
+        if sk.id == skill_id and sk.rating > rating then
+            sk.rating = rating
+            sk.experience = 0
+            return
+        end
+    end
+end
+
+-- Rescan citizens and update each tracked skill's recorded level. Called from the
+-- poll loop. Only runs when skillsanity is enabled, and only touches skills the
+-- client initialised for this slot (their key already exists). Recorded levels
+-- are monotonic (a reached level stays reached) and capped at the slot's max
+-- level. With behaviour == 1 (lower skills) over-levelled citizens are demoted to
+-- one level above the recorded level, so each level-up is a single new check.
+function M.update_skill_levels()
+    if dfhack.persistent.getWorldDataString("dwarfipelago/skillsanity_enabled") ~= "1" then return end
+    local max_level = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/skillsanity_max_level")) or 15
+    local behaviour = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/skillsanity_behaviour")) or 0
+
+    -- Living citizens, gathered once and reused for every tracked skill.
+    local citizens = {}
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+            table.insert(citizens, unit)
+        end
+    end
+
+    for _, st in ipairs(SKILL_LIST) do
+        if st.key ~= nil then  -- skip any job_skill name absent in this DF build
+            local key = SKILL_COUNT_PREFIX .. st.skill
+            local cur = dfhack.persistent.getWorldDataString(key)
+            if cur ~= nil and cur ~= "" then  -- only enabled/tracked skills
+                local recorded = tonumber(cur) or 0
+                local cap = (behaviour == 1) and math.min(recorded + 1, max_level) or max_level
+
+                local best = 0
+                for _, unit in ipairs(citizens) do
+                    local r = unit_skill_rating(unit, st.key)
+                    if behaviour == 1 and r > cap then
+                        lower_unit_skill(unit, st.key, cap)
+                        r = cap
+                    end
+                    if r > best then best = r end
+                end
+
+                local newrec = math.max(recorded, math.min(best, max_level))
+                if newrec ~= recorded then
+                    dfhack.persistent.saveWorldDataString(key, tostring(newrec))
+                end
+            end
+        end
     end
 end
 
