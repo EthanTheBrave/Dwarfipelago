@@ -390,7 +390,8 @@ map("WeaveCloth",              "cloth")
 map("ProcessPlants",           "cloth")   -- also produces thread
 map("TanHide",                 "leather")
 map("CutGems",                 "gem")
-map("EncrustedWithGems",       "gem")
+map("CutGlass",                "gem")   -- cutting glass also makes a SMALLGEM (CUTGEM skill)
+map("EncrustWithGems",         "gem")   -- was "EncrustedWithGems" (nil in DF v50; real name has no "ed")
 -- Traps. DF v50 has no ConstructTrap job_type; arming a trap is one of the
 -- Load*Trap jobs, and wiring a lever/pressure plate is LinkBuildingToTrigger.
 map("ConstructTrap",           "trap")  -- kept for older DF; nil-skipped on v50
@@ -649,6 +650,16 @@ reaction_subtype("PRESS_OIL",                       "oil")
 reaction_subtype("PRESS_HONEYCOMB",                 "honey")
 reaction_subtype("MAKE_SOAP_FROM_OIL",              "soap")
 reaction_subtype("MAKE_SOAP_FROM_TALLOW",           "soap")
+-- Clay items are fired at a Kiln as CustomReactions (not Construct*/MakeTool jobs),
+-- so they reach here by reaction_name. Their material resolves to "ceramic" (the
+-- clay reagent / fired CERAMIC_* product), giving e.g. "blocks_ceramic". Without
+-- these, ceramic bricks/jugs/pots/hives/statues/crafts never counted.
+reaction_subtype("MAKE_CLAY_BRICKS",                "blocks")
+reaction_subtype("MAKE_CLAY_JUG",                   "jug")
+reaction_subtype("MAKE_LARGE_CLAY_POT",             "large_pot")
+reaction_subtype("MAKE_CLAY_HIVE",                  "hive")
+reaction_subtype("MAKE_CLAY_STATUE",                "statue")
+reaction_subtype("MAKE_CLAY_CRAFTS",                "crafts")
 
 
 local UARMOR_SUBTYPE_FLAG = {}
@@ -741,10 +752,13 @@ local function classify_mat(mat_type, mat_index)
         if token == "" then pcall(function() token = mat:toString() or "" end) end
         local up = token:upper()
 
-        -- Metal is only reliable via the inorganic raw's IS_METAL flag.
+        -- Metal is detected via the material's IS_METAL flag. IS_METAL lives in the
+        -- material_flags enum (mat.material.flags), NOT inorganic_flags — the old
+        -- mat.inorganic.flags.IS_METAL was an invalid index that always resolved
+        -- false, so every metal craft was misclassified as "stone".
         local is_metal = false
         pcall(function()
-            is_metal = (mat.inorganic and mat.inorganic.flags and mat.inorganic.flags.IS_METAL) or false
+            is_metal = (mat.material and mat.material.flags and mat.material.flags.IS_METAL) or false
         end)
         if is_metal then return "metal" end
 
@@ -759,7 +773,11 @@ local function classify_mat(mat_type, mat_index)
 
         -- Inorganic / builtin / generic (covers nil .mode when mat_index == -1).
         if up:find("GLASS") then return "glass" end
-        if up:find("CLAY") or up:find("PORCELAIN") or up:find("KAOLINITE") then return "ceramic" end
+        -- Ceramic covers raw clay reagents (CLAY/KAOLINITE) and the fired products
+        -- (INORGANIC:CERAMIC_EARTHENWARE / _STONEWARE / _PORCELAIN). The CERAMIC
+        -- check must precede the INORGANIC->stone fallback below, since stoneware's
+        -- token also contains "INORGANIC".
+        if up:find("CLAY") or up:find("KAOLINITE") or up:find("CERAMIC") or up:find("PORCELAIN") then return "ceramic" end
         if up:find("INORGANIC") then return "stone" end
         if up:find(":WOOD") then return "wood" end
     end
@@ -866,6 +884,13 @@ end
 function M.job_to_craft_flag(job)
     local flag = _job_flag_dispatch(job)
     if not flag then return nil end
+    -- Traction benches are counted from their produced item in on_item_created
+    -- (M.item_craft_flag): the job consumes a table + mechanism + chain of
+    -- different materials, so the bench's own material can't be picked reliably
+    -- from the reagents. Skip the job-side count to avoid a wrong-material or
+    -- double count (the base flag is still exposed via job_to_base_craft_flag
+    -- for the craft-permit gate).
+    if flag == "traction_bench" then return nil end
     if NON_MATERIAL[flag] then return flag end
     local need_mat = dfhack.persistent.getWorldDataString('dwarfipelago/craftsanity_materials')
     if tonumber(need_mat) == 1 then
@@ -874,6 +899,20 @@ function M.job_to_craft_flag(job)
         return flag .. "_" .. material_used
     end
     return flag
+end
+
+-- Like job_to_craft_flag but for a produced ITEM (used when the craft is better
+-- identified by its output than its job — e.g. traction benches). base_flag is
+-- the craftable_items flag; the material suffix is taken from the item itself.
+function M.item_craft_flag(base_flag, item)
+    if NON_MATERIAL[base_flag] then return base_flag end
+    local need_mat = dfhack.persistent.getWorldDataString('dwarfipelago/craftsanity_materials')
+    if tonumber(need_mat) == 1 then
+        local material_used = classify_mat(item.mat_type, item.mat_index)
+        if not material_used then return base_flag end  -- nil guard: base key
+        return base_flag .. "_" .. material_used
+    end
+    return base_flag
 end
 
 -- ── Craft count helpers ───────────────────────────────────────────────────────
@@ -1018,11 +1057,12 @@ function M.find_fortress_coins_energy()
     return found, total_j
 end
 
--- ── Skill count helpers ───────────────────────────────────────────────────────
--- Cumulative counts of completed job skills per flag, persisted in world
--- data under "dwarfipelago/skill/<flag_name>".
--- Incremented by the eventful job hook in dwarfipelago.lua.
--- The AP client polls these directly to decide when a milestone threshold is met.
+-- ── Skill level helpers ───────────────────────────────────────────────────────
+-- Highest trained level of each tracked job skill among living citizens,
+-- persisted in world data under "dwarfipelago/skill/<flag_name>".
+-- Refreshed each poll tick by M.update_skill_levels (below). The AP client polls
+-- these and fires the matching "<Level> <Skill>" location once the recorded level
+-- reaches that location's threshold (Novice=1 .. Legendary=15).
 
 local SKILL_COUNT_PREFIX = "dwarfipelago/skill/"
 
@@ -1109,11 +1149,86 @@ function M.get_all_skill_counts()
     return out
 end
 
--- Clears all recorded craft counts and the index (used by 'dwarfipelago reset').
+-- Clears all recorded skill levels back to 0 (used by 'dwarfipelago reset').
+-- Only resets skills that were initialised for this slot (level >= 0).
 function M.clear_skill_counts()
     for _, skilltype in ipairs(SKILL_LIST) do
         local n = tonumber(dfhack.persistent.getWorldDataString(SKILL_COUNT_PREFIX .. skilltype.skill)) or -1
         if n >= 0 then dfhack.persistent.saveWorldDataString(SKILL_COUNT_PREFIX .. skilltype.skill, "0") end
+    end
+end
+
+-- Highest level a unit has trained in a job skill (0 if untrained). Reads the
+-- soul's skill vector directly (unit_skill.id == job_skill, .rating == level) so
+-- it doesn't depend on a particular DFHack helper being present.
+local function unit_skill_rating(unit, skill_id)
+    local soul = unit.status and unit.status.current_soul
+    if not soul then return 0 end
+    for _, sk in ipairs(soul.skills) do
+        if sk.id == skill_id then return sk.rating or 0 end
+    end
+    return 0
+end
+
+-- Lower a unit's trained level in a skill to `rating` (for the "lower skills"
+-- mechanic, so a high-level migrant can't complete many checks at once). Clears
+-- accumulated experience so the level doesn't immediately tick back up. No-op if
+-- the unit is already at or below the target.
+local function lower_unit_skill(unit, skill_id, rating)
+    local soul = unit.status and unit.status.current_soul
+    if not soul then return end
+    for _, sk in ipairs(soul.skills) do
+        if sk.id == skill_id and sk.rating > rating then
+            sk.rating = rating
+            sk.experience = 0
+            return
+        end
+    end
+end
+
+-- Rescan citizens and update each tracked skill's recorded level. Called from the
+-- poll loop. Only runs when skillsanity is enabled, and only touches skills the
+-- client initialised for this slot (their key already exists). Recorded levels
+-- are monotonic (a reached level stays reached) and capped at the slot's max
+-- level. With behaviour == 1 (lower skills) over-levelled citizens are demoted to
+-- one level above the recorded level, so each level-up is a single new check.
+function M.update_skill_levels()
+    if dfhack.persistent.getWorldDataString("dwarfipelago/skillsanity_enabled") ~= "1" then return end
+    local max_level = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/skillsanity_max_level")) or 15
+    local behaviour = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/skillsanity_behaviour")) or 0
+
+    -- Living citizens, gathered once and reused for every tracked skill.
+    local citizens = {}
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+            table.insert(citizens, unit)
+        end
+    end
+
+    for _, st in ipairs(SKILL_LIST) do
+        if st.key ~= nil then  -- skip any job_skill name absent in this DF build
+            local key = SKILL_COUNT_PREFIX .. st.skill
+            local cur = dfhack.persistent.getWorldDataString(key)
+            if cur ~= nil and cur ~= "" then  -- only enabled/tracked skills
+                local recorded = tonumber(cur) or 0
+                local cap = (behaviour == 1) and math.min(recorded + 1, max_level) or max_level
+
+                local best = 0
+                for _, unit in ipairs(citizens) do
+                    local r = unit_skill_rating(unit, st.key)
+                    if behaviour == 1 and r > cap then
+                        lower_unit_skill(unit, st.key, cap)
+                        r = cap
+                    end
+                    if r > best then best = r end
+                end
+
+                local newrec = math.max(recorded, math.min(best, max_level))
+                if newrec ~= recorded then
+                    dfhack.persistent.saveWorldDataString(key, tostring(newrec))
+                end
+            end
+        end
     end
 end
 
