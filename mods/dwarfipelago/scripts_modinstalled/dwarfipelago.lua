@@ -1165,6 +1165,7 @@ local function poll_checks()
     detect_sold_artifact()
     detect_shrine()
     _check_spawn_caravan_approved()
+    checks.update_skill_levels()
 
     for _, check in ipairs(checks.checks) do
         if not state.is_location_checked(check.id) then

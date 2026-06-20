@@ -124,7 +124,7 @@ class Skillsanity:
         elif "Animal Trainer" in location_name:
             set_rule(loc, self.skill_animaltrainer)
         elif "Trapper" in location_name:
-            set_rule(loc, self.skill_animaltrainer)
+            set_rule(loc, self.skill_trapper)
         elif "Bone Doctor" in location_name:
             set_rule(loc, self.skill_bonedoctor)
         elif "Surgeon" in location_name:
@@ -246,7 +246,7 @@ class Skillsanity:
             or dynamic_rules.wood_bin(state) or dynamic_rules.wood_blocks(state) or dynamic_rules.wood_bookcase(state) \
             or dynamic_rules.wood_bucket(state) or dynamic_rules.wood_buckler(state) or dynamic_rules.wood_burial(state) \
             or dynamic_rules.wood_cabinet(state) or dynamic_rules.wood_cage(state) or dynamic_rules.wood_chair(state) \
-            or dynamic_rules.wood_container or dynamic_rules.wood_crutch(state) or dynamic_rules.wood_cup(state) \
+            or dynamic_rules.wood_container(state) or dynamic_rules.wood_crutch(state) or dynamic_rules.wood_cup(state) \
             or dynamic_rules.wood_door(state) or dynamic_rules.wood_floodgate(state) or dynamic_rules.wood_grate(state) \
             or dynamic_rules.wood_hatchcover(state) or dynamic_rules.wood_minecart(state) or dynamic_rules.training_axe(state) \
             or dynamic_rules.training_spear(state) or dynamic_rules.training_sword(state) or dynamic_rules.wood_table(state) \
@@ -257,7 +257,7 @@ class Skillsanity:
             or dynamic_rules.wood_bin(state) or dynamic_rules.wood_blocks(state) or dynamic_rules.wood_bookcase(state) \
             or dynamic_rules.wood_bucket(state) or dynamic_rules.wood_buckler(state) or dynamic_rules.wood_burial(state) \
             or dynamic_rules.wood_cabinet(state) or dynamic_rules.wood_cage(state) or dynamic_rules.wood_chair(state) \
-            or dynamic_rules.wood_container or dynamic_rules.wood_crutch(state) or dynamic_rules.wood_cup(state) \
+            or dynamic_rules.wood_container(state) or dynamic_rules.wood_crutch(state) or dynamic_rules.wood_cup(state) \
             or dynamic_rules.wood_door(state) or dynamic_rules.wood_floodgate(state) or dynamic_rules.wood_grate(state) \
             or dynamic_rules.wood_hatchcover(state) or dynamic_rules.wood_minecart(state) or dynamic_rules.training_axe(state) \
             or dynamic_rules.training_spear(state) or dynamic_rules.training_sword(state) or dynamic_rules.wood_table(state) \
@@ -272,7 +272,7 @@ class Skillsanity:
             or dynamic_rules.stone_armorstand(state) or dynamic_rules.stone_blocks(state) \
             or dynamic_rules.stone_bookcase(state) or dynamic_rules.stone_burial(state) \
             or dynamic_rules.stone_cabinet(state) or dynamic_rules.stone_chair(state) \
-            or dynamic_rules.stone_container or dynamic_rules.stone_cup(state) \
+            or dynamic_rules.stone_container(state) or dynamic_rules.stone_cup(state) \
             or dynamic_rules.stone_door(state) or dynamic_rules.stone_floodgate(state) \
             or dynamic_rules.stone_grate(state) or dynamic_rules.stone_hatchcover(state) \
             or dynamic_rules.stone_slab(state) or dynamic_rules.stone_millstone(state) \

@@ -757,6 +757,7 @@ class DwarfFortressContext(CommonContext):
                     if depot_ready:
                         await self._process_new_checks()
                         await self._crafting_location_checks()
+                        await self._skill_location_checks()
                         await self._apply_pending_items()
                         await self.update_energy()
                         await self.new_energy()
@@ -1328,12 +1329,92 @@ class DwarfFortressContext(CommonContext):
                 "lua", f'dfhack.gui.showAnnouncement("{location_name} Completed!", COLOR_GREEN)'
             )
     
-    def init_skill_locations(self):
+    async def _skill_location_checks(self):
+        """Read tracked skill levels from persistent storage and fire any skill
+        locations whose level threshold has been reached. Mirrors
+        _crafting_location_checks; completed ids share the same AP storage list."""
+        if not self._completed_locations_loaded:
+            return
+        if not self._skill_locations:
+            return
+
+        # Unique storage keys to read (one per skill flag), skipping skills whose
+        # locations are all already completed is not worth the bookkeeping — there
+        # are at most ~60 flags, so just read them all in one batch.
+        flag_keys: dict[str, str] = {}
         for skill in self._skill_locations:
-            storage_name ="dwarfipelago/skill/"
-            if self._skill_locations[skill]['threshold'] == 1:
-                storage_name += self._skill_locations[skill]["skill"]
-            storage_name = storage_name.lower()
+            flag = self._skill_locations[skill]["skill"].lower()
+            flag_keys["dwarfipelago/skill/" + flag] = flag
+        if not flag_keys:
+            return
+
+        keys_lua = "{" + ",".join(f'"{k}"' for k in flag_keys) + "}"
+        lua_code = (
+            f"local r={{}};for _,k in ipairs({keys_lua}) do "
+            f"r[k]=dfhack.persistent.getWorldDataString(k) or '0' end;"
+            f"print(require('json').encode(r))"
+        )
+        raw = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: self.dfhack.run_command("lua", lua_code)
+        )
+        if not raw or not raw.strip():
+            return
+        try:
+            levels_raw = json.loads(raw.strip())
+        except json.JSONDecodeError:
+            logger.warning(f"_skill_location_checks: failed to parse batch result: {raw!r}")
+            return
+
+        level_by_flag: dict[str, int] = {}
+        for storage_key, flag in flag_keys.items():
+            val = levels_raw.get(storage_key, "0")
+            try:
+                level_by_flag[flag] = int(val) if val and val not in ("nil", "") else 0
+            except (ValueError, AttributeError):
+                level_by_flag[flag] = 0
+
+        if self.debug_mode:
+            nonzero = {f: v for f, v in level_by_flag.items() if v > 0}
+            if nonzero:
+                self.debug(f"Skill levels: {nonzero}")
+
+        local_checks = []
+        for skill in self._skill_locations:
+            if skill in self._completed_crafting_locations:
+                continue
+            flag = self._skill_locations[skill]["skill"].lower()
+            if level_by_flag.get(flag, 0) >= self._skill_locations[skill]["threshold"]:
+                local_checks.append(int(skill))
+
+        if local_checks:
+            await self.send_msgs([{"cmd": "LocationChecks", "locations": local_checks}])
+        for location in local_checks:
+            location_str = str(location)
+            self._completed_crafting_locations.append(location_str)
+            await self.setAPKeyValue(
+                "Dwarfipelago/" + str(self.seed) + "/completed_locations",
+                self._completed_crafting_locations,
+            )
+            location_name = self._skill_locations[location_str]["location_name"]
+            self.dfhack.run_command(
+                "lua", f'dfhack.gui.showAnnouncement("{location_name} Completed!", COLOR_GREEN)'
+            )
+
+    def init_skill_locations(self):
+        # Initialise one storage key per enabled skill (deduped — each skill has 15
+        # level locations sharing a flag). Writing "0" marks the skill as tracked;
+        # the Lua scanner only updates keys that already exist, so untracked skills
+        # stay out of both the checks and the panel. Runs once per world (fresh
+        # seed), so it never wipes accumulated levels on reconnect.
+        if not self._skill_locations:
+            return
+        seen = set()
+        for skill in self._skill_locations:
+            flag = self._skill_locations[skill]["skill"].lower()
+            if flag in seen:
+                continue
+            seen.add(flag)
+            storage_name = "dwarfipelago/skill/" + flag
             self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("{storage_name}", "0")')
 
     async def setAPKeyValue(self, key:str, value:list[int]):
