@@ -1815,7 +1815,7 @@ class DynamicCraftingLocationRules:
             case "Bolt":
                 if material_type == "Wood":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.wood_or_bone_bolt)
+                        set_rule(loc, self.wood_bolt)
                     else:
                         set_rule(loc, self.craftdwarf_workshop)
                 elif material_type == "Bone":
