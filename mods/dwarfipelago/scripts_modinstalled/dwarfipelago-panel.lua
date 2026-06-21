@@ -413,7 +413,9 @@ local function build_crafts_lines()
             row(("  %-26s  %6s   --"):format(e.label, "0"), COLOR_DARKGRAY)
         else
             local next_target = (e.done_n + 1) * threshold
-            row(("  %-26s  %6s → %-7s %d/%d"):format(
+            -- Plain ASCII "->": DF renders the CP437 font, so a UTF-8 arrow shows
+            -- as garbage bytes.
+            row(("  %-26s  %6s -> %-7s %d/%d"):format(
                 e.label, fmt_num(e.count), fmt_num(next_target),
                 e.done_n, checks_per_item))
         end
