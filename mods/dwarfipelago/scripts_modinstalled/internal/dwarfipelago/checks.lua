@@ -632,8 +632,11 @@ local REACTION_SUBTYPE_FLAG = {}
 local function reaction_subtype(name, flag)
     REACTION_SUBTYPE_FLAG[name] = flag
 end
-reaction_subtype("LIGNITE_TO_COAL",                 "coke_bars")
-reaction_subtype("BITUMINOUS_COAL_TO_COAL",         "coke_bars")
+-- Vanilla smelter reactions are named *_TO_COKE (the product is coke), not
+-- *_TO_COAL. The old names never matched, so making coke was neither counted nor
+-- gated by the Coke Permit.
+reaction_subtype("LIGNITE_TO_COKE",                 "coke_bars")
+reaction_subtype("BITUMINOUS_COAL_TO_COKE",         "coke_bars")
 reaction_subtype("MAKE_PEARLASH",                   "pearlash")
 reaction_subtype("MAKE_PLASTER_POWDER",             "gypsum_plaster")
 reaction_subtype("MAKE_QUICKLIME",                  "quicklime")
