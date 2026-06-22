@@ -31,6 +31,24 @@ NOBLE_CHARTER_RULES: list[tuple[str, str]] = [
     ("Monarch Takes Residence", "Monarch's Invitation"),
 ]
 
+# Workshops a strange mood can claim. A moody dwarf uses the workshop of their
+# highest moodable skill, so an artifact mood needs that specific workshop.
+# https://dwarffortresswiki.org/index.php/Strange_mood#Skills_and_Workshops
+MOODABLE_WORKSHOP_BLUEPRINTS: list[str] = [
+    "Craftsdwarf's Workshop Blueprint",
+    "Stoneworker's Workshop Blueprint",
+    "Carpenter's Workshop Blueprint",
+    "Jeweler's Workshop Blueprint",
+    "Forge Blueprint",
+    "Magma Forge Blueprint",
+    "Mechanic's Workshop Blueprint",
+    "Bowyer's Workshop Blueprint",
+    "Clothier's Shop Blueprint",
+    "Leather Works Blueprint",
+    "Glass Furnace Blueprint",
+    "Magma Glass Furnace Blueprint",
+]
+
 
 def set_rules(world: "DwarfFortressWorld") -> None:
     multiworld: MultiWorld = world.multiworld
@@ -256,6 +274,24 @@ def set_rules(world: "DwarfFortressWorld") -> None:
                 state.count("Merchant's Coffer", player) >= n
                 and dynamic_rules.make_coins(state)
             )
+
+    # ── Sold an Artifact (endgame) ────────────────────────────────────────────
+    # You can only sell an artifact you first obtained. Two in-logic paths:
+    #   * Master Builder's Codex delivers a genuine, tradeable artifact door to the
+    #     depot (items.lua: spawn_artifact_door), so it's a deterministic gate.
+    #   * A strange mood needs population ~20 (proxied by >= 2 immigration waves)
+    #     and the workshop matching the moody dwarf's highest moodable skill.
+    # The skill isn't predictable, so the fully-sound mood gate would be EVERY
+    # moodable workshop. We require only one: enough to raise the bar above
+    # ungated, but not a guarantee the mood can be satisfied. The Codex is reliable.
+    loc = multiworld.get_location("Sold an Artifact", player)
+    loc.access_rule = lambda state: (
+        state.has("Master Builder's Codex", player)
+        or (
+            state.count("Immigration Wave", player) >= 2
+            and state.has_any(MOODABLE_WORKSHOP_BLUEPRINTS, player)
+        )
+    )
 
     # ── Immigration Wave gates (population / title tier locations) ────────────
     for loc_name, waves_needed in TITLE_WAVE_RULES:
