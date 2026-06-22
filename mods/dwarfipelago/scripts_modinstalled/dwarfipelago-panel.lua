@@ -259,7 +259,7 @@ local function build_progress_lines()
         c1 and "YES" or "no", c2 and "YES" or "no",
         c3 and "YES" or "no", mg and "YES" or "no"))
 
-    -- Progress toward the next un-breached cavern, and the next progress check.
+    -- Progress toward the next un-breached cavern.
     local appr = checks.cavern_approach()
     if appr then
         local nm = ({ "First", "Second", "Third" })[appr.cavern]

@@ -1359,9 +1359,8 @@ local function recv_military_training()
     end
 end
 
--- Progressive Mining Depth: each copy received deepens the mining-depth lock by
--- one cavern tier. dwarfipelago.lua reads unlock/mining_depth to set the floor;
--- the AP client gates the matching cavern-breach locations behind the count.
+-- Progressive Mining Depth: each copy lowers the dig floor one cavern tier.
+-- dwarfipelago.lua reads unlock/mining_depth to set the floor.
 local function recv_progressive_mining_depth()
     local key = "dwarfipelago/unlock/mining_depth"
     local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
