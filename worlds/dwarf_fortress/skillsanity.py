@@ -612,7 +612,10 @@ class Skillsanity:
     
     def skill_strandextractor(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
-        return dynamic_rules.craftdwarf_workshop(state)
+        if self.world.options.mining_depth:
+            return state.has("Progressive Mining Depth", self.player, 4) and dynamic_rules.craftdwarf_workshop(state)
+        else:
+            return dynamic_rules.craftdwarf_workshop(state)
     
     def skill_waxworker(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)

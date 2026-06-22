@@ -173,10 +173,6 @@ def set_rules(world: "DwarfFortressWorld") -> None:
                                  base(state) and state.can_reach_location(prev, player))
 
     require_previous([
-        "Delved 10 Levels Deep", "Delved 25 Levels Deep", "Delved 50 Levels Deep",
-        "Delved 75 Levels Deep", "Delved 100 Levels Deep",
-    ])
-    require_previous([
         "Excavator I (100 tiles)", "Excavator II (500 tiles)",
         "Excavator III (2,000 tiles)", "Excavator IV (5,000 tiles)",
         "Excavator V (10,000 tiles)",
@@ -185,12 +181,34 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         "Harvest 50 Crops", "Harvest 100 Crops", "Harvest 250 Crops",
         "Harvest 500 Crops", "Harvest 1,000 Crops",
     ])
-    # Caverns are breached in strict depth order, then the magma sea, then the
-    # underworld (the Circus), so chain them as one ladder too.
-    require_previous([
-        "First Cavern Breached", "Second Cavern Breached", "Third Cavern Breached",
-        "Reached the Magma Sea", "Welcome to the Circus",
-    ])
+    if options.mining_depth == False:
+        require_previous([
+            "Delved 10 Levels Deep", "Delved 25 Levels Deep", "Delved 50 Levels Deep",
+            "Delved 75 Levels Deep", "Delved 100 Levels Deep",
+        ])
+        # Caverns are breached in strict depth order, then the magma sea, then the
+        # underworld (the Circus), so chain them as one ladder too.
+        require_previous([
+            "First Cavern Breached", "Second Cavern Breached", "Third Cavern Breached",
+            "Reached the Magma Sea", "Welcome to the Circus",
+        ])
+    else:
+        loc = multiworld.get_location("First Cavern Breached", player)
+        loc.access_rule = lambda state: state.has("Progressive Mining Depth", player, 1)
+
+        loc = multiworld.get_location("Second Cavern Breached", player)
+        loc.access_rule = lambda state: state.has("Progressive Mining Depth", player, 2)
+
+        loc = multiworld.get_location("Third Cavern Breached", player)
+        loc.access_rule = lambda state: state.has("Progressive Mining Depth", player, 3)
+
+        loc = multiworld.get_location("Reached the Magma Sea", player)
+        loc.access_rule = lambda state: state.has("Progressive Mining Depth", player, 4)
+
+        loc = multiworld.get_location("Welcome to the Circus", player)
+        loc.access_rule = lambda state: state.has("Progressive Mining Depth", player, 4)
+
+
 
     # -- Infrastructure ---------------------------------------------------------
     loc = multiworld.get_location("Built a Well", player)
