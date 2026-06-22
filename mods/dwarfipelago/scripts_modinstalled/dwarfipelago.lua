@@ -181,6 +181,9 @@ end
 -- to the first layer that actually exists, so worlds with fewer than 3 caverns
 -- fall through to the next-deeper available ceiling instead of going unlimited.
 local function mining_floor_z()
+    -- Feature flag, written by the AP client from the Progressive Mining Depth
+    -- option (dwarfipelago/mining_depth = "1"/"0"). When off, never gate mining.
+    if dfhack.persistent.getWorldDataString("dwarfipelago/mining_depth") ~= "1" then return nil end
     local unlocks = goal_setting("unlock/mining_depth", 0)
     if not MINING_FLOOR_KEYS[unlocks] then return nil end  -- final tier
     for tier = unlocks, 0, -1 do

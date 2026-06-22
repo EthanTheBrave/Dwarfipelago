@@ -214,7 +214,6 @@ end
 
 -- ── Progress list ─────────────────────────────────────────────────────────────
 
-local DEPTH_THRESHOLDS  = {10, 25, 50, 75, 100}
 local TILES_THRESHOLDS  = {100, 500, 2000, 5000, 10000}
 local CROPS_THRESHOLDS  = {50, 100, 250, 500, 1000}
 local WEALTH_THRESHOLDS = {1000, 10000, 50000, 100000, 500000}
@@ -248,12 +247,8 @@ local function build_progress_lines()
 
     -- Mining
     hdr("Mining")
-    local depth = checks.mining_depth()
     local tiles = checks.mining_count()
-    local nd = next_thresh(depth, DEPTH_THRESHOLDS)
     local nt = next_thresh(tiles, TILES_THRESHOLDS)
-    row(("  Depth:  %d levels%s"):format(
-        depth, nd and ("  (next: %d)"):format(nd) or "  (all done!)"))
     row(("  Tiles:  %s excavated%s"):format(
         fmt_num(tiles), nt and ("  (next: %s)"):format(fmt_num(nt)) or "  (all done!)"))
     local c1 = checks.mining_flag("cavern1")
@@ -263,9 +258,24 @@ local function build_progress_lines()
     row(("  Cavern 1: %-3s  2: %-3s  3: %-3s    Magma: %-3s"):format(
         c1 and "YES" or "no", c2 and "YES" or "no",
         c3 and "YES" or "no", mg and "YES" or "no"))
-    local limit_z, limit_name = checks.mining_depth_limit()
+
+    -- Progress toward the next un-breached cavern, and the next progress check.
+    local appr = checks.cavern_approach()
+    if appr then
+        local nm = ({ "First", "Second", "Third" })[appr.cavern]
+        local nextstr = appr.next_pct and ("next check: %d%%"):format(appr.next_pct)
+            or "next: breach!"
+        row(("  Toward %s Cavern: %d%%  (%s)"):format(nm, math.floor(appr.pct), nextstr))
+        if appr.levels_remaining then
+            row(("    %d z-levels to its ceiling"):format(appr.levels_remaining))
+        end
+    elseif c1 and c2 and c3 then
+        row("  All caverns breached!", COLOR_GREEN)
+    end
+
+    local _, limit_name = checks.mining_depth_limit()
     if limit_name then
-        row(("  Depth limit: above %s (%d unlock(s))"):format(
+        row(("  Depth limit: above %s (%d/4 unlocks)"):format(
             limit_name, checks.mining_depth_unlocks()), COLOR_YELLOW)
     else
         row("  Depth limit: none (dig freely)", COLOR_GREEN)

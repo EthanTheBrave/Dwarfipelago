@@ -1359,6 +1359,24 @@ local function recv_military_training()
     end
 end
 
+-- Progressive Mining Depth: each copy received deepens the mining-depth lock by
+-- one cavern tier. dwarfipelago.lua reads unlock/mining_depth to set the floor;
+-- the AP client gates the matching cavern-breach locations behind the count.
+local function recv_progressive_mining_depth()
+    local key = "dwarfipelago/unlock/mining_depth"
+    local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
+    dfhack.persistent.saveWorldDataString(key, tostring(n))
+
+    local where = ({
+        [1] = "the first cavern",
+        [2] = "the second cavern",
+        [3] = "the third cavern",
+        [4] = "the magma sea and the depths below",
+    })[n] or "deeper still"
+    announce(("Progressive Mining Depth received! You may now dig to %s. (%d/4)")
+        :format(where, math.min(n, 4)))
+end
+
 -- ── Progression unlock definitions ───────────────────────────────────────────
 -- Single source of truth for all progression unlocks.
 -- The panel reads this to build its Unlocks tab automatically.
@@ -1380,6 +1398,7 @@ M.UNLOCK_DEFS = {
     { key = "artifact_weapon",       label = "Artifact Weapon" },
     { key = "artifact_armor",        label = "Artifact Armor" },
     { key = "sunlight_tonic",        label = "Sunlight Tonic" },
+    { key = "mining_depth",          label = "Progressive Mining Depth", max = 4 },
 }
 
 -- ── Dispatch table ────────────────────────────────────────────────────────────
@@ -1457,6 +1476,7 @@ M.handlers = {
     ["Duke's Charter"]       = recv_dukes_charter,
     ["Monarch's Invitation"] = recv_monarchs_invitation,
     ["Military Training"]    = recv_military_training,
+    ["Progressive Mining Depth"] = recv_progressive_mining_depth,
 }
 
 -- ── Blueprint items ───────────────────────────────────────────────────────────
