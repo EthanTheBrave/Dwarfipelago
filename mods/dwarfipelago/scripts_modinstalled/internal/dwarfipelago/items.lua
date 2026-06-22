@@ -49,7 +49,7 @@ local function spawn_item(item_type, material, quantity)
             end
         end
         if not anchored then
-            log.error("spawn_item: no depot or citizen — cannot place " .. item_type)
+            log.error("spawn_item: no depot or citizen - cannot place " .. item_type)
             return 0
         end
     end
@@ -335,8 +335,8 @@ local function recv_tanned_leather()
     announce("Received: Tanned Leather!")
 end
 
--- Bag of sand for glassmaking. Sand isn't a free-standing item — it lives inside
--- a bag — so createitem (one item at a time) can't make it. We use the lower-level
+-- Bag of sand for glassmaking. Sand isn't a free-standing item - it lives inside
+-- a bag - so createitem (one item at a time) can't make it. We use the lower-level
 -- dfhack.items.createItem API (which returns handles): make a cloth bag (BOX) and
 -- a POWDER_MISC of a SOIL_SAND inorganic, then nest the sand in the bag. Falls
 -- back to limestone flux if anything in the chain isn't supported on this build.
@@ -385,7 +385,7 @@ local function recv_bag_of_sand()
     if not ok then
         log.error("bag_of_sand: " .. tostring(err))
         spawn_item("BOULDER", "INORGANIC:LIMESTONE", 3)  -- useful fallback so the gift isn't wasted
-        announce("Received: a Sand shipment (delivered as flux — bag-of-sand spawn unavailable).")
+        announce("Received: a Sand shipment (delivered as flux - bag-of-sand spawn unavailable).")
         return
     end
     announce("Received: Bags of Sand! Ready for the glass furnace.")
@@ -402,7 +402,7 @@ local function recv_raw_clay()
     announce("Received: Raw Clay! Clay stone (kaolinite for porcelain).")
 end
 
--- Low-grade (copper) tools/gear — useful recovery, intentionally rare.
+-- Low-grade (copper) tools/gear - useful recovery, intentionally rare.
 local function recv_copper_pick()
     if spawn_item("WEAPON:ITEM_WEAPON_PICK", "INORGANIC:COPPER") == 0 then
         spawn_item("BAR", "INORGANIC:COPPER", 2)
@@ -457,7 +457,7 @@ end
 -- ── Item handlers: livestock ──────────────────────────────────────────────────
 -- Spawns a small group of tame, fortress-owned animals. Always guarantees at
 -- least one male (caste 0) and one female (caste 1) so the pair can breed.
--- Total count is 2–5; extras are random sex.
+-- Total count is 2-5; extras are random sex.
 
 local function spawn_livestock(race_token, name)
     local tokens = type(race_token) == "table" and race_token or {race_token}
@@ -470,7 +470,7 @@ local function spawn_livestock(race_token, name)
     end
     if not race_idx then
         log.error("spawn_livestock: creature not found in raws: " .. table.concat(tokens, "/"))
-        announce_at_depot(("Received: %s! (spawn failed — creature absent from world raws)"):format(name))
+        announce_at_depot(("Received: %s! (spawn failed - creature absent from world raws)"):format(name))
         return
     end
 
@@ -482,7 +482,7 @@ local function spawn_livestock(race_token, name)
     end)
     local female_caste = math.max(1, ncastes - 1)
 
-    -- Guaranteed pair first, then 0–3 random extras for a total of 2–5.
+    -- Guaranteed pair first, then 0-3 random extras for a total of 2-5.
     local count = math.random(2, 5)
     local castes_to_spawn = {0, female_caste}
     for _ = 1, count - 2 do
@@ -528,7 +528,7 @@ local function spawn_livestock(race_token, name)
     if spawned > 0 then
         announce_at_depot(("Received: %s! %d animal(s) have joined the fortress."):format(name, spawned))
     else
-        announce_at_depot(("Received: %s! (spawn failed — check DFHack console)"):format(name))
+        announce_at_depot(("Received: %s! (spawn failed - check DFHack console)"):format(name))
     end
 end
 
@@ -545,7 +545,7 @@ local function recv_sunlight_tonic()
 end
 
 -- ── Item handlers: progression gate items ────────────────────────────────────
--- These items are purely flag-based — receiving them writes a persistent key
+-- These items are purely flag-based - receiving them writes a persistent key
 -- that the goal-completion checks in dwarfipelago.lua read back.
 
 local function recv_artifact_weapon()
@@ -606,7 +606,7 @@ local function spawn_artifact_door()
         if not door then return end
 
         -- Register a genuine artifact: a record in world.artifacts.all that the
-        -- door links to via a general_ref. Order matters — the record is added
+        -- door links to via a general_ref. Order matters - the record is added
         -- first, then the item is linked and flagged. If any step fails the door
         -- stays a plain, BUILDABLE door rather than the half-set "artifact with no
         -- record" state that dwarves refuse to haul/build.
@@ -664,7 +664,7 @@ end
 
 -- ── Item handlers: junk traps (AP filler trap items sent back to DF) ─────────
 -- These items land back in the DF player's inventory as padding. They have no
--- meaningful in-game effect — just a flavour announcement.
+-- meaningful in-game effect - just a flavour announcement.
 
 local function recv_cave_fisher_silk()
     -- Silk cloth woven from cave fisher silk. CLOTH item, creature silk material.
@@ -679,7 +679,7 @@ local function recv_dwarf_bones()
 end
 
 local function recv_goblin_trophy()
-    -- A goblin-bone totem — the classic war trophy.
+    -- A goblin-bone totem - the classic war trophy.
     spawn_item("TOTEM", "CREATURE_MAT:GOBLIN:BONE")
     announce_at_depot("A goblin trophy has been delivered. Someone out there is mocking you.")
 end
@@ -864,7 +864,7 @@ local function recv_goblin_ambush()
     else
         local n = stress_citizens(60000)
         log.warn("goblin_ambush: unit spawn unavailable, applied raid-fear stress to " .. n .. " dwarves")
-        announce("Trap: A goblin ambush descends — panic grips your dwarves!",
+        announce("Trap: A goblin ambush descends - panic grips your dwarves!",
             spawn_pos, df.announcement_type.AMBUSH_AMBUSHER)
     end
 end
@@ -892,7 +892,7 @@ local function recv_catsplosion()
         if cr.creature_id == "CAT" then race_idx = i; break end
     end
     if not race_idx then
-        announce("Trap: Catsplosion! (no cats in world raws — the cats escaped to another timeline)")
+        announce("Trap: Catsplosion! (no cats in world raws - the cats escaped to another timeline)")
         return
     end
     local dx, dy, dz = find_trade_depot_center()
@@ -953,7 +953,7 @@ local function find_stockpile_pos()
 end
 
 local function recv_vermin_infestation()
-    -- Spawn inside the fortress — rats materialise directly in your stockpiles.
+    -- Spawn inside the fortress - rats materialise directly in your stockpiles.
     local x, y, z = find_stockpile_pos()
     local spawned = 0
     local RATS = { "GIANT_RAT", "RAT", "GIANT_MOUSE", "MOUSE", "GIANT_MOLE", "MOLE_DWARF" }
@@ -1117,7 +1117,7 @@ local function spawn_precursor_threat()
         local sx, sy, sz = get_fort_spawn_pos()
         x, y, z = tonumber(sx), tonumber(sy), tonumber(sz)
         dfhack.gui.showAnnouncement(
-            "[AP] Warning: no underground tile found — precursor spawned at surface instead.",
+            "[AP] Warning: no underground tile found - precursor spawned at surface instead.",
             COLOR_YELLOW, true)
         log.warn("spawn_precursor_threat: underground search failed, falling back to surface")
     end
@@ -1147,7 +1147,7 @@ local function spawn_target_megabeast()
     end)
     if not ok then
         dfhack.gui.showAnnouncement(
-            "[AP] CRITICAL: Could not force a megabeast — the Slay Megabeast goal cannot be completed.",
+            "[AP] CRITICAL: Could not force a megabeast - the Slay Megabeast goal cannot be completed.",
             COLOR_RED, true)
         dfhack.gui.showAnnouncement(
             "[AP] This is likely a DFHack compatibility issue. Check the DFHack console / dwarfipelago.log.",
@@ -1278,7 +1278,7 @@ local function recv_immigration_wave()
     local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
     dfhack.persistent.saveWorldDataString(key, tostring(n))
 
-    -- Directly add citizen dwarves (reliable). 'force Migrants' was unreliable —
+    -- Directly add citizen dwarves (reliable). 'force Migrants' was unreliable -
     -- it reports success but often brings nobody when the parent civ has no
     -- migrants available.
     local wave = math.random(2, 5)
@@ -1313,7 +1313,7 @@ local function recv_monarchs_invitation()
 end
 
 -- Escalating combat gear granted by Military Training tiers 1-3. These are
--- rewards that help the player prepare for the megabeast — not punishments.
+-- rewards that help the player prepare for the megabeast - not punishments.
 -- All spawns go through spawn_item, which is pcall-guarded and logs failures;
 -- each tier also includes steel bars so the player always gets usable material
 -- even if a particular weapon/armor token isn't accepted by this DF version.
@@ -1351,10 +1351,10 @@ local function recv_military_training()
         announce("Military Training received! Your soldiers don steel armor. (2/4)")
     elseif n == 3 then
         grant_war_gear(3)
-        announce("Military Training received! Your elite are fully equipped — the beast nears. (3/4)")
+        announce("Military Training received! Your elite are fully equipped - the beast nears. (3/4)")
     else
         -- Tier 4: the military is ready; summon the target megabeast.
-        announce("Military Training received! Your military is ready — the beast awakens! (4/4)")
+        announce("Military Training received! Your military is ready - the beast awakens! (4/4)")
         spawn_target_megabeast()
     end
 end
@@ -1660,7 +1660,7 @@ local TEST_LIST = {
                            h = df.global.world.world_data.world_height
                        end)
                        if not w then
-                           fail("Could not read world dimensions — is a world loaded?")
+                           fail("Could not read world dimensions - is a world loaded?")
                            return
                        end
                        local SIZE_NAMES = {[17]="Pocket",[33]="Smaller",[65]="Small",[129]="Medium",[257]="Large"}
@@ -1668,7 +1668,7 @@ local TEST_LIST = {
                        if w == 65 and h == 65 then
                            pass(("Size: %dx%d (Small)"):format(w, h))
                        else
-                           warn(("Size: %dx%d (%s) — DwarfipelagoWorld preset uses Small (65x65)"):format(w, h, size_name))
+                           warn(("Size: %dx%d (%s) - DwarfipelagoWorld preset uses Small (65x65)"):format(w, h, size_name))
                        end
 
                        -- 2. History length
@@ -1678,9 +1678,9 @@ local TEST_LIST = {
                            if year >= 80 then
                                pass(("History: %d years"):format(year))
                            elseif year >= 40 then
-                               warn(("History: %d years — shorter history may produce fewer sites and civs"):format(year))
+                               warn(("History: %d years - shorter history may produce fewer sites and civs"):format(year))
                            else
-                               fail(("History: %d years — very short, world likely lacks sites and civs needed for AP"):format(year))
+                               fail(("History: %d years - very short, world likely lacks sites and civs needed for AP"):format(year))
                            end
                        end
 
@@ -1701,7 +1701,7 @@ local TEST_LIST = {
                            if civs[race] then
                                pass("Civ: " .. race)
                            else
-                               fail("Civ: " .. race .. " not found — related AP goals may be impossible")
+                               fail("Civ: " .. race .. " not found - related AP goals may be impossible")
                            end
                        end
                        print(("[worldcheck]       (%d total entities in world)"):format(total_ents))
@@ -1715,17 +1715,17 @@ local TEST_LIST = {
                        if n_volc >= 5 then
                            pass(("Volcanoes: %d active"):format(n_volc))
                        elseif n_volc >= 1 then
-                           warn(("Volcanoes: %d active — magma access possible but limited; consider rerolling if smelting goals are required"):format(n_volc))
+                           warn(("Volcanoes: %d active - magma access possible but limited; consider rerolling if smelting goals are required"):format(n_volc))
                        else
-                           warn("Volcanoes: none detected — magma smelting goals may require a different embark site")
+                           warn("Volcanoes: none detected - magma smelting goals may require a different embark site")
                        end
 
                        -- Summary
                        print("")
                        if issues == 0 then
-                           print("[worldcheck] All checks passed — world is suitable for Dwarfipelago.")
+                           print("[worldcheck] All checks passed - world is suitable for Dwarfipelago.")
                        else
-                           print(("[worldcheck] %d issue(s) found — see above. Consider rerolling if critical."):format(issues))
+                           print(("[worldcheck] %d issue(s) found - see above. Consider rerolling if critical."):format(issues))
                        end
                    end },
     { "caravan",   "Force a caravan (arg: dwarf|elf|human|goblin; default = parent civ)",
@@ -1756,7 +1756,7 @@ local TEST_LIST = {
 function M.run_test(name, rest)
     rest = rest or {}
     if not name or name == "" or name == "list" then
-        print("[Dwarfipelago] Tests — run as: dwarfipelago test <name> [args]")
+        print("[Dwarfipelago] Tests - run as: dwarfipelago test <name> [args]")
         for _, t in ipairs(TEST_LIST) do
             print(("  %-20s %s"):format(t[1], t[2]))
         end
