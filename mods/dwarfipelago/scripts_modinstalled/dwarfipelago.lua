@@ -87,7 +87,7 @@ local _megabeast_cleanup_done = false
 
 -- Per-tier announcement tracking for treasury job blocking.
 -- Prevents spam when standing orders keep retrying a blocked MintCoins/CutGems job.
--- Keyed by coffer count (0 = no coffers yet, 1–4 = tier cap reached).
+-- Keyed by coffer count (0 = no coffers yet, 1-4 = tier cap reached).
 -- Resets on each script load so the player gets a reminder after every reload.
 local _treasury_block_notified = {}
 
@@ -452,7 +452,7 @@ local function call_ap_caravan()
     local pool = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/energy_link") or "0") or 0
     if pool < cost then
         dfhack.gui.showAnnouncement(
-            ("[AP] Need %s (%s) to call caravan — have %s."):format(
+            ("[AP] Need %s (%s) to call caravan - have %s."):format(
                 fmt_energy(cost), get_season_name(), fmt_energy(pool)),
             COLOR_YELLOW, true)
         return
@@ -460,7 +460,7 @@ local function call_ap_caravan()
     dfhack.persistent.saveWorldDataString("dwarfipelago/caravan_energy_cost", tostring(cost))
     dfhack.persistent.saveWorldDataString("dwarfipelago/request_caravan", "1")
     dfhack.gui.showAnnouncement(
-        ("[AP] Caravan requested — %s (%s). Arriving soon!"):format(
+        ("[AP] Caravan requested - %s (%s). Arriving soon!"):format(
             fmt_energy(cost), get_season_name()),
         COLOR_CYAN, true)
     print("[Dwarfipelago] Caravan request queued.")
@@ -583,7 +583,7 @@ local function deposit_coins(target_val)
     end
     if target_val > avail_val then
         dfhack.gui.showAnnouncement(
-            ("[AP] Only %d * available (requested %d *) — depositing all."):format(avail_val, target_val),
+            ("[AP] Only %d * available (requested %d *) - depositing all."):format(avail_val, target_val),
             COLOR_YELLOW, true)
         target_val = avail_val
     end
@@ -671,7 +671,7 @@ local function buy_shop(slot)
     local tier = entry.tier or 1
     if coffers < tier then
         dfhack.gui.showAnnouncement(
-            ("[AP] Shop tier %d is locked — receive %d Merchant's Coffer(s) first."):format(tier, tier),
+            ("[AP] Shop tier %d is locked - receive %d Merchant's Coffer(s) first."):format(tier, tier),
             COLOR_YELLOW, true)
         return
     end
@@ -802,7 +802,7 @@ end
 -- removed when the fortress loads. The AP-controlled target is summoned via
 -- Military Training items instead, keeping the encounter on the multiworld's
 -- terms. Natural megabeasts that were already killed in a previous session are
--- simply absent — this scan is fast and safe to repeat on each reload.
+-- simply absent - this scan is fast and safe to repeat on each reload.
 
 local function cleanup_natural_megabeasts()
     if _megabeast_cleanup_done then return end
@@ -836,7 +836,7 @@ local function cleanup_natural_megabeasts()
     end
 
     if cleaned > 0 then
-        print(("[Dwarfipelago] Cleared %d natural megabeast(s) — AP target arrives via Military Training"):format(cleaned))
+        print(("[Dwarfipelago] Cleared %d natural megabeast(s) - AP target arrives via Military Training"):format(cleaned))
     end
 end
 
@@ -855,7 +855,7 @@ local function check_locked_notifications()
                 and coffers < tier.coffers then
             _notified_locked[tier.id] = true
             dfhack.gui.showAnnouncement(
-                ("[AP] %s reached — waiting for Merchant's Coffer (%d/5)"):format(
+                ("[AP] %s reached - waiting for Merchant's Coffer (%d/5)"):format(
                     tier.name, coffers),
                 COLOR_YELLOW, true)
             print(("[Dwarfipelago] Wealth milestone locked: %s (have %d/5 coffers)"):format(
@@ -1222,7 +1222,7 @@ local function on_job_completed(job)
         end
     end
 
-    -- Cumulative craft counts — incremented here, polled by the AP client.
+    -- Cumulative craft counts - incremented here, polled by the AP client.
     -- Threshold comparisons and location check firing happen on the Python side.
     local craft_flag = checks.job_to_craft_flag(job)
     if craft_flag then
@@ -1234,7 +1234,7 @@ local function on_job_completed(job)
         end
     end
 
-    -- Mining tracking — count excavation jobs and record the deepest z reached.
+    -- Mining tracking - count excavation jobs and record the deepest z reached.
     -- Drives the depth and tiles-mined milestone checks (checks.lua).
     if MINING_JOBS[job.job_type] then
         local key_c = "dwarfipelago/mining/dig_count"
@@ -1271,7 +1271,7 @@ local function on_job_completed(job)
                     elseif t:find("magma_core") then
                         set_mining_milestone("magma", "You have reached the Magma Sea!")
                     elseif t:find("underworld") then
-                        set_mining_milestone("circus", "Welcome to the Circus — the end is nigh!")
+                        set_mining_milestone("circus", "Welcome to the Circus - the end is nigh!")
                     end
                 end
             end
@@ -1324,19 +1324,19 @@ local function check_treasury_job_gate(job)
 
     local coffers = goal_setting("unlock/wealth_coffers", 0)
 
-    -- No coffers yet — block all minting and cutting.
+    -- No coffers yet - block all minting and cutting.
     if coffers == 0 then
         dfhack.job.removeJob(job)
         if not _treasury_block_notified[0] then
             _treasury_block_notified[0] = true
             dfhack.gui.showAnnouncement(
-                "[AP] Cannot mint coins or cut gems — awaiting first Merchant's Coffer!",
+                "[AP] Cannot mint coins or cut gems - awaiting first Merchant's Coffer!",
                 COLOR_YELLOW, true)
         end
         return
     end
 
-    -- All five coffers received — no cap, allow freely.
+    -- All five coffers received - no cap, allow freely.
     if coffers >= 5 then return end
 
     -- Check whether current treasury has already reached this tier's ceiling.
@@ -1346,7 +1346,7 @@ local function check_treasury_job_gate(job)
         if not _treasury_block_notified[coffers] then
             _treasury_block_notified[coffers] = true
             dfhack.gui.showAnnouncement(
-                ("[AP] %s reached — minting and gem cutting paused. Awaiting Merchant's Coffer (%d/5)."):format(
+                ("[AP] %s reached - minting and gem cutting paused. Awaiting Merchant's Coffer (%d/5)."):format(
                     tier.name, coffers),
                 COLOR_YELLOW, true)
         end
@@ -1385,7 +1385,7 @@ local function check_craftitem_gate(job)
     if not _craftlock_notified[base_flag] then
         _craftlock_notified[base_flag] = true
         dfhack.gui.showAnnouncement(
-            ("[AP] Cannot craft %s — crafting permit not yet received!"):format(
+            ("[AP] Cannot craft %s - crafting permit not yet received!"):format(
                 base_flag:gsub("_", " ")),
             COLOR_YELLOW, true)
     end
@@ -1456,7 +1456,7 @@ function unlock_blueprint(blueprint_name)
 end
 
 -- Hook: remove designations for locked workshops, furnaces, and farm plots.
--- Called via eventful.onBuildingCreated — fires the moment a player places a
+-- Called via eventful.onBuildingCreated - fires the moment a player places a
 -- building designation, before any materials are claimed or jobs are queued.
 -- Deconstructing here gives immediate feedback and prevents dwarf retry spam.
 local function on_job_initiated(job)
@@ -1488,7 +1488,7 @@ local function on_job_initiated(job)
         dfhack.gui.showAnnouncement(
             ("[AP] Cannot build: %s not yet received!"):format(blueprint_name),
             COLOR_YELLOW, true)
-        -- Defer deconstruction by one tick — removing a job inline during
+        -- Defer deconstruction by one tick - removing a job inline during
         -- onJobInitiated crashes DF because the engine is mid-update.
         dfhack.timeout(1, "ticks", function()
             pcall(function() dfhack.buildings.deconstruct(bld) end)
@@ -1560,8 +1560,8 @@ local function on_item_created(item_id)
         end
 
         -- "First Mechanism Made": a mechanism is a TRAPPARTS item. Detecting the
-        -- created item is robust to HOW it was produced — manual workshop job,
-        -- manager work order, etc. — which the job-type path (ConstructMechanisms)
+        -- created item is robust to HOW it was produced - manual workshop job,
+        -- manager work order, etc. - which the job-type path (ConstructMechanisms)
         -- can miss (manager-order jobs don't fire onJobCompleted).
         if t == "TRAPPARTS" and not checks.production_flag("mechanism") then
             checks.set_production_flag("mechanism")
@@ -1569,7 +1569,7 @@ local function on_item_created(item_id)
 
         -- Traction bench craft count. Counted from the produced item (not the
         -- ConstructTractionBench job) so the bench's own material is used and so
-        -- manager-order benches — which don't fire onJobCompleted — still count.
+        -- manager-order benches - which don't fire onJobCompleted - still count.
         if t == "TRACTION_BENCH" then
             local flag = checks.item_craft_flag("traction_bench", item)
             if flag then checks.increment_craft_count(flag) end
@@ -1617,7 +1617,7 @@ ensure_trade_depot = function()
     end
 
     -- Find the starting position.
-    -- Priority 1: embark wagon (VEHICLE item — present on fresh embark)
+    -- Priority 1: embark wagon (VEHICLE item - present on fresh embark)
     local sx, sy, sz
     pcall(function()
         for _, item in ipairs(df.global.world.items.all) do
@@ -1658,7 +1658,7 @@ ensure_trade_depot = function()
         end
     end
     if not sx then
-        log.warn("ensure_trade_depot: no position found — will retry next load")
+        log.warn("ensure_trade_depot: no position found - will retry next load")
         return
     end
 
@@ -1667,8 +1667,8 @@ ensure_trade_depot = function()
     local map = df.global.world.map
 
     -- Count liquid (water/magma) tiles in the clamped 5×5 footprint at (tx,ty).
-    -- A tile's liquid is in designation.flow_size (0 = dry, 1–7 = liquid depth),
-    -- independent of its shape — a shallow-water tile is still a "floor" shape,
+    -- A tile's liquid is in designation.flow_size (0 = dry, 1-7 = liquid depth),
+    -- independent of its shape - a shallow-water tile is still a "floor" shape,
     -- which is why a shape-only check let the depot spawn on water. We use this
     -- to prefer a dry candidate before resorting to draining/filling tiles.
     local function footprint_liquid_count(tx, ty)
@@ -1793,11 +1793,11 @@ ensure_trade_depot = function()
         if b then
             bld, tx, ty = b, px, py
             if c.liquid > 0 then
-                log.info(("Trade depot footprint had %d liquid tile(s) — drained and filled before placing"):format(c.liquid))
+                log.info(("Trade depot footprint had %d liquid tile(s) - drained and filled before placing"):format(c.liquid))
             end
             break
         end
-        log.warn(("Depot placement failed at %d,%d — trying next candidate"):format(c[1], c[2]))
+        log.warn(("Depot placement failed at %d,%d - trying next candidate"):format(c[1], c[2]))
     end
 
     if not bld then
@@ -1853,13 +1853,13 @@ local function check_civilization_diversity()
         dfhack.gui.showAnnouncement(
             "[AP] Warning: No human civilization found in this world. Human caravans will not appear.",
             COLOR_YELLOW, true)
-        log.warn("No human civilization detected — world may be missing human civs.")
+        log.warn("No human civilization detected - world may be missing human civs.")
     end
     if not has_elf then
         dfhack.gui.showAnnouncement(
             "[AP] Warning: No elf civilization found in this world. Elf caravans will not appear.",
             COLOR_YELLOW, true)
-        log.warn("No elf civilization detected — world may be missing elf civs.")
+        log.warn("No elf civilization detected - world may be missing elf civs.")
     end
 end
 
@@ -1930,7 +1930,7 @@ elseif cmd == "resetseed" then
     -- freshly generated AP slot (new seed) without the client rejecting it with
     -- "This saved world does not match this slot." Lets you keep a test world
     -- across regenerations. Other AP state (checks, unlocks, craft counts) is
-    -- left intact — use "dwarfipelago reset" for a full wipe.
+    -- left intact - use "dwarfipelago reset" for a full wipe.
     local ok = pcall(function()
         dfhack.persistent.deleteWorldData("dwarfipelago/seed")
     end)

@@ -18,9 +18,9 @@ class ItemData:
 
 # ── Items DF sends to other players ──────────────────────────────────────────
 
-# Workshop blueprint items — progression gates that other players find and send
+# Workshop blueprint items - progression gates that other players find and send
 # to unlock workshops in your fortress. These are the core AP mechanic.
-# Workshop / furnace / building blueprint items — progression gates that other
+# Workshop / furnace / building blueprint items - progression gates that other
 # players find and send to unlock structures in your fortress.
 BLUEPRINT_ITEMS: list[ItemData] = [
     # Workshops
@@ -67,13 +67,13 @@ PROGRESSION_ITEMS: list[ItemData] = [
     ItemData("Master Builder's Codex", BASE_ID + 502, ItemClassification.progression),
 ]
 
-# Progressive lock items — gate milestone checks behind received items.
+# Progressive lock items - gate milestone checks behind received items.
 # quantity > 1 means that many copies enter the pool; Lua counts how many
 # the DF player has received and uses the count as the unlock tier.
 PROGRESSION_LOCK_ITEMS: list[ItemData] = [
-    # Legendary Wealth: 5 coffers → unlock wealth tiers 1–5
+    # Legendary Wealth: 5 coffers → unlock wealth tiers 1-5
     ItemData("Merchant's Coffer",           BASE_ID + 630, ItemClassification.progression, quantity=5),
-    # Population Boom: 5 waves → unlock title/population tiers 1–5
+    # Population Boom: 5 waves → unlock title/population tiers 1-5
     ItemData("Immigration Wave",            BASE_ID + 631, ItemClassification.progression, quantity=5),
     # Mountainhome: one charter per noble rank
     ItemData("Baron's Charter",             BASE_ID + 632, ItemClassification.progression),
@@ -101,13 +101,13 @@ USEFUL_ITEMS: list[ItemData] = [
 ]
 
 FILLER_ITEMS: list[ItemData] = [
-    # Flavor filler — kept but down-weighted so they no longer dominate the pool.
+    # Flavor filler - kept but down-weighted so they no longer dominate the pool.
     ItemData("Dwarven Ale",            BASE_ID + 520, ItemClassification.filler, weight=10),
     ItemData("Stone Trinket",          BASE_ID + 521, ItemClassification.filler, weight=3),
     ItemData("Bone Crafts",            BASE_ID + 522, ItemClassification.filler, weight=6),
     ItemData("Raw Ore",                BASE_ID + 523, ItemClassification.filler, weight=10),
     ItemData("Wooden Cup",             BASE_ID + 524, ItemClassification.filler, weight=3),
-    # Useful industry materials — the bulk of what a DF player should receive.
+    # Useful industry materials - the bulk of what a DF player should receive.
     ItemData("Flux Stone",             BASE_ID + 525, ItemClassification.filler, weight=12),
     ItemData("Pig Iron Bar",           BASE_ID + 526, ItemClassification.filler, weight=10),
     ItemData("Charcoal",               BASE_ID + 527, ItemClassification.filler, weight=12),
@@ -115,7 +115,7 @@ FILLER_ITEMS: list[ItemData] = [
     ItemData("Tanned Leather",         BASE_ID + 529, ItemClassification.filler, weight=10),
     ItemData("Bag of Sand",            BASE_ID + 536, ItemClassification.filler, weight=10),
     ItemData("Raw Clay",               BASE_ID + 537, ItemClassification.filler, weight=10),
-    # Low-grade (copper) tools/gear — genuinely useful recovery items, kept rare.
+    # Low-grade (copper) tools/gear - genuinely useful recovery items, kept rare.
     ItemData("Copper Pick",            BASE_ID + 533, ItemClassification.filler, weight=3),
     ItemData("Copper Axe",             BASE_ID + 534, ItemClassification.filler, weight=3),
     ItemData("Copper Short Sword",     BASE_ID + 535, ItemClassification.filler, weight=2),
@@ -228,7 +228,7 @@ CRAFT_ITEMS: list[ItemData] = [ #commented items people should get when getting 
 ]
 
 # ── Items the DF player receives from the multiworld ─────────────────────────
-# These ARE part of the AP item pool — they must be placed at locations so the
+# These ARE part of the AP item pool - they must be placed at locations so the
 # AP server can route them back to the DF player when those locations are checked.
 # The client's deliver_item() call hands them off to items.lua for in-game effect.
 
@@ -261,14 +261,14 @@ RECEIVED_TRAPS: list[ItemData] = [
 # Pool that goes into the AP multiworld.
 #
 # BLUEPRINT_ITEMS are progression-gated items the DF player must receive to
-# unlock workshops. They must ALL be in the pool — create_items() guarantees
+# unlock workshops. They must ALL be in the pool - create_items() guarantees
 # they are never trimmed, regardless of location count.
 #
 # PROGRESSION_ITEMS / USEFUL_ITEMS / FILLER_ITEMS / TRAP_ITEMS are outbound
 # items DF contributes that other players may find.
 #
 # RECEIVED_* are items routed back to the DF player (trade goods, resources,
-# traps) — they live in the pool so the AP server can place them at locations.
+# traps) - they live in the pool so the AP server can place them at locations.
 AP_ITEM_POOL: list[ItemData] = \
     BLUEPRINT_ITEMS \
     + PROGRESSION_ITEMS \

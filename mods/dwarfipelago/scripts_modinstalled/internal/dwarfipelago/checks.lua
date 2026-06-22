@@ -51,7 +51,7 @@ local function held_by_unit(item)
 end
 
 -- Returns the combined value of all minted coins (COIN) and cut gems (SMALLGEM)
--- currently in fortress stocks — not carried by any unit, not belonging to traders.
+-- currently in fortress stocks - not carried by any unit, not belonging to traders.
 -- A coin stack is worth 10 × material_value for a full 500 stack, i.e. each coin
 -- is material_value × 10 / 500; a cut gem is worth its material_value.
 -- Both item types require AP-gated blueprints (Screw Press and Jeweler's Workshop)
@@ -130,7 +130,7 @@ local function has_fortress_title(pop_req, created_req, exported_req, waves_req)
 end
 
 M.checks = {
-    -- Wealth milestones — based on combined coin + cut-gem value in fortress stocks.
+    -- Wealth milestones - based on combined coin + cut-gem value in fortress stocks.
     -- Each tier requires the matching Merchant's Coffer count to have been received.
     { id = 37370000, name = "Humble Beginnings (1,000)",    fn = function() return unlock_count("wealth_coffers") >= 1 and treasury_wealth() >= 1000    end },
     { id = 37370001, name = "Growing Stronghold (10,000)",  fn = function() return unlock_count("wealth_coffers") >= 2 and treasury_wealth() >= 10000   end },
@@ -264,7 +264,7 @@ function M.detect_mission_checks()
                  and M.trade_flag("first_diplomacy")
     if all_done then return end
 
-    -- Messenger/contact dispatches don't create a squad — the controller exists
+    -- Messenger/contact dispatches don't create a squad - the controller exists
     -- standalone in army_controllers with entity_id == group_id. Iterating
     -- controllers directly catches both squad-based missions and lone messengers.
     local group_id        = df.global.plotinfo.group_id
@@ -291,9 +291,9 @@ end
 
 -- ── Mining helpers ────────────────────────────────────────────────────────────
 -- Mining state is written by the eventful job hook in dwarfipelago.lua:
---   dwarfipelago/mining/surface_z  — z-level of the embark surface (captured once)
---   dwarfipelago/mining/deepest_z  — lowest z any mining job has reached
---   dwarfipelago/mining/dig_count  — cumulative count of mining jobs completed
+--   dwarfipelago/mining/surface_z  - z-level of the embark surface (captured once)
+--   dwarfipelago/mining/deepest_z  - lowest z any mining job has reached
+--   dwarfipelago/mining/dig_count  - cumulative count of mining jobs completed
 
 -- Levels dug below the surface (0 if not yet tracked or only dug upward).
 function M.mining_depth()
@@ -333,7 +333,7 @@ local function map(name, flag)
     if v ~= nil then JOB_TO_FLAG[v] = flag end
 end
 
--- Crafting — any Craftsdwarf's Workshop output counts as a "crafted item"
+-- Crafting - any Craftsdwarf's Workshop output counts as a "crafted item"
 map("MakeCrafts",              "crafted_item")
 map("CarveStatue",             "crafted_item")  -- pre-50 name
 map("CarveFurniture",          "crafted_item")  -- DF 50+ name
@@ -358,7 +358,7 @@ map("MakeGloves",              "armor")
 map("MakeBoots",               "armor")
 map("MakePants",               "armor")
 map("MakeShield",              "armor")
--- Furniture — both Make* (pre-50/Classic) and Construct* (DF50+ Steam) variants
+-- Furniture - both Make* (pre-50/Classic) and Construct* (DF50+ Steam) variants
 map("MakeTable",               "table")
 map("ConstructTable",          "table")
 map("MakeChair",               "furniture")
@@ -408,7 +408,7 @@ map("MakeTool",                "TOOL_FIRST")  -- subtype dispatch below
 -- Minecart subtype: MakeTool item_subtype 16
 local TOOL_FIRST_FLAG = { [16] = "minecart" }
 
--- Some "production" jobs have no dedicated job_type in DF v50 — they complete as
+-- Some "production" jobs have no dedicated job_type in DF v50 - they complete as
 -- CustomReaction jobs and are identified by reaction_name (this is the same way
 -- the craft-count path resolves them via REACTION_SUBTYPE_FLAG, which is why the
 -- craftsanity Alcohol checks already work). Map those reaction names to the
@@ -627,7 +627,7 @@ goblet_subtype("glass",  "goblet")
 -- Keyed by the job's reaction_name STRING (job_to_craft_flag looks up
 -- REACTION_SUBTYPE_FLAG[job.reaction_name]). The previous version keyed by
 -- df.job_type[name], but these are reaction names (not job types), so every
--- entry resolved to nil and the table was empty — breaking all reaction flags.
+-- entry resolved to nil and the table was empty - breaking all reaction flags.
 local REACTION_SUBTYPE_FLAG = {}
 local function reaction_subtype(name, flag)
     REACTION_SUBTYPE_FLAG[name] = flag
@@ -756,7 +756,7 @@ local function classify_mat(mat_type, mat_index)
         local up = token:upper()
 
         -- Metal is detected via the material's IS_METAL flag. IS_METAL lives in the
-        -- material_flags enum (mat.material.flags), NOT inorganic_flags — the old
+        -- material_flags enum (mat.material.flags), NOT inorganic_flags - the old
         -- mat.inorganic.flags.IS_METAL was an invalid index that always resolved
         -- false, so every metal craft was misclassified as "stone".
         local is_metal = false
@@ -905,7 +905,7 @@ function M.job_to_craft_flag(job)
 end
 
 -- Like job_to_craft_flag but for a produced ITEM (used when the craft is better
--- identified by its output than its job — e.g. traction benches). base_flag is
+-- identified by its output than its job - e.g. traction benches). base_flag is
 -- the craftable_items flag; the material suffix is taken from the item itself.
 function M.item_craft_flag(base_flag, item)
     if NON_MATERIAL[base_flag] then return base_flag end
