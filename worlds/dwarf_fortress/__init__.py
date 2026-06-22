@@ -159,10 +159,19 @@ class DwarfFortressWorld(World):
             "Duke Appointed",
             "Monarch Takes Residence",
         }
+        DEPTH_LOCAITONS = {
+            "Delved 10 Levels Deep", 
+            "Delved 25 Levels Deep", 
+            "Delved 50 Levels Deep", 
+            "Delved 75 Levels Deep", 
+            "Delved 100 Levels Deep",
+        }
         if self.options.goal != DwarfFortressGoal.option_legendary_wealth:
             active -= WEALTH_TIER_LOCATIONS
         if self.options.goal != DwarfFortressGoal.option_mountainhome:
             active -= NOBLE_LADDER_LOCATIONS
+        if self.options.mining_depth:
+            active -= DEPTH_LOCAITONS
         for skill_names in self.remove_skill_locations_names:
              active.remove(skill_names)
         # The shop is always on, so its 50 slots are always active (coffer-gated
@@ -217,6 +226,9 @@ class DwarfFortressWorld(World):
         ]
 
         for item_data in self.ap_item_pool:
+            if self.options.mining_depth == False:
+                if item_data.name == "Progressive Mining Depth":
+                    required.remove(item_data)
             if self.options.goal == DwarfFortressGoal.option_slay_megabeast and \
                 item_data.name in {"Merchant's Coffer", "Baron's Charter",  "Count's Charter", "Duke's Charter",
                     "Monarch's Invitation", "Remains of the Great King"}:
@@ -335,6 +347,7 @@ class DwarfFortressWorld(World):
             "skillsanity_locations": skill_location_data,
             "deathlink_percentage": self.options.deathlink_percentage.value,
             "energy_link": self.options.energy_link.value,
+            "mining_depth": self.options.mining_depth.value,
             "shop": shop_data,
             "version": f"{self.world_version.as_simple_string()}",
         }
