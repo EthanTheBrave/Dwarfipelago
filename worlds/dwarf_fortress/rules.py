@@ -100,7 +100,7 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     dynamic_rules.df_location_rule(loc, "Table", "")
 
     loc = multiworld.get_location("First Bed Made", player)
-    dynamic_rules.df_location_rule(loc, "Bed", "")
+    dynamic_rules.df_location_rule(loc, "Beds", "")
 
     loc = multiworld.get_location("First Weapon Forged", player)
     if options.craftpermits == CraftingPermits.option_off:
