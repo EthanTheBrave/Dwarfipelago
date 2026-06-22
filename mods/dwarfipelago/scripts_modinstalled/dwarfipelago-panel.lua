@@ -263,6 +263,13 @@ local function build_progress_lines()
     row(("  Cavern 1: %-3s  2: %-3s  3: %-3s    Magma: %-3s"):format(
         c1 and "YES" or "no", c2 and "YES" or "no",
         c3 and "YES" or "no", mg and "YES" or "no"))
+    local limit_z, limit_name = checks.mining_depth_limit()
+    if limit_name then
+        row(("  Depth limit: above %s (%d unlock(s))"):format(
+            limit_name, checks.mining_depth_unlocks()), COLOR_YELLOW)
+    else
+        row("  Depth limit: none (dig freely)", COLOR_GREEN)
+    end
 
     -- Farming
     blank()
