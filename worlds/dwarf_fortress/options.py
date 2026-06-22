@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from Options import Choice, Range, PerGameCommonOptions, DeathLink, OptionList, Toggle, StartInventory, OptionGroup
+from Options import Choice, Range, PerGameCommonOptions, DeathLink, OptionList, Toggle, StartInventory, OptionGroup, DefaultOnToggle
 
 
 # ── General ────────────────────────────────────────────────────────────────
@@ -292,7 +292,17 @@ class SkillsanityLevelMechanic(Choice):
     option_lower_skills = 1
     default = 0
 
-
+class ProgressiveMiningDepth(DefaultOnToggle):
+    """
+    You are only allowed to mine down to certain Z levels depending on the generated map (based on discoveries).
+    When enabled, you need to find your Progressive Mining Depth Items to dig deeper. Here are the thresholds:
+    - 0 = Just before Cavern 1
+    - 1 = Just before Cavern 2
+    - 2 = Just before Cavern 3
+    - 3 = Just before Magma Sea
+    - 4 = Everything
+    """
+    display_name = "Progressive Mining Depths"
 
 # The Merchant's Shop is always enabled and has no options: spend minted coins to
 # buy AP items. It opens 10 slots per Merchant's Coffer received (up to 50 with all
@@ -325,6 +335,7 @@ class DwarfFortressOptions(PerGameCommonOptions):
     skillsanity_skills: SkillsanitySkills
     skillsanity_max_level: SkillsanityMaxLevel
     skillsanity_behaviour: SkillsanityLevelMechanic
+    mining_depth: ProgressiveMiningDepth
     trap_item_weight: TrapItemWeight
     start_inventory: StartingDefaultDFInventory
 

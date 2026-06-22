@@ -84,6 +84,8 @@ PROGRESSION_LOCK_ITEMS: list[ItemData] = [
     ItemData("Military Training",           BASE_ID + 636, ItemClassification.progression, quantity=4),
     # Remains of the Great King goal
     ItemData("Remains of the Great King",   BASE_ID + 637, ItemClassification.progression, quantity=5),
+    ItemData("Progressive Mining Depth",    BASE_ID + 638, ItemClassification.progression, quantity=4),
+
 ]
 
 USEFUL_ITEMS: list[ItemData] = [

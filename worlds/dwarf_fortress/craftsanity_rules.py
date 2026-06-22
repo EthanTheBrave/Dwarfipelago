@@ -20,10 +20,10 @@ class DynamicCraftingLocationRules:
     
     def metal(self, state:CollectionState) -> bool:
         if self.world.options.trades_inlogic:
-            return state.has("Forge Blueprint", self.player) or state.has("Magma Forge Blueprint", self.player)
+            return state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")
         else:
             return self.process_resource(state, "metal") and (state.has("Forge Blueprint", self.player) or \
-            state.has("Magma Forge Blueprint", self.player))
+            self.magma_processing(state, "forge"))
         
     def bone(self, state:CollectionState) -> bool:
         return self.process_resource(state, "bone")
@@ -35,47 +35,72 @@ class DynamicCraftingLocationRules:
         if resource == "metal":
             if self.world.options.craftpermits == CraftingPermits.option_off:
                 return (state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player)) or \
-                state.has("Magma Smelter Blueprint", self.player)
+                self.magma_processing(state, "metal")
             elif self.world.options.craftpermits == CraftingPermits.option_on:
                 return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player)) or \
-                state.has("Magma Smelter Blueprint", self.player)) and state.has("Metal Bars Permit", self.player)
+                self.magma_processing(state, "metal")) and state.has("Metal Bars Permit", self.player)
             else:
                 return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player) and \
-                state.has("Charcoal Permit", self.player)) or state.has("Magma Smelter Blueprint", self.player)) and \
+                state.has("Charcoal Permit", self.player)) or self.magma_processing(state, "metal")) and \
                 state.has("Metal Bars Permit", self.player)
         if resource == "coke":
             if self.world.options.craftpermits == CraftingPermits.option_off:
                 return (state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player)) or \
-                state.has("Magma Smelter Blueprint", self.player)
+                self.magma_processing(state, "coke")
             elif self.world.options.craftpermits == CraftingPermits.option_on:
                 return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Forge Blueprint", self.player)) or \
-                state.has("Magma Smelter Blueprint", self.player)) and state.has("Coke Bars Permit", self.player)
+                self.magma_processing(state, "coke")) and state.has("Coke Bars Permit", self.player)
             else:
                 return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Forge Blueprint", self.player) and \
-                state.has("Charcoal Permit", self.player)) or state.has("Magma Smelter Blueprint", self.player)) and \
+                state.has("Charcoal Permit", self.player)) or self.magma_processing(state, "coke")) and \
                 state.has("Coke Bars Permit", self.player)
         elif resource == "glass":
             if self.world.options.craftpermits == CraftingPermits.option_off:
                 return (state.has("Wood Furnace Blueprint", self.player) and state.has("Glass Furnace Blueprint", self.player)) or \
-                state.has("Magma Glass Furnace Blueprint", self.player)
+                self.magma_processing(state, "glass")
             elif self.world.options.craftpermits == CraftingPermits.option_on:
                 return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Glass Furnace Blueprint", self.player)) or \
-                state.has("Magma Glass Furnace Blueprint", self.player)) and state.has("Glass Permit", self.player)
+                self.magma_processing(state, "glass")) and state.has("Glass Permit", self.player)
             else:
                 return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Glass Furnace Blueprint", self.player) and \
-                state.has("Charcoal Permit", self.player)) or state.has("Magma Glass Furnace Blueprint", self.player)) and \
+                state.has("Charcoal Permit", self.player)) or self.magma_processing(state, "glass")) and \
                 state.has("Glass Permit", self.player) 
         elif resource == "ceramic":
             if self.world.options.craftpermits != CraftingPermits.option_all:
                 return (state.has("Wood Furnace Blueprint", self.player) and state.has("Kiln Blueprint", self.player)) or \
-                state.has("Magma Kiln Blueprint", self.player)
+                self.magma_processing(state, "ceramic")
             else:
                 return (state.has("Wood Furnace Blueprint", self.player) and state.has("Kiln Blueprint", self.player) and \
-                state.has("Charcoal Permit", self.player)) or state.has("Magma Kiln Blueprint", self.player)
+                state.has("Charcoal Permit", self.player)) or self.magma_processing(state, "ceramic")
         elif resource == "bone":
              return state.has("Butcher's Shop Blueprint", self.player)
         elif resource == "farming":
                 return state.has("Farm Plot Blueprint", self.player)
+        else:
+            print("Missing Resource Type for process_resource function")
+            return False
+        
+    def magma_processing(self, state:CollectionState, resource) -> bool: #glass, metal, ceramic
+        if resource in {"metal", "coke"}:
+            if self.world.options.mining_depth:
+                return state.has("Magma Smelter Blueprint", self.player) and state.has("Progressive Mining Depth", self.player, 4)
+            else:
+                return state.has("Magma Smelter Blueprint", self.player)
+        elif resource == "glass":
+            if self.world.options.mining_depth:
+                return state.has("Magma Glass Furnace Blueprint", self.player) and state.has("Progressive Mining Depth", self.player, 4)
+            else:
+                return state.has("Magma Glass Furnace Blueprint", self.player)
+        elif resource == "ceramic":
+            if self.world.options.mining_depth:
+                return state.has("Magma Kiln Blueprint", self.player) and state.has("Progressive Mining Depth", self.player, 4)
+            else:
+                return state.has("Magma Kiln Blueprint", self.player)
+        elif resource == "forge":
+            if self.world.options.mining_depth:
+                return state.has("Magma Forge Blueprint", self.player) and state.has("Progressive Mining Depth", self.player, 4)
+            else:
+                return state.has("Magma Forge Blueprint", self.player)
         else:
             print("Missing Resource Type for process_resource function")
             return False
