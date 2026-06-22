@@ -85,10 +85,9 @@ TITLE_LOCATIONS: list[LocationData] = [
 
 
 # ── Mining Milestones ─────────────────────────────────────────────────────────
-# Cavern progress = how far (percent) the deepest mining job has descended from
-# the previous reference (surface, then each cavern ceiling) toward the next
-# cavern's ceiling. Tiles = cumulative count of completed dig/channel/staircase/
-# ramp jobs. IDs match checks.lua (BASE_ID + 700 cavern progress, +710 tiles).
+# Cavern progress = percent the deepest mining job has descended toward the next
+# cavern's ceiling. Tiles = cumulative dig/channel/staircase/ramp jobs. IDs match
+# checks.lua (BASE_ID + 700 cavern progress, +710 tiles).
 MINING_LOCATIONS: list[LocationData] = [
     LocationData("25% to the First Cavern",     BASE_ID + 700, "Fortress"),
     LocationData("50% to the First Cavern",     BASE_ID + 701, "Fortress"),

@@ -319,8 +319,8 @@ function M.mining_flag(name)
 end
 
 -- ── Cavern approach progress ──────────────────────────────────────────────────
--- Ceilings are cached per world under dwarfipelago/mining/ceiling/<layer> by
--- compute_cavern_ceilings() in dwarfipelago.lua. Higher z = closer to surface.
+-- Ceilings cached by compute_cavern_ceilings() in dwarfipelago.lua. Higher z =
+-- closer to the surface.
 local CAVERN_CEIL_KEYS = { [1] = "cavern1", [2] = "cavern2", [3] = "cavern3" }
 
 local function ceiling_z(key)
@@ -331,9 +331,8 @@ local function surface_z()
     return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/mining/surface_z"))
 end
 
--- Start of the approach segment for cavern n: the surface for cavern 1, else the
--- previous cavern's ceiling (falling back toward the surface if a shallower
--- cavern is absent in this world).
+-- Segment start for cavern n: the surface for cavern 1, else the previous
+-- cavern's ceiling (falling back toward the surface if one is absent).
 local function segment_start_z(n)
     if n <= 1 then return surface_z() end
     for k = n - 1, 1, -1 do
@@ -343,9 +342,8 @@ local function segment_start_z(n)
     return surface_z()
 end
 
--- Percentage (0-100) of the way from the segment start down to cavern n's
--- ceiling, by the deepest mining job reached. 0 when data is missing or the
--- player has not yet dug into this segment; 100 once the ceiling is reached.
+-- Percent (0-100) from the segment start down to cavern n's ceiling, by the
+-- deepest mining job reached. 0 if data is missing or this segment isn't started.
 function M.cavern_progress(n)
     local target = ceiling_z(CAVERN_CEIL_KEYS[n])
     local start  = segment_start_z(n)
@@ -359,10 +357,9 @@ function M.cavern_progress(n)
     return pct
 end
 
--- Panel helper: the cavern the player is currently approaching (the shallowest
--- not yet breached) with its % progress, z-levels still to dig to its ceiling,
--- and the next progress check (25/50, or nil when the next milestone is the
--- breach). Returns nil when caverns are unknown or all three are breached.
+-- Panel helper: the shallowest un-breached cavern with its % progress, z-levels
+-- to its ceiling, and next progress check (25/50, nil when the breach is next).
+-- Returns nil when caverns are unknown or all three are breached.
 function M.cavern_approach()
     local deepest = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/mining/deepest_z"))
     for n = 1, 3 do
@@ -387,16 +384,13 @@ function M.cavern_approach()
 end
 
 -- ── Progressive mining-depth lock (read-only view for the panel) ──────────────
--- The lock itself is enforced in dwarfipelago.lua; this mirrors its tier mapping
--- so the panel can show the current limit. Ceilings are cached per world under
--- dwarfipelago/mining/ceiling/<layer> by compute_cavern_ceilings().
+-- Enforced in dwarfipelago.lua; this mirrors its tier mapping for display.
 local MINING_FLOOR_KEYS = { [0] = "cavern1", [1] = "cavern2", [2] = "cavern3", [3] = "magma" }
 local MINING_TIER_NAMES = {
     [0] = "Cavern 1", [1] = "Cavern 2", [2] = "Cavern 3", [3] = "Magma Sea",
 }
 
--- True when the Progressive Mining Depth feature is enabled for this slot (flag
--- written by the AP client from the option).
+-- True when the Progressive Mining Depth feature is enabled for this slot.
 function M.mining_depth_enabled()
     return dfhack.persistent.getWorldDataString("dwarfipelago/mining_depth") == "1"
 end
@@ -406,9 +400,8 @@ function M.mining_depth_unlocks()
     return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/unlock/mining_depth")) or 0
 end
 
--- Deepest minable z and the limiting layer name, or nil, nil when there is no
--- limit (feature off, final tier, or ceilings not yet computed). Falls through
--- to the next deeper existing layer so worlds with fewer caverns behave sensibly.
+-- Deepest minable z and limiting layer name, or nil, nil for no limit (feature
+-- off, final tier, or ceilings unknown). Falls through to the next deeper layer.
 function M.mining_depth_limit()
     if not M.mining_depth_enabled() then return nil, nil end
     local unlocks = M.mining_depth_unlocks()

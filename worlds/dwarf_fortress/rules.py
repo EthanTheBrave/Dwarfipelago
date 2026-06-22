@@ -181,14 +181,10 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         "Harvest 50 Crops", "Harvest 100 Crops", "Harvest 250 Crops",
         "Harvest 500 Crops", "Harvest 1,000 Crops",
     ])
-    # Cavern progress + breaches form one monotonic ladder:
-    #   25% C1 -> 50% C1 -> breach C1 -> 25% C2 -> 50% C2 -> breach C2
-    #          -> 50% C3 -> breach C3 -> magma sea -> the Circus
-    # With Progressive Mining Depth off, reaching each step requires the previous
-    # one (you cannot dig past a cavern without passing it). With it on, depth is
-    # gated by the item count instead: you may always dig to just above the next
-    # locked cavern, so each step needs the count that lets you descend far enough
-    # to trigger it (breach Cn needs n; the progress checks for Cn+1 need n).
+    # Cavern progress + breaches are one monotonic ladder (25% C1 -> 50% C1 ->
+    # breach C1 -> ... -> magma sea -> Circus). Off: each step requires the
+    # previous. On: gated by item count instead (breach Cn needs n; the progress
+    # checks for Cn+1 need n, since you must dig past Cn to reach them).
     if options.mining_depth == False:
         require_previous([
             "25% to the First Cavern", "50% to the First Cavern", "First Cavern Breached",
