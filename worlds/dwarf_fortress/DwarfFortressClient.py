@@ -1,5 +1,5 @@
 """
-DwarfFortressClient — bridges a running Dwarf Fortress (via DFHack's remote API)
+DwarfFortressClient - bridges a running Dwarf Fortress (via DFHack's remote API)
 and an Archipelago multiworld server (via WebSocket).
 
 Run with:
@@ -26,16 +26,16 @@ from NetUtils import ClientStatus
 from Utils import async_start, format_SI_prefix
 
 _STEAM_CANDIDATES: list[str] = [
-    # Windows — 32-bit Steam
+    # Windows - 32-bit Steam
     r"C:\Program Files (x86)\Steam\steamapps\common\Dwarf Fortress\Dwarf Fortress.exe",
-    # Windows — 64-bit Steam
+    # Windows - 64-bit Steam
     r"C:\Program Files\Steam\steamapps\common\Dwarf Fortress\Dwarf Fortress.exe",
-    # Linux — default Steam library
+    # Linux - default Steam library
     os.path.expanduser("~/.steam/steam/steamapps/common/Dwarf Fortress/dfhack"),
-    # Linux — flatpak Steam
+    # Linux - flatpak Steam
     os.path.expanduser("~/.var/app/com.valvesoftware.Steam/data/Steam"
                        "/steamapps/common/Dwarf Fortress/dfhack"),
-    # macOS — Steam
+    # macOS - Steam
     os.path.expanduser("~/Library/Application Support/Steam"
                        "/steamapps/common/Dwarf Fortress/dfhack"),
 ]
@@ -45,18 +45,18 @@ _STEAM_CANDIDATES: list[str] = [
 DFHACK_HOST = "127.0.0.1"
 DFHACK_PORT = 5000
 
-# DFHack remote API handshake — magic (8 bytes) + version int32 LE (4 bytes) = 12 bytes total.
+# DFHack remote API handshake - magic (8 bytes) + version int32 LE (4 bytes) = 12 bytes total.
 # The client sends the request magic+version; the server replies with reply magic+version.
 # If only the 8-byte magic is sent, DFHack waits for the remaining 4 bytes and the
-# connection hangs until our recv() times out — hence "DFHack not reachable: timed out".
+# connection hangs until our recv() times out - hence "DFHack not reachable: timed out".
 _DFHACK_VERSION       = struct.pack("<i", 1)
 DFHACK_MAGIC_REQUEST  = b"DFHack?\n" + _DFHACK_VERSION   # 12 bytes
 DFHACK_MAGIC_REPLY    = b"DFHack!\n" + _DFHACK_VERSION   # 12 bytes
 
 # DFHack RPC reply / special IDs (carried in the message header's id field).
-# Source: DFHack RemoteClient.h — enum DFHackReplyCode : int16_t
+# Source: DFHack RemoteClient.h - enum DFHackReplyCode : int16_t
 # See https://docs.dfhack.org/en/stable/docs/dev/Remote.html
-RPC_METHOD_BIND  =  0   # BindMethod request — always method id 0
+RPC_METHOD_BIND  =  0   # BindMethod request - always method id 0
 RPC_REPLY_RESULT = -1   # successful result; body is the reply protobuf
 RPC_REPLY_FAIL   = -2   # call failed; body is CoreErrorInfo
 RPC_REPLY_TEXT   = -3   # TextNotification (console output emitted mid-call)
@@ -302,7 +302,7 @@ def install_worldgen_preset() -> str:
     """
     prefs_path = _find_worldgen_prefs_path()
     if not prefs_path:
-        return ("Could not locate prefs/world_gen.txt — set 'game_path' in host.yaml "
+        return ("Could not locate prefs/world_gen.txt - set 'game_path' in host.yaml "
                  "to your Dwarf Fortress executable and try again.")
 
     existing = ""
@@ -359,7 +359,7 @@ class DFHackConnection:
                 logger.error(f"DFHack handshake failed: {reply!r}")
                 sock.close()
                 return False
-            # Handshake done — widen the timeout for normal RPC calls.
+            # Handshake done - widen the timeout for normal RPC calls.
             # The 5-second connect timeout is too short for commands like
             # 'dwarfipelago start' that register hooks and take longer to return.
             sock.settimeout(30)
@@ -407,7 +407,7 @@ class DFHackConnection:
     def _recv_rpc(self) -> tuple[int, bytes]:
         # RPCMessageHeader is 8 bytes: int16_t id @ offset 0, int32_t size @ offset 4.
         # The 2 bytes at offset 2 are alignment padding and may be non-zero garbage
-        # from DFHack's stack — extract fields by offset rather than treating the
+        # from DFHack's stack - extract fields by offset rather than treating the
         # header as two int32s.
         raw = self._recv_exactly(RPC_HEADER_SIZE)
         reply_id = struct.unpack_from("<h", raw, 0)[0]   # int16_t at offset 0
@@ -424,7 +424,7 @@ class DFHackConnection:
         Sends:   CoreBindRequest  { method(1), input_msg(2), output_msg(3), plugin(4)? }
         Expects: CoreBindReply    { assigned_id(1) }
 
-        CoreBindRequest.input_msg and output_msg are proto2 *required* fields —
+        CoreBindRequest.input_msg and output_msg are proto2 *required* fields -
         omitting them causes DFHack to reject the request with "could not decode
         input args".  Pass the fully-qualified proto type names, e.g.:
             input_msg  = "dfproto.CoreRunCommandRequest"
@@ -450,7 +450,7 @@ class DFHackConnection:
         # bytes from a prior desynced command). Drop the socket so the caller
         # reconnects and re-handshakes cleanly instead of compounding the desync.
         logger.error(f"BindMethod failed for {method!r}: reply_id={reply_id}, data={data!r} "
-                     f"— resetting connection")
+                     f"- resetting connection")
         self.disconnect()
         return -1
 
@@ -487,7 +487,7 @@ class DFHackConnection:
             try:
                 if not hasattr(self, "_run_cmd_id"):
                     # CoreBindRequest.input_msg and output_msg are proto2 *required*
-                    # fields — must pass the fully-qualified proto type names.
+                    # fields - must pass the fully-qualified proto type names.
                     self._run_cmd_id = self._bind_method(
                         "RunCommand",
                         "dfproto.CoreRunCommandRequest",
@@ -505,7 +505,7 @@ class DFHackConnection:
 
                 # Drain TextNotification packets until we receive a Result or Error.
                 # Valid reply codes during a command are only TEXT/RESULT/FAIL.
-                # Anything else means the byte stream is misaligned (a desync) —
+                # Anything else means the byte stream is misaligned (a desync) -
                 # we must NOT just break (that leaves the real terminator in the
                 # buffer for the next call to misread as a header). Instead we
                 # tear down the socket so the next call reconnects and re-handshakes
@@ -525,7 +525,7 @@ class DFHackConnection:
                         return None
                     else:
                         logger.error(f"DFHack RunCommand: unexpected reply id={reply_id} "
-                                     f"(stream desynced) — resetting connection "
+                                     f"(stream desynced) - resetting connection "
                                      f"| call: {call_desc!r}")
                         self.disconnect()
                         return None
@@ -558,7 +558,7 @@ class DFHackConnection:
             ids = json.loads(output.strip())
             return [int(x) for x in ids] if isinstance(ids, list) else []
         except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Failed to parse pending checks — {e!r} — raw: {output!r}")
+            logger.warning(f"Failed to parse pending checks - {e!r} - raw: {output!r}")
             return []
 
     def deliver_item(self, item_name: str):
@@ -569,9 +569,9 @@ class DFHackConnection:
             f'reqscript("internal/dwarfipelago/items").receive("{safe_name}")',
         )
         if result is None:
-            logger.warning(f"deliver_item: RPC returned None for {item_name!r} — connection lost?")
+            logger.warning(f"deliver_item: RPC returned None for {item_name!r} - connection lost?")
         else:
-            logger.info(f"Delivered item to fortress: {item_name!r} (lua output: {result.strip()!r})")
+            self.debug(f"Delivered item to fortress: {item_name!r} (lua output: {result.strip()!r})")
 
 
 # ── Archipelago Client ────────────────────────────────────────────────────────
@@ -698,7 +698,7 @@ class DwarfFortressContext(CommonContext):
             try:
                 # ── Map-loaded guard ──────────────────────────────────────────
                 # saveWorldDataString / getWorldDataString require an active map.
-                # isMapLoaded() is stricter than isWorldLoaded() — it returns true
+                # isMapLoaded() is stricter than isWorldLoaded() - it returns true
                 # only once fortress/adventure mode is fully live, not during world
                 # generation or loading screens.
                 result = await asyncio.get_event_loop().run_in_executor(
@@ -717,13 +717,13 @@ class DwarfFortressContext(CommonContext):
                         self._received_index_loaded = False
                         self._completed_locations_loaded = False
                         self._shop_last_sig = None  # force a re-write to the next loaded save
-                        logger.info("Map unloaded — AP operations paused until a save is loaded")
+                        logger.info("Map unloaded - AP operations paused until a save is loaded")
                     await asyncio.sleep(self._poll_interval)
                     continue
 
                 if not self._world_loaded:
                     self._world_loaded = True
-                    logger.info("Map loaded — resuming AP operations")
+                    logger.info("Map loaded - resuming AP operations")
                 # ── Auto-start mod ────────────────────────────────────────────
                 # 'dwarfipelago start' is safe to call on an already-running mod;
                 # it just re-registers hooks. We do it once per world load.
@@ -743,7 +743,7 @@ class DwarfFortressContext(CommonContext):
                     await self._check_goal_complete()
 
                     # Location checks and item delivery are held until the trade
-                    # depot is established — either auto-placed by the mod or
+                    # depot is established - either auto-placed by the mod or
                     # manually built by the player.
                     depot_result = await asyncio.get_event_loop().run_in_executor(
                         None,
@@ -765,12 +765,12 @@ class DwarfFortressContext(CommonContext):
                         await self._sync_shop()
                         await self._check_shop_purchase()
                     else:
-                        logger.debug("Trade depot not yet established — holding checks and item delivery")
+                        logger.debug("Trade depot not yet established - holding checks and item delivery")
 
             except Exception as e:
                 # Log the full traceback to the AP client so failures are
                 # actionable rather than a one-line summary.
-                logger.error(f"DFHack poll error: {e!r} — disconnecting and retrying", exc_info=True)
+                logger.error(f"DFHack poll error: {e!r} - disconnecting and retrying", exc_info=True)
                 self.dfhack.disconnect()
                 self._slot_data_synced = False
                 self._mod_started = False
@@ -785,7 +785,7 @@ class DwarfFortressContext(CommonContext):
             None, self.dfhack.pop_pending_checks
         )
         if location_ids:
-            logger.info(f"New checks: {location_ids}")
+            self.debug(f"New checks: {location_ids}")
             await self.send_msgs([{
                 "cmd": "LocationChecks",
                 "locations": location_ids,
@@ -798,7 +798,7 @@ class DwarfFortressContext(CommonContext):
 
         # Restore the last-applied index from world data once per connection.
         # Without this, _received_index resets to 0 on every client restart and
-        # every received item is re-delivered — which re-increments counter-based
+        # every received item is re-delivered - which re-increments counter-based
         # progression locks (Immigration Wave, Merchant's Coffer, Military
         # Training) and re-spawns trade goods. The index is persisted per-save in
         # DFHack world data, so it is the authoritative count of what's applied.
@@ -910,7 +910,7 @@ class DwarfFortressContext(CommonContext):
                     write()
                     self.init_crafting_locations()
                     self.init_skill_locations()
-                # Energy link flag — Lua reads this to know the feature is on.
+                # Energy link flag - Lua reads this to know the feature is on.
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/energy_enabled", "{1 if self.energy_link_enabled else 0}")')
                 # Always re-sync these flags so Lua uses the correct key format
                 # even on reconnects or if the initial write was interrupted.
@@ -971,7 +971,7 @@ class DwarfFortressContext(CommonContext):
             ),
         )
         mode = f"{self._deathlink_threshold}% of population" if self._deathlink_percentage else f"{self._deathlink_threshold} dwarves"
-        logger.info(f"Queued {n} received DeathLink(s) — Lua will kill {mode} per link")
+        logger.info(f"Queued {n} received DeathLink(s) - Lua will kill {mode} per link")
 
     async def _check_deathlink_send(self):
         """
@@ -1043,7 +1043,7 @@ class DwarfFortressContext(CommonContext):
                 },
             }])
 
-        logger.info(f"Sent {to_send} DeathLink(s) — {death_count} total deaths / threshold {threshold}")
+        logger.info(f"Sent {to_send} DeathLink(s) - {death_count} total deaths / threshold {threshold}")
 
     async def _check_goal_complete(self):
         """
@@ -1062,7 +1062,7 @@ class DwarfFortressContext(CommonContext):
         if output and output.strip() == "1":
             self._goal_complete = True
             await self.send_msgs([{"cmd": "StatusUpdate", "status": ClientStatus.CLIENT_GOAL}])
-            logger.info("Goal complete — sent ClientStatus.CLIENT_GOAL to AP server")
+            logger.info("Goal complete - sent ClientStatus.CLIENT_GOAL to AP server")
 
     def init_crafting_locations(self):
         last_item = ""
@@ -1120,7 +1120,7 @@ class DwarfFortressContext(CommonContext):
             return
         pool = self.current_energy_link_value
         if pool is None or pool < cost:
-            logger.debug(f"EnergyLink: Caravan denied — need {format_SI_prefix(cost)}*, have {format_SI_prefix(pool or 0)}*")
+            logger.debug(f"EnergyLink: Caravan denied - need {format_SI_prefix(cost)}*, have {format_SI_prefix(pool or 0)}*")
             return
         self.last_deplete = time.time()
         await self.send_msgs([{
@@ -1144,7 +1144,7 @@ class DwarfFortressContext(CommonContext):
         if not shop:
             if not getattr(self, "_shop_warned_empty", False):
                 self._shop_warned_empty = True
-                logger.info("Shop: slot_data has no 'shop' entry — this apworld/seed has no shop "
+                logger.info("Shop: slot_data has no 'shop' entry - this apworld/seed has no shop "
                             "(or an older apworld was used to generate).")
             return
         shop_ids = [int(k) for k in shop.keys()]
@@ -1339,7 +1339,7 @@ class DwarfFortressContext(CommonContext):
             return
 
         # Unique storage keys to read (one per skill flag), skipping skills whose
-        # locations are all already completed is not worth the bookkeeping — there
+        # locations are all already completed is not worth the bookkeeping - there
         # are at most ~60 flags, so just read them all in one batch.
         flag_keys: dict[str, str] = {}
         for skill in self._skill_locations:
@@ -1401,7 +1401,7 @@ class DwarfFortressContext(CommonContext):
             )
 
     def init_skill_locations(self):
-        # Initialise one storage key per enabled skill (deduped — each skill has 15
+        # Initialise one storage key per enabled skill (deduped - each skill has 15
         # level locations sharing a flag). Writing "0" marks the skill as tracked;
         # the Lua scanner only updates keys that already exist, so untracked skills
         # stay out of both the checks and the panel. Runs once per world (fresh
@@ -1559,7 +1559,7 @@ def main():
     except ImportError:
         pass
 
-    parser = argparse.ArgumentParser(description="Dwarfipelago — Dwarf Fortress AP client")
+    parser = argparse.ArgumentParser(description="Dwarfipelago - Dwarf Fortress AP client")
     parser.add_argument("--connect",      default="archipelago.gg:38281", help="AP server address (host:port)")
     parser.add_argument("--name",        default=None,                   help="Slot name")
     parser.add_argument("--password",    default=None,                   help="Room password")

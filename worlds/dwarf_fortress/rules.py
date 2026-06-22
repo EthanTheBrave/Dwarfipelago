@@ -100,7 +100,7 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     dynamic_rules.df_location_rule(loc, "Table", "")
 
     loc = multiworld.get_location("First Bed Made", player)
-    dynamic_rules.df_location_rule(loc, "Bed", "")
+    dynamic_rules.df_location_rule(loc, "Beds", "")
 
     loc = multiworld.get_location("First Weapon Forged", player)
     if options.craftpermits == CraftingPermits.option_off:
@@ -241,7 +241,7 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     # ── Merchant's Shop gates ─────────────────────────────────────────────────
     # Shop slots require:
     #   1. Enough Merchant's Coffers for the tier (10 slots per coffer).
-    #   2. The ability to mint coins — needs metal smelting; with craft permits
+    #   2. The ability to mint coins - needs metal smelting; with craft permits
     #      also requires a Coins Permit so the player can actually produce currency.
     for slot in range(1, SHOP_SLOTS + 1):
         tier = (slot - 1) // 10 + 1

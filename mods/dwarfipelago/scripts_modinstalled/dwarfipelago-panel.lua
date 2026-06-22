@@ -29,7 +29,7 @@ local to_pen = dfhack.pen.parse
 --       dfhack.getModRootPath('dwarfipelago') .. '/art/ap-border.png', 8, 12, true)
 --   local function tp(offset) return dfhack.textures.getTexposByHandle(ap_handles[offset]) end
 -- The PNG must be a 22×1 tile sheet (8×12 px per tile) matching DFHack's
--- border tile index layout (indices 1–21 used by make_frame).
+-- border tile index layout (indices 1-21 used by make_frame).
 local function make_ap_frame(_resizable)
     local tp = textures.tp_border_window
     local fg = COLOR_LIGHTCYAN
@@ -413,7 +413,9 @@ local function build_crafts_lines()
             row(("  %-26s  %6s   --"):format(e.label, "0"), COLOR_DARKGRAY)
         else
             local next_target = (e.done_n + 1) * threshold
-            row(("  %-26s  %6s → %-7s %d/%d"):format(
+            -- Plain ASCII "->": DF renders the CP437 font, so a UTF-8 arrow shows
+            -- as garbage bytes.
+            row(("  %-26s  %6s -> %-7s %d/%d"):format(
                 e.label, fmt_num(e.count), fmt_num(next_target),
                 e.done_n, checks_per_item))
         end
@@ -1135,7 +1137,7 @@ function open_panel()
     end
 end
 
--- Auto-discovery table — DFHack registers this widget when the script is loaded.
+-- Auto-discovery table - DFHack registers this widget when the script is loaded.
 -- Widget name as seen by the overlay system: "dwarfipelago-panel.hotspot"
 OVERLAY_WIDGETS = {
     hotspot = DwarfipelagoHotspot,

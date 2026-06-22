@@ -23,7 +23,7 @@ from . import rules
 
 # The complete AP DataPackage: the static (non-craft) locations plus every
 # possible craft check, computed deterministically. This is the single source of
-# truth for location ids — the per-slot generation in craftsanity.loop_locations
+# truth for location ids - the per-slot generation in craftsanity.loop_locations
 # derives the same ids from the same formula, so they can never drift.
 _FULL_LOCATION_TABLE: dict[str, int] = {**LOCATION_TABLE, **build_craft_location_table()}
 
@@ -68,7 +68,7 @@ class DwarfFortressLocation(Location):
 
 class DwarfFortressWorld(World):
     """
-    Dwarf Fortress — build a fortress, fulfill economic milestones, and
+    Dwarf Fortress - build a fortress, fulfill economic milestones, and
     send items to your fellow Archipelago players. Beware the traps they
     send in return.
     """
@@ -94,8 +94,8 @@ class DwarfFortressWorld(World):
 
     def generate_early(self) -> None:
         # location_name_to_id is the static, class-level DataPackage (every
-        # location any options combo could produce). It is a ClassVar — AP builds
-        # the shared package from it — so we must NOT mutate it per slot. Instead
+        # location any options combo could produce). It is a ClassVar - AP builds
+        # the shared package from it - so we must NOT mutate it per slot. Instead
         # we build an explicit list of the location NAMES this slot actually uses;
         # create_regions / create_items work off that list and look ids up from the
         # untouched ClassVar. Craft ids are computed deterministically, so every
@@ -107,9 +107,9 @@ class DwarfFortressWorld(World):
 
         # Decide which crafting-permit items this slot puts in the pool.
         # Both item_name_to_id and AP_ITEM_POOL are shared, class-level objects:
-        # item_name_to_id IS the DataPackage — mutating it makes the generated
+        # item_name_to_id IS the DataPackage - mutating it makes the generated
         # multidata's checksum disagree with a fresh load of the apworld, so the
-        # server rejects the file ("checksum mismatch") — and AP_ITEM_POOL is
+        # server rejects the file ("checksum mismatch") - and AP_ITEM_POOL is
         # reused for every slot in the generation. So we never mutate either: we
         # work on a per-instance copy of the pool and always leave every craft
         # item in the DataPackage regardless of options. (Mirrors the same
@@ -118,7 +118,7 @@ class DwarfFortressWorld(World):
         craft_item_names = {i.name for i in CRAFT_ITEMS}
 
         if self.options.craftpermits == CraftingPermits.option_off or not self.options.craftsanity:
-            # Permits disabled — no craft-permit items go into the pool at all.
+            # Permits disabled - no craft-permit items go into the pool at all.
             self.ap_item_pool = [d for d in self.ap_item_pool if d.name not in craft_item_names]
         elif self.options.craftpermits == CraftingPermits.option_on:
             # Start with a basic permit set; don't also place those in the pool.
@@ -186,7 +186,7 @@ class DwarfFortressWorld(World):
             )
             fortress.locations.append(loc)
 
-        # Goal location (no AP ID — event location)
+        # Goal location (no AP ID - event location)
         goal_loc = DwarfFortressLocation(self.player, "Goal", None, fortress)
         goal_loc.place_locked_item(
             DwarfFortressItem("Victory", ItemClassification.progression, None, self.player)
@@ -204,7 +204,7 @@ class DwarfFortressWorld(World):
             self.multiworld.push_precollected(self.create_item(item_name))
 
         # Separate required (progression) items from optional ones.
-        # Progression items — all blueprints plus Artifact/Legendary items — must
+        # Progression items - all blueprints plus Artifact/Legendary items - must
         # always be included because rules.py gates locations behind them.  If they
         # were trimmed to fit the location count the accessibility check would fail.
         required: list[ItemData] = [
@@ -290,7 +290,7 @@ class DwarfFortressWorld(World):
         rules.set_rules(self)
 
     def generate_output(self, output_directory: str) -> None:
-        # No external patch file needed — the client reads the AP server directly.
+        # No external patch file needed - the client reads the AP server directly.
         pass
 
     def get_filler_item_name(self) -> str:

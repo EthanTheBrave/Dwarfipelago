@@ -15,7 +15,7 @@ try:
 
             Steam (Windows):  <Steam>\\steamapps\\common\\Dwarf Fortress\\dfhack.exe
             Steam (Linux):    ~/.steam/steam/steamapps/common/Dwarf Fortress/dfhack
-            Classic (any OS): path to Dwarf Fortress.exe — install DFHack separately.
+            Classic (any OS): path to Dwarf Fortress.exe - install DFHack separately.
 
             Using dfhack.exe / dfhack is strongly recommended; it launches both
             Dwarf Fortress and DFHack in one step.
