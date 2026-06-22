@@ -112,6 +112,148 @@ local function goal_setting(key, default)
     return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/" .. key)) or default
 end
 
+-- ── Progressive mining-depth lock ─────────────────────────────────────────────
+-- Gates how deep the player may dig behind the "Progressive Mining Depth" AP
+-- item. Tiers (count of the item received, read from unlock/mining_depth):
+--   0 -> mine to 1 level above cavern 1
+--   1 -> 1 level above cavern 2
+--   2 -> 1 level above cavern 3
+--   3 -> 1 level above the magma sea
+--   4+ (final) -> unlimited
+-- We precompute each cavern's ceiling z once per world from the same map-feature
+-- data the breach detector uses (feature start_depth 0/1/2 = caverns 1/2/3,
+-- magma_core_from_layer = magma sea), then block any dig job / designation below
+-- the unlocked floor.
+
+local MINING_CEIL_KEYS  = { [0] = "cavern1", [1] = "cavern2", [2] = "cavern3" }
+local MINING_FLOOR_KEYS = { [0] = "cavern1", [1] = "cavern2", [2] = "cavern3", [3] = "magma" }
+
+-- Notify-once-per-session guard for the depth-lock announcement. Reset on load
+-- (like the craftlock/treasury guards) so the player is reminded after a reload.
+local _mining_lock_notified = false
+
+-- Scan the loaded map once and cache the highest z each cavern / the magma sea
+-- occupies (its ceiling). Stored in world data so it survives reloads and we
+-- never rescan. Feature lookups are memoized per global id within the scan.
+local function compute_cavern_ceilings()
+    if dfhack.persistent.getWorldDataString("dwarfipelago/mining/ceilings_done") == "1" then return end
+
+    local feat_cache = {}
+    local function feat(gf)
+        local c = feat_cache[gf]
+        if c == nil then c = feature_for_global(gf) or false; feat_cache[gf] = c end
+        return c or nil
+    end
+
+    local top = {}
+    for _, b in ipairs(df.global.world.map.map_blocks) do
+        local gf = b.global_feature
+        if gf and gf >= 0 then
+            local f = feat(gf)
+            if f then
+                local t, key = tostring(f._type), nil
+                if t:find("subterranean_from_layers") then
+                    local sd = 0
+                    pcall(function() sd = f.start_depth end)
+                    key = MINING_CEIL_KEYS[sd]
+                elseif t:find("magma_core") then
+                    key = "magma"
+                end
+                if key then
+                    local z = b.map_pos.z
+                    if not top[key] or z > top[key] then top[key] = z end
+                end
+            end
+        end
+    end
+
+    for key, z in pairs(top) do
+        dfhack.persistent.saveWorldDataString("dwarfipelago/mining/ceiling/" .. key, tostring(z))
+    end
+    dfhack.persistent.saveWorldDataString("dwarfipelago/mining/ceilings_done", "1")
+    log.info(("Mining ceilings: c1=%s c2=%s c3=%s magma=%s"):format(
+        tostring(top.cavern1), tostring(top.cavern2), tostring(top.cavern3), tostring(top.magma)))
+end
+
+-- Deepest z the player may currently mine, or nil for "no limit" (final tier, or
+-- ceilings not computed yet / the target layer is absent in this world, both of
+-- which fail open so mining is never wrongly blocked). Walks toward the surface
+-- to the first layer that actually exists, so worlds with fewer than 3 caverns
+-- fall through to the next-deeper available ceiling instead of going unlimited.
+local function mining_floor_z()
+    local unlocks = goal_setting("unlock/mining_depth", 0)
+    if not MINING_FLOOR_KEYS[unlocks] then return nil end  -- final tier
+    for tier = unlocks, 0, -1 do
+        local ceil = tonumber(
+            dfhack.persistent.getWorldDataString("dwarfipelago/mining/ceiling/" .. MINING_FLOOR_KEYS[tier]))
+        if ceil then return ceil + 1 end                   -- deepest minable level
+    end
+    return nil
+end
+
+-- True if a mining job of type jt at z would dig at or past the floor. Channelling
+-- removes the floor and opens the level BELOW the job tile, so a channel AT the
+-- floor would breach the cavern -- block it one level higher than the rest.
+local function mining_job_blocked(jt, z, floor_z)
+    if not floor_z then return false end
+    if jt == df.job_type.DigChannel then return z <= floor_z end
+    return z < floor_z
+end
+
+-- Announce the lock at most once per session.
+local function announce_mining_lock()
+    if _mining_lock_notified then return end
+    _mining_lock_notified = true
+    dfhack.gui.showAnnouncement(
+        "[AP] You cannot dig that deep yet - find a Progressive Mining Depth unlock!",
+        COLOR_YELLOW, true)
+end
+
+-- Cancel a single below-floor dig job: clear its tile's designation so the dwarf
+-- does not requeue it, then remove the job (deferred a tick; removing inline
+-- during onJobInitiated crashes DF -- same pattern as the blueprint/craft gates).
+local function check_mining_depth_gate(job)
+    if not MINING_JOBS[job.job_type] then return end
+    local floor_z = mining_floor_z()
+    if not floor_z then return end
+    local z
+    if not pcall(function() z = job.pos.z end) or not z then return end
+    if not mining_job_blocked(job.job_type, z, floor_z) then return end
+
+    pcall(function()
+        local blk = dfhack.maps.getTileBlock(job.pos.x, job.pos.y, job.pos.z)
+        if blk then blk.designation[job.pos.x % 16][job.pos.y % 16].dig = df.tile_dig_designation.No end
+    end)
+    dfhack.timeout(1, "ticks", function() pcall(function() dfhack.job.removeJob(job) end) end)
+    announce_mining_lock()
+end
+
+-- Backstop sweep: clear standing dig designations below the floor so a
+-- mass-designated shaft does not linger as un-minable orders the dwarves can
+-- never reach. Runs from the poll loop, like the other per-poll map scans.
+local function enforce_mining_depth_lock()
+    local floor_z = mining_floor_z()
+    if not floor_z then return end
+    local cleared = 0
+    for _, b in ipairs(df.global.world.map.map_blocks) do
+        local z = b.map_pos.z
+        if z <= floor_z then
+            local below = z < floor_z
+            for lx = 0, 15 do
+                for ly = 0, 15 do
+                    local d = b.designation[lx][ly].dig
+                    if d ~= df.tile_dig_designation.No
+                            and (below or d == df.tile_dig_designation.Channel) then
+                        b.designation[lx][ly].dig = df.tile_dig_designation.No
+                        cleared = cleared + 1
+                    end
+                end
+            end
+        end
+    end
+    if cleared > 0 then announce_mining_lock() end
+end
+
 -- ── Goal completion: poll-based checks (wealth & population) ─────────────────
 
 local function check_goal_by_poll()
@@ -1139,6 +1281,9 @@ local function poll_checks()
         end
     end
 
+    -- Cache each cavern / magma-sea ceiling z once, for the mining-depth lock.
+    compute_cavern_ceilings()
+
     -- Count Manager work-order completions (their jobs don't fire onJobCompleted).
     -- Done before the depot gate so craft counts accumulate like manual jobs do.
     poll_manager_orders()
@@ -1164,6 +1309,7 @@ local function poll_checks()
     suppress_cave_adaptation()
     detect_sold_artifact()
     detect_shrine()
+    enforce_mining_depth_lock()
     _check_spawn_caravan_approved()
     checks.update_skill_levels()
 
@@ -1464,6 +1610,7 @@ local function on_job_initiated(job)
 
     check_treasury_job_gate(job)
     check_craftitem_gate(job)
+    check_mining_depth_gate(job)
 
     -- Only care about construction jobs.
     if job.job_type ~= df.job_type.ConstructBuilding then return end

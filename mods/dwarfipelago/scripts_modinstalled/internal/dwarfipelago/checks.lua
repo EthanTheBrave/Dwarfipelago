@@ -315,6 +315,34 @@ function M.mining_flag(name)
     return dfhack.persistent.getWorldDataString("dwarfipelago/mining/" .. name) == "1"
 end
 
+-- ── Progressive mining-depth lock (read-only view for the panel) ──────────────
+-- The lock itself is enforced in dwarfipelago.lua; this mirrors its tier mapping
+-- so the panel can show the current limit. Ceilings are cached per world under
+-- dwarfipelago/mining/ceiling/<layer> by compute_cavern_ceilings().
+local MINING_FLOOR_KEYS = { [0] = "cavern1", [1] = "cavern2", [2] = "cavern3", [3] = "magma" }
+local MINING_TIER_NAMES = {
+    [0] = "Cavern 1", [1] = "Cavern 2", [2] = "Cavern 3", [3] = "Magma Sea",
+}
+
+-- Count of Progressive Mining Depth items received (unlock/mining_depth).
+function M.mining_depth_unlocks()
+    return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/unlock/mining_depth")) or 0
+end
+
+-- Deepest minable z and the limiting layer name, or nil, nil when there is no
+-- limit (final tier, or ceilings not yet computed). Falls through to the next
+-- deeper existing layer so worlds with fewer caverns behave sensibly.
+function M.mining_depth_limit()
+    local unlocks = M.mining_depth_unlocks()
+    if not MINING_FLOOR_KEYS[unlocks] then return nil, nil end  -- final tier
+    for tier = unlocks, 0, -1 do
+        local ceil = tonumber(
+            dfhack.persistent.getWorldDataString("dwarfipelago/mining/ceiling/" .. MINING_FLOOR_KEYS[tier]))
+        if ceil then return ceil + 1, MINING_TIER_NAMES[tier] end
+    end
+    return nil, nil
+end
+
 -- Cumulative harvested crops (PLANT items), incremented by the onItemCreated hook.
 function M.crops_harvested()
     return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/farming/crop_count")) or 0
