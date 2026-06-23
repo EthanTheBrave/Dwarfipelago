@@ -1058,30 +1058,6 @@ local function find_underground_spawn()
     return nil
 end
 
--- Carve a 5×5 area of floor tiles around the spawn point and reveal hidden tiles
--- so the breach looks like the beast smashed its way through.
-local function carve_breach(cx, cy, cz)
-    for dx = -2, 2 do
-        for dy = -2, 2 do
-            local nx, ny = cx + dx, cy + dy
-            local block = dfhack.maps.getTileBlock(nx, ny, cz)
-            if block then
-                local lx, ly = nx % 16, ny % 16
-                local tt    = block.tiletype[lx][ly]
-                local shape = df.tiletype.attrs[tt].shape
-                if shape ~= df.tiletype_shape.FLOOR and shape ~= df.tiletype_shape.OPEN then
-                    local floor_tt = dfhack.maps.findSimilarTileType(tt, df.tiletype_shape.FLOOR)
-                    if floor_tt and floor_tt ~= 0 then
-                        block.tiletype[lx][ly] = floor_tt
-                    end
-                end
-                block.designation[lx][ly].hidden = false
-            end
-        end
-    end
-    local b = dfhack.maps.getTileBlock(cx, cy, cz)
-    if b then dfhack.maps.enableBlockUpdates(b, true) end
-end
 
 -- Map a spawn tile position to a compass direction relative to the embark centre.
 -- Returns one of 8 directional strings, or "depths" if very close to centre.
@@ -1145,33 +1121,77 @@ local function beast_label(unit, species)
     return (label and label ~= "") and label or species
 end
 
--- The climax: summon the AP megabeast target as a curated breach. A megabeast
--- species present in this world erupts from the depths (carved breach) - or from
--- the map edge as a fallback - with a small brute escort, via the working
--- create_unit path (not 'force'). The exact beast's id is pinned so the goal
--- hook in dwarfipelago.lua counts THIS kill. Fires once per world.
+-- ── Curated breach-cave for the climax ────────────────────────────────────────
+-- Walkable tile shapes - used to confirm carving produced ground to stand on.
+local function tile_walkable(x, y, z)
+    local blk = dfhack.maps.getTileBlock(x, y, z)
+    if not blk then return false end
+    local ok, walk = pcall(function()
+        local shape = df.tiletype.attrs[blk.tiletype[x % 16][y % 16]].shape
+        return shape == df.tiletype_shape.FLOOR or shape == df.tiletype_shape.RAMP
+            or shape == df.tiletype_shape.STAIR_UP or shape == df.tiletype_shape.STAIR_UPDOWN
+    end)
+    return ok and walk == true
+end
+
+local function set_dig(x, y, z, kind)
+    local blk = dfhack.maps.getTileBlock(x, y, z)
+    if blk then pcall(function() blk.designation[x % 16][y % 16].dig = kind end) end
+end
+
+-- Carve a small cave near a surface anchor: a 3x3 chamber one z below, opened to
+-- the surface by channeling the anchor (dig-now turns the channel into a ramp the
+-- beast climbs out of). dig-now safely sets correct tiletypes + reveals the area.
+-- Returns a walkable chamber tile to spawn in, or nil if the carve produced no
+-- walkable ground (caller then falls back to the surface anchor).
+local function carve_breach_cave(ex, ey, ez)
+    local cz = ez - 1
+    for dx = -1, 1 do
+        for dy = -1, 1 do
+            set_dig(ex + dx, ey + dy, cz, df.tile_dig_designation.Default)
+        end
+    end
+    set_dig(ex, ey, ez, df.tile_dig_designation.Channel)
+    pcall(function()
+        dfhack.run_command("dig-now",
+            ("%d,%d,%d"):format(ex - 1, ey - 1, cz),
+            ("%d,%d,%d"):format(ex + 1, ey + 1, ez), "--clean")
+    end)
+    for _, t in ipairs({ { ex + 1, ey }, { ex - 1, ey }, { ex, ey + 1 }, { ex, ey - 1 }, { ex, ey } }) do
+        if tile_walkable(t[1], t[2], cz) then return t[1], t[2], cz end
+    end
+    return nil
+end
+
+-- The climax: summon the AP megabeast target. We carve a small cave near the map
+-- edge and the beast erupts from it to march on the fort (the curated breach). If
+-- carving yields no walkable ground, the beast emerges on the surface instead, so
+-- the goal beast is never trapped (an unreachable beast would be unwinnable). A
+-- brute escort and a directional war-cry sell the siege. Uses the working
+-- create_unit path (not 'force'); the beast id is pinned so the goal hook counts
+-- THIS kill. Fires once per world.
 local function spawn_target_megabeast()
     if dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/spawned") == "1" then
         return  -- already summoned this world (e.g. reloaded mid-session)
     end
 
-    -- Where: deep underground if any open tile exists (it breaches from below),
-    -- else the embark perimeter, else a citizen's tile.
-    local x, y, z = find_underground_spawn()
-    local from_depths = (x ~= nil)
-    if not x then x, y, z = find_surface_spawn_pos() end
-    if not x then
+    -- A near-edge surface anchor (walkable; connects across the surface to the
+    -- fort), then carve the breach-cave just below it.
+    local ax, ay, az = find_surface_spawn_pos()
+    if not ax then
         local sx, sy, sz = get_fort_spawn_pos()
-        x, y, z = tonumber(sx), tonumber(sy), tonumber(sz)
+        ax, ay, az = tonumber(sx), tonumber(sy), tonumber(sz)
     end
-    if not x then
+    if not ax then
         dfhack.gui.showAnnouncement(
             "[AP] CRITICAL: no spawn tile for the megabeast - the goal cannot be completed.", COLOR_RED, true)
         log.error("spawn_target_megabeast: no spawn position")
         return
     end
 
-    if from_depths then carve_breach(x, y, z) end
+    local x, y, z = carve_breach_cave(ax, ay, az)
+    local from_depths = (x ~= nil)
+    if not x then x, y, z = ax, ay, az end  -- carve failed: emerge on the surface
 
     -- What: a megabeast species present in this world (DRAGON / HYDRA / etc.).
     local species = bestiary.random_megabeast() or pick_megabeast_type()
