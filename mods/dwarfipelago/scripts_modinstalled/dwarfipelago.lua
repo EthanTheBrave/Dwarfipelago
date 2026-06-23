@@ -1148,7 +1148,11 @@ local function suppress_cave_adaptation()
     if dfhack.persistent.getWorldDataString("dwarfipelago/unlock/sunlight_tonic") ~= "1" then return end
     for _, unit in ipairs(df.global.world.units.active) do
         if dfhack.units.isCitizen(unit) then
-            unit.status.cave_adapt = 0
+            -- Cave adaptation is a misc_trait on this DF version, not a direct
+            -- unit.status field (writing unit.status.cave_adapt throws). Zero the
+            -- existing trait only; don't create one on units that lack it.
+            local t = dfhack.units.getMiscTrait(unit, df.misc_trait_type.CaveAdapt, false)
+            if t then t.value = 0 end
         end
     end
 end
@@ -1286,20 +1290,29 @@ local function poll_checks()
         return
     end
 
-    apply_pending_recv_deathlinks()
-    check_goal_by_poll()
-    check_locked_notifications()
-    detect_caravans()
-    checks.detect_mission_checks()
-    detect_pump_activity()
+    -- Each detector is pcall-guarded: a single failure (e.g. a renamed DF field)
+    -- must NOT abort the poll and silently disable every check that follows it.
+    -- (A bug here once killed cavern-progress and skill checks for whole sessions.)
+    local function guard(label, fn)
+        local ok, err = pcall(fn)
+        if not ok then
+            dfhack.printerr("[Dwarfipelago] poll step '" .. label .. "' failed: " .. tostring(err))
+        end
+    end
+    guard("deathlinks",    apply_pending_recv_deathlinks)
+    guard("goal",          check_goal_by_poll)
+    guard("locked_notify", check_locked_notifications)
+    guard("caravans",      detect_caravans)
+    guard("missions",      checks.detect_mission_checks)
+    guard("pump",          detect_pump_activity)
     -- detect_egg_hatch()  -- disabled: hatch detection unreliable on DF v50
-    detect_caged_hostile_beast()
-    suppress_cave_adaptation()
-    detect_sold_artifact()
-    detect_shrine()
-    enforce_mining_depth_lock()
-    _check_spawn_caravan_approved()
-    checks.update_skill_levels()
+    guard("caged_beast",   detect_caged_hostile_beast)
+    guard("cave_adapt",    suppress_cave_adaptation)
+    guard("sold_artifact", detect_sold_artifact)
+    guard("shrine",        detect_shrine)
+    guard("mining_lock",   enforce_mining_depth_lock)
+    guard("spawn_caravan", _check_spawn_caravan_approved)
+    guard("skills",        checks.update_skill_levels)
 
     for _, check in ipairs(checks.checks) do
         if not state.is_location_checked(check.id) then
