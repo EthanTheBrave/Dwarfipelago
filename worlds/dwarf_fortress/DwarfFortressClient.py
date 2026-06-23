@@ -914,7 +914,7 @@ class DwarfFortressContext(CommonContext):
                 # Energy link flag - Lua reads this to know the feature is on.
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/energy_enabled", "{1 if self.energy_link_enabled else 0}")')
                 # Mining Depth flag - Lua reads this to know the feature is on.
-                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/mining_depth", "{1 if self.mining_depth else 0}")')
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/mining_depth", "{1 if mining_depth else 0}")')
                 # Always re-sync these flags so Lua uses the correct key format
                 # even on reconnects or if the initial write was interrupted.
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_enabled", "{craftsanity_enabled}")')

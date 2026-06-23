@@ -322,6 +322,7 @@ class DwarfFortressOptions(PerGameCommonOptions):
     population_goal_amount: PopulationGoalAmount
     remains_great_king: RemainsoftheGreatKing
     trades_inlogic: TradesInLogic
+    mining_depth: ProgressiveMiningDepth
     craftsanity: EnableCraftsanity
     craftpermits: CraftingPermits
     craftsanity_item_group: CraftsanityItemGroup
@@ -335,7 +336,6 @@ class DwarfFortressOptions(PerGameCommonOptions):
     skillsanity_skills: SkillsanitySkills
     skillsanity_max_level: SkillsanityMaxLevel
     skillsanity_behaviour: SkillsanityLevelMechanic
-    mining_depth: ProgressiveMiningDepth
     trap_item_weight: TrapItemWeight
     start_inventory: StartingDefaultDFInventory
 
@@ -365,6 +365,13 @@ dwarf_fortress_option_groups = [
         CraftsanityMaterials,
         CraftsanityMaxAmount,
         CraftsanityThreshold,
+    ], start_collapsed=True),
+    OptionGroup("Skillsanity", [
+        Skillsanity,
+        SkillsanitySkillGroup,
+        SkillsanitySkills,
+        SkillsanityMaxLevel,
+        SkillsanityLevelMechanic
     ], start_collapsed=True),
     OptionGroup("Item & Location Options", [
         StartingDefaultDFInventory,
