@@ -1237,13 +1237,14 @@ local ensure_trade_depot
 
 -- ── Megabeast siege: wave scheduler ───────────────────────────────────────────
 -- For the Slay Megabeast goal, once War Readiness >= 1 roaming warbands attack on
--- a campaign clock: a random 3-6 in-game days apart, each preceded by a ~1-day-out
--- warning. Difficulty = current readiness level (see items.spawn_warband).
--- Timing uses an absolute tick (year*ticks_per_year + year_tick) so it is
--- monotonic and survives save/reload.
-local TICKS_PER_DAY  = 1200
-local TICKS_PER_YEAR = 403200   -- 12 months * 28 days * 1200 ticks
-local WAVE_MIN_DAYS, WAVE_MAX_DAYS = 3, 6
+-- a campaign clock: a random 2-4 in-game months apart, each preceded by a
+-- ~1-day-out warning. Difficulty = current readiness level (see
+-- items.spawn_warband). Timing uses an absolute tick (year*ticks_per_year +
+-- year_tick) so it is monotonic and survives save/reload.
+local TICKS_PER_DAY   = 1200
+local TICKS_PER_MONTH = 33600   -- 28 days * 1200 ticks
+local TICKS_PER_YEAR  = 403200  -- 12 months * 28 days * 1200 ticks
+local WAVE_MIN_MONTHS, WAVE_MAX_MONTHS = 2, 4
 
 local function abs_tick()
     return df.global.cur_year * TICKS_PER_YEAR + df.global.cur_year_tick
@@ -1257,9 +1258,9 @@ local function war_readiness()
 end
 
 local function schedule_next_wave(from_tick)
-    local days = math.random(WAVE_MIN_DAYS, WAVE_MAX_DAYS)
+    local months = math.random(WAVE_MIN_MONTHS, WAVE_MAX_MONTHS)
     dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/next_wave_tick",
-        tostring(from_tick + days * TICKS_PER_DAY))
+        tostring(from_tick + months * TICKS_PER_MONTH))
     dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/wave_warned", "")
 end
 
