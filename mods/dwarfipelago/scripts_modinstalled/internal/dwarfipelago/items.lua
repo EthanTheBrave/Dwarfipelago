@@ -1066,7 +1066,8 @@ local function get_spawn_direction(sx, sy)
     local dx  = sx - (map.x_count / 2)
     local dy  = sy - (map.y_count / 2)  -- positive y = south in DF
     if math.abs(dx) < 4 and math.abs(dy) < 4 then return "depths" end
-    local angle = (math.deg(math.atan2(dy, dx)) + 360) % 360
+    -- math.atan2 was removed in Lua 5.3+ (DFHack's Lua); math.atan takes (y, x).
+    local angle = (math.deg(math.atan(dy, dx)) + 360) % 360
     -- 0=E 45=SE 90=S 135=SW 180=W 225=NW 270=N 315=NE
     local dirs = { "eastern", "southeastern", "southern", "southwestern",
                    "western", "northwestern", "northern", "northeastern" }
