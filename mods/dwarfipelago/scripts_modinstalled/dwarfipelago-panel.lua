@@ -245,6 +245,37 @@ local function build_progress_lines()
         table.insert(lines, {text=""})
     end
 
+    -- War Effort (Slay Megabeast goal only)
+    if ps("goal", "-1") == "0" then
+        hdr("War Effort")
+        local mt       = tonumber(ps("unlock/military_training", "0")) or 0
+        local immig    = tonumber(ps("unlock/immigration_waves", "0")) or 0
+        local artifact = ps("unlock/artifact_weapon", "0") == "1"
+        local barracks, soldiers = false, 0
+        pcall(function() barracks = checks.barracks_is_set_up() end)
+        pcall(function() soldiers = checks.count_military_skill(10) end)
+        local cap = 4
+        if barracks then cap = 6 end
+        if barracks and soldiers >= 4 then cap = 9 end
+
+        row(("  Military Training: %d/10     War Readiness: %d/9"):format(mt, math.min(mt, cap)))
+        row(("  Barracks: %-3s   Soldiers at skill 10: %d/4"):format(barracks and "YES" or "no", soldiers))
+        row(("  Artifact Weapon: %-3s   Immigration: %d/2"):format(artifact and "YES" or "no", immig))
+
+        local status, pen
+        if ps("goal_complete", "0") == "1" then
+            status, pen = "The beast is SLAIN - victory!", COLOR_GREEN
+        elseif ps("megabeast/spawned", "0") == "1" then
+            status, pen = "The beast has BREACHED - slay it!", COLOR_RED
+        elseif mt >= 10 and artifact and immig >= 2 then
+            status, pen = "The beast stirs - it comes soon...", COLOR_YELLOW
+        else
+            status, pen = "Mustering the war effort...", COLOR_WHITE
+        end
+        row("  Beast: " .. status, pen)
+        blank()
+    end
+
     -- Mining
     hdr("Mining")
     local tiles = checks.mining_count()
