@@ -80,8 +80,8 @@ PROGRESSION_LOCK_ITEMS: list[ItemData] = [
     ItemData("Count's Charter",             BASE_ID + 633, ItemClassification.progression),
     ItemData("Duke's Charter",              BASE_ID + 634, ItemClassification.progression),
     ItemData("Monarch's Invitation",        BASE_ID + 635, ItemClassification.progression),
-    # Slay Megabeast: 3 training items gate megabeast goal
-    ItemData("Military Training",           BASE_ID + 636, ItemClassification.progression, quantity=4),
+    # Slay Megabeast: 10 training items drive War Readiness (waves + the breach)
+    ItemData("Military Training",           BASE_ID + 636, ItemClassification.progression, quantity=10),
     # Remains of the Great King goal
     ItemData("Remains of the Great King",   BASE_ID + 637, ItemClassification.progression, quantity=5),
     ItemData("Progressive Mining Depth",    BASE_ID + 638, ItemClassification.progression, quantity=4),

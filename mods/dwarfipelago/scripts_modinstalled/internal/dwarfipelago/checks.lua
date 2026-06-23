@@ -237,6 +237,15 @@ M.checks = {
     -- Deep / endgame.
     { id = 37370760, name = "Mined Adamantine", fn = function() return M.production_flag("adamantine")    end },
     { id = 37370761, name = "Sold an Artifact", fn = function() return M.production_flag("sold_artifact") end },
+
+    -- Military / siege (Slay Megabeast goal only; goal 0). Same milestones gate
+    -- War Readiness in dwarfipelago.lua.
+    { id = 37370770, name = "Barracks Established",
+      fn = function() return dfhack.persistent.getWorldDataString("dwarfipelago/goal") == "0"
+                          and M.barracks_is_set_up() end },
+    { id = 37370771, name = "Training Completed",
+      fn = function() return dfhack.persistent.getWorldDataString("dwarfipelago/goal") == "0"
+                          and M.count_military_skill(3) >= 1 end },
 }
 
 -- ── Production flag helpers ───────────────────────────────────────────────────
@@ -1332,6 +1341,56 @@ function M.update_skill_levels()
             end
         end
     end
+end
+
+-- ── Military / siege milestones (Slay Megabeast goal) ─────────────────────────
+-- Feeds both the AP location checks above and the War Readiness gate in
+-- dwarfipelago.lua (barracks -> readiness 5-6, 4 soldiers at skill 10 -> 7-9).
+
+-- Combat skills that count as "military" for these milestones.
+local MILITARY_SKILL_IDS = {}
+for _, name in ipairs({ "AXE", "SWORD", "MACE", "HAMMER", "SPEAR", "MELEE_COMBAT" }) do
+    local id = df.job_skill[name]
+    if id then MILITARY_SKILL_IDS[#MILITARY_SKILL_IDS + 1] = id end
+end
+
+-- Number of living citizens whose best military skill is >= threshold.
+function M.count_military_skill(threshold)
+    local n = 0
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) and u.status.current_soul then
+            local best = 0
+            for _, sk in ipairs(u.status.current_soul.skills) do
+                for _, mid in ipairs(MILITARY_SKILL_IDS) do
+                    if sk.id == mid and (sk.rating or 0) > best then best = sk.rating end
+                end
+            end
+            if best >= threshold then n = n + 1 end
+        end
+    end
+    return n
+end
+
+-- True when a squad has a barracks equipped for drill: an armor stand AND a
+-- weapon rack assigned to it. (Beds are commonly separate sleeping quarters, so
+-- they are not required - keeps the milestone from silently never firing.)
+function M.barracks_is_set_up()
+    local ok, result = pcall(function()
+        for _, squad in ipairs(df.global.world.squads.all) do
+            local has_stand, has_rack = false, false
+            for _, room in ipairs(squad.rooms) do
+                local bld = df.building.find(room.building_id)
+                if bld then
+                    local t = bld:getType()
+                    if t == df.building_type.Armorstand then has_stand = true
+                    elseif t == df.building_type.Weaponrack then has_rack = true end
+                end
+            end
+            if has_stand and has_rack then return true end
+        end
+        return false
+    end)
+    return ok and result == true
 end
 
 -- reqscript returns the script's _ENV, not the explicit return value.
