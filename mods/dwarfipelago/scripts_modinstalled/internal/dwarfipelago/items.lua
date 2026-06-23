@@ -5,7 +5,8 @@
 
 local M = {}
 
-local log = reqscript("internal/dwarfipelago/log")
+local log      = reqscript("internal/dwarfipelago/log")
+local bestiary = reqscript("internal/dwarfipelago/bestiary")
 
 -- ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1163,6 +1164,223 @@ local function spawn_target_megabeast()
     print("[Dwarfipelago] Megabeast summoned via DFHack 'force Megabeast'")
 end
 
+-- ── Megabeast siege: roaming warbands ─────────────────────────────────────────
+-- Time-paced enemy waves for the Slay Megabeast goal. Difficulty scales with the
+-- player's War Readiness level (1-9); readiness 10 is the curated breach. Units
+-- spawn at the embark perimeter and are armed via the verified createItem +
+-- moveToInventory recipe (no_floor=false, explicit body part), so a naked goblin
+-- becomes a real threat. Skill buff is best-effort (pcall-guarded). The wave
+-- scheduler that calls spawn_warband lives in dwarfipelago.lua.
+
+-- Subtype index for an itemdef id (e.g. "ITEM_WEAPON_SWORD_SHORT"), or nil.
+local function itemdef_subtype(defs, id)
+    for _, d in ipairs(defs) do
+        if d.id == id then return d.subtype end
+    end
+end
+
+-- First body part whose flags include flagname (UPPERBODY, HEAD, ...), or nil.
+local function find_body_part(unit, flagname)
+    local caste = df.global.world.raws.creatures.all[unit.race].caste[unit.caste]
+    local parts = caste.body_info.body_parts
+    for i = 0, #parts - 1 do
+        local ok, v = pcall(function() return parts[i].flags[flagname] end)
+        if ok and v == true then return i end
+    end
+end
+
+-- All body part ids with flagname (e.g. both hands for GRASP -> weapon + shield).
+local function find_body_parts(unit, flagname)
+    local caste = df.global.world.raws.creatures.all[unit.race].caste[unit.caste]
+    local parts = caste.body_info.body_parts
+    local ids = {}
+    for i = 0, #parts - 1 do
+        local ok, v = pcall(function() return parts[i].flags[flagname] end)
+        if ok and v == true then ids[#ids + 1] = i end
+    end
+    return ids
+end
+
+-- Create one item and force it into the unit's inventory on a specific body part.
+-- The two non-obvious requirements (verified via the bestiary probe): no_floor
+-- MUST be false (item needs a map position) and body_part MUST be explicit (-1
+-- fails). Returns true on success.
+local function equip_item(unit, item_type, subtype, mat, role, body_id)
+    if not (subtype and body_id) then return false end
+    local ok = pcall(function()
+        local made = dfhack.items.createItem(unit, item_type, subtype, mat.type, mat.index, false)
+        local item = made and made[1]
+        if item then dfhack.items.moveToInventory(item, unit, role, body_id) end
+    end)
+    return ok
+end
+
+-- Raise a unit's trained level in a skill (adds the skill if absent). For making
+-- spawned warriors veterans rather than green recruits.
+local function set_skill(unit, skill_id, level)
+    local soul = unit.status and unit.status.current_soul
+    if not soul then return end
+    for _, sk in ipairs(soul.skills) do
+        if sk.id == skill_id then
+            if sk.rating < level then sk.rating = level end
+            return
+        end
+    end
+    soul.skills:insert("#", { new = true, id = skill_id, rating = level })
+end
+
+-- Per-readiness wave config (tunable). Difficulty curve: 1-3 very easy, 4 easy-
+-- to-medium, 5-6 medium, 7-9 hard. armor: none|shield|light(breast+helm)|full.
+local WARBAND_TIERS = {
+    [1] = { size = {2, 2},  mat = "COPPER", armor = "none",   skill = {0, 1}, pool = "easy", escort = 0 },
+    [2] = { size = {2, 3},  mat = "COPPER", armor = "none",   skill = {0, 1}, pool = "easy", escort = 0 },
+    [3] = { size = {3, 3},  mat = "COPPER", armor = "shield", skill = {1, 2}, pool = "easy", escort = 0 },
+    [4] = { size = {3, 4},  mat = "IRON",   armor = "shield", skill = {2, 3}, pool = "mid",  escort = 0 },
+    [5] = { size = {4, 5},  mat = "IRON",   armor = "light",  skill = {3, 4}, pool = "mid",  escort = 0 },
+    [6] = { size = {5, 6},  mat = "IRON",   armor = "light",  skill = {4, 5}, pool = "mid",  escort = 0 },
+    [7] = { size = {6, 7},  mat = "IRON",   armor = "full",   skill = {6, 7}, pool = "hard", escort = 25 },
+    [8] = { size = {7, 8},  mat = "IRON",   armor = "full",   skill = {7, 8}, pool = "hard", escort = 50 },
+    [9] = { size = {8, 10}, mat = "STEEL",  armor = "full",   skill = {8, 9}, pool = "hard", escort = 75 },
+}
+
+-- Race pools by tier keyword (filtered to what the world actually has at spawn).
+local WARBAND_POOLS = {
+    easy = { "KOBOLD", "GOBLIN" },
+    mid  = { "GOBLIN", "ELF", "HUMAN", "REPTILE_MAN", "SERPENT_MAN", "BAT_MAN" },
+    hard = { "GOBLIN", "HUMAN", "ANT_MAN", "REPTILE_MAN", "SERPENT_MAN" },
+}
+local WARBAND_ESCORTS = { "TROLL", "OGRE" }
+
+-- Weapon options: {itemdef id, matching job_skill name}. Picked per unit.
+local WARBAND_WEAPONS = {
+    { "ITEM_WEAPON_SWORD_SHORT", "SWORD" },
+    { "ITEM_WEAPON_AXE_BATTLE",  "AXE" },
+    { "ITEM_WEAPON_SPEAR",       "SPEAR" },
+    { "ITEM_WEAPON_MACE",        "MACE" },
+}
+
+-- Worn-armor pieces for a tier keyword: {item_type, itemdef vector, id, part flag}.
+local function armor_pieces(kind)
+    local W = df.global.world.raws.itemdefs
+    local p = {}
+    if kind == "light" or kind == "full" then
+        p[#p + 1] = { df.item_type.ARMOR, W.armor, "ITEM_ARMOR_BREASTPLATE", "UPPERBODY" }
+        p[#p + 1] = { df.item_type.HELM,  W.helms, "ITEM_HELM_HELM",         "HEAD" }
+    end
+    if kind == "full" then
+        p[#p + 1] = { df.item_type.PANTS, W.pants, "ITEM_PANTS_GREAVES", "LOWERBODY" }
+        p[#p + 1] = { df.item_type.SHOES, W.shoes, "ITEM_SHOES_BOOTS",   "STANCE" }
+    end
+    return p
+end
+
+-- Arm a humanoid: weapon (+off-hand shield) + armor set. Returns the weapon's
+-- job_skill name so the caller can buff the matching skill.
+local function equip_warrior(unit, mat, give_shield, armor_kind)
+    local W = df.global.world.raws.itemdefs
+    local grasps = find_body_parts(unit, "GRASP")
+
+    local wpn = WARBAND_WEAPONS[math.random(#WARBAND_WEAPONS)]
+    local wpn_sub = itemdef_subtype(W.weapons, wpn[1])
+    if not wpn_sub then  -- fall back to the short sword if this world lacks it
+        wpn = WARBAND_WEAPONS[1]; wpn_sub = itemdef_subtype(W.weapons, wpn[1])
+    end
+    equip_item(unit, df.item_type.WEAPON, wpn_sub, mat, df.inv_item_role_type.Weapon, grasps[1])
+
+    if give_shield and grasps[2] then
+        equip_item(unit, df.item_type.SHIELD, itemdef_subtype(W.shields, "ITEM_SHIELD_SHIELD"),
+                   mat, df.inv_item_role_type.Weapon, grasps[2])
+    end
+    for _, pc in ipairs(armor_pieces(armor_kind)) do
+        equip_item(unit, pc[1], itemdef_subtype(pc[2], pc[3]), mat,
+                   df.inv_item_role_type.Worn, find_body_part(unit, pc[4]))
+    end
+    return wpn[2]
+end
+
+-- Buff combat skills (weapon + fighter/dodge, plus shield/armor when worn).
+local function buff_warrior(unit, weapon_skill, level, has_shield, has_armor)
+    if not level or level <= 0 then return end
+    pcall(function()
+        local js = df.job_skill
+        local function s(name) local id = js[name]; if id then set_skill(unit, id, level) end end
+        s(weapon_skill); s("MELEE_COMBAT"); s("DODGING")  -- MELEE_COMBAT = the "Fighter" skill
+        if has_shield then s("SHIELD") end
+        if has_armor  then s("ARMOR")  end
+    end)
+end
+
+-- Spawn a roaming warband for the given readiness level (1-9). Returns the count
+-- spawned. Picks a surface-edge tile so the enemies march in.
+local function spawn_warband(readiness)
+    local tier = WARBAND_TIERS[readiness]
+    if not tier then log.warn("spawn_warband: no tier for readiness " .. tostring(readiness)); return 0 end
+
+    local x, y, z = find_surface_spawn_pos()
+    if not x then
+        local sx, sy, sz = get_fort_spawn_pos()
+        x, y, z = tonumber(sx), tonumber(sy), tonumber(sz)
+    end
+    if not x then log.error("spawn_warband: no spawn position found"); return 0 end
+
+    -- Requested material with fallbacks (steel may be absent from a world).
+    local mat = dfhack.matinfo.find("INORGANIC:" .. tier.mat)
+        or dfhack.matinfo.find("INORGANIC:IRON")
+        or dfhack.matinfo.find("INORGANIC:COPPER")
+
+    local pool = bestiary.filter_present(WARBAND_POOLS[tier.pool] or {})
+    if #pool == 0 then pool = bestiary.filter_present({ "GOBLIN" }) end
+    if #pool == 0 then log.error("spawn_warband: no usable race present in world"); return 0 end
+
+    local goblin_civ = find_goblin_civ_id()
+    local give_shield = (tier.armor == "shield" or tier.armor == "full")
+    local has_armor   = (tier.armor == "light" or tier.armor == "full")
+    local n = math.random(tier.size[1], tier.size[2])
+
+    local spawned = 0
+    for _ = 1, n do
+        local race = pool[math.random(#pool)]
+        local civ  = (race == "GOBLIN") and goblin_civ or -1
+        local unit = create_unit(race, { x = x, y = y, z = z }, { civ_id = civ, hostile = true })
+        if unit then
+            if mat then
+                pcall(function()
+                    local wskill = equip_warrior(unit, mat, give_shield, tier.armor)
+                    buff_warrior(unit, wskill, math.random(tier.skill[1], tier.skill[2]), give_shield, has_armor)
+                end)
+            end
+            spawned = spawned + 1
+        end
+    end
+
+    -- Higher tiers: a chance of one armed beast brute (weapon only - armor fit on
+    -- a troll/ogre-sized body is unreliable).
+    if tier.escort and tier.escort > 0 and math.random(100) <= tier.escort then
+        local beasts = bestiary.filter_present(WARBAND_ESCORTS)
+        if #beasts > 0 then
+            local brute = create_unit(beasts[math.random(#beasts)], { x = x, y = y, z = z },
+                                      { civ_id = -1, hostile = true })
+            if brute and mat then
+                local grasps = find_body_parts(brute, "GRASP")
+                equip_item(brute, df.item_type.WEAPON,
+                           itemdef_subtype(df.global.world.raws.itemdefs.weapons, "ITEM_WEAPON_AXE_BATTLE"),
+                           mat, df.inv_item_role_type.Weapon, grasps[1])
+                buff_warrior(brute, "AXE", math.floor((tier.skill[1] + tier.skill[2]) / 2), false, false)
+            end
+            if brute then spawned = spawned + 1 end
+        end
+    end
+
+    if spawned > 0 then
+        dfhack.gui.showAnnouncement(
+            ("[AP] A roaming warband attacks! %d enemies close on the fortress."):format(spawned),
+            COLOR_RED, true)
+        log.info(("Warband spawned: readiness %d, %d enemies at (%d,%d,%d)"):format(readiness, spawned, x, y, z))
+    end
+    return spawned
+end
+M.spawn_warband = spawn_warband
+
 -- ── Item handlers: progression locks ─────────────────────────────────────────
 
 local function recv_merchants_coffer()
@@ -1645,6 +1863,8 @@ local TEST_LIST = {
     { "vermin",    "Vermin Infestation trap (rodents)",               function() recv_vermin_infestation() end },
     { "spider",    "Precursor threat (giant cave spider, underground)", function() spawn_precursor_threat() end },
     { "megabeast", "Force the goal megabeast (once per world)",        function() spawn_target_megabeast() end },
+    { "wave",      "Spawn a roaming warband for a readiness level (arg: 1-9, default 1)",
+                   function(rest) spawn_warband(tonumber(rest[1]) or 1) end },
     { "migrants",  "Add a wave of citizen dwarves",                    function() recv_immigration_wave() end },
     { "spawn-livestock", "Spawn a breeding group of livestock (arg: pigs|chickens|alpacas|cows|sheep|yaks)",
                    function(rest)
