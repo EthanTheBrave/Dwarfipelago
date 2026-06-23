@@ -1210,7 +1210,12 @@ local function equip_item(unit, item_type, subtype, mat, role, body_id)
     local ok = pcall(function()
         local made = dfhack.items.createItem(unit, item_type, subtype, mat.type, mat.index, false)
         local item = made and made[1]
-        if item then dfhack.items.moveToInventory(item, unit, role, body_id) end
+        if item then
+            -- createItem flags new items forbidden; clear it so the loot the
+            -- enemy drops on death is grabbable (a reward, not busywork).
+            item.flags.forbid = false
+            dfhack.items.moveToInventory(item, unit, role, body_id)
+        end
     end)
     return ok
 end
@@ -1232,9 +1237,9 @@ end
 -- Per-readiness wave config (tunable). Difficulty curve: 1-3 very easy, 4 easy-
 -- to-medium, 5-6 medium, 7-9 hard. armor: none|shield|light(breast+helm)|full.
 local WARBAND_TIERS = {
-    [1] = { size = {2, 2},  mat = "COPPER", armor = "none",   skill = {0, 1}, pool = "easy", escort = 0 },
+    [1] = { size = {2, 2},  mat = "COPPER", armor = "none",   skill = {0, 0}, pool = "easy", escort = 0 },
     [2] = { size = {2, 3},  mat = "COPPER", armor = "none",   skill = {0, 1}, pool = "easy", escort = 0 },
-    [3] = { size = {3, 3},  mat = "COPPER", armor = "shield", skill = {1, 2}, pool = "easy", escort = 0 },
+    [3] = { size = {3, 3},  mat = "COPPER", armor = "shield", skill = {0, 1}, pool = "easy", escort = 0 },
     [4] = { size = {3, 4},  mat = "IRON",   armor = "shield", skill = {2, 3}, pool = "mid",  escort = 0 },
     [5] = { size = {4, 5},  mat = "IRON",   armor = "light",  skill = {3, 4}, pool = "mid",  escort = 0 },
     [6] = { size = {5, 6},  mat = "IRON",   armor = "light",  skill = {4, 5}, pool = "mid",  escort = 0 },
