@@ -1582,46 +1582,139 @@ local function recv_monarchs_invitation()
     announce("Monarch's Invitation received! The Monarch may now take residence.")
 end
 
--- Escalating combat gear granted by Military Training tiers 1-3. These are
--- rewards that help the player prepare for the megabeast - not punishments.
--- All spawns go through spawn_item, which is pcall-guarded and logs failures;
--- each tier also includes steel bars so the player always gets usable material
--- even if a particular weapon/armor token isn't accepted by this DF version.
+-- Escalating combat gear granted by Military Training tiers 1-10. Steel
+-- throughout; later tiers grant fuller loadouts and bigger bar shipments so each
+-- copy ramps up (arming a growing army for war). All spawns go through
+-- spawn_item (pcall-guarded; logs failures), so a token absent from this DF
+-- version is simply skipped rather than breaking the grant.
+local STEEL = "INORGANIC:STEEL"
+local WAR_GEAR_WEAPON = {
+    AXE_BATTLE  = "WEAPON:ITEM_WEAPON_AXE_BATTLE",
+    SWORD_SHORT = "WEAPON:ITEM_WEAPON_SWORD_SHORT",
+    SPEAR       = "WEAPON:ITEM_WEAPON_SPEAR",
+    MACE        = "WEAPON:ITEM_WEAPON_MACE",
+    HAMMER_WAR  = "WEAPON:ITEM_WEAPON_HAMMER_WAR",
+}
+local WAR_GEAR_ARMOR = {
+    breast    = "ARMOR:ITEM_ARMOR_BREASTPLATE",
+    helm      = "HELM:ITEM_HELM_HELM",
+    gauntlets = "GLOVES:ITEM_GLOVES_GAUNTLETS",
+    greaves   = "PANTS:ITEM_PANTS_GREAVES",
+    boots     = "SHOES:ITEM_SHOES_BOOTS",
+    shield    = "SHIELD:ITEM_SHIELD_SHIELD",
+}
+-- Per-tier package: weapons, armor pieces, and steel bars. Escalates 1 -> 10.
+local WAR_GEAR_TIERS = {
+    [1]  = { weapons = { "AXE_BATTLE", "SWORD_SHORT" } },
+    [2]  = { armor   = { "breast", "helm", "shield" } },
+    [3]  = { armor   = { "gauntlets", "greaves", "boots" }, weapons = { "SPEAR", "HAMMER_WAR" } },
+    [4]  = { weapons = { "SWORD_SHORT", "MACE" }, bars = 3 },
+    [5]  = { armor   = { "breast", "helm", "greaves", "boots", "shield" } },
+    [6]  = { weapons = { "AXE_BATTLE", "SPEAR", "MACE" }, bars = 4 },
+    [7]  = { armor   = { "breast", "helm", "gauntlets", "greaves", "boots", "shield" } },
+    [8]  = { weapons = { "SWORD_SHORT", "HAMMER_WAR", "AXE_BATTLE" }, bars = 6 },
+    [9]  = { armor   = { "breast", "helm", "greaves", "boots", "shield" }, weapons = { "SPEAR", "MACE" } },
+    [10] = { armor   = { "breast", "helm", "gauntlets", "greaves", "boots", "shield" },
+             weapons = { "AXE_BATTLE", "SWORD_SHORT", "SPEAR" }, bars = 10 },
+}
+-- Blunt weapons can't be adamantine (too light) - keep them steel even at the
+-- adamantine tiers so they still spawn.
+local WAR_GEAR_BLUNT = { MACE = true, HAMMER_WAR = true }
 local function grant_war_gear(tier)
-    if tier == 1 then
-        -- Arm the recruits: a pair of steel weapons + bars to spare.
-        spawn_item("WEAPON:ITEM_WEAPON_AXE_BATTLE",  "INORGANIC:STEEL")
-        spawn_item("WEAPON:ITEM_WEAPON_SWORD_SHORT", "INORGANIC:STEEL")
-    elseif tier == 2 then
-        -- Armor the soldiers: torso, head, and shield.
-        spawn_item("ARMOR:ITEM_ARMOR_BREASTPLATE", "INORGANIC:STEEL")
-        spawn_item("HELM:ITEM_HELM_HELM",          "INORGANIC:STEEL")
-        spawn_item("SHIELD:ITEM_SHIELD_SHIELD",    "INORGANIC:STEEL")
-    elseif tier == 3 then
-        -- Outfit the elite: full limb protection + heavier weapons.
-        spawn_item("GLOVES:ITEM_GLOVES_GAUNTLETS", "INORGANIC:STEEL")
-        spawn_item("PANTS:ITEM_PANTS_GREAVES",     "INORGANIC:STEEL")
-        spawn_item("SHOES:ITEM_SHOES_BOOTS",       "INORGANIC:STEEL")
-        spawn_item("WEAPON:ITEM_WEAPON_SPEAR",     "INORGANIC:STEEL")
-        spawn_item("WEAPON:ITEM_WEAPON_HAMMER_WAR","INORGANIC:STEEL")
-        spawn_item("BAR", "INORGANIC:STEEL", 5)
+    local pkg = WAR_GEAR_TIERS[math.min(tier, 10)] or {}
+    -- Tiers 7+ upgrade to adamantine (a deliberate late-game power spike).
+    local mat = (tier >= 7) and "INORGANIC:ADAMANTINE" or STEEL
+    for _, w in ipairs(pkg.weapons or {}) do
+        spawn_item(WAR_GEAR_WEAPON[w], WAR_GEAR_BLUNT[w] and STEEL or mat)
     end
+    for _, a in ipairs(pkg.armor or {}) do spawn_item(WAR_GEAR_ARMOR[a], mat) end
+    if pkg.bars then spawn_item("BAR", mat, pkg.bars) end
 end
+
+-- The champion: a veteran dwarf war-leader who joins the fortress as a citizen.
+-- Not fully geared (he uses fortress equipment) but legendary-ish in several
+-- combat skills, ideal as a squad commander. Spawns once per world.
+local function spawn_super_dwarf()
+    if dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/champion") == "1" then return false end
+    local race_idx
+    for i, cr in ipairs(df.global.world.raws.creatures.all) do
+        if cr.creature_id == "DWARF" then race_idx = i; break end
+    end
+    if not race_idx then return false end
+    local dx, dy, dz = find_trade_depot_center()
+    if not dx then
+        local sx, sy, sz = get_fort_spawn_pos()
+        dx, dy, dz = tonumber(sx), tonumber(sy), tonumber(sz)
+    end
+    if not dx then return false end
+
+    local unit
+    local ok = pcall(function()
+        unit = dfhack.units.create(race_idx, math.random(0, 1))
+        if not unit then error("create returned nil") end
+        unit.birth_year = df.global.cur_year - math.random(30, 60)
+        if not dfhack.units.teleport(unit, { x = dx, y = dy, z = dz }) then
+            unit.pos.x, unit.pos.y, unit.pos.z = dx, dy, dz
+        end
+        df.global.world.units.active:insert('#', unit)
+        dfhack.units.makeown(unit)
+        pcall(function() dfhack.units.setNickname(unit, dwarf_name()) end)
+        pcall(make_outfit)
+        local lvl = math.random(11, 13)
+        for _, sname in ipairs({ "AXE", "SWORD", "MELEE_COMBAT", "DODGING", "SHIELD", "ARMOR" }) do
+            local id = df.job_skill[sname]
+            if id then set_skill(unit, id, lvl) end
+        end
+    end)
+    if not ok or not unit then log.error("spawn_super_dwarf failed"); return false end
+
+    dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/champion", "1")
+    announce_at_depot("A grizzled war-veteran has joined your fortress - skilled with several weapons and born to lead. Make them your military commander!")
+    return true
+end
+
+-- A pool of bonus "nice to have" gifts. Each Military Training receipt has a flat
+-- chance (EXTRA_CHANCE) to also drop ONE random pick from here, on top of the
+-- tier's normal gear. All go through spawn_item / spawn_livestock (pcall-guarded).
+local EXTRA_POOL = {
+    function() spawn_item("BAR", STEEL, 5) end,                                     -- steel bars
+    function() spawn_item("BAR", "COAL:COKE", 5) end,                               -- fuel
+    function() spawn_item("WOOD", "PLANT_MAT:OAK:WOOD", 5) end,                     -- logs
+    function() spawn_item("BOULDER", "INORGANIC:MAGNETITE", 4) end,                 -- iron ore
+    function() spawn_item("ANVIL", "INORGANIC:IRON") end,                           -- an anvil
+    function() spawn_item("TRAPPARTS", "INORGANIC:STEEL", 3) end,                   -- mechanisms
+    function() spawn_item("CAGE", "INORGANIC:STEEL") end,                           -- a metal cage
+    function() spawn_item("WEAPON:ITEM_WEAPON_PICK", STEEL) end,                    -- a mining pick
+    function() spawn_item("SMALLGEM", "INORGANIC:SAPPHIRE", 3) end,                 -- cut gems
+    function() spawn_item("BAR", "INORGANIC:GOLD", 3) end,                          -- gold bars
+    function() spawn_item("DRINK", "PLANT_MAT:MUSHROOM_HELMET_PLUMP:DRINK", 5) end, -- ale
+    function() spawn_item("BAR", "INORGANIC:ADAMANTINE", 2) end,                    -- rare: 2 wafers
+    function() spawn_livestock("DOG", "a pack of war dogs") end,                    -- war dogs
+}
+
+local SUPER_DWARF_CHANCE = 10   -- percent chance per receipt before the tier-8 guarantee
+local EXTRA_CHANCE       = 25   -- percent chance of a bonus extra-pool gift
 
 local function recv_military_training()
     local key = "dwarfipelago/unlock/military_training"
     local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
     dfhack.persistent.saveWorldDataString(key, tostring(n))
 
-    -- Tiers 1-3 hand out escalating steel gear; later tiers top up steel bars so
-    -- every copy is still a reward. The beast is NOT summoned here any more - the
-    -- breach is triggered from the poll once the full war effort is in hand
-    -- (10 training + Artifact Weapon + 2 immigration waves).
-    if n <= 3 then
-        grant_war_gear(n)
-    else
-        spawn_item("BAR", "INORGANIC:STEEL", 3)
+    -- Escalating war shipment (adamantine from tier 7). The beast is NOT summoned
+    -- here - the breach fires from the poll on the full war effort.
+    grant_war_gear(n)
+
+    -- The champion: a rare chance at any tier, GUARANTEED by tier 8 if not yet here.
+    if dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/champion") ~= "1"
+            and (n >= 8 or math.random(100) <= SUPER_DWARF_CHANCE) then
+        spawn_super_dwarf()
     end
+
+    -- Sometimes a bonus gift from the extra pool (flat chance, no tier ramp).
+    if math.random(100) <= EXTRA_CHANCE then
+        EXTRA_POOL[math.random(#EXTRA_POOL)]()
+    end
+
     announce(("Military Training received! War Readiness rises. (%d/10)"):format(math.min(n, 10)))
 end
 
