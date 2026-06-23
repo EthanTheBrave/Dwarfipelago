@@ -1131,38 +1131,85 @@ local function spawn_precursor_threat()
     end
 end
 
--- Summon the AP megabeast target via DFHack's 'force' command, which routes
--- through the game's own event system. This is version-safe, unlike
--- modtools/create-unit (broken on some DF builds: "world.arena_spawn not found").
---
--- We intentionally do NOT pin a target_id here: the goal hook in dwarfipelago.lua
--- counts any megabeast kill when no target_id is stored, and natural megabeasts
--- are cleared at world load, so the forced beast is the only one in play.
+-- A readable name for the beast: its proper/historical name if it has one, else
+-- the creature's singular raw name ("dragon"), else the raw token.
+local function beast_label(unit, species)
+    local label
+    pcall(function() label = dfhack.units.getReadableName(unit) end)
+    if label and label ~= "" then return label end
+    pcall(function()
+        for _, cr in ipairs(df.global.world.raws.creatures.all) do
+            if cr.creature_id == species then label = cr.name[0]; break end
+        end
+    end)
+    return (label and label ~= "") and label or species
+end
+
+-- The climax: summon the AP megabeast target as a curated breach. A megabeast
+-- species present in this world erupts from the depths (carved breach) - or from
+-- the map edge as a fallback - with a small brute escort, via the working
+-- create_unit path (not 'force'). The exact beast's id is pinned so the goal
+-- hook in dwarfipelago.lua counts THIS kill. Fires once per world.
 local function spawn_target_megabeast()
     if dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/spawned") == "1" then
         return  -- already summoned this world (e.g. reloaded mid-session)
     end
 
-    local ok, err = pcall(function()
-        dfhack.run_command("force", "Megabeast")
-    end)
-    if not ok then
+    -- Where: deep underground if any open tile exists (it breaches from below),
+    -- else the embark perimeter, else a citizen's tile.
+    local x, y, z = find_underground_spawn()
+    local from_depths = (x ~= nil)
+    if not x then x, y, z = find_surface_spawn_pos() end
+    if not x then
+        local sx, sy, sz = get_fort_spawn_pos()
+        x, y, z = tonumber(sx), tonumber(sy), tonumber(sz)
+    end
+    if not x then
         dfhack.gui.showAnnouncement(
-            "[AP] CRITICAL: Could not force a megabeast - the Slay Megabeast goal cannot be completed.",
-            COLOR_RED, true)
-        dfhack.gui.showAnnouncement(
-            "[AP] This is likely a DFHack compatibility issue. Check the DFHack console / dwarfipelago.log.",
-            COLOR_RED, true)
-        log.error("force Megabeast failed: " .. tostring(err))
+            "[AP] CRITICAL: no spawn tile for the megabeast - the goal cannot be completed.", COLOR_RED, true)
+        log.error("spawn_target_megabeast: no spawn position")
         return
     end
 
+    if from_depths then carve_breach(x, y, z) end
+
+    -- What: a megabeast species present in this world (DRAGON / HYDRA / etc.).
+    local species = bestiary.random_megabeast() or pick_megabeast_type()
+    local beast = create_unit(species, { x = x, y = y, z = z }, { civ_id = -1, hostile = true })
+    if not beast then
+        dfhack.gui.showAnnouncement(
+            ("[AP] CRITICAL: could not spawn the megabeast (%s) - the goal cannot be completed."):format(tostring(species)),
+            COLOR_RED, true)
+        log.error("spawn_target_megabeast: create_unit failed for " .. tostring(species))
+        return
+    end
+
+    -- Pin this exact beast as the goal target, and mark the climax fired.
+    dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/target_id", tostring(beast.id))
     dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/spawned", "1")
+
+    -- Escort: a couple of wild brutes at the breach for a siege feel (no gear -
+    -- their bodies are the weapon; armor fit on huge frames is unreliable).
+    local escorts = bestiary.filter_present({ "TROLL", "OGRE" })
+    if #escorts > 0 then
+        for _ = 1, 2 do
+            create_unit(escorts[math.random(#escorts)], { x = x, y = y, z = z }, { civ_id = -1, hostile = true })
+        end
+    end
+
+    -- Announce: a directional war-cry, recentered on the breach.
+    local dir = get_spawn_direction(x, y)
+    local where = (dir == "depths") and "the depths below"
+        or (from_depths and ("the " .. dir .. " depths") or ("the " .. dir))
     dfhack.gui.showAnnouncement(
-        "[AP] A great beast has been roused and now marches on your fortress. Slay it!",
+        ("[AP] THE BEAST AWAKENS! %s erupts from %s and marches on your fortress. Slay it for victory!")
+            :format(beast_label(beast, species), where),
         COLOR_RED, true)
-    print("[Dwarfipelago] Megabeast summoned via DFHack 'force Megabeast'")
+    log.info(("Megabeast breach: %s (id %d) at (%d,%d,%d) depths=%s"):format(
+        tostring(species), beast.id, x, y, z, tostring(from_depths)))
+    print("[Dwarfipelago] Curated megabeast breach: " .. tostring(species))
 end
+M.spawn_target_megabeast = spawn_target_megabeast
 
 -- ── Megabeast siege: roaming warbands ─────────────────────────────────────────
 -- Time-paced enemy waves for the Slay Megabeast goal. Difficulty scales with the
@@ -1566,20 +1613,16 @@ local function recv_military_training()
     local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
     dfhack.persistent.saveWorldDataString(key, tostring(n))
 
-    if n == 1 then
-        grant_war_gear(1)
-        announce("Military Training received! Your recruits are armed with steel weapons. (1/4)")
-    elseif n == 2 then
-        grant_war_gear(2)
-        announce("Military Training received! Your soldiers don steel armor. (2/4)")
-    elseif n == 3 then
-        grant_war_gear(3)
-        announce("Military Training received! Your elite are fully equipped - the beast nears. (3/4)")
+    -- Tiers 1-3 hand out escalating steel gear; later tiers top up steel bars so
+    -- every copy is still a reward. The beast is NOT summoned here any more - the
+    -- breach is triggered from the poll once the full war effort is in hand
+    -- (10 training + Artifact Weapon + 2 immigration waves).
+    if n <= 3 then
+        grant_war_gear(n)
     else
-        -- Tier 4: the military is ready; summon the target megabeast.
-        announce("Military Training received! Your military is ready - the beast awakens! (4/4)")
-        spawn_target_megabeast()
+        spawn_item("BAR", "INORGANIC:STEEL", 3)
     end
+    announce(("Military Training received! War Readiness rises. (%d/10)"):format(math.min(n, 10)))
 end
 
 -- Progressive Mining Depth: each copy lowers the dig floor one cavern tier.

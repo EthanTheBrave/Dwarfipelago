@@ -316,7 +316,7 @@ local function on_unit_death(uid)
     if not state.is_goal_complete() and goal_setting("goal", -1) == 0 then
         local ok, is_mega = pcall(dfhack.units.isMegabeast, unit)
         if ok and is_mega
-                and goal_setting("unlock/military_training", 0) >= 4
+                and goal_setting("unlock/military_training", 0) >= 10
                 and goal_setting("unlock/immigration_waves", 0) >= 2
                 and goal_setting("unlock/artifact_weapon", 0) == 1 then
             -- Only count the AP-summoned target; ignore any stray megabeasts.
@@ -1274,6 +1274,7 @@ end
 -- offline gap does not spawn a backlog), reschedules from the spawn moment.
 local function poll_warband_waves()
     if goal_setting("goal", -1) ~= 0 then return end   -- slay_megabeast only
+    if dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/spawned") == "1" then return end  -- breach took over
     local readiness = war_readiness()
     if readiness < 1 or readiness >= 10 then return end -- not started, or climax phase
 
@@ -1292,6 +1293,19 @@ local function poll_warband_waves()
     if now >= next_tick then
         items.spawn_warband(math.min(readiness, 9))
         schedule_next_wave(now)
+    end
+end
+
+-- Poll step: the breach. Once the full war effort is in hand (10 Military
+-- Training + Artifact Weapon + 2 immigration waves - matching the AP goal rule),
+-- summon the curated megabeast. spawn_target_megabeast guards against repeats.
+local function check_megabeast_breach()
+    if goal_setting("goal", -1) ~= 0 then return end
+    if dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/spawned") == "1" then return end
+    if goal_setting("unlock/military_training", 0) >= 10
+            and goal_setting("unlock/artifact_weapon", 0) == 1
+            and goal_setting("unlock/immigration_waves", 0) >= 2 then
+        items.spawn_target_megabeast()
     end
 end
 
@@ -1355,6 +1369,7 @@ local function poll_checks()
     guard("spawn_caravan", _check_spawn_caravan_approved)
     guard("skills",        checks.update_skill_levels)
     guard("waves",         poll_warband_waves)
+    guard("breach",        check_megabeast_breach)
 
     for _, check in ipairs(checks.checks) do
         if not state.is_location_checked(check.id) then
