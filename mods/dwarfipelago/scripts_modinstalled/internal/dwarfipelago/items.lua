@@ -1143,9 +1143,37 @@ local function set_dig(x, y, z, kind)
     if blk then pcall(function() blk.designation[x % 16][y % 16].dig = kind end) end
 end
 
--- A surface impact site set back from every edge (so the full bowl fits) and
--- biased toward an edge (so it lands away from a central fort). Returns x,y,z or
--- nil. An outside floor tile at ground level.
+-- True if the crater footprint (a touch wider than the rim, through the whole
+-- dig column) has no standing liquid and no aquifer - so the crater won't flood
+-- and drown the beast.
+local function footprint_is_dry(cx, cy, sz, rim, depth)
+    local cr = rim + 2
+    for z = sz, sz - depth, -1 do
+        for dx = -cr, cr do
+            for dy = -cr, cr do
+                if dx * dx + dy * dy <= cr * cr then
+                    local x, y = cx + dx, cy + dy
+                    local blk = dfhack.maps.getTileBlock(x, y, z)
+                    if blk then
+                        local wet = false
+                        pcall(function()
+                            if blk.designation[x % 16][y % 16].flow_size > 0 then wet = true end
+                        end)
+                        if not wet then
+                            pcall(function() if dfhack.maps.isTileAquifer(x, y, z) then wet = true end end)
+                        end
+                        if wet then return false end
+                    end
+                end
+            end
+        end
+    end
+    return true
+end
+
+-- A surface impact site set back from every edge (so the full bowl fits), biased
+-- toward an edge (away from a central fort), and DRY (no nearby water/aquifer, so
+-- the crater won't flood). Returns x,y,z or nil. An outside floor tile.
 local function find_crater_center(rim)
     if not dfhack.isMapLoaded() then return nil end
     local map = df.global.world.map
@@ -1174,7 +1202,7 @@ local function find_crater_center(rim)
                     local shape = df.tiletype.attrs[blk.tiletype[lx][ly]].shape
                     ok = des.outside and des.flow_size == 0 and shape == df.tiletype_shape.FLOOR
                 end)
-                if ok then return x, y, z end
+                if ok and footprint_is_dry(x, y, z, rim, CRATER_DEPTH) then return x, y, z end
             end
         end
     end
@@ -1239,6 +1267,20 @@ local function carve_crater(cx, cy, sz)
             ("%d,%d,%d"):format(cx - CRATER_RIM_R, cy - CRATER_RIM_R, zbot),
             ("%d,%d,%d"):format(cx + CRATER_RIM_R, cy + CRATER_RIM_R, sz), "--clean")
     end)
+    -- Strip any aquifer the dig exposed and clear standing water in the bowl, so
+    -- it doesn't flood. (Dry-site selection is primary; this is the backstop.)
+    for z = sz, zbot, -1 do
+        for dx = -CRATER_RIM_R, CRATER_RIM_R do
+            for dy = -CRATER_RIM_R, CRATER_RIM_R do
+                if dx * dx + dy * dy <= CRATER_RIM_R * CRATER_RIM_R then
+                    local x, y = cx + dx, cy + dy
+                    pcall(function() dfhack.maps.removeTileAquifer(x, y, z) end)
+                    local blk = dfhack.maps.getTileBlock(x, y, z)
+                    if blk then pcall(function() blk.designation[x % 16][y % 16].flow_size = 0 end) end
+                end
+            end
+        end
+    end
     for _, t in ipairs({ { cx, cy }, { cx+1, cy }, { cx-1, cy }, { cx, cy+1 }, { cx, cy-1 } }) do
         if tile_walkable(t[1], t[2], zbot) then return t[1], t[2], zbot end
     end
