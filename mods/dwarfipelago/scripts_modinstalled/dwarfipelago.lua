@@ -1250,11 +1250,17 @@ local function abs_tick()
     return df.global.cur_year * TICKS_PER_YEAR + df.global.cur_year_tick
 end
 
--- Interim readiness source: Military Training items received. The fortress-
--- milestone gating (barracks/skills) and the bump to 10 tiers land in a later
--- commit; for now readiness tracks raw Military Training count.
+-- War Readiness = Military Training items received, capped by fortress military
+-- milestones: 1-4 free, 5-6 need a set-up barracks, 7-9 need 4 soldiers at combat
+-- skill 10+. (Readiness 10 - the breach - is gated on the full war effort and
+-- handled separately; the wave clock only spans 1-9.)
 local function war_readiness()
-    return goal_setting("unlock/military_training", 0)
+    local mt = goal_setting("unlock/military_training", 0)
+    local cap = 4
+    local barracks = checks.barracks_is_set_up()
+    if barracks then cap = 6 end
+    if barracks and checks.count_military_skill(10) >= 4 then cap = 9 end
+    return math.min(mt, cap)
 end
 
 local function schedule_next_wave(from_tick)
