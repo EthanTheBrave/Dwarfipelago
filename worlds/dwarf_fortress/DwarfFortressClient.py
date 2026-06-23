@@ -571,7 +571,7 @@ class DFHackConnection:
         if result is None:
             logger.warning(f"deliver_item: RPC returned None for {item_name!r} - connection lost?")
         else:
-            self.debug(f"Delivered item to fortress: {item_name!r} (lua output: {result.strip()!r})")
+            logger.debug(f"Delivered item to fortress: {item_name!r} (lua output: {result.strip()!r})")
 
 
 # ── Archipelago Client ────────────────────────────────────────────────────────
