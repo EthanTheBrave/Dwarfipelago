@@ -1186,10 +1186,11 @@ end
 -- of. The very bottom is dug to a solid floor for footing. dig-now sets correct
 -- tiletypes + ramps + reveals. Returns the crater-floor tile, or nil if carving
 -- produced no walkable ground.
-local CRATER_TREE_SHAPES = {
-    [df.tiletype_shape.TREE] = true, [df.tiletype_shape.TRUNK_BRANCH] = true,
-    [df.tiletype_shape.BRANCH] = true, [df.tiletype_shape.TWIG] = true,
-    [df.tiletype_shape.SAPLING] = true, [df.tiletype_shape.SHRUB] = true,
+-- Keyed by shape NAME (not enum value) so a name absent from this build's
+-- df.tiletype_shape doesn't create a nil table key. Matched via reverse lookup.
+local CRATER_TREE_SHAPE_NAMES = {
+    TREE = true, TRUNK_BRANCH = true, BRANCH = true,
+    TWIG = true, SAPLING = true, SHRUB = true,
 }
 local function carve_crater(cx, cy, sz)
     -- dig-now skips trees, so first clear any tree/shrub tiles in the bowl
@@ -1203,7 +1204,8 @@ local function carve_crater(cx, cy, sz)
                     if blk then
                         local lx, ly = (cx + dx) % 16, (cy + dy) % 16
                         pcall(function()
-                            if CRATER_TREE_SHAPES[df.tiletype.attrs[blk.tiletype[lx][ly]].shape] then
+                            local shapename = df.tiletype_shape[df.tiletype.attrs[blk.tiletype[lx][ly]].shape]
+                            if shapename and CRATER_TREE_SHAPE_NAMES[shapename] then
                                 blk.tiletype[lx][ly] = df.tiletype.OpenSpace
                                 blk.designation[lx][ly].hidden = false
                             end
