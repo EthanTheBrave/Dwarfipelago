@@ -218,30 +218,12 @@ local function check_mining_depth_gate(job)
     announce_mining_lock()
 end
 
--- Backstop sweep (poll loop): clear standing below-floor designations so a
--- mass-dug shaft doesn't linger as orders the dwarves can never reach.
-local function enforce_mining_depth_lock()
-    local floor_z = mining_floor_z()
-    if not floor_z then return end
-    local cleared = 0
-    for _, b in ipairs(df.global.world.map.map_blocks) do
-        local z = b.map_pos.z
-        if z <= floor_z then
-            local below = z < floor_z
-            for lx = 0, 15 do
-                for ly = 0, 15 do
-                    local d = b.designation[lx][ly].dig
-                    if d ~= df.tile_dig_designation.No
-                            and (below or d == df.tile_dig_designation.Channel) then
-                        b.designation[lx][ly].dig = df.tile_dig_designation.No
-                        cleared = cleared + 1
-                    end
-                end
-            end
-        end
-    end
-    if cleared > 0 then announce_mining_lock() end
-end
+-- No poll-loop backstop: depth enforcement is entirely event-driven via
+-- check_mining_depth_gate (on_job_initiated), which cancels and clears each
+-- below-floor dig as its job is queued. Standing below-floor designations are
+-- harmless until a miner picks them up (then cancelled), and they conveniently
+-- auto-activate when a deeper tier unlocks. Polling the map every tick to clear
+-- them proactively is not worth the cost.
 
 -- ── Goal completion: poll-based checks (wealth & population) ─────────────────
 
@@ -1148,7 +1130,11 @@ local function suppress_cave_adaptation()
     if dfhack.persistent.getWorldDataString("dwarfipelago/unlock/sunlight_tonic") ~= "1" then return end
     for _, unit in ipairs(df.global.world.units.active) do
         if dfhack.units.isCitizen(unit) then
-            unit.status.cave_adapt = 0
+            -- Cave adaptation is a misc_trait on this DF version, not a direct
+            -- unit.status field (writing unit.status.cave_adapt throws). Zero the
+            -- existing trait only; don't create one on units that lack it.
+            local t = dfhack.units.getMiscTrait(unit, df.misc_trait_type.CaveAdapt, false)
+            if t then t.value = 0 end
         end
     end
 end
@@ -1286,20 +1272,28 @@ local function poll_checks()
         return
     end
 
-    apply_pending_recv_deathlinks()
-    check_goal_by_poll()
-    check_locked_notifications()
-    detect_caravans()
-    checks.detect_mission_checks()
-    detect_pump_activity()
+    -- Each detector is pcall-guarded: a single failure (e.g. a renamed DF field)
+    -- must NOT abort the poll and silently disable every check that follows it.
+    -- (A bug here once killed cavern-progress and skill checks for whole sessions.)
+    local function guard(label, fn)
+        local ok, err = pcall(fn)
+        if not ok then
+            dfhack.printerr("[Dwarfipelago] poll step '" .. label .. "' failed: " .. tostring(err))
+        end
+    end
+    guard("deathlinks",    apply_pending_recv_deathlinks)
+    guard("goal",          check_goal_by_poll)
+    guard("locked_notify", check_locked_notifications)
+    guard("caravans",      detect_caravans)
+    guard("missions",      checks.detect_mission_checks)
+    guard("pump",          detect_pump_activity)
     -- detect_egg_hatch()  -- disabled: hatch detection unreliable on DF v50
-    detect_caged_hostile_beast()
-    suppress_cave_adaptation()
-    detect_sold_artifact()
-    detect_shrine()
-    enforce_mining_depth_lock()
-    _check_spawn_caravan_approved()
-    checks.update_skill_levels()
+    guard("caged_beast",   detect_caged_hostile_beast)
+    guard("cave_adapt",    suppress_cave_adaptation)
+    guard("sold_artifact", detect_sold_artifact)
+    guard("shrine",        detect_shrine)
+    guard("spawn_caravan", _check_spawn_caravan_approved)
+    guard("skills",        checks.update_skill_levels)
 
     for _, check in ipairs(checks.checks) do
         if not state.is_location_checked(check.id) then
