@@ -1870,6 +1870,12 @@ local TEST_LIST = {
     { "megabeast", "Force the goal megabeast (once per world)",        function() spawn_target_megabeast() end },
     { "wave",      "Spawn a roaming warband for a readiness level (arg: 1-9, default 1)",
                    function(rest) spawn_warband(tonumber(rest[1]) or 1) end },
+    { "wave-now",  "Force the scheduled wave due now (tests the auto-scheduler; needs readiness>=1, slay_megabeast)",
+                   function()
+                       dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/next_wave_tick", "0")
+                       dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/wave_warned", "1")
+                       print("[test] Next wave forced due; it spawns on the next poll if readiness>=1 and goal is Slay Megabeast.")
+                   end },
     { "migrants",  "Add a wave of citizen dwarves",                    function() recv_immigration_wave() end },
     { "spawn-livestock", "Spawn a breeding group of livestock (arg: pigs|chickens|alpacas|cows|sheep|yaks)",
                    function(rest)

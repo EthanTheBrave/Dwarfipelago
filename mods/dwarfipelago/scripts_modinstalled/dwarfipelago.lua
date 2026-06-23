@@ -1235,6 +1235,59 @@ end
 -- defined later in the file (after the item event helpers).
 local ensure_trade_depot
 
+-- ── Megabeast siege: wave scheduler ───────────────────────────────────────────
+-- For the Slay Megabeast goal, once War Readiness >= 1 roaming warbands attack on
+-- a campaign clock: a random 3-6 in-game days apart, each preceded by a ~1-day-out
+-- warning. Difficulty = current readiness level (see items.spawn_warband).
+-- Timing uses an absolute tick (year*ticks_per_year + year_tick) so it is
+-- monotonic and survives save/reload.
+local TICKS_PER_DAY  = 1200
+local TICKS_PER_YEAR = 403200   -- 12 months * 28 days * 1200 ticks
+local WAVE_MIN_DAYS, WAVE_MAX_DAYS = 3, 6
+
+local function abs_tick()
+    return df.global.cur_year * TICKS_PER_YEAR + df.global.cur_year_tick
+end
+
+-- Interim readiness source: Military Training items received. The fortress-
+-- milestone gating (barracks/skills) and the bump to 10 tiers land in a later
+-- commit; for now readiness tracks raw Military Training count.
+local function war_readiness()
+    return goal_setting("unlock/military_training", 0)
+end
+
+local function schedule_next_wave(from_tick)
+    local days = math.random(WAVE_MIN_DAYS, WAVE_MAX_DAYS)
+    dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/next_wave_tick",
+        tostring(from_tick + days * TICKS_PER_DAY))
+    dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/wave_warned", "")
+end
+
+-- Poll step: drive the wave clock. Spawns at most one wave per due time (a long
+-- offline gap does not spawn a backlog), reschedules from the spawn moment.
+local function poll_warband_waves()
+    if goal_setting("goal", -1) ~= 0 then return end   -- slay_megabeast only
+    local readiness = war_readiness()
+    if readiness < 1 or readiness >= 10 then return end -- not started, or climax phase
+
+    local now = abs_tick()
+    local next_tick = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/next_wave_tick"))
+    if not next_tick then schedule_next_wave(now); return end
+
+    if now >= next_tick - TICKS_PER_DAY
+            and dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/wave_warned") ~= "1" then
+        dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/wave_warned", "1")
+        dfhack.gui.showAnnouncement(
+            "[AP] Scouts report a warband approaching - it will reach the fortress within a day.",
+            COLOR_YELLOW, true)
+    end
+
+    if now >= next_tick then
+        items.spawn_warband(math.min(readiness, 9))
+        schedule_next_wave(now)
+    end
+end
+
 -- ── Poll loop: wealth, trade, and goal milestones ─────────────────────────────
 -- Runs every POLL_TICKS game ticks. Production checks are handled by eventful.
 
@@ -1294,6 +1347,7 @@ local function poll_checks()
     guard("shrine",        detect_shrine)
     guard("spawn_caravan", _check_spawn_caravan_approved)
     guard("skills",        checks.update_skill_levels)
+    guard("waves",         poll_warband_waves)
 
     for _, check in ipairs(checks.checks) do
         if not state.is_location_checked(check.id) then
