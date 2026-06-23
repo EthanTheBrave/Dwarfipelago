@@ -1186,7 +1186,34 @@ end
 -- of. The very bottom is dug to a solid floor for footing. dig-now sets correct
 -- tiletypes + ramps + reveals. Returns the crater-floor tile, or nil if carving
 -- produced no walkable ground.
+local CRATER_TREE_SHAPES = {
+    [df.tiletype_shape.TREE] = true, [df.tiletype_shape.TRUNK_BRANCH] = true,
+    [df.tiletype_shape.BRANCH] = true, [df.tiletype_shape.TWIG] = true,
+    [df.tiletype_shape.SAPLING] = true, [df.tiletype_shape.SHRUB] = true,
+}
 local function carve_crater(cx, cy, sz)
+    -- dig-now skips trees, so first clear any tree/shrub tiles in the bowl
+    -- footprint (canopy above down to just below the floor) to open space - the
+    -- "impact" obliterates them. Then dig-now can carve the ground cleanly.
+    for z = sz + 6, sz - CRATER_DEPTH - 1, -1 do
+        for dx = -CRATER_RIM_R, CRATER_RIM_R do
+            for dy = -CRATER_RIM_R, CRATER_RIM_R do
+                if dx * dx + dy * dy <= CRATER_RIM_R * CRATER_RIM_R then
+                    local blk = dfhack.maps.getTileBlock(cx + dx, cy + dy, z)
+                    if blk then
+                        local lx, ly = (cx + dx) % 16, (cy + dy) % 16
+                        pcall(function()
+                            if CRATER_TREE_SHAPES[df.tiletype.attrs[blk.tiletype[lx][ly]].shape] then
+                                blk.tiletype[lx][ly] = df.tiletype.OpenSpace
+                                blk.designation[lx][ly].hidden = false
+                            end
+                        end)
+                    end
+                end
+            end
+        end
+    end
+
     for d = 0, CRATER_DEPTH - 1 do
         local z, r = sz - d, CRATER_RIM_R - d
         for dx = -r, r do
@@ -1250,10 +1277,16 @@ local function spawn_target_megabeast()
         return
     end
 
-    -- Gouge the crater; bx,by,bz = its floor (or the surface tile if carving failed).
+    -- Gouge the crater; bx,by,bz = its floor. If carving yields no walkable floor,
+    -- spawn on a fresh clean surface tile (NOT the cleared/channeled center, which
+    -- may now be open air).
     local bx, by, bz = carve_crater(cx, cy, sz)
     local crater = (bx ~= nil)
-    if not bx then bx, by, bz = cx, cy, sz end
+    if not bx then bx, by, bz = find_surface_spawn_pos() end
+    if not bx then
+        local fx, fy, fz = get_fort_spawn_pos()
+        bx, by, bz = tonumber(fx), tonumber(fy), tonumber(fz)
+    end
 
     local species = bestiary.random_megabeast() or pick_megabeast_type()
     local beast = create_unit(species, { x = bx, y = by, z = bz }, { civ_id = -1, hostile = true })
