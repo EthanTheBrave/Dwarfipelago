@@ -181,32 +181,31 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         "Harvest 50 Crops", "Harvest 100 Crops", "Harvest 250 Crops",
         "Harvest 500 Crops", "Harvest 1,000 Crops",
     ])
+    # Cavern progress + breaches are one monotonic ladder (25% C1 -> 50% C1 ->
+    # breach C1 -> ... -> magma sea -> Circus). Off: each step requires the
+    # previous. On: gated by item count instead (breach Cn needs n; the progress
+    # checks for Cn+1 need n, since you must dig past Cn to reach them).
     if options.mining_depth == False:
         require_previous([
-            "Delved 10 Levels Deep", "Delved 25 Levels Deep", "Delved 50 Levels Deep",
-            "Delved 75 Levels Deep", "Delved 100 Levels Deep",
-        ])
-        # Caverns are breached in strict depth order, then the magma sea, then the
-        # underworld (the Circus), so chain them as one ladder too.
-        require_previous([
-            "First Cavern Breached", "Second Cavern Breached", "Third Cavern Breached",
+            "25% to the First Cavern", "50% to the First Cavern", "First Cavern Breached",
+            "25% to the Second Cavern", "50% to the Second Cavern", "Second Cavern Breached",
+            "50% to the Third Cavern", "Third Cavern Breached",
             "Reached the Magma Sea", "Welcome to the Circus",
         ])
     else:
-        loc = multiworld.get_location("First Cavern Breached", player)
-        loc.access_rule = lambda state: state.has("Progressive Mining Depth", player, 1)
+        def needs_depth(name: str, count: int) -> None:
+            loc = multiworld.get_location(name, player)
+            loc.access_rule = lambda state, c=count: state.has("Progressive Mining Depth", player, c)
 
-        loc = multiworld.get_location("Second Cavern Breached", player)
-        loc.access_rule = lambda state: state.has("Progressive Mining Depth", player, 2)
-
-        loc = multiworld.get_location("Third Cavern Breached", player)
-        loc.access_rule = lambda state: state.has("Progressive Mining Depth", player, 3)
-
-        loc = multiworld.get_location("Reached the Magma Sea", player)
-        loc.access_rule = lambda state: state.has("Progressive Mining Depth", player, 4)
-
-        loc = multiworld.get_location("Welcome to the Circus", player)
-        loc.access_rule = lambda state: state.has("Progressive Mining Depth", player, 4)
+        # 25%/50% to Cavern 1 need no unlock: you may always dig to just above it.
+        needs_depth("First Cavern Breached", 1)
+        needs_depth("25% to the Second Cavern", 1)
+        needs_depth("50% to the Second Cavern", 1)
+        needs_depth("Second Cavern Breached", 2)
+        needs_depth("50% to the Third Cavern", 2)
+        needs_depth("Third Cavern Breached", 3)
+        needs_depth("Reached the Magma Sea", 4)
+        needs_depth("Welcome to the Circus", 4)
 
 
 

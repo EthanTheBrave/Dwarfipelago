@@ -159,19 +159,10 @@ class DwarfFortressWorld(World):
             "Duke Appointed",
             "Monarch Takes Residence",
         }
-        DEPTH_LOCAITONS = {
-            "Delved 10 Levels Deep", 
-            "Delved 25 Levels Deep", 
-            "Delved 50 Levels Deep", 
-            "Delved 75 Levels Deep", 
-            "Delved 100 Levels Deep",
-        }
         if self.options.goal != DwarfFortressGoal.option_legendary_wealth:
             active -= WEALTH_TIER_LOCATIONS
         if self.options.goal != DwarfFortressGoal.option_mountainhome:
             active -= NOBLE_LADDER_LOCATIONS
-        if self.options.mining_depth:
-            active -= DEPTH_LOCAITONS
         for skill_names in self.remove_skill_locations_names:
              active.remove(skill_names)
         # The shop is always on, so its 50 slots are always active (coffer-gated

@@ -193,12 +193,15 @@ M.checks = {
     { id = 37370403, name = "City Established",       fn = has_fortress_title(110, 200000, 20000, 4) },
     { id = 37370404, name = "Metropolis Established", fn = has_fortress_title(140, 300000, 30000, 5) },
 
-    -- Mining: depth below the surface z-level (deepest mining job reached).
-    { id = 37370700, name = "Delved 10 Levels Deep",  fn = function() return M.mining_depth() >= 10  end },
-    { id = 37370701, name = "Delved 25 Levels Deep",  fn = function() return M.mining_depth() >= 25  end },
-    { id = 37370702, name = "Delved 50 Levels Deep",  fn = function() return M.mining_depth() >= 50  end },
-    { id = 37370703, name = "Delved 75 Levels Deep",  fn = function() return M.mining_depth() >= 75  end },
-    { id = 37370704, name = "Delved 100 Levels Deep", fn = function() return M.mining_depth() >= 100 end },
+    -- Mining: progress toward each cavern, as a percentage of the depth from the
+    -- previous reference (surface, then each cavern ceiling) down to the next
+    -- cavern's ceiling. The breach itself (100%) is the separate "... Cavern
+    -- Breached" location below.
+    { id = 37370700, name = "25% to the First Cavern",  fn = function() return M.cavern_progress(1) >= 25 end },
+    { id = 37370701, name = "50% to the First Cavern",  fn = function() return M.cavern_progress(1) >= 50 end },
+    { id = 37370702, name = "25% to the Second Cavern", fn = function() return M.cavern_progress(2) >= 25 end },
+    { id = 37370703, name = "50% to the Second Cavern", fn = function() return M.cavern_progress(2) >= 50 end },
+    { id = 37370704, name = "50% to the Third Cavern",  fn = function() return M.cavern_progress(3) >= 50 end },
 
     -- Mining: cumulative tiles excavated.
     { id = 37370710, name = "Excavator I (100 tiles)",     fn = function() return M.mining_count() >= 100   end },
@@ -313,6 +316,102 @@ end
 -- matching feature (dwarfipelago/mining/cavern1|cavern2|cavern3|magma).
 function M.mining_flag(name)
     return dfhack.persistent.getWorldDataString("dwarfipelago/mining/" .. name) == "1"
+end
+
+-- ── Cavern approach progress ──────────────────────────────────────────────────
+-- Ceilings cached by compute_cavern_ceilings() in dwarfipelago.lua. Higher z =
+-- closer to the surface.
+local CAVERN_CEIL_KEYS = { [1] = "cavern1", [2] = "cavern2", [3] = "cavern3" }
+
+local function ceiling_z(key)
+    return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/mining/ceiling/" .. key))
+end
+
+local function surface_z()
+    return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/mining/surface_z"))
+end
+
+-- Segment start for cavern n: the surface for cavern 1, else the previous
+-- cavern's ceiling (falling back toward the surface if one is absent).
+local function segment_start_z(n)
+    if n <= 1 then return surface_z() end
+    for k = n - 1, 1, -1 do
+        local z = ceiling_z(CAVERN_CEIL_KEYS[k])
+        if z then return z end
+    end
+    return surface_z()
+end
+
+-- Percent (0-100) from the segment start down to cavern n's ceiling, by the
+-- deepest mining job reached. 0 if data is missing or this segment isn't started.
+function M.cavern_progress(n)
+    local target = ceiling_z(CAVERN_CEIL_KEYS[n])
+    local start  = segment_start_z(n)
+    local deepest = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/mining/deepest_z"))
+    if not target or not start or not deepest then return 0 end
+    local span = start - target
+    if span <= 0 then return 0 end
+    local pct = (start - deepest) / span * 100
+    if pct < 0 then return 0 end
+    if pct > 100 then return 100 end
+    return pct
+end
+
+-- Panel helper: the shallowest un-breached cavern with its % progress, z-levels
+-- to its ceiling, and next progress check (25/50, nil when the breach is next).
+-- Returns nil when caverns are unknown or all three are breached.
+function M.cavern_approach()
+    local deepest = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/mining/deepest_z"))
+    for n = 1, 3 do
+        if not M.mining_flag("cavern" .. n) then
+            local target = ceiling_z(CAVERN_CEIL_KEYS[n])
+            if not target then return nil end
+            local pct = M.cavern_progress(n)
+            local thresholds = (n == 3) and { 50 } or { 25, 50 }
+            local next_pct
+            for _, t in ipairs(thresholds) do
+                if pct < t then next_pct = t; break end
+            end
+            return {
+                cavern = n,
+                pct = pct,
+                levels_remaining = deepest and math.max(0, deepest - target) or nil,
+                next_pct = next_pct,  -- nil => next milestone is the breach itself
+            }
+        end
+    end
+    return nil  -- all three caverns breached
+end
+
+-- ── Progressive mining-depth lock (read-only view for the panel) ──────────────
+-- Enforced in dwarfipelago.lua; this mirrors its tier mapping for display.
+local MINING_FLOOR_KEYS = { [0] = "cavern1", [1] = "cavern2", [2] = "cavern3", [3] = "magma" }
+local MINING_TIER_NAMES = {
+    [0] = "Cavern 1", [1] = "Cavern 2", [2] = "Cavern 3", [3] = "Magma Sea",
+}
+
+-- True when the Progressive Mining Depth feature is enabled for this slot.
+function M.mining_depth_enabled()
+    return dfhack.persistent.getWorldDataString("dwarfipelago/mining_depth") == "1"
+end
+
+-- Count of Progressive Mining Depth items received (unlock/mining_depth).
+function M.mining_depth_unlocks()
+    return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/unlock/mining_depth")) or 0
+end
+
+-- Deepest minable z and limiting layer name, or nil, nil for no limit (feature
+-- off, final tier, or ceilings unknown). Falls through to the next deeper layer.
+function M.mining_depth_limit()
+    if not M.mining_depth_enabled() then return nil, nil end
+    local unlocks = M.mining_depth_unlocks()
+    if not MINING_FLOOR_KEYS[unlocks] then return nil, nil end  -- final tier
+    for tier = unlocks, 0, -1 do
+        local ceil = tonumber(
+            dfhack.persistent.getWorldDataString("dwarfipelago/mining/ceiling/" .. MINING_FLOOR_KEYS[tier]))
+        if ceil then return ceil + 1, MINING_TIER_NAMES[tier] end
+    end
+    return nil, nil
 end
 
 -- Cumulative harvested crops (PLANT items), incremented by the onItemCreated hook.
