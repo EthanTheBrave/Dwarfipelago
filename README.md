@@ -142,6 +142,7 @@ Killing some other megabeast before you summon the goal target won't count - onl
 - Stand up a **metal industry early** - you need it for the barracks furniture and for replacing battle losses.
 - Don't sit on Military Training items - **build the barracks and train soldiers** so your readiness keeps climbing.
 - Watch the **War** tab in the `[AP]` panel: it tracks your training count, readiness, barracks/soldier status, and tells you when the beast can be summoned.
+- Keep a **water source or moat** near your defenses - not every threat fights with steel, and some arrive wreathed in **fire**. Water both douses blazes and makes a deadly obstacle.
 
 </details>
 
