@@ -5,7 +5,8 @@
 
 local M = {}
 
-local log = reqscript("internal/dwarfipelago/log")
+local log      = reqscript("internal/dwarfipelago/log")
+local bestiary = reqscript("internal/dwarfipelago/bestiary")
 
 -- ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -530,6 +531,7 @@ local function spawn_livestock(race_token, name)
     else
         announce_at_depot(("Received: %s! (spawn failed - check DFHack console)"):format(name))
     end
+    return spawned
 end
 
 local function recv_breeding_pigs()     spawn_livestock("PIG",                  "Breeding Pigs")     end
@@ -1057,30 +1059,6 @@ local function find_underground_spawn()
     return nil
 end
 
--- Carve a 5×5 area of floor tiles around the spawn point and reveal hidden tiles
--- so the breach looks like the beast smashed its way through.
-local function carve_breach(cx, cy, cz)
-    for dx = -2, 2 do
-        for dy = -2, 2 do
-            local nx, ny = cx + dx, cy + dy
-            local block = dfhack.maps.getTileBlock(nx, ny, cz)
-            if block then
-                local lx, ly = nx % 16, ny % 16
-                local tt    = block.tiletype[lx][ly]
-                local shape = df.tiletype.attrs[tt].shape
-                if shape ~= df.tiletype_shape.FLOOR and shape ~= df.tiletype_shape.OPEN then
-                    local floor_tt = dfhack.maps.findSimilarTileType(tt, df.tiletype_shape.FLOOR)
-                    if floor_tt and floor_tt ~= 0 then
-                        block.tiletype[lx][ly] = floor_tt
-                    end
-                end
-                block.designation[lx][ly].hidden = false
-            end
-        end
-    end
-    local b = dfhack.maps.getTileBlock(cx, cy, cz)
-    if b then dfhack.maps.enableBlockUpdates(b, true) end
-end
 
 -- Map a spawn tile position to a compass direction relative to the embark centre.
 -- Returns one of 8 directional strings, or "depths" if very close to centre.
@@ -1089,7 +1067,8 @@ local function get_spawn_direction(sx, sy)
     local dx  = sx - (map.x_count / 2)
     local dy  = sy - (map.y_count / 2)  -- positive y = south in DF
     if math.abs(dx) < 4 and math.abs(dy) < 4 then return "depths" end
-    local angle = (math.deg(math.atan2(dy, dx)) + 360) % 360
+    -- math.atan2 was removed in Lua 5.3+ (DFHack's Lua); math.atan takes (y, x).
+    local angle = (math.deg(math.atan(dy, dx)) + 360) % 360
     -- 0=E 45=SE 90=S 135=SW 180=W 225=NW 270=N 315=NE
     local dirs = { "eastern", "southeastern", "southern", "southwestern",
                    "western", "northwestern", "northern", "northeastern" }
@@ -1130,38 +1109,559 @@ local function spawn_precursor_threat()
     end
 end
 
--- Summon the AP megabeast target via DFHack's 'force' command, which routes
--- through the game's own event system. This is version-safe, unlike
--- modtools/create-unit (broken on some DF builds: "world.arena_spawn not found").
---
--- We intentionally do NOT pin a target_id here: the goal hook in dwarfipelago.lua
--- counts any megabeast kill when no target_id is stored, and natural megabeasts
--- are cleared at world load, so the forced beast is the only one in play.
+-- A readable name for the beast: its proper/historical name if it has one, else
+-- the creature's singular raw name ("dragon"), else the raw token.
+local function beast_label(unit, species)
+    local label
+    pcall(function() label = dfhack.units.getReadableName(unit) end)
+    if label and label ~= "" then return label end
+    pcall(function()
+        for _, cr in ipairs(df.global.world.raws.creatures.all) do
+            if cr.creature_id == species then label = cr.name[0]; break end
+        end
+    end)
+    return (label and label ~= "") and label or species
+end
+
+-- ── Curated impact crater for the climax ──────────────────────────────────────
+local CRATER_RIM_R = 6   -- radius at the surface rim
+local CRATER_DEPTH = 5   -- z-levels carved (stepped bowl with ramped walls)
+
+-- Walkable tile shapes - used to confirm carving produced ground to stand on.
+local function tile_walkable(x, y, z)
+    local blk = dfhack.maps.getTileBlock(x, y, z)
+    if not blk then return false end
+    local ok, walk = pcall(function()
+        local shape = df.tiletype.attrs[blk.tiletype[x % 16][y % 16]].shape
+        return shape == df.tiletype_shape.FLOOR or shape == df.tiletype_shape.RAMP
+            or shape == df.tiletype_shape.STAIR_UP or shape == df.tiletype_shape.STAIR_UPDOWN
+    end)
+    return ok and walk == true
+end
+
+local function set_dig(x, y, z, kind)
+    local blk = dfhack.maps.getTileBlock(x, y, z)
+    if blk then pcall(function() blk.designation[x % 16][y % 16].dig = kind end) end
+end
+
+-- True if the crater footprint (a touch wider than the rim, through the whole
+-- dig column) has no standing liquid - so it won't flood from a river/pond. We do
+-- NOT reject aquifers here (they cover large parts of many maps); the carve
+-- strips the aquifer instead.
+local function footprint_is_dry(cx, cy, sz, rim, depth)
+    local cr = rim + 2
+    for z = sz, sz - depth, -1 do
+        for dx = -cr, cr do
+            for dy = -cr, cr do
+                if dx * dx + dy * dy <= cr * cr then
+                    local blk = dfhack.maps.getTileBlock(cx + dx, cy + dy, z)
+                    if blk then
+                        local wet = false
+                        pcall(function()
+                            if blk.designation[(cx + dx) % 16][(cy + dy) % 16].flow_size > 0 then wet = true end
+                        end)
+                        if wet then return false end
+                    end
+                end
+            end
+        end
+    end
+    return true
+end
+
+-- A surface impact site set back from every edge (so the full bowl fits), biased
+-- toward an edge (away from a central fort), and DRY (no nearby water/aquifer, so
+-- the crater won't flood). Returns x,y,z or nil. An outside floor tile.
+local function find_crater_center(rim)
+    if not dfhack.isMapLoaded() then return nil end
+    local map = df.global.world.map
+    local inset = rim + 3
+    if map.x_count <= inset * 2 or map.y_count <= inset * 2 then return nil end
+
+    local surface_z = math.floor(map.z_count * 0.7)
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then surface_z = u.pos.z; break end
+    end
+
+    for _ = 1, 150 do
+        local x, y
+        local edge = math.random(4)
+        if edge == 1 then x = math.random(inset, map.x_count-1-inset); y = inset + math.random(0, 8)
+        elseif edge == 2 then x = math.random(inset, map.x_count-1-inset); y = map.y_count-1-inset - math.random(0, 8)
+        elseif edge == 3 then x = inset + math.random(0, 8); y = math.random(inset, map.y_count-1-inset)
+        else x = map.x_count-1-inset - math.random(0, 8); y = math.random(inset, map.y_count-1-inset) end
+        for z = math.min(map.z_count-1, surface_z+4), math.max(1, surface_z-4), -1 do
+            local blk = dfhack.maps.getTileBlock(x, y, z)
+            if blk then
+                local lx, ly = x % 16, y % 16
+                local ok = false
+                pcall(function()
+                    local des   = blk.designation[lx][ly]
+                    local shape = df.tiletype.attrs[blk.tiletype[lx][ly]].shape
+                    ok = des.outside and des.flow_size == 0 and shape == df.tiletype_shape.FLOOR
+                end)
+                if ok and footprint_is_dry(x, y, z, rim, CRATER_DEPTH) then return x, y, z end
+            end
+        end
+    end
+    return nil
+end
+
+-- Gouge a circular impact crater: channel a disc at each layer, narrowing with
+-- depth, so dig-now builds a stepped bowl with ramped walls the beast climbs out
+-- of. The very bottom is dug to a solid floor for footing. dig-now sets correct
+-- tiletypes + ramps + reveals. Returns the crater-floor tile, or nil if carving
+-- produced no walkable ground.
+-- Keyed by shape NAME (not enum value) so a name absent from this build's
+-- df.tiletype_shape doesn't create a nil table key. Matched via reverse lookup.
+local CRATER_TREE_SHAPE_NAMES = {
+    TREE = true, TRUNK_BRANCH = true, BRANCH = true,
+    TWIG = true, SAPLING = true, SHRUB = true,
+}
+local function carve_crater(cx, cy, sz)
+    -- dig-now skips trees, so first clear any tree/shrub tiles in the bowl
+    -- footprint (canopy above down to just below the floor) to open space - the
+    -- "impact" obliterates them. Then dig-now can carve the ground cleanly.
+    for z = sz + 6, sz - CRATER_DEPTH - 1, -1 do
+        for dx = -CRATER_RIM_R, CRATER_RIM_R do
+            for dy = -CRATER_RIM_R, CRATER_RIM_R do
+                if dx * dx + dy * dy <= CRATER_RIM_R * CRATER_RIM_R then
+                    local x, y = cx + dx, cy + dy
+                    local blk = dfhack.maps.getTileBlock(x, y, z)
+                    if blk then
+                        local lx, ly = x % 16, y % 16
+                        pcall(function()
+                            local shapename = df.tiletype_shape[df.tiletype.attrs[blk.tiletype[lx][ly]].shape]
+                            local is_tree = (shapename and CRATER_TREE_SHAPE_NAMES[shapename])
+                                or (dfhack.maps.getPlantAtTile(x, y, z) ~= nil)
+                            if is_tree then
+                                blk.tiletype[lx][ly] = df.tiletype.OpenSpace
+                                blk.designation[lx][ly].hidden = false
+                            end
+                        end)
+                    end
+                end
+            end
+        end
+    end
+
+    for d = 0, CRATER_DEPTH - 1 do
+        local z, r = sz - d, CRATER_RIM_R - d
+        for dx = -r, r do
+            for dy = -r, r do
+                if dx * dx + dy * dy <= r * r then
+                    set_dig(cx + dx, cy + dy, z, df.tile_dig_designation.Channel)
+                end
+            end
+        end
+    end
+    local zbot = sz - CRATER_DEPTH
+    for dx = -2, 2 do
+        for dy = -2, 2 do
+            if dx * dx + dy * dy <= 4 then
+                set_dig(cx + dx, cy + dy, zbot, df.tile_dig_designation.Default)
+            end
+        end
+    end
+    pcall(function()
+        dfhack.run_command("dig-now",
+            ("%d,%d,%d"):format(cx - CRATER_RIM_R, cy - CRATER_RIM_R, zbot),
+            ("%d,%d,%d"):format(cx + CRATER_RIM_R, cy + CRATER_RIM_R, sz), "--clean")
+    end)
+    -- Strip the aquifer over a margin wider than the bowl (so it can't seep in
+    -- from the sides) and clear any standing water. This is what lets the crater
+    -- form on the common aquifer maps without flooding.
+    local arim = CRATER_RIM_R + 3
+    for z = sz, zbot - 1, -1 do
+        for dx = -arim, arim do
+            for dy = -arim, arim do
+                if dx * dx + dy * dy <= arim * arim then
+                    local x, y = cx + dx, cy + dy
+                    pcall(function() dfhack.maps.removeTileAquifer(x, y, z) end)
+                    local blk = dfhack.maps.getTileBlock(x, y, z)
+                    if blk then pcall(function() blk.designation[x % 16][y % 16].flow_size = 0 end) end
+                end
+            end
+        end
+    end
+    for _, t in ipairs({ { cx, cy }, { cx+1, cy }, { cx-1, cy }, { cx, cy+1 }, { cx, cy-1 } }) do
+        if tile_walkable(t[1], t[2], zbot) then return t[1], t[2], zbot end
+    end
+    return nil
+end
+
+-- A living citizen's position (target for the pathability guarantee).
+local function any_citizen_pos()
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then
+            return { x = u.pos.x, y = u.pos.y, z = u.pos.z }
+        end
+    end
+end
+
+-- Does this creature token have fire immunity (so it can stand in its own flaming
+-- impact)? Scans caste flags.
+local function creature_fire_immune(token)
+    for _, cr in ipairs(df.global.world.raws.creatures.all) do
+        if cr.creature_id == token then
+            for _, caste in ipairs(cr.caste) do
+                local ok, v = pcall(function()
+                    return caste.flags.FIREIMMUNE or caste.flags.FIREIMMUNE_SUPER
+                end)
+                if ok and v == true then return true end
+            end
+            return false
+        end
+    end
+    return false
+end
+
+-- A random fire-immune megabeast present in this world (DRAGON / BRONZE COLOSSUS),
+-- or nil if none - used for the flaming-impact landing.
+local function pick_fire_immune_megabeast()
+    local immune = {}
+    for _, id in ipairs(bestiary.census().megabeast) do
+        if creature_fire_immune(id) then immune[#immune + 1] = id end
+    end
+    if #immune > 0 then return immune[math.random(#immune)] end
+end
+
+-- Wreathe a tile in dragonfire (flow type 6) over a disc - a fiery impact.
+local function spawn_fire_disc(x, y, z, r)
+    for dx = -r, r do
+        for dy = -r, r do
+            if dx * dx + dy * dy <= r * r then
+                pcall(function() dfhack.maps.spawnFlow({ x = x + dx, y = y + dy, z = z }, 6, 0, 0, 50000) end)
+            end
+        end
+    end
+end
+
+-- The climax: the megabeast falls from the sky, gouging a crater near the map
+-- edge, and rises to march on the fort. If a clean crater floor can't be made, it
+-- lands in the open instead - and if a fire-immune beast is available, wreathed in
+-- a flaming impact. The spawn tile is always verified walkable + reachable so the
+-- goal can never soft-lock. Uses create_unit; the beast id is pinned so the goal
+-- hook counts THIS kill. Fires once per world.
 local function spawn_target_megabeast()
     if dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/spawned") == "1" then
         return  -- already summoned this world (e.g. reloaded mid-session)
     end
 
-    local ok, err = pcall(function()
-        dfhack.run_command("force", "Megabeast")
-    end)
-    if not ok then
+    -- Impact site: a set-back surface tile, else a near-edge tile, else the fort.
+    local cx, cy, sz = find_crater_center(CRATER_RIM_R)
+    if not cx then cx, cy, sz = find_surface_spawn_pos() end
+    if not cx then
+        local fx, fy, fz = get_fort_spawn_pos()
+        cx, cy, sz = tonumber(fx), tonumber(fy), tonumber(fz)
+    end
+    if not cx then
         dfhack.gui.showAnnouncement(
-            "[AP] CRITICAL: Could not force a megabeast - the Slay Megabeast goal cannot be completed.",
-            COLOR_RED, true)
-        dfhack.gui.showAnnouncement(
-            "[AP] This is likely a DFHack compatibility issue. Check the DFHack console / dwarfipelago.log.",
-            COLOR_RED, true)
-        log.error("force Megabeast failed: " .. tostring(err))
+            "[AP] CRITICAL: no spawn tile for the megabeast - the goal cannot be completed.", COLOR_RED, true)
+        log.error("spawn_target_megabeast: no spawn position")
         return
     end
 
+    -- Gouge the crater (best-effort flavor). cbx/cby/cbz = its floor, or nil.
+    local cbx, cby, cbz = carve_crater(cx, cy, sz)
+
+    -- Choose a spawn tile that is GUARANTEED walkable AND able to path to the
+    -- fort, so the beast can never get stuck (in a tree, root, wall, or the
+    -- crater). Preference: the crater floor (if reachable) -> a reachable surface
+    -- tile -> a citizen's own tile (trivially walkable + reachable) last.
+    local citizen = any_citizen_pos()
+    local function reachable(x, y, z)
+        if not (x and tile_walkable(x, y, z)) then return false end
+        if not citizen then return true end
+        local ok, r = pcall(dfhack.maps.canWalkBetween, { x = x, y = y, z = z }, citizen)
+        return ok and r == true
+    end
+
+    local bx, by, bz, in_crater
+    if reachable(cbx, cby, cbz) then
+        bx, by, bz, in_crater = cbx, cby, cbz, true
+    else
+        for _ = 1, 40 do
+            local fx, fy, fz = find_surface_spawn_pos()
+            if reachable(fx, fy, fz) then bx, by, bz = fx, fy, fz; break end
+        end
+    end
+    if not bx and citizen then bx, by, bz = citizen.x, citizen.y, citizen.z end
+    if not bx then
+        dfhack.gui.showAnnouncement(
+            "[AP] CRITICAL: no reachable spawn tile for the megabeast - the goal cannot be completed.", COLOR_RED, true)
+        log.error("spawn_target_megabeast: no reachable spawn position")
+        return
+    end
+
+    -- Species: in the open (no crater), prefer a fire-immune beast so we can wreathe
+    -- the impact in flame; otherwise any world megabeast.
+    local species = in_crater and (bestiary.random_megabeast() or pick_megabeast_type())
+        or (pick_fire_immune_megabeast() or bestiary.random_megabeast() or pick_megabeast_type())
+    local fiery = (not in_crater) and creature_fire_immune(species)
+
+    local beast = create_unit(species, { x = bx, y = by, z = bz }, { civ_id = -1, hostile = true })
+    if not beast then
+        dfhack.gui.showAnnouncement(
+            ("[AP] CRITICAL: could not spawn the megabeast (%s) - the goal cannot be completed."):format(tostring(species)),
+            COLOR_RED, true)
+        log.error("spawn_target_megabeast: create_unit failed for " .. tostring(species))
+        return
+    end
+    dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/target_id", tostring(beast.id))
     dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/spawned", "1")
-    dfhack.gui.showAnnouncement(
-        "[AP] A great beast has been roused and now marches on your fortress. Slay it!",
-        COLOR_RED, true)
-    print("[Dwarfipelago] Megabeast summoned via DFHack 'force Megabeast'")
+
+    -- Escort: wild brutes - but NOT in the fiery case (the fire would burn them).
+    if not fiery then
+        local escorts = bestiary.filter_present({ "TROLL", "OGRE" })
+        if #escorts > 0 then
+            for _ = 1, 2 do
+                create_unit(escorts[math.random(#escorts)], { x = bx, y = by, z = bz }, { civ_id = -1, hostile = true })
+            end
+        end
+    end
+
+    -- Fiery impact: a fire-immune beast crashes down wreathed in dragonfire.
+    if fiery then spawn_fire_disc(bx, by, bz, 3) end
+
+    local dir = get_spawn_direction(bx, by)
+    local where = (dir == "depths") and "the heart of your lands" or ("the " .. dir .. " reaches")
+    local msg
+    if in_crater then
+        msg = "[AP] A STAR FALLS! %s crashes from the sky into %s, gouging a smoking crater, and rises to march on your fortress. Slay it for victory!"
+    elseif fiery then
+        msg = "[AP] A BURNING STAR FALLS! %s crashes to earth in %s, wreathed in flame, and strides from the inferno toward your fortress. Slay it for victory!"
+    else
+        msg = "[AP] %s descends upon your fortress from %s. Slay it for victory!"
+    end
+    dfhack.gui.showAnnouncement(msg:format(beast_label(beast, species), where), COLOR_RED, true)
+    log.info(("Megabeast climax: %s (id %d) at (%d,%d,%d) in_crater=%s fiery=%s"):format(
+        tostring(species), beast.id, bx, by, bz, tostring(in_crater), tostring(fiery)))
+    print("[Dwarfipelago] Megabeast climax: " .. tostring(species))
 end
+M.spawn_target_megabeast = spawn_target_megabeast
+
+-- ── Megabeast siege: roaming warbands ─────────────────────────────────────────
+-- Time-paced enemy waves for the Slay Megabeast goal. Difficulty scales with the
+-- player's War Readiness level (1-9); readiness 10 is the curated breach. Units
+-- spawn at the embark perimeter and are armed via the verified createItem +
+-- moveToInventory recipe (no_floor=false, explicit body part), so a naked goblin
+-- becomes a real threat. Skill buff is best-effort (pcall-guarded). The wave
+-- scheduler that calls spawn_warband lives in dwarfipelago.lua.
+
+-- Subtype index for an itemdef id (e.g. "ITEM_WEAPON_SWORD_SHORT"), or nil.
+local function itemdef_subtype(defs, id)
+    for _, d in ipairs(defs) do
+        if d.id == id then return d.subtype end
+    end
+end
+
+-- First body part whose flags include flagname (UPPERBODY, HEAD, ...), or nil.
+local function find_body_part(unit, flagname)
+    local caste = df.global.world.raws.creatures.all[unit.race].caste[unit.caste]
+    local parts = caste.body_info.body_parts
+    for i = 0, #parts - 1 do
+        local ok, v = pcall(function() return parts[i].flags[flagname] end)
+        if ok and v == true then return i end
+    end
+end
+
+-- All body part ids with flagname (e.g. both hands for GRASP -> weapon + shield).
+local function find_body_parts(unit, flagname)
+    local caste = df.global.world.raws.creatures.all[unit.race].caste[unit.caste]
+    local parts = caste.body_info.body_parts
+    local ids = {}
+    for i = 0, #parts - 1 do
+        local ok, v = pcall(function() return parts[i].flags[flagname] end)
+        if ok and v == true then ids[#ids + 1] = i end
+    end
+    return ids
+end
+
+-- Create one item and force it into the unit's inventory on a specific body part.
+-- The two non-obvious requirements (verified via the bestiary probe): no_floor
+-- MUST be false (item needs a map position) and body_part MUST be explicit (-1
+-- fails). Returns true on success.
+local function equip_item(unit, item_type, subtype, mat, role, body_id)
+    if not (subtype and body_id) then return false end
+    local ok = pcall(function()
+        local made = dfhack.items.createItem(unit, item_type, subtype, mat.type, mat.index, false)
+        local item = made and made[1]
+        if item then
+            -- createItem flags new items forbidden; clear it so the loot the
+            -- enemy drops on death is grabbable (a reward, not busywork).
+            item.flags.forbid = false
+            dfhack.items.moveToInventory(item, unit, role, body_id)
+        end
+    end)
+    return ok
+end
+
+-- Raise a unit's trained level in a skill (adds the skill if absent). For making
+-- spawned warriors veterans rather than green recruits.
+local function set_skill(unit, skill_id, level)
+    local soul = unit.status and unit.status.current_soul
+    if not soul then return end
+    for _, sk in ipairs(soul.skills) do
+        if sk.id == skill_id then
+            if sk.rating < level then sk.rating = level end
+            return
+        end
+    end
+    soul.skills:insert("#", { new = true, id = skill_id, rating = level })
+end
+
+-- Per-readiness wave config (tunable). Difficulty curve: 1-3 very easy, 4 easy-
+-- to-medium, 5-6 medium, 7-9 hard. armor: none|shield|light(breast+helm)|full.
+local WARBAND_TIERS = {
+    [1] = { size = {2, 2},  mat = "COPPER", armor = "none",   skill = {0, 0}, pool = "easy", escort = 0 },
+    [2] = { size = {2, 3},  mat = "COPPER", armor = "none",   skill = {0, 1}, pool = "easy", escort = 0 },
+    [3] = { size = {3, 3},  mat = "COPPER", armor = "shield", skill = {0, 1}, pool = "easy", escort = 0 },
+    [4] = { size = {3, 4},  mat = "IRON",   armor = "shield", skill = {2, 3}, pool = "mid",  escort = 0 },
+    [5] = { size = {4, 5},  mat = "IRON",   armor = "light",  skill = {3, 4}, pool = "mid",  escort = 0 },
+    [6] = { size = {5, 6},  mat = "IRON",   armor = "light",  skill = {4, 5}, pool = "mid",  escort = 0 },
+    [7] = { size = {6, 7},  mat = "IRON",   armor = "full",   skill = {6, 7}, pool = "hard", escort = 25 },
+    [8] = { size = {7, 8},  mat = "IRON",   armor = "full",   skill = {7, 8}, pool = "hard", escort = 50 },
+    [9] = { size = {8, 10}, mat = "STEEL",  armor = "full",   skill = {8, 9}, pool = "hard", escort = 75 },
+}
+
+-- Race pools by tier keyword (filtered to what the world actually has at spawn).
+local WARBAND_POOLS = {
+    easy = { "KOBOLD", "GOBLIN" },
+    mid  = { "GOBLIN", "ELF", "HUMAN", "REPTILE_MAN", "SERPENT_MAN", "BAT_MAN" },
+    hard = { "GOBLIN", "HUMAN", "ANT_MAN", "REPTILE_MAN", "SERPENT_MAN" },
+}
+local WARBAND_ESCORTS = { "TROLL", "OGRE" }
+
+-- Weapon options: {itemdef id, matching job_skill name}. Picked per unit.
+local WARBAND_WEAPONS = {
+    { "ITEM_WEAPON_SWORD_SHORT", "SWORD" },
+    { "ITEM_WEAPON_AXE_BATTLE",  "AXE" },
+    { "ITEM_WEAPON_SPEAR",       "SPEAR" },
+    { "ITEM_WEAPON_MACE",        "MACE" },
+}
+
+-- Worn-armor pieces for a tier keyword: {item_type, itemdef vector, id, part flag}.
+local function armor_pieces(kind)
+    local W = df.global.world.raws.itemdefs
+    local p = {}
+    if kind == "light" or kind == "full" then
+        p[#p + 1] = { df.item_type.ARMOR, W.armor, "ITEM_ARMOR_BREASTPLATE", "UPPERBODY" }
+        p[#p + 1] = { df.item_type.HELM,  W.helms, "ITEM_HELM_HELM",         "HEAD" }
+    end
+    if kind == "full" then
+        p[#p + 1] = { df.item_type.PANTS, W.pants, "ITEM_PANTS_GREAVES", "LOWERBODY" }
+        p[#p + 1] = { df.item_type.SHOES, W.shoes, "ITEM_SHOES_BOOTS",   "STANCE" }
+    end
+    return p
+end
+
+-- Arm a humanoid: weapon (+off-hand shield) + armor set. Returns the weapon's
+-- job_skill name so the caller can buff the matching skill.
+local function equip_warrior(unit, mat, give_shield, armor_kind)
+    local W = df.global.world.raws.itemdefs
+    local grasps = find_body_parts(unit, "GRASP")
+
+    local wpn = WARBAND_WEAPONS[math.random(#WARBAND_WEAPONS)]
+    local wpn_sub = itemdef_subtype(W.weapons, wpn[1])
+    if not wpn_sub then  -- fall back to the short sword if this world lacks it
+        wpn = WARBAND_WEAPONS[1]; wpn_sub = itemdef_subtype(W.weapons, wpn[1])
+    end
+    equip_item(unit, df.item_type.WEAPON, wpn_sub, mat, df.inv_item_role_type.Weapon, grasps[1])
+
+    if give_shield and grasps[2] then
+        equip_item(unit, df.item_type.SHIELD, itemdef_subtype(W.shields, "ITEM_SHIELD_SHIELD"),
+                   mat, df.inv_item_role_type.Weapon, grasps[2])
+    end
+    for _, pc in ipairs(armor_pieces(armor_kind)) do
+        equip_item(unit, pc[1], itemdef_subtype(pc[2], pc[3]), mat,
+                   df.inv_item_role_type.Worn, find_body_part(unit, pc[4]))
+    end
+    return wpn[2]
+end
+
+-- Buff combat skills (weapon + fighter/dodge, plus shield/armor when worn).
+local function buff_warrior(unit, weapon_skill, level, has_shield, has_armor)
+    if not level or level <= 0 then return end
+    pcall(function()
+        local js = df.job_skill
+        local function s(name) local id = js[name]; if id then set_skill(unit, id, level) end end
+        s(weapon_skill); s("MELEE_COMBAT"); s("DODGING")  -- MELEE_COMBAT = the "Fighter" skill
+        if has_shield then s("SHIELD") end
+        if has_armor  then s("ARMOR")  end
+    end)
+end
+
+-- Spawn a roaming warband for the given readiness level (1-9). Returns the count
+-- spawned. Picks a surface-edge tile so the enemies march in.
+local function spawn_warband(readiness)
+    local tier = WARBAND_TIERS[readiness]
+    if not tier then log.warn("spawn_warband: no tier for readiness " .. tostring(readiness)); return 0 end
+
+    local x, y, z = find_surface_spawn_pos()
+    if not x then
+        local sx, sy, sz = get_fort_spawn_pos()
+        x, y, z = tonumber(sx), tonumber(sy), tonumber(sz)
+    end
+    if not x then log.error("spawn_warband: no spawn position found"); return 0 end
+
+    -- Requested material with fallbacks (steel may be absent from a world).
+    local mat = dfhack.matinfo.find("INORGANIC:" .. tier.mat)
+        or dfhack.matinfo.find("INORGANIC:IRON")
+        or dfhack.matinfo.find("INORGANIC:COPPER")
+
+    local pool = bestiary.filter_present(WARBAND_POOLS[tier.pool] or {})
+    if #pool == 0 then pool = bestiary.filter_present({ "GOBLIN" }) end
+    if #pool == 0 then log.error("spawn_warband: no usable race present in world"); return 0 end
+
+    local goblin_civ = find_goblin_civ_id()
+    local give_shield = (tier.armor == "shield" or tier.armor == "full")
+    local has_armor   = (tier.armor == "light" or tier.armor == "full")
+    local n = math.random(tier.size[1], tier.size[2])
+
+    local spawned = 0
+    for _ = 1, n do
+        local race = pool[math.random(#pool)]
+        local civ  = (race == "GOBLIN") and goblin_civ or -1
+        local unit = create_unit(race, { x = x, y = y, z = z }, { civ_id = civ, hostile = true })
+        if unit then
+            if mat then
+                pcall(function()
+                    local wskill = equip_warrior(unit, mat, give_shield, tier.armor)
+                    buff_warrior(unit, wskill, math.random(tier.skill[1], tier.skill[2]), give_shield, has_armor)
+                end)
+            end
+            spawned = spawned + 1
+        end
+    end
+
+    -- Higher tiers: a chance of one armed beast brute (weapon only - armor fit on
+    -- a troll/ogre-sized body is unreliable).
+    if tier.escort and tier.escort > 0 and math.random(100) <= tier.escort then
+        local beasts = bestiary.filter_present(WARBAND_ESCORTS)
+        if #beasts > 0 then
+            local brute = create_unit(beasts[math.random(#beasts)], { x = x, y = y, z = z },
+                                      { civ_id = -1, hostile = true })
+            if brute and mat then
+                local grasps = find_body_parts(brute, "GRASP")
+                equip_item(brute, df.item_type.WEAPON,
+                           itemdef_subtype(df.global.world.raws.itemdefs.weapons, "ITEM_WEAPON_AXE_BATTLE"),
+                           mat, df.inv_item_role_type.Weapon, grasps[1])
+                buff_warrior(brute, "AXE", math.floor((tier.skill[1] + tier.skill[2]) / 2), false, false)
+            end
+            if brute then spawned = spawned + 1 end
+        end
+    end
+
+    if spawned > 0 then
+        dfhack.gui.showAnnouncement(
+            ("[AP] A roaming warband attacks! %d enemies close on the fortress."):format(spawned),
+            COLOR_RED, true)
+        log.info(("Warband spawned: readiness %d, %d enemies at (%d,%d,%d)"):format(readiness, spawned, x, y, z))
+    end
+    return spawned
+end
+M.spawn_warband = spawn_warband
 
 -- ── Item handlers: progression locks ─────────────────────────────────────────
 
@@ -1312,51 +1812,172 @@ local function recv_monarchs_invitation()
     announce("Monarch's Invitation received! The Monarch may now take residence.")
 end
 
--- Escalating combat gear granted by Military Training tiers 1-3. These are
--- rewards that help the player prepare for the megabeast - not punishments.
--- All spawns go through spawn_item, which is pcall-guarded and logs failures;
--- each tier also includes steel bars so the player always gets usable material
--- even if a particular weapon/armor token isn't accepted by this DF version.
+-- Escalating combat gear granted by Military Training tiers 1-10. Steel
+-- throughout; later tiers grant fuller loadouts and bigger bar shipments so each
+-- copy ramps up (arming a growing army for war). All spawns go through
+-- spawn_item (pcall-guarded; logs failures), so a token absent from this DF
+-- version is simply skipped rather than breaking the grant.
+local STEEL = "INORGANIC:STEEL"
+local WAR_GEAR_WEAPON = {
+    AXE_BATTLE  = "WEAPON:ITEM_WEAPON_AXE_BATTLE",
+    SWORD_SHORT = "WEAPON:ITEM_WEAPON_SWORD_SHORT",
+    SPEAR       = "WEAPON:ITEM_WEAPON_SPEAR",
+    MACE        = "WEAPON:ITEM_WEAPON_MACE",
+    HAMMER_WAR  = "WEAPON:ITEM_WEAPON_HAMMER_WAR",
+}
+local WAR_GEAR_ARMOR = {
+    breast    = "ARMOR:ITEM_ARMOR_BREASTPLATE",
+    helm      = "HELM:ITEM_HELM_HELM",
+    gauntlets = "GLOVES:ITEM_GLOVES_GAUNTLETS",
+    greaves   = "PANTS:ITEM_PANTS_GREAVES",
+    boots     = "SHOES:ITEM_SHOES_BOOTS",
+    shield    = "SHIELD:ITEM_SHIELD_SHIELD",
+}
+-- Per-tier package: weapons, armor pieces, and steel bars. Escalates 1 -> 10.
+local WAR_GEAR_TIERS = {
+    [1]  = { weapons = { "AXE_BATTLE", "SWORD_SHORT" } },
+    [2]  = { armor   = { "breast", "helm", "shield" } },
+    [3]  = { armor   = { "gauntlets", "greaves", "boots" }, weapons = { "SPEAR", "HAMMER_WAR" } },
+    [4]  = { weapons = { "SWORD_SHORT", "MACE" }, bars = 3 },
+    [5]  = { armor   = { "breast", "helm", "greaves", "boots", "shield" } },
+    [6]  = { weapons = { "AXE_BATTLE", "SPEAR", "MACE" }, bars = 4 },
+    [7]  = { armor   = { "breast", "helm", "gauntlets", "greaves", "boots", "shield" } },
+    [8]  = { weapons = { "SWORD_SHORT", "HAMMER_WAR", "AXE_BATTLE" }, bars = 6 },
+    [9]  = { armor   = { "breast", "helm", "greaves", "boots", "shield" }, weapons = { "SPEAR", "MACE" } },
+    [10] = { armor   = { "breast", "helm", "gauntlets", "greaves", "boots", "shield" },
+             weapons = { "AXE_BATTLE", "SWORD_SHORT", "SPEAR" }, bars = 10 },
+}
+-- Blunt weapons can't be adamantine (too light) - keep them steel even at the
+-- adamantine tiers so they still spawn.
+local WAR_GEAR_BLUNT = { MACE = true, HAMMER_WAR = true }
 local function grant_war_gear(tier)
-    if tier == 1 then
-        -- Arm the recruits: a pair of steel weapons + bars to spare.
-        spawn_item("WEAPON:ITEM_WEAPON_AXE_BATTLE",  "INORGANIC:STEEL")
-        spawn_item("WEAPON:ITEM_WEAPON_SWORD_SHORT", "INORGANIC:STEEL")
-    elseif tier == 2 then
-        -- Armor the soldiers: torso, head, and shield.
-        spawn_item("ARMOR:ITEM_ARMOR_BREASTPLATE", "INORGANIC:STEEL")
-        spawn_item("HELM:ITEM_HELM_HELM",          "INORGANIC:STEEL")
-        spawn_item("SHIELD:ITEM_SHIELD_SHIELD",    "INORGANIC:STEEL")
-    elseif tier == 3 then
-        -- Outfit the elite: full limb protection + heavier weapons.
-        spawn_item("GLOVES:ITEM_GLOVES_GAUNTLETS", "INORGANIC:STEEL")
-        spawn_item("PANTS:ITEM_PANTS_GREAVES",     "INORGANIC:STEEL")
-        spawn_item("SHOES:ITEM_SHOES_BOOTS",       "INORGANIC:STEEL")
-        spawn_item("WEAPON:ITEM_WEAPON_SPEAR",     "INORGANIC:STEEL")
-        spawn_item("WEAPON:ITEM_WEAPON_HAMMER_WAR","INORGANIC:STEEL")
-        spawn_item("BAR", "INORGANIC:STEEL", 5)
+    local pkg = WAR_GEAR_TIERS[math.min(tier, 10)] or {}
+    -- Tiers 7+ upgrade to adamantine (a deliberate late-game power spike).
+    local mat = (tier >= 7) and "INORGANIC:ADAMANTINE" or STEEL
+    for _, w in ipairs(pkg.weapons or {}) do
+        spawn_item(WAR_GEAR_WEAPON[w], WAR_GEAR_BLUNT[w] and STEEL or mat)
     end
+    for _, a in ipairs(pkg.armor or {}) do spawn_item(WAR_GEAR_ARMOR[a], mat) end
+    if pkg.bars then spawn_item("BAR", mat, pkg.bars) end
 end
+
+-- The champion: a veteran dwarf war-leader who joins the fortress as a citizen.
+-- Not fully geared (he uses fortress equipment) but legendary-ish in several
+-- combat skills, ideal as a squad commander. Spawns once per world.
+local function spawn_super_dwarf()
+    if dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/champion") == "1" then return false end
+    local race_idx
+    for i, cr in ipairs(df.global.world.raws.creatures.all) do
+        if cr.creature_id == "DWARF" then race_idx = i; break end
+    end
+    if not race_idx then return false end
+    local dx, dy, dz = find_trade_depot_center()
+    if not dx then
+        local sx, sy, sz = get_fort_spawn_pos()
+        dx, dy, dz = tonumber(sx), tonumber(sy), tonumber(sz)
+    end
+    if not dx then return false end
+
+    local unit
+    local ok = pcall(function()
+        unit = dfhack.units.create(race_idx, math.random(0, 1))
+        if not unit then error("create returned nil") end
+        unit.birth_year = df.global.cur_year - math.random(30, 60)
+        if not dfhack.units.teleport(unit, { x = dx, y = dy, z = dz }) then
+            unit.pos.x, unit.pos.y, unit.pos.z = dx, dy, dz
+        end
+        df.global.world.units.active:insert('#', unit)
+        dfhack.units.makeown(unit)
+        pcall(function() dfhack.units.setNickname(unit, dwarf_name()) end)
+        pcall(make_outfit)
+        local lvl = math.random(11, 13)
+        for _, sname in ipairs({ "AXE", "SWORD", "MELEE_COMBAT", "DODGING", "SHIELD", "ARMOR" }) do
+            local id = df.job_skill[sname]
+            if id then set_skill(unit, id, lvl) end
+        end
+    end)
+    if not ok or not unit then log.error("spawn_super_dwarf failed"); return false end
+
+    dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/champion", "1")
+    announce_at_depot("A grizzled war-veteran has joined your fortress - skilled with several weapons and born to lead. Make them your military commander!")
+    return true
+end
+
+-- A pool of bonus WAR materiel. Each Military Training receipt has a flat chance
+-- (EXTRA_CHANCE) to also drop ONE random pick from here, on top of the tier's
+-- normal gear. Combat-adjacent: weapons, ammo, traps, defense, war beasts, forge
+-- supplies, field medicine. Each entry RETURNS true only if it actually spawned
+-- something, so a pick that this world can't make is re-rolled (see below).
+local EXTRA_POOL = {
+    -- Weapons & ammunition
+    function()  -- a random steel weapon
+        local w = ({ "AXE_BATTLE", "SWORD_SHORT", "SPEAR", "MACE", "HAMMER_WAR" })[math.random(5)]
+        return spawn_item("WEAPON:ITEM_WEAPON_" .. w, STEEL) > 0
+    end,
+    function() return spawn_item("WEAPON:ITEM_WEAPON_CROSSBOW", STEEL) + spawn_item("AMMO:ITEM_AMMO_BOLTS", STEEL, 10) > 0 end,
+    function() return spawn_item("AMMO:ITEM_AMMO_BOLTS", STEEL, 25) > 0 end,        -- a quiver's worth
+    function() return spawn_item("WEAPON:ITEM_WEAPON_PIKE", STEEL) > 0 end,         -- reach weapon
+    function() return spawn_item("WEAPON:ITEM_WEAPON_AXE_GREAT", "INORGANIC:ADAMANTINE") > 0 end, -- rare adamantine
+    -- Armor & shields
+    function() return spawn_item("SHIELD:ITEM_SHIELD_SHIELD", STEEL) + spawn_item("HELM:ITEM_HELM_HELM", STEEL) > 0 end,
+    function() return spawn_item("ARMOR:ITEM_ARMOR_BREASTPLATE", STEEL) + spawn_item("PANTS:ITEM_PANTS_GREAVES", STEEL) > 0 end,
+    function() return spawn_item("ARMOR:ITEM_ARMOR_MAIL_SHIRT", STEEL) > 0 end,
+    -- Traps & fortification
+    function() return spawn_item("TRAPPARTS", "INORGANIC:STEEL", 4) > 0 end,        -- mechanisms
+    function() return spawn_item("TRAPCOMP:ITEM_TRAPCOMP_LARGESERRATEDDISC", STEEL) > 0 end, -- trap weapon
+    function() return spawn_item("TRAPCOMP:ITEM_TRAPCOMP_MENACINGSPIKE", STEEL, 3) > 0 end,   -- trap weapons
+    function() return spawn_item("CAGE", "INORGANIC:STEEL") > 0 end,                -- capture invaders
+    -- War beasts
+    function() return spawn_livestock("DOG", "a pack of war dogs") > 0 end,
+    -- Forge supplies (turn into more gear)
+    function() return spawn_item("BAR", STEEL, 6) > 0 end,                          -- steel bars
+    function() return spawn_item("BAR", "COAL:COKE", 6) > 0 end,                    -- fuel
+    function() return spawn_item("BOULDER", "INORGANIC:MAGNETITE", 4) > 0 end,      -- iron ore
+    function() return spawn_item("BAR", "INORGANIC:ADAMANTINE", 2) > 0 end,         -- rare: 2 wafers
+    function() return spawn_item("ANVIL", "INORGANIC:IRON") > 0 end,                -- an anvil
+    -- Field medicine & rations (keep soldiers fighting)
+    function() return spawn_item("CLOTH", "PLANT_MAT:GRASS_TAIL_PIG:THREAD", 5) > 0 end,       -- bandages
+    function() return spawn_item("DRINK", "PLANT_MAT:MUSHROOM_HELMET_PLUMP:DRINK", 5) > 0 end, -- rations
+}
+
+-- Roll one bonus gift, re-rolling DIFFERENT picks if a chosen one can't be made
+-- in this world (so the bonus isn't silently lost). Tries a shuffled order so it
+-- doesn't keep hitting the same dud. Returns true if something was granted.
+local function grant_extra_gift()
+    local order = {}
+    for i = 1, #EXTRA_POOL do order[i] = i end
+    for i = #order, 2, -1 do local j = math.random(i); order[i], order[j] = order[j], order[i] end
+    for _, idx in ipairs(order) do
+        if EXTRA_POOL[idx]() then return true end
+    end
+    return false
+end
+
+local SUPER_DWARF_CHANCE = 10   -- percent chance per receipt before the tier-8 guarantee
+local EXTRA_CHANCE       = 25   -- percent chance of a bonus extra-pool gift
 
 local function recv_military_training()
     local key = "dwarfipelago/unlock/military_training"
     local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
     dfhack.persistent.saveWorldDataString(key, tostring(n))
 
-    if n == 1 then
-        grant_war_gear(1)
-        announce("Military Training received! Your recruits are armed with steel weapons. (1/4)")
-    elseif n == 2 then
-        grant_war_gear(2)
-        announce("Military Training received! Your soldiers don steel armor. (2/4)")
-    elseif n == 3 then
-        grant_war_gear(3)
-        announce("Military Training received! Your elite are fully equipped - the beast nears. (3/4)")
-    else
-        -- Tier 4: the military is ready; summon the target megabeast.
-        announce("Military Training received! Your military is ready - the beast awakens! (4/4)")
-        spawn_target_megabeast()
+    -- Escalating war shipment (adamantine from tier 7). The beast is NOT summoned
+    -- here - the breach fires from the poll on the full war effort.
+    grant_war_gear(n)
+
+    -- The champion: a rare chance at any tier, GUARANTEED by tier 8 if not yet here.
+    if dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/champion") ~= "1"
+            and (n >= 8 or math.random(100) <= SUPER_DWARF_CHANCE) then
+        spawn_super_dwarf()
     end
+
+    -- Sometimes a bonus gift from the extra pool (flat chance, no tier ramp);
+    -- grant_extra_gift re-rolls if a pick can't be made in this world.
+    if math.random(100) <= EXTRA_CHANCE then
+        grant_extra_gift()
+    end
+
+    announce(("Military Training received! War Readiness rises. (%d/10)"):format(math.min(n, 10)))
 end
 
 -- Progressive Mining Depth: each copy lowers the dig floor one cavern tier.
@@ -1645,6 +2266,14 @@ local TEST_LIST = {
     { "vermin",    "Vermin Infestation trap (rodents)",               function() recv_vermin_infestation() end },
     { "spider",    "Precursor threat (giant cave spider, underground)", function() spawn_precursor_threat() end },
     { "megabeast", "Force the goal megabeast (once per world)",        function() spawn_target_megabeast() end },
+    { "wave",      "Spawn a roaming warband for a readiness level (arg: 1-9, default 1)",
+                   function(rest) spawn_warband(tonumber(rest[1]) or 1) end },
+    { "wave-now",  "Force the scheduled wave due now (tests the auto-scheduler; needs readiness>=1, slay_megabeast)",
+                   function()
+                       dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/next_wave_tick", "0")
+                       dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/wave_warned", "1")
+                       print("[test] Next wave forced due; it spawns on the next poll if readiness>=1 and goal is Slay Megabeast.")
+                   end },
     { "migrants",  "Add a wave of citizen dwarves",                    function() recv_immigration_wave() end },
     { "spawn-livestock", "Spawn a breeding group of livestock (arg: pigs|chickens|alpacas|cows|sheep|yaks)",
                    function(rest)

@@ -137,6 +137,16 @@ ENDGAME_LOCATIONS: list[LocationData] = [
     LocationData("Sold an Artifact",  BASE_ID + 761, "Fortress"),
 ]
 
+# ── Military / Siege Milestones (Slay Megabeast only) ─────────────────────────
+# War-effort checks tied to building a military. The same milestones gate War
+# Readiness in the mod (barracks -> readiness 5-6, skilled soldiers -> 7-9).
+# IDs match checks.lua (BASE_ID + 770+). Dropped for non-megabeast goals in
+# __init__.py (see SIEGE_LOCATION_NAMES).
+SIEGE_LOCATIONS: list[LocationData] = [
+    LocationData("Barracks Established", BASE_ID + 770, "Fortress"),
+    LocationData("Training Completed",   BASE_ID + 771, "Fortress"),
+]
+
 JOB_SKILLS: list[LocationData] = [
     LocationData("Novice Stonecutter",         BASE_ID + 800, "Fortress", False, "", "stonecutter", 1),
     LocationData("Adequate Stonecutter",       BASE_ID + 801, "Fortress", False, "", "stonecutter", 2),
@@ -1219,6 +1229,6 @@ ALL_LOCATIONS: list[LocationData] = (
     WEALTH_LOCATIONS + PRODUCTION_LOCATIONS + TRADE_LOCATIONS
     + STATUS_LOCATIONS + TITLE_LOCATIONS + MINING_LOCATIONS
     + FARMING_LOCATIONS + INFRASTRUCTURE_LOCATIONS
-    + BIOLOGY_LOCATIONS + ENDGAME_LOCATIONS + JOB_SKILLS + SHOP_LOCATIONS
+    + BIOLOGY_LOCATIONS + ENDGAME_LOCATIONS + SIEGE_LOCATIONS + JOB_SKILLS + SHOP_LOCATIONS
 )
 LOCATION_TABLE: dict[str, int] = {loc.name: loc.ap_id for loc in ALL_LOCATIONS}

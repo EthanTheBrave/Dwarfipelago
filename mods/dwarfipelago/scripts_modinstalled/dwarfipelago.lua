@@ -316,7 +316,7 @@ local function on_unit_death(uid)
     if not state.is_goal_complete() and goal_setting("goal", -1) == 0 then
         local ok, is_mega = pcall(dfhack.units.isMegabeast, unit)
         if ok and is_mega
-                and goal_setting("unlock/military_training", 0) >= 4
+                and goal_setting("unlock/military_training", 0) >= 10
                 and goal_setting("unlock/immigration_waves", 0) >= 2
                 and goal_setting("unlock/artifact_weapon", 0) == 1 then
             -- Only count the AP-summoned target; ignore any stray megabeasts.
@@ -1235,6 +1235,99 @@ end
 -- defined later in the file (after the item event helpers).
 local ensure_trade_depot
 
+-- ── Megabeast siege: wave scheduler ───────────────────────────────────────────
+-- For the Slay Megabeast goal, once War Readiness >= 1 roaming warbands attack on
+-- a campaign clock: a random 2-4 in-game months apart, each preceded by a
+-- ~1-day-out warning. Difficulty = current readiness level (see
+-- items.spawn_warband). Timing uses an absolute tick (year*ticks_per_year +
+-- year_tick) so it is monotonic and survives save/reload.
+local TICKS_PER_DAY   = 1200
+local TICKS_PER_MONTH = 33600   -- 28 days * 1200 ticks
+local TICKS_PER_YEAR  = 403200  -- 12 months * 28 days * 1200 ticks
+local WAVE_MIN_MONTHS, WAVE_MAX_MONTHS = 2, 4
+
+local function abs_tick()
+    return df.global.cur_year * TICKS_PER_YEAR + df.global.cur_year_tick
+end
+
+-- War Readiness = Military Training items received, capped by fortress military
+-- milestones: 1-4 free, 5-6 need a set-up barracks, 7-9 need 4 soldiers at combat
+-- skill 10+. (Readiness 10 - the breach - is gated on the full war effort and
+-- handled separately; the wave clock only spans 1-9.)
+local function war_readiness()
+    local mt = goal_setting("unlock/military_training", 0)
+    local cap = 4
+    local barracks = checks.barracks_is_set_up()
+    if barracks then cap = 6 end
+    if barracks and checks.count_military_skill(10) >= 4 then cap = 9 end
+    return math.min(mt, cap)
+end
+
+local function schedule_next_wave(from_tick)
+    local months = math.random(WAVE_MIN_MONTHS, WAVE_MAX_MONTHS)
+    dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/next_wave_tick",
+        tostring(from_tick + months * TICKS_PER_MONTH))
+    dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/wave_warned", "")
+end
+
+-- Poll step: drive the wave clock. Spawns at most one wave per due time (a long
+-- offline gap does not spawn a backlog), reschedules from the spawn moment.
+local function poll_warband_waves()
+    if goal_setting("goal", -1) ~= 0 then return end   -- slay_megabeast only
+    if dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/spawned") == "1" then return end  -- breach took over
+    local readiness = war_readiness()
+    if readiness < 1 or readiness >= 10 then return end -- not started, or climax phase
+
+    local now = abs_tick()
+    local next_tick = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/next_wave_tick"))
+    if not next_tick then schedule_next_wave(now); return end
+
+    if now >= next_tick - TICKS_PER_DAY
+            and dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/wave_warned") ~= "1" then
+        dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/wave_warned", "1")
+        dfhack.gui.showAnnouncement(
+            "[AP] Scouts report a warband approaching - it will reach the fortress within a day.",
+            COLOR_YELLOW, true)
+    end
+
+    if now >= next_tick then
+        items.spawn_warband(math.min(readiness, 9))
+        schedule_next_wave(now)
+    end
+end
+
+-- True when the full war effort is in hand (10 Military Training + Artifact
+-- Weapon + 2 immigration waves - matching the AP goal rule), so the player may
+-- summon the megabeast. (The panel reads the same keys to enable its button.)
+function megabeast_ready()
+    return goal_setting("goal", -1) == 0
+        and goal_setting("unlock/military_training", 0) >= 10
+        and goal_setting("unlock/artifact_weapon", 0) == 1
+        and goal_setting("unlock/immigration_waves", 0) >= 2
+end
+
+-- Player-initiated summon (panel button / `dwarfipelago summon-beast`). The beast
+-- is NOT forced on the player - they choose when to face it. Validates the war
+-- effort and prints why if not ready. spawn_target_megabeast guards against repeats.
+function summon_megabeast()
+    if goal_setting("goal", -1) ~= 0 then
+        dfhack.printerr("[Dwarfipelago] Summoning the beast is only for the Slay Megabeast goal.")
+        return
+    end
+    if dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/spawned") == "1" then
+        dfhack.printerr("[Dwarfipelago] The megabeast has already been summoned.")
+        return
+    end
+    if not megabeast_ready() then
+        dfhack.printerr(("[Dwarfipelago] War effort incomplete: Military Training %d/10, Artifact Weapon %s, Immigration %d/2."):format(
+            goal_setting("unlock/military_training", 0),
+            goal_setting("unlock/artifact_weapon", 0) == 1 and "yes" or "NO",
+            goal_setting("unlock/immigration_waves", 0)))
+        return
+    end
+    items.spawn_target_megabeast()
+end
+
 -- ── Poll loop: wealth, trade, and goal milestones ─────────────────────────────
 -- Runs every POLL_TICKS game ticks. Production checks are handled by eventful.
 
@@ -1294,6 +1387,7 @@ local function poll_checks()
     guard("shrine",        detect_shrine)
     guard("spawn_caravan", _check_spawn_caravan_approved)
     guard("skills",        checks.update_skill_levels)
+    guard("waves",         poll_warband_waves)
 
     for _, check in ipairs(checks.checks) do
         if not state.is_location_checked(check.id) then
@@ -2082,6 +2176,8 @@ elseif cmd == "deposit-coins" then
     deposit_coins(tonumber(args[2]))
 elseif cmd == "buy-shop" then
     buy_shop(args[2])
+elseif cmd == "summon-beast" then
+    summon_megabeast()
 elseif cmd == "receive" then
     local item_name = table.concat(args, " ", 2)
     if item_name == "" then
@@ -2093,5 +2189,5 @@ elseif cmd == "test" then
     -- Manual mechanic verification: dwarfipelago test <name> [args]
     items.run_test(args[2], { table.unpack(args, 3) })
 else
-    print("Usage: dwarfipelago [start|stop|status|reset|resetseed|panel|call-caravan|dismiss-caravan|deposit-ale [n]|deposit-food [n]|deposit-coins <value>|buy-shop <slot>|receive <item>|test <name>]")
+    print("Usage: dwarfipelago [start|stop|status|reset|resetseed|panel|call-caravan|dismiss-caravan|deposit-ale [n]|deposit-food [n]|deposit-coins <value>|buy-shop <slot>|summon-beast|receive <item>|test <name>]")
 end
