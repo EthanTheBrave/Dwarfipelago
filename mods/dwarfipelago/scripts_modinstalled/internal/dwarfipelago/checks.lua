@@ -245,7 +245,7 @@ M.checks = {
                           and M.barracks_is_set_up() end },
     { id = 37370771, name = "Training Completed",
       fn = function() return dfhack.persistent.getWorldDataString("dwarfipelago/goal") == "0"
-                          and M.count_military_skill(3) >= 1 end },
+                          and M.training_completed() end },
 }
 
 -- ── Production flag helpers ───────────────────────────────────────────────────
@@ -1369,6 +1369,21 @@ function M.count_military_skill(threshold)
         end
     end
     return n
+end
+
+-- "Training Completed" should reflect a soldier trained AFTER the campaign began,
+-- not dwarves who embarked already skilled (DF v50 embark dwarves are often
+-- experienced histfigs, which fired this check on world load). Snapshot the
+-- Competent+ military count once per world, then fire only when it grows.
+function M.training_completed()
+    local cur = M.count_military_skill(3)
+    local key = "dwarfipelago/megabeast/train_baseline"
+    local base = dfhack.persistent.getWorldDataString(key)
+    if base == nil or base == "" then
+        dfhack.persistent.saveWorldDataString(key, tostring(cur))
+        return false  -- first observation establishes the baseline; never fires now
+    end
+    return cur > (tonumber(base) or 0)
 end
 
 -- True when a squad has a barracks equipped for drill: an armor stand AND a
