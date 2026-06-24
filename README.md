@@ -107,6 +107,47 @@ Configurable per-slot in your options YAML. Every goal also requires a minimum n
 ---
 
 <details>
+<summary>The Slay Megabeast Goal - How It Works</summary>
+
+The Slay Megabeast goal is a **war campaign**, not a single fight. This explains the *mechanics* so you can prepare - the exact encounters and the beast itself are left as surprises.
+
+### War Readiness
+
+Your progress is measured by a hidden **War Readiness** level (1-10). Readiness rises as you receive **Military Training** items from your multiworld partners - there are **ten** of them. Each one:
+
+- **Raises your War Readiness**, and
+- **Delivers a war shipment** to your trade depot - escalating gear that gets better with every tier (and occasionally a bonus). One of them also brings a **veteran champion dwarf** who joins your fortress as a ready-made squad leader.
+
+### Your fortress has to earn it
+
+Readiness isn't handed to you by items alone - past the early tiers it's **gated by actually building a military**:
+
+- **A real barracks** - a squad with an **armor stand and a weapon rack** assigned to it. (Those are *metal* furniture, so build up a metals industry: smelt ore and set up a forge.)
+- **Trained soldiers** - several dwarves drilled to a high weapon skill.
+
+Until you meet these, your readiness is **capped** no matter how many training items you've banked. Reaching each milestone also completes a location check (**Barracks Established**, **Training Completed**), sending items to your partners.
+
+### The war comes to you
+
+Once the campaign begins, your fortress is **raided periodically** (you'll get a short warning before each attack). The strength of each raid **scales with your current War Readiness** - the further along your war effort, the more dangerous they become. Anything the attackers drop is yours to keep. Keep your military equipped and drilled; these raids are how the campaign builds toward the finale.
+
+### Summoning the beast (the finale)
+
+The megabeast is **never forced on you**. When you have gathered everything the goal requires - **all ten Military Training**, an **Artifact Weapon**, and enough population (**Immigration Waves**) - a **Summon the Megabeast** button unlocks in the panel's **War** tab. Press it **when your fortress is ready**; the beast arrives in dramatic fashion and marches on you. **Slay it to win.**
+
+Killing some other megabeast before you summon the goal target won't count - only the summoned beast does.
+
+### Quick tips
+
+- Stand up a **metal industry early** - you need it for the barracks furniture and for replacing battle losses.
+- Don't sit on Military Training items - **build the barracks and train soldiers** so your readiness keeps climbing.
+- Watch the **War** tab in the `[AP]` panel: it tracks your training count, readiness, barracks/soldier status, and tells you when the beast can be summoned.
+
+</details>
+
+---
+
+<details>
 <summary>Locations (Checks)</summary>
 
 Completing these milestones sends items to other players:
