@@ -1225,12 +1225,15 @@ local function carve_crater(cx, cy, sz)
         for dx = -CRATER_RIM_R, CRATER_RIM_R do
             for dy = -CRATER_RIM_R, CRATER_RIM_R do
                 if dx * dx + dy * dy <= CRATER_RIM_R * CRATER_RIM_R then
-                    local blk = dfhack.maps.getTileBlock(cx + dx, cy + dy, z)
+                    local x, y = cx + dx, cy + dy
+                    local blk = dfhack.maps.getTileBlock(x, y, z)
                     if blk then
-                        local lx, ly = (cx + dx) % 16, (cy + dy) % 16
+                        local lx, ly = x % 16, y % 16
                         pcall(function()
                             local shapename = df.tiletype_shape[df.tiletype.attrs[blk.tiletype[lx][ly]].shape]
-                            if shapename and CRATER_TREE_SHAPE_NAMES[shapename] then
+                            local is_tree = (shapename and CRATER_TREE_SHAPE_NAMES[shapename])
+                                or (dfhack.maps.getPlantAtTile(x, y, z) ~= nil)
+                            if is_tree then
                                 blk.tiletype[lx][ly] = df.tiletype.OpenSpace
                                 blk.designation[lx][ly].hidden = false
                             end
@@ -1320,15 +1323,36 @@ local function spawn_target_megabeast()
         return
     end
 
-    -- Gouge the crater; bx,by,bz = its floor. If carving yields no walkable floor,
-    -- spawn on a fresh clean surface tile (NOT the cleared/channeled center, which
-    -- may now be open air).
-    local bx, by, bz = carve_crater(cx, cy, sz)
-    local crater = (bx ~= nil)
-    if not bx then bx, by, bz = find_surface_spawn_pos() end
+    -- Gouge the crater (best-effort flavor). cbx/cby/cbz = its floor, or nil.
+    local cbx, cby, cbz = carve_crater(cx, cy, sz)
+
+    -- Choose a spawn tile that is GUARANTEED walkable AND able to path to the
+    -- fort, so the beast can never get stuck (in a tree, root, wall, or the
+    -- crater). Preference: the crater floor (if reachable) -> a reachable surface
+    -- tile -> a citizen's own tile (trivially walkable + reachable) last.
+    local citizen = any_citizen_pos()
+    local function reachable(x, y, z)
+        if not (x and tile_walkable(x, y, z)) then return false end
+        if not citizen then return true end
+        local ok, r = pcall(dfhack.maps.canWalkBetween, { x = x, y = y, z = z }, citizen)
+        return ok and r == true
+    end
+
+    local bx, by, bz, in_crater
+    if reachable(cbx, cby, cbz) then
+        bx, by, bz, in_crater = cbx, cby, cbz, true
+    else
+        for _ = 1, 40 do
+            local fx, fy, fz = find_surface_spawn_pos()
+            if reachable(fx, fy, fz) then bx, by, bz = fx, fy, fz; break end
+        end
+    end
+    if not bx and citizen then bx, by, bz = citizen.x, citizen.y, citizen.z end
     if not bx then
-        local fx, fy, fz = get_fort_spawn_pos()
-        bx, by, bz = tonumber(fx), tonumber(fy), tonumber(fz)
+        dfhack.gui.showAnnouncement(
+            "[AP] CRITICAL: no reachable spawn tile for the megabeast - the goal cannot be completed.", COLOR_RED, true)
+        log.error("spawn_target_megabeast: no reachable spawn position")
+        return
     end
 
     local species = bestiary.random_megabeast() or pick_megabeast_type()
@@ -1344,37 +1368,21 @@ local function spawn_target_megabeast()
     dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/spawned", "1")
 
     -- Escort: a couple of wild brutes (no gear - their bodies are the weapon).
-    local spawned = { beast }
     local escorts = bestiary.filter_present({ "TROLL", "OGRE" })
     if #escorts > 0 then
         for _ = 1, 2 do
-            local b = create_unit(escorts[math.random(#escorts)], { x = bx, y = by, z = bz }, { civ_id = -1, hostile = true })
-            if b then spawned[#spawned + 1] = b end
-        end
-    end
-
-    -- Reachability guarantee: if the beast can't path to a citizen, lift it (and
-    -- the escort) onto a reachable surface tile.
-    local citizen = any_citizen_pos()
-    local lifted = false
-    if citizen and not dfhack.maps.canWalkBetween({ x = bx, y = by, z = bz }, citizen) then
-        local fx, fy, fz = find_surface_spawn_pos()
-        if fx then
-            for _, u in ipairs(spawned) do
-                pcall(function() dfhack.units.teleport(u, { x = fx, y = fy, z = fz }) end)
-            end
-            bx, by, bz, lifted = fx, fy, fz, true
+            create_unit(escorts[math.random(#escorts)], { x = bx, y = by, z = bz }, { civ_id = -1, hostile = true })
         end
     end
 
     local dir = get_spawn_direction(bx, by)
     local where = (dir == "depths") and "the heart of your lands" or ("the " .. dir .. " reaches")
-    local msg = (crater and not lifted)
+    local msg = in_crater
         and ("[AP] A STAR FALLS! %s crashes from the sky into %s, gouging a smoking crater, and rises to march on your fortress. Slay it for victory!")
         or  ("[AP] THE BEAST DESCENDS upon your fortress from %s. Slay it for victory!")
     dfhack.gui.showAnnouncement(msg:format(beast_label(beast, species), where), COLOR_RED, true)
-    log.info(("Megabeast climax: %s (id %d) at (%d,%d,%d) crater=%s lifted=%s"):format(
-        tostring(species), beast.id, bx, by, bz, tostring(crater), tostring(lifted)))
+    log.info(("Megabeast climax: %s (id %d) at (%d,%d,%d) in_crater=%s"):format(
+        tostring(species), beast.id, bx, by, bz, tostring(in_crater)))
     print("[Dwarfipelago] Megabeast climax: " .. tostring(species))
 end
 M.spawn_target_megabeast = spawn_target_megabeast
