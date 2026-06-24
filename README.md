@@ -341,7 +341,7 @@ The Slay Megabeast goal is a full war campaign. Ten **Military Training** items 
 
 **Roaming warbands attack on a campaign clock** - a random 2-4 in-game months apart (with a day's warning) once readiness begins. Their size, gear, veterancy, and composition scale with your readiness: from copper-armed kobolds and lone goblins early, to iron- and steel-clad mixed warbands led by named veterans with troll/ogre escorts at the high end. The loot they drop is yours to keep.
 
-**The climax:** once you hold all ten training items plus an **Artifact Weapon** and at least **two Immigration Waves**, the target megabeast **falls from the sky** onto your lands - gouging a smoking crater, or (if it's a fire-immune beast such as a dragon or bronze colossus) crashing down wreathed in flame. Slay it to win. Killing a stray megabeast before the war effort is complete won't trigger victory - the AP-summoned beast won't have arrived yet.
+**The climax:** once you hold all ten training items plus an **Artifact Weapon** and at least **two Immigration Waves**, the war effort is complete - and the beast is **never forced on you**. A **Summon the Megabeast** button appears in the panel's **War** tab; press it when your fortress is ready. The target megabeast then **falls from the sky** onto your lands - gouging a smoking crater, or (if it's a fire-immune beast such as a dragon or bronze colossus) crashing down wreathed in flame. Slay it to win. Killing a stray megabeast before you summon the AP target won't trigger victory.
 
 #### Remains of the Great King (RotGK) (x5 - x100) - Treasure Hunt
 Throughout the Multiworld will contain this item. Collect all of them to reach your goal.
