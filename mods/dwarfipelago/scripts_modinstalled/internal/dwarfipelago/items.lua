@@ -1298,12 +1298,50 @@ local function any_citizen_pos()
     end
 end
 
+-- Does this creature token have fire immunity (so it can stand in its own flaming
+-- impact)? Scans caste flags.
+local function creature_fire_immune(token)
+    for _, cr in ipairs(df.global.world.raws.creatures.all) do
+        if cr.creature_id == token then
+            for _, caste in ipairs(cr.caste) do
+                local ok, v = pcall(function()
+                    return caste.flags.FIREIMMUNE or caste.flags.FIREIMMUNE_SUPER
+                end)
+                if ok and v == true then return true end
+            end
+            return false
+        end
+    end
+    return false
+end
+
+-- A random fire-immune megabeast present in this world (DRAGON / BRONZE COLOSSUS),
+-- or nil if none - used for the flaming-impact landing.
+local function pick_fire_immune_megabeast()
+    local immune = {}
+    for _, id in ipairs(bestiary.census().megabeast) do
+        if creature_fire_immune(id) then immune[#immune + 1] = id end
+    end
+    if #immune > 0 then return immune[math.random(#immune)] end
+end
+
+-- Wreathe a tile in dragonfire (flow type 6) over a disc - a fiery impact.
+local function spawn_fire_disc(x, y, z, r)
+    for dx = -r, r do
+        for dy = -r, r do
+            if dx * dx + dy * dy <= r * r then
+                pcall(function() dfhack.maps.spawnFlow({ x = x + dx, y = y + dy, z = z }, 6, 0, 0, 50000) end)
+            end
+        end
+    end
+end
+
 -- The climax: the megabeast falls from the sky, gouging a crater near the map
--- edge, and rises to march on the fort. If it can't path out of the crater to the
--- fort, it's lifted onto a reachable surface tile so the goal can never soft-lock
--- (an unreachable goal beast would be unwinnable). A brute escort sells the siege.
--- Uses the working create_unit path; the beast id is pinned so the goal hook
--- counts THIS kill. Fires once per world.
+-- edge, and rises to march on the fort. If a clean crater floor can't be made, it
+-- lands in the open instead - and if a fire-immune beast is available, wreathed in
+-- a flaming impact. The spawn tile is always verified walkable + reachable so the
+-- goal can never soft-lock. Uses create_unit; the beast id is pinned so the goal
+-- hook counts THIS kill. Fires once per world.
 local function spawn_target_megabeast()
     if dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/spawned") == "1" then
         return  -- already summoned this world (e.g. reloaded mid-session)
@@ -1355,7 +1393,12 @@ local function spawn_target_megabeast()
         return
     end
 
-    local species = bestiary.random_megabeast() or pick_megabeast_type()
+    -- Species: in the open (no crater), prefer a fire-immune beast so we can wreathe
+    -- the impact in flame; otherwise any world megabeast.
+    local species = in_crater and (bestiary.random_megabeast() or pick_megabeast_type())
+        or (pick_fire_immune_megabeast() or bestiary.random_megabeast() or pick_megabeast_type())
+    local fiery = (not in_crater) and creature_fire_immune(species)
+
     local beast = create_unit(species, { x = bx, y = by, z = bz }, { civ_id = -1, hostile = true })
     if not beast then
         dfhack.gui.showAnnouncement(
@@ -1367,22 +1410,32 @@ local function spawn_target_megabeast()
     dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/target_id", tostring(beast.id))
     dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/spawned", "1")
 
-    -- Escort: a couple of wild brutes (no gear - their bodies are the weapon).
-    local escorts = bestiary.filter_present({ "TROLL", "OGRE" })
-    if #escorts > 0 then
-        for _ = 1, 2 do
-            create_unit(escorts[math.random(#escorts)], { x = bx, y = by, z = bz }, { civ_id = -1, hostile = true })
+    -- Escort: wild brutes - but NOT in the fiery case (the fire would burn them).
+    if not fiery then
+        local escorts = bestiary.filter_present({ "TROLL", "OGRE" })
+        if #escorts > 0 then
+            for _ = 1, 2 do
+                create_unit(escorts[math.random(#escorts)], { x = bx, y = by, z = bz }, { civ_id = -1, hostile = true })
+            end
         end
     end
 
+    -- Fiery impact: a fire-immune beast crashes down wreathed in dragonfire.
+    if fiery then spawn_fire_disc(bx, by, bz, 3) end
+
     local dir = get_spawn_direction(bx, by)
     local where = (dir == "depths") and "the heart of your lands" or ("the " .. dir .. " reaches")
-    local msg = in_crater
-        and ("[AP] A STAR FALLS! %s crashes from the sky into %s, gouging a smoking crater, and rises to march on your fortress. Slay it for victory!")
-        or  ("[AP] THE BEAST DESCENDS upon your fortress from %s. Slay it for victory!")
+    local msg
+    if in_crater then
+        msg = "[AP] A STAR FALLS! %s crashes from the sky into %s, gouging a smoking crater, and rises to march on your fortress. Slay it for victory!"
+    elseif fiery then
+        msg = "[AP] A BURNING STAR FALLS! %s crashes to earth in %s, wreathed in flame, and strides from the inferno toward your fortress. Slay it for victory!"
+    else
+        msg = "[AP] %s descends upon your fortress from %s. Slay it for victory!"
+    end
     dfhack.gui.showAnnouncement(msg:format(beast_label(beast, species), where), COLOR_RED, true)
-    log.info(("Megabeast climax: %s (id %d) at (%d,%d,%d) in_crater=%s"):format(
-        tostring(species), beast.id, bx, by, bz, tostring(in_crater)))
+    log.info(("Megabeast climax: %s (id %d) at (%d,%d,%d) in_crater=%s fiery=%s"):format(
+        tostring(species), beast.id, bx, by, bz, tostring(in_crater), tostring(fiery)))
     print("[Dwarfipelago] Megabeast climax: " .. tostring(species))
 end
 M.spawn_target_megabeast = spawn_target_megabeast
