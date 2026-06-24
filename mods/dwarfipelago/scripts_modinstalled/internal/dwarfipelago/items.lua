@@ -1144,24 +1144,21 @@ local function set_dig(x, y, z, kind)
 end
 
 -- True if the crater footprint (a touch wider than the rim, through the whole
--- dig column) has no standing liquid and no aquifer - so the crater won't flood
--- and drown the beast.
+-- dig column) has no standing liquid - so it won't flood from a river/pond. We do
+-- NOT reject aquifers here (they cover large parts of many maps); the carve
+-- strips the aquifer instead.
 local function footprint_is_dry(cx, cy, sz, rim, depth)
     local cr = rim + 2
     for z = sz, sz - depth, -1 do
         for dx = -cr, cr do
             for dy = -cr, cr do
                 if dx * dx + dy * dy <= cr * cr then
-                    local x, y = cx + dx, cy + dy
-                    local blk = dfhack.maps.getTileBlock(x, y, z)
+                    local blk = dfhack.maps.getTileBlock(cx + dx, cy + dy, z)
                     if blk then
                         local wet = false
                         pcall(function()
-                            if blk.designation[x % 16][y % 16].flow_size > 0 then wet = true end
+                            if blk.designation[(cx + dx) % 16][(cy + dy) % 16].flow_size > 0 then wet = true end
                         end)
-                        if not wet then
-                            pcall(function() if dfhack.maps.isTileAquifer(x, y, z) then wet = true end end)
-                        end
                         if wet then return false end
                     end
                 end
@@ -1267,12 +1264,14 @@ local function carve_crater(cx, cy, sz)
             ("%d,%d,%d"):format(cx - CRATER_RIM_R, cy - CRATER_RIM_R, zbot),
             ("%d,%d,%d"):format(cx + CRATER_RIM_R, cy + CRATER_RIM_R, sz), "--clean")
     end)
-    -- Strip any aquifer the dig exposed and clear standing water in the bowl, so
-    -- it doesn't flood. (Dry-site selection is primary; this is the backstop.)
-    for z = sz, zbot, -1 do
-        for dx = -CRATER_RIM_R, CRATER_RIM_R do
-            for dy = -CRATER_RIM_R, CRATER_RIM_R do
-                if dx * dx + dy * dy <= CRATER_RIM_R * CRATER_RIM_R then
+    -- Strip the aquifer over a margin wider than the bowl (so it can't seep in
+    -- from the sides) and clear any standing water. This is what lets the crater
+    -- form on the common aquifer maps without flooding.
+    local arim = CRATER_RIM_R + 3
+    for z = sz, zbot - 1, -1 do
+        for dx = -arim, arim do
+            for dy = -arim, arim do
+                if dx * dx + dy * dy <= arim * arim then
                     local x, y = cx + dx, cy + dy
                     pcall(function() dfhack.maps.removeTileAquifer(x, y, z) end)
                     local blk = dfhack.maps.getTileBlock(x, y, z)
