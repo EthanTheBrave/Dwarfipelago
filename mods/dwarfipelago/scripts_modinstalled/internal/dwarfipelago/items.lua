@@ -1902,23 +1902,40 @@ local function spawn_super_dwarf()
     return true
 end
 
--- A pool of bonus "nice to have" gifts. Each Military Training receipt has a flat
--- chance (EXTRA_CHANCE) to also drop ONE random pick from here, on top of the
--- tier's normal gear. All go through spawn_item / spawn_livestock (pcall-guarded).
+-- A pool of bonus WAR materiel. Each Military Training receipt has a flat chance
+-- (EXTRA_CHANCE) to also drop ONE random pick from here, on top of the tier's
+-- normal gear. Combat-adjacent: weapons, ammo, traps, defense, war beasts, forge
+-- supplies, field medicine. All go through spawn_item/spawn_livestock (guarded).
 local EXTRA_POOL = {
-    function() spawn_item("BAR", STEEL, 5) end,                                     -- steel bars
-    function() spawn_item("BAR", "COAL:COKE", 5) end,                               -- fuel
-    function() spawn_item("WOOD", "PLANT_MAT:OAK:WOOD", 5) end,                     -- logs
+    -- Weapons & ammunition
+    function()  -- a random steel weapon
+        local w = ({ "AXE_BATTLE", "SWORD_SHORT", "SPEAR", "MACE", "HAMMER_WAR" })[math.random(5)]
+        spawn_item("WEAPON:ITEM_WEAPON_" .. w, STEEL)
+    end,
+    function() spawn_item("WEAPON:ITEM_WEAPON_CROSSBOW", STEEL); spawn_item("AMMO:ITEM_AMMO_BOLTS", STEEL, 10) end,
+    function() spawn_item("AMMO:ITEM_AMMO_BOLTS", STEEL, 25) end,                   -- a quiver's worth
+    function() spawn_item("WEAPON:ITEM_WEAPON_PIKE", STEEL) end,                    -- reach weapon
+    function() spawn_item("WEAPON:ITEM_WEAPON_AXE_GREAT", "INORGANIC:ADAMANTINE") end, -- rare adamantine
+    -- Armor & shields
+    function() spawn_item("SHIELD:ITEM_SHIELD_SHIELD", STEEL); spawn_item("HELM:ITEM_HELM_HELM", STEEL) end,
+    function() spawn_item("ARMOR:ITEM_ARMOR_BREASTPLATE", STEEL); spawn_item("PANTS:ITEM_PANTS_GREAVES", STEEL) end,
+    function() spawn_item("ARMOR:ITEM_ARMOR_MAIL_SHIRT", STEEL) end,
+    -- Traps & fortification
+    function() spawn_item("TRAPPARTS", "INORGANIC:STEEL", 4) end,                   -- mechanisms
+    function() spawn_item("TRAPCOMP:ITEM_TRAPCOMP_LARGESERRATEDDISC", STEEL) end,   -- trap weapon
+    function() spawn_item("TRAPCOMP:ITEM_TRAPCOMP_MENACINGSPIKE", STEEL, 3) end,    -- trap weapons
+    function() spawn_item("CAGE", "INORGANIC:STEEL") end,                           -- capture invaders
+    -- War beasts
+    function() spawn_livestock("DOG", "a pack of war dogs") end,
+    -- Forge supplies (turn into more gear)
+    function() spawn_item("BAR", STEEL, 6) end,                                     -- steel bars
+    function() spawn_item("BAR", "COAL:COKE", 6) end,                               -- fuel
     function() spawn_item("BOULDER", "INORGANIC:MAGNETITE", 4) end,                 -- iron ore
-    function() spawn_item("ANVIL", "INORGANIC:IRON") end,                           -- an anvil
-    function() spawn_item("TRAPPARTS", "INORGANIC:STEEL", 3) end,                   -- mechanisms
-    function() spawn_item("CAGE", "INORGANIC:STEEL") end,                           -- a metal cage
-    function() spawn_item("WEAPON:ITEM_WEAPON_PICK", STEEL) end,                    -- a mining pick
-    function() spawn_item("SMALLGEM", "INORGANIC:SAPPHIRE", 3) end,                 -- cut gems
-    function() spawn_item("BAR", "INORGANIC:GOLD", 3) end,                          -- gold bars
-    function() spawn_item("DRINK", "PLANT_MAT:MUSHROOM_HELMET_PLUMP:DRINK", 5) end, -- ale
     function() spawn_item("BAR", "INORGANIC:ADAMANTINE", 2) end,                    -- rare: 2 wafers
-    function() spawn_livestock("DOG", "a pack of war dogs") end,                    -- war dogs
+    function() spawn_item("ANVIL", "INORGANIC:IRON") end,                           -- an anvil
+    -- Field medicine & rations (keep soldiers fighting)
+    function() spawn_item("CLOTH", "PLANT_MAT:GRASS_TAIL_PIG:THREAD", 5) end,       -- bandages
+    function() spawn_item("DRINK", "PLANT_MAT:MUSHROOM_HELMET_PLUMP:DRINK", 5) end, -- rations
 }
 
 local SUPER_DWARF_CHANCE = 10   -- percent chance per receipt before the tier-8 guarantee
