@@ -245,36 +245,7 @@ local function build_progress_lines()
         table.insert(lines, {text=""})
     end
 
-    -- War Effort (Slay Megabeast goal only)
-    if ps("goal", "-1") == "0" then
-        hdr("War Effort")
-        local mt       = tonumber(ps("unlock/military_training", "0")) or 0
-        local immig    = tonumber(ps("unlock/immigration_waves", "0")) or 0
-        local artifact = ps("unlock/artifact_weapon", "0") == "1"
-        local barracks, soldiers = false, 0
-        pcall(function() barracks = checks.barracks_is_set_up() end)
-        pcall(function() soldiers = checks.count_military_skill(10) end)
-        local cap = 4
-        if barracks then cap = 6 end
-        if barracks and soldiers >= 4 then cap = 9 end
-
-        row(("  Military Training: %d/10     War Readiness: %d/9"):format(mt, math.min(mt, cap)))
-        row(("  Barracks: %-3s   Soldiers at skill 10: %d/4"):format(barracks and "YES" or "no", soldiers))
-        row(("  Artifact Weapon: %-3s   Immigration: %d/2"):format(artifact and "YES" or "no", immig))
-
-        local status, pen
-        if ps("goal_complete", "0") == "1" then
-            status, pen = "The beast is SLAIN - victory!", COLOR_GREEN
-        elseif ps("megabeast/spawned", "0") == "1" then
-            status, pen = "The beast has BREACHED - slay it!", COLOR_RED
-        elseif mt >= 10 and artifact and immig >= 2 then
-            status, pen = "The beast stirs - it comes soon...", COLOR_YELLOW
-        else
-            status, pen = "Mustering the war effort...", COLOR_WHITE
-        end
-        row("  Beast: " .. status, pen)
-        blank()
-    end
+    -- (War Effort for the Slay Megabeast goal lives in its own "War" tab.)
 
     -- Mining
     hdr("Mining")
@@ -1044,8 +1015,59 @@ function DwarfipelagoPanel:init()
         return widgets.Panel{subviews={shrine_head, req_label, bar_sel, coin_label, shop_list}}
     end
 
+    -- ── Tab: War Effort (Slay Megabeast goal only) ────────────────────────────
+    -- War status plus the player-initiated "summon the beast" button: the beast is
+    -- never forced - the player chooses when to face it once the war effort
+    -- (10 Military Training + Artifact Weapon + 2 Immigration Waves) is complete.
+    function WarTab()
+        table.insert(tab_list, "War")
+        local spawned  = ps("megabeast/spawned", "0") == "1"
+        local complete = ps("goal_complete", "0") == "1"
+        local mt   = tonumber(ps("unlock/military_training", "0")) or 0
+        local imm  = tonumber(ps("unlock/immigration_waves", "0")) or 0
+        local art  = ps("unlock/artifact_weapon", "0") == "1"
+        local barracks, soldiers = false, 0
+        pcall(function() barracks = checks.barracks_is_set_up() end)
+        pcall(function() soldiers = checks.count_military_skill(10) end)
+        local cap = 4
+        if barracks then cap = 6 end
+        if barracks and soldiers >= 4 then cap = 9 end
+        local ready = mt >= 10 and art and imm >= 2
+
+        local status, status_pen
+        if complete then     status, status_pen = "The beast is SLAIN - victory!",                 COLOR_GREEN
+        elseif spawned then  status, status_pen = "The beast walks your lands - slay it!",          COLOR_RED
+        elseif ready then    status, status_pen = "The war effort is complete - summon when ready!", COLOR_LIGHTRED
+        else                 status, status_pen = "Mustering the war effort...",                    COLOR_YELLOW end
+
+        local summon_lbl
+        if spawned then     summon_lbl = "Beast already summoned"
+        elseif ready then   summon_lbl = "Summon the Megabeast!"
+        else                summon_lbl = "Summon the Megabeast  (war effort incomplete)" end
+
+        return widgets.Panel{ subviews = {
+            widgets.Label{frame={t=0,l=0}, text="War Effort  (Slay Megabeast)", text_pen=COLOR_CYAN},
+            widgets.Label{frame={t=2,l=2}, text=("Military Training: %d/10      War Readiness: %d/9"):format(mt, math.min(mt, cap))},
+            widgets.Label{frame={t=3,l=2}, text=("Barracks: %-3s   Soldiers at skill 10: %d/4"):format(barracks and "YES" or "no", soldiers)},
+            widgets.Label{frame={t=4,l=2}, text=("Artifact Weapon: %-3s   Immigration: %d/2"):format(art and "YES" or "no", imm)},
+            widgets.Label{frame={t=6,l=2}, text={{text="Beast: "}, {text=status, pen=status_pen}}},
+            widgets.HotkeyLabel{
+                frame = {t=8,l=2},
+                key   = "CUSTOM_SHIFT_M",
+                label = summon_lbl,
+                on_activate = function()
+                    dfhack.run_command("dwarfipelago", "summon-beast")
+                    self:dismiss()
+                end,
+            },
+        }}
+    end
+
     local tabviews = {}
     table.insert(tabviews, StatusTab())
+    if tonumber(ps("goal", "-1")) == 0 then
+        table.insert(tabviews, WarTab())
+    end
     table.insert(tabviews, UnlocksTab())
     table.insert(tabviews, ProgressTab())
     if ps("craftsanity_enabled", "0") ~= "0" then
