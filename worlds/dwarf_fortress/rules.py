@@ -340,6 +340,14 @@ def set_rules(world: "DwarfFortressWorld") -> None:
             and state.count("Immigration Wave", player) >= 2
         )
 
+        # War-effort checks need a barracks, which needs a metal armor stand AND
+        # weapon rack - so require the ability to make metal (smelt ore + a forge).
+        # "Training Completed" follows the same barracks-training path.
+        multiworld.get_location("Barracks Established", player).access_rule = \
+            lambda state: dynamic_rules.metal(state)
+        multiworld.get_location("Training Completed", player).access_rule = \
+            lambda state: dynamic_rules.metal(state)
+
     elif options.goal == DwarfFortressGoal.option_legendary_wealth:
         # Legendary Wealth requires the Blueprint, all five coffers, and a workforce.
         goal_location.access_rule = lambda state: (
