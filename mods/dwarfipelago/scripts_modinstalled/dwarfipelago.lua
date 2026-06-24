@@ -1328,6 +1328,18 @@ function summon_megabeast()
     items.spawn_target_megabeast()
 end
 
+-- Enable the permit-lock workshop overlay only when Crafting Permits are on, so
+-- it never activates (or scrapes the screen) on a no-permits world. Change-tracked
+-- so the overlay command runs only when the state actually flips.
+local _permit_overlay_state = nil
+local function sync_permit_overlay()
+    local want = goal_setting("crafting_permits", 0) ~= 0
+    if want ~= _permit_overlay_state then
+        _permit_overlay_state = want
+        pcall(dfhack.run_command, "overlay", want and "enable" or "disable", "dwarfipelago-panel.permits")
+    end
+end
+
 -- ── Poll loop: wealth, trade, and goal milestones ─────────────────────────────
 -- Runs every POLL_TICKS game ticks. Production checks are handled by eventful.
 
@@ -1388,6 +1400,7 @@ local function poll_checks()
     guard("spawn_caravan", _check_spawn_caravan_approved)
     guard("skills",        checks.update_skill_levels)
     guard("waves",         poll_warband_waves)
+    guard("permit_overlay", sync_permit_overlay)
 
     for _, check in ipairs(checks.checks) do
         if not state.is_location_checked(check.id) then
@@ -2107,8 +2120,11 @@ local function start()
     -- Register poll loop
     repeatUtil.scheduleEvery(SCRIPT_NAME, POLL_TICKS, "ticks", poll_checks)
 
-    -- Enable the corner [AP] overlay button.
+    -- Enable the corner [AP] overlay button. The permit-lock workshop overlay is
+    -- enabled/disabled by the poll based on whether Crafting Permits are on, so it
+    -- never activates on a no-permits world (e.g. Slay Megabeast).
     pcall(dfhack.run_command, "overlay", "enable", "dwarfipelago-panel.hotspot")
+    _permit_overlay_state = nil  -- force the poll to (re)apply the correct state
 
     check_civilization_diversity()
 
@@ -2128,8 +2144,9 @@ local function stop()
     end
     repeatUtil.cancel(SCRIPT_NAME)
 
-    -- Hide the corner [AP] overlay button.
+    -- Hide the corner [AP] overlay button and the permit-lock workshop overlay.
     pcall(dfhack.run_command, "overlay", "disable", "dwarfipelago-panel.hotspot")
+    pcall(dfhack.run_command, "overlay", "disable", "dwarfipelago-panel.permits")
 
     print("[Dwarfipelago] Stopped.")
 end
