@@ -163,6 +163,9 @@ class DwarfFortressWorld(World):
             active -= WEALTH_TIER_LOCATIONS
         if self.options.goal != DwarfFortressGoal.option_mountainhome:
             active -= NOBLE_LADDER_LOCATIONS
+        SIEGE_LOCATION_NAMES = {"Barracks Established", "Training Completed"}
+        if self.options.goal != DwarfFortressGoal.option_slay_megabeast:
+            active -= SIEGE_LOCATION_NAMES
         for skill_names in self.remove_skill_locations_names:
              active.remove(skill_names)
         # The shop is always on, so its 50 slots are always active (coffer-gated
