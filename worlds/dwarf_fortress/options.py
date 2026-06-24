@@ -7,14 +7,21 @@ from Options import Choice, Range, PerGameCommonOptions, DeathLink, OptionList, 
 # a collapsed group below (Goal Settings, Death Link, Craftsanity, etc).
 
 class DwarfFortressGoal(Choice):
-    """The win condition for the Dwarf Fortress world."""
+    """The win condition for the Dwarf Fortress world.
+
+    - slay_megabeast: muster a military and slay the beast that falls on your fortress. HARD.
+    - legendary_wealth: amass a treasury value in minted coins and cut gems (default).
+    - population_boom: grow to a target population. UNSTABLE / UNFINISHED - not recommended.
+    - mountainhome: achieve Mountainhome status (the monarch takes residence). Very difficult.
+    - king_remains: recover all the Remains of the Great King.
+    """
     display_name = "Goal"
     option_slay_megabeast = 0
     option_legendary_wealth = 1
     option_population_boom = 2
     option_mountainhome = 3
     option_king_remains = 4
-    default = 2
+    default = 1
 
 
 class TrapItemWeight(Range):
