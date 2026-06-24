@@ -1296,17 +1296,36 @@ local function poll_warband_waves()
     end
 end
 
--- Poll step: the breach. Once the full war effort is in hand (10 Military
--- Training + Artifact Weapon + 2 immigration waves - matching the AP goal rule),
--- summon the curated megabeast. spawn_target_megabeast guards against repeats.
-local function check_megabeast_breach()
-    if goal_setting("goal", -1) ~= 0 then return end
-    if dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/spawned") == "1" then return end
-    if goal_setting("unlock/military_training", 0) >= 10
-            and goal_setting("unlock/artifact_weapon", 0) == 1
-            and goal_setting("unlock/immigration_waves", 0) >= 2 then
-        items.spawn_target_megabeast()
+-- True when the full war effort is in hand (10 Military Training + Artifact
+-- Weapon + 2 immigration waves - matching the AP goal rule), so the player may
+-- summon the megabeast. (The panel reads the same keys to enable its button.)
+function megabeast_ready()
+    return goal_setting("goal", -1) == 0
+        and goal_setting("unlock/military_training", 0) >= 10
+        and goal_setting("unlock/artifact_weapon", 0) == 1
+        and goal_setting("unlock/immigration_waves", 0) >= 2
+end
+
+-- Player-initiated summon (panel button / `dwarfipelago summon-beast`). The beast
+-- is NOT forced on the player - they choose when to face it. Validates the war
+-- effort and prints why if not ready. spawn_target_megabeast guards against repeats.
+function summon_megabeast()
+    if goal_setting("goal", -1) ~= 0 then
+        dfhack.printerr("[Dwarfipelago] Summoning the beast is only for the Slay Megabeast goal.")
+        return
     end
+    if dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/spawned") == "1" then
+        dfhack.printerr("[Dwarfipelago] The megabeast has already been summoned.")
+        return
+    end
+    if not megabeast_ready() then
+        dfhack.printerr(("[Dwarfipelago] War effort incomplete: Military Training %d/10, Artifact Weapon %s, Immigration %d/2."):format(
+            goal_setting("unlock/military_training", 0),
+            goal_setting("unlock/artifact_weapon", 0) == 1 and "yes" or "NO",
+            goal_setting("unlock/immigration_waves", 0)))
+        return
+    end
+    items.spawn_target_megabeast()
 end
 
 -- ── Poll loop: wealth, trade, and goal milestones ─────────────────────────────
@@ -1369,7 +1388,6 @@ local function poll_checks()
     guard("spawn_caravan", _check_spawn_caravan_approved)
     guard("skills",        checks.update_skill_levels)
     guard("waves",         poll_warband_waves)
-    guard("breach",        check_megabeast_breach)
 
     for _, check in ipairs(checks.checks) do
         if not state.is_location_checked(check.id) then
@@ -2158,6 +2176,8 @@ elseif cmd == "deposit-coins" then
     deposit_coins(tonumber(args[2]))
 elseif cmd == "buy-shop" then
     buy_shop(args[2])
+elseif cmd == "summon-beast" then
+    summon_megabeast()
 elseif cmd == "receive" then
     local item_name = table.concat(args, " ", 2)
     if item_name == "" then
@@ -2169,5 +2189,5 @@ elseif cmd == "test" then
     -- Manual mechanic verification: dwarfipelago test <name> [args]
     items.run_test(args[2], { table.unpack(args, 3) })
 else
-    print("Usage: dwarfipelago [start|stop|status|reset|resetseed|panel|call-caravan|dismiss-caravan|deposit-ale [n]|deposit-food [n]|deposit-coins <value>|buy-shop <slot>|receive <item>|test <name>]")
+    print("Usage: dwarfipelago [start|stop|status|reset|resetseed|panel|call-caravan|dismiss-caravan|deposit-ale [n]|deposit-food [n]|deposit-coins <value>|buy-shop <slot>|summon-beast|receive <item>|test <name>]")
 end
