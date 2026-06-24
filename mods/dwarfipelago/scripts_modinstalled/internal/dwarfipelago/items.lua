@@ -1706,6 +1706,17 @@ local function dwarf_name()
     return nm
 end
 
+-- Give a created unit a real first name. Setting only a NICKNAME makes DF display
+-- it wrapped in single quotes ('Uz') because the unit has no true name; a first
+-- name shows cleanly. Clears any nickname so it isn't shown in quotes alongside.
+local function set_dwarf_name(unit, nm)
+    pcall(function()
+        unit.name.first_name = nm
+        unit.name.has_name = true
+        unit.name.nickname = ""
+    end)
+end
+
 -- Pick a civilian-clothing subtype id (armorlevel 0) from an itemdef vector.
 local function clothing_subtype(defs)
     local fallback
@@ -1765,7 +1776,7 @@ local function spawn_citizen_dwarves(count)
             end
             df.global.world.units.active:insert('#', unit)
             dfhack.units.makeown(unit)   -- enlist as a fortress member
-            pcall(function() dfhack.units.setNickname(unit, dwarf_name()) end)
+            set_dwarf_name(unit, dwarf_name())
             pcall(make_outfit)           -- cloth outfit at the depot to dress with
             made = made + 1
         end)
@@ -1888,7 +1899,7 @@ local function spawn_super_dwarf()
         end
         df.global.world.units.active:insert('#', unit)
         dfhack.units.makeown(unit)
-        pcall(function() dfhack.units.setNickname(unit, dwarf_name()) end)
+        set_dwarf_name(unit, dwarf_name())
         pcall(make_outfit)
         local lvl = math.random(11, 13)
         for _, sname in ipairs({ "AXE", "SWORD", "MELEE_COMBAT", "DODGING", "SHIELD", "ARMOR" }) do
