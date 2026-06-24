@@ -98,7 +98,7 @@ Configurable per-slot in your options YAML. Every goal also requires a minimum n
 |------|-------------|---------------|
 | `population_boom` | Grow your fortress to a configurable population (default: 300 dwarves) *(default)* | 5 |
 | `legendary_wealth` | Accumulate a configurable treasury value in **minted coins and cut gems** (default: 100,000☼) | 3 |
-| `slay_megabeast` | Kill a dragon, titan, or other megabeast | 2 |
+| `slay_megabeast` | Wage a war campaign - muster a military, weather roaming warbands, and slay the megabeast that falls upon your fortress | 2 |
 | `mountainhome` | Achieve Mountainhome status - the monarch takes residence in your fortress (very difficult) | 5 |
 | `king_remains` | Treasure hunters, Kobolds and Goblins has plundered our great halls and took the remains of our great king. They have traded them outside of our realm and we need our friends to help find them. We need to find all X remains (`remains_great_king`, default 10) to bring our great king back into our halls. | 0 |
 
@@ -256,7 +256,7 @@ Ale and food deposits, the current pool balance (shown in MJ and raw kJ), and th
 | Type | Examples |
 |------|---------|
 | Workshop blueprints | 29 blueprints that unlock workshops, furnaces, and farm plots - **progression items** (see Progression section below) |
-| Progression locks | Merchant's Coffer (x5), Immigration Wave (x5), Noble Ladder charters (x4), Military Training (x4) - gate milestone checks and goal completion |
+| Progression locks | Merchant's Coffer (x5), Immigration Wave (x5), Noble Ladder charters (x4), Military Training (x10) - gate milestone checks and goal completion |
 | Prestige rewards | Artifact Weapon (adamantine battle axe), Artifact Armor (full adamantine set), Master Builder's Codex (genuine indestructible **artifact** adamantine door) |
 | Trade goods | Cut gems, gold/silver/steel bars, masterwork crafts |
 | Resources | Food bundles, wood bundles, iron ore, coal |
@@ -331,9 +331,17 @@ Four charter items gate the four upper noble appointment checks. The mayor is al
 
 The **Mountainhome** goal additionally requires the Monarch's Invitation before victory is recognised.
 
-#### Military Training (x4) - Slay Megabeast
+#### Military Training (x10) - Slay Megabeast
 
-Four training items gate the megabeast slaying goal. The first three each **equip your fortress with escalating steel gear** (weapons, then armor, then full elite kit) to prepare your military. The **fourth** summons the target megabeast itself. Killing a megabeast before all four training items have arrived won't trigger victory - your military isn't considered ready yet, and the AP-summoned beast won't have appeared.
+The Slay Megabeast goal is a full war campaign. Ten **Military Training** items drive a **War Readiness** level (1-10) as you prepare your fortress for the beast.
+
+**Each training item delivers an escalating war shipment** - weapons, then armor, then full kits, with bigger steel-bar shipments at higher tiers. **Tiers 7-10 arrive in adamantine** (a deliberate late-game power spike; blunt weapons stay steel). Every shipment also has a chance to include a bonus from a **war-materiel pool** (extra weapons, crossbows and bolts, trap components, war dogs, forge supplies, field medicine), and a one-time **veteran champion dwarf** joins your fortress as a ready-made squad leader - a rare chance with each training, guaranteed by the eighth.
+
+**War Readiness is gated by your fortress, not just the items.** Readiness 1-4 flows freely; **5-6 requires a set-up barracks** (a squad with an armor stand and weapon rack); **7-9 requires four soldiers trained to combat skill 10+**. Building these fires two new location checks, **Barracks Established** and **Training Completed**.
+
+**Roaming warbands attack on a campaign clock** - a random 2-4 in-game months apart (with a day's warning) once readiness begins. Their size, gear, veterancy, and composition scale with your readiness: from copper-armed kobolds and lone goblins early, to iron- and steel-clad mixed warbands led by named veterans with troll/ogre escorts at the high end. The loot they drop is yours to keep.
+
+**The climax:** once you hold all ten training items plus an **Artifact Weapon** and at least **two Immigration Waves**, the target megabeast **falls from the sky** onto your lands - gouging a smoking crater, or (if it's a fire-immune beast such as a dragon or bronze colossus) crashing down wreathed in flame. Slay it to win. Killing a stray megabeast before the war effort is complete won't trigger victory - the AP-summoned beast won't have arrived yet.
 
 #### Remains of the Great King (RotGK) (x5 - x100) - Treasure Hunt
 Throughout the Multiworld will contain this item. Collect all of them to reach your goal.
