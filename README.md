@@ -96,9 +96,9 @@ Configurable per-slot in your options YAML. Every goal also requires a minimum n
 
 | Goal | Description | Waves required |
 |------|-------------|---------------|
-| `population_boom` | Grow your fortress to a configurable population (default: 300 dwarves) *(default)* | 5 |
-| `legendary_wealth` | Accumulate a configurable treasury value in **minted coins and cut gems** (default: 100,000☼) | 3 |
-| `slay_megabeast` | Wage a war campaign - muster a military, weather roaming warbands, and slay the megabeast that falls upon your fortress | 2 |
+| `legendary_wealth` | Accumulate a configurable treasury value in **minted coins and cut gems** (default: 100,000☼) *(default)* | 3 |
+| `slay_megabeast` | Wage a war campaign - muster a military, weather roaming warbands, and slay the megabeast that falls upon your fortress **(hard)** | 2 |
+| `population_boom` | Grow your fortress to a configurable population (default: 300 dwarves) **(unstable / unfinished - not recommended)** | 5 |
 | `mountainhome` | Achieve Mountainhome status - the monarch takes residence in your fortress (very difficult) | 5 |
 | `king_remains` | Treasure hunters, Kobolds and Goblins has plundered our great halls and took the remains of our great king. They have traded them outside of our realm and we need our friends to help find them. We need to find all X remains (`remains_great_king`, default 10) to bring our great king back into our halls. | 0 |
 
