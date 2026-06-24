@@ -531,6 +531,7 @@ local function spawn_livestock(race_token, name)
     else
         announce_at_depot(("Received: %s! (spawn failed - check DFHack console)"):format(name))
     end
+    return spawned
 end
 
 local function recv_breeding_pigs()     spawn_livestock("PIG",                  "Breeding Pigs")     end
@@ -1905,38 +1906,52 @@ end
 -- A pool of bonus WAR materiel. Each Military Training receipt has a flat chance
 -- (EXTRA_CHANCE) to also drop ONE random pick from here, on top of the tier's
 -- normal gear. Combat-adjacent: weapons, ammo, traps, defense, war beasts, forge
--- supplies, field medicine. All go through spawn_item/spawn_livestock (guarded).
+-- supplies, field medicine. Each entry RETURNS true only if it actually spawned
+-- something, so a pick that this world can't make is re-rolled (see below).
 local EXTRA_POOL = {
     -- Weapons & ammunition
     function()  -- a random steel weapon
         local w = ({ "AXE_BATTLE", "SWORD_SHORT", "SPEAR", "MACE", "HAMMER_WAR" })[math.random(5)]
-        spawn_item("WEAPON:ITEM_WEAPON_" .. w, STEEL)
+        return spawn_item("WEAPON:ITEM_WEAPON_" .. w, STEEL) > 0
     end,
-    function() spawn_item("WEAPON:ITEM_WEAPON_CROSSBOW", STEEL); spawn_item("AMMO:ITEM_AMMO_BOLTS", STEEL, 10) end,
-    function() spawn_item("AMMO:ITEM_AMMO_BOLTS", STEEL, 25) end,                   -- a quiver's worth
-    function() spawn_item("WEAPON:ITEM_WEAPON_PIKE", STEEL) end,                    -- reach weapon
-    function() spawn_item("WEAPON:ITEM_WEAPON_AXE_GREAT", "INORGANIC:ADAMANTINE") end, -- rare adamantine
+    function() return spawn_item("WEAPON:ITEM_WEAPON_CROSSBOW", STEEL) + spawn_item("AMMO:ITEM_AMMO_BOLTS", STEEL, 10) > 0 end,
+    function() return spawn_item("AMMO:ITEM_AMMO_BOLTS", STEEL, 25) > 0 end,        -- a quiver's worth
+    function() return spawn_item("WEAPON:ITEM_WEAPON_PIKE", STEEL) > 0 end,         -- reach weapon
+    function() return spawn_item("WEAPON:ITEM_WEAPON_AXE_GREAT", "INORGANIC:ADAMANTINE") > 0 end, -- rare adamantine
     -- Armor & shields
-    function() spawn_item("SHIELD:ITEM_SHIELD_SHIELD", STEEL); spawn_item("HELM:ITEM_HELM_HELM", STEEL) end,
-    function() spawn_item("ARMOR:ITEM_ARMOR_BREASTPLATE", STEEL); spawn_item("PANTS:ITEM_PANTS_GREAVES", STEEL) end,
-    function() spawn_item("ARMOR:ITEM_ARMOR_MAIL_SHIRT", STEEL) end,
+    function() return spawn_item("SHIELD:ITEM_SHIELD_SHIELD", STEEL) + spawn_item("HELM:ITEM_HELM_HELM", STEEL) > 0 end,
+    function() return spawn_item("ARMOR:ITEM_ARMOR_BREASTPLATE", STEEL) + spawn_item("PANTS:ITEM_PANTS_GREAVES", STEEL) > 0 end,
+    function() return spawn_item("ARMOR:ITEM_ARMOR_MAIL_SHIRT", STEEL) > 0 end,
     -- Traps & fortification
-    function() spawn_item("TRAPPARTS", "INORGANIC:STEEL", 4) end,                   -- mechanisms
-    function() spawn_item("TRAPCOMP:ITEM_TRAPCOMP_LARGESERRATEDDISC", STEEL) end,   -- trap weapon
-    function() spawn_item("TRAPCOMP:ITEM_TRAPCOMP_MENACINGSPIKE", STEEL, 3) end,    -- trap weapons
-    function() spawn_item("CAGE", "INORGANIC:STEEL") end,                           -- capture invaders
+    function() return spawn_item("TRAPPARTS", "INORGANIC:STEEL", 4) > 0 end,        -- mechanisms
+    function() return spawn_item("TRAPCOMP:ITEM_TRAPCOMP_LARGESERRATEDDISC", STEEL) > 0 end, -- trap weapon
+    function() return spawn_item("TRAPCOMP:ITEM_TRAPCOMP_MENACINGSPIKE", STEEL, 3) > 0 end,   -- trap weapons
+    function() return spawn_item("CAGE", "INORGANIC:STEEL") > 0 end,                -- capture invaders
     -- War beasts
-    function() spawn_livestock("DOG", "a pack of war dogs") end,
+    function() return spawn_livestock("DOG", "a pack of war dogs") > 0 end,
     -- Forge supplies (turn into more gear)
-    function() spawn_item("BAR", STEEL, 6) end,                                     -- steel bars
-    function() spawn_item("BAR", "COAL:COKE", 6) end,                               -- fuel
-    function() spawn_item("BOULDER", "INORGANIC:MAGNETITE", 4) end,                 -- iron ore
-    function() spawn_item("BAR", "INORGANIC:ADAMANTINE", 2) end,                    -- rare: 2 wafers
-    function() spawn_item("ANVIL", "INORGANIC:IRON") end,                           -- an anvil
+    function() return spawn_item("BAR", STEEL, 6) > 0 end,                          -- steel bars
+    function() return spawn_item("BAR", "COAL:COKE", 6) > 0 end,                    -- fuel
+    function() return spawn_item("BOULDER", "INORGANIC:MAGNETITE", 4) > 0 end,      -- iron ore
+    function() return spawn_item("BAR", "INORGANIC:ADAMANTINE", 2) > 0 end,         -- rare: 2 wafers
+    function() return spawn_item("ANVIL", "INORGANIC:IRON") > 0 end,                -- an anvil
     -- Field medicine & rations (keep soldiers fighting)
-    function() spawn_item("CLOTH", "PLANT_MAT:GRASS_TAIL_PIG:THREAD", 5) end,       -- bandages
-    function() spawn_item("DRINK", "PLANT_MAT:MUSHROOM_HELMET_PLUMP:DRINK", 5) end, -- rations
+    function() return spawn_item("CLOTH", "PLANT_MAT:GRASS_TAIL_PIG:THREAD", 5) > 0 end,       -- bandages
+    function() return spawn_item("DRINK", "PLANT_MAT:MUSHROOM_HELMET_PLUMP:DRINK", 5) > 0 end, -- rations
 }
+
+-- Roll one bonus gift, re-rolling DIFFERENT picks if a chosen one can't be made
+-- in this world (so the bonus isn't silently lost). Tries a shuffled order so it
+-- doesn't keep hitting the same dud. Returns true if something was granted.
+local function grant_extra_gift()
+    local order = {}
+    for i = 1, #EXTRA_POOL do order[i] = i end
+    for i = #order, 2, -1 do local j = math.random(i); order[i], order[j] = order[j], order[i] end
+    for _, idx in ipairs(order) do
+        if EXTRA_POOL[idx]() then return true end
+    end
+    return false
+end
 
 local SUPER_DWARF_CHANCE = 10   -- percent chance per receipt before the tier-8 guarantee
 local EXTRA_CHANCE       = 25   -- percent chance of a bonus extra-pool gift
@@ -1956,9 +1971,10 @@ local function recv_military_training()
         spawn_super_dwarf()
     end
 
-    -- Sometimes a bonus gift from the extra pool (flat chance, no tier ramp).
+    -- Sometimes a bonus gift from the extra pool (flat chance, no tier ramp);
+    -- grant_extra_gift re-rolls if a pick can't be made in this world.
     if math.random(100) <= EXTRA_CHANCE then
-        EXTRA_POOL[math.random(#EXTRA_POOL)]()
+        grant_extra_gift()
     end
 
     announce(("Military Training received! War Readiness rises. (%d/10)"):format(math.min(n, 10)))
