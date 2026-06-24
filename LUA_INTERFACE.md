@@ -55,15 +55,18 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/unlock/count_charter` | `"1"` or absent | Lua | Set when Count's Charter received; gates Count Appointed check |
 | `dwarfipelago/unlock/duke_charter` | `"1"` or absent | Lua | Set when Duke's Charter received; gates Duke Appointed check |
 | `dwarfipelago/unlock/monarch_invitation` | `"1"` or absent | Lua | Set when Monarch's Invitation received; gates Monarch Takes Residence check |
-| `dwarfipelago/unlock/military_training` | Integer string | Lua | How many Military Training items received (0–4); tiers 1–3 grant escalating steel gear, tier 4 spawns the target megabeast; used by slay_megabeast goal |
+| `dwarfipelago/unlock/military_training` | Integer string | Lua | How many Military Training items received (0–10); drives **War Readiness** for the slay_megabeast goal. Each grants an escalating war shipment (steel, adamantine at tiers 7+), a chance of bonus war materiel, and a one-time champion dwarf. Effective readiness past 4 is gated in-fort by a set-up barracks (5-6) and 4 soldiers at combat skill 10+ (7-9); roaming-warband difficulty scales with it |
 | `dwarfipelago/unlock/artifact_weapon` | `"1"` or absent | Lua | Set when Artifact Weapon received; gates slay_megabeast and mountainhome goals |
 | `dwarfipelago/unlock/artifact_armor` | `"1"` or absent | Lua | Set when Artifact Armor received; gates population_boom prestige requirement |
 | `dwarfipelago/unlock/master_builders_codex` | `"1"` or absent | Lua | Set when Master Builder's Codex received; gates legendary_wealth, mountainhome, and population_boom goals |
 | `dwarfipelago/unlock/RotGK` | Integer string | Lua | How many Remains of the Great King received; the king_remains goal completes when this reaches `king_remains_goal` |
 | `dwarfipelago/craftlock/<flag>` | `"1"` or absent | Lua | Set when the Crafting Permit for `<flag>` is received. When `crafting_permits` is non-zero, jobs producing an item whose flag is unset are cancelled |
 | `dwarfipelago/depot_built` | `"1"` or absent | Lua | Set once the starting trade depot has been placed or adopted |
-| `dwarfipelago/megabeast/spawned` | `"1"` or absent | Lua | Set once the AP target megabeast has been summoned (Military Training tier 4); prevents re-summoning on reload |
-| `dwarfipelago/megabeast/target_id` | Integer string | Lua | Unit ID of a pinned target megabeast, if used (natural megabeasts are cleared at load so the forced beast is the only one) |
+| `dwarfipelago/megabeast/spawned` | `"1"` or absent | Lua | Set once the climax megabeast has been summoned (the curated breach, fired from the poll when the full war effort - 10 Military Training + Artifact Weapon + 2 Immigration Waves - is in hand); prevents re-summoning on reload and stops roaming waves |
+| `dwarfipelago/megabeast/target_id` | Integer string | Lua | Unit ID of the pinned target megabeast; only this unit's death counts for the goal (natural megabeasts are cleared at load) |
+| `dwarfipelago/megabeast/champion` | `"1"` or absent | Lua | Set once the one-time veteran champion dwarf has joined (rare chance per Military Training, guaranteed at tier 8) |
+| `dwarfipelago/megabeast/next_wave_tick` | Integer string | Lua | Absolute game tick when the next roaming warband is due (`cur_year*403200 + cur_year_tick`); a random 2-4 in-game months ahead |
+| `dwarfipelago/megabeast/wave_warned` | `"1"` or `""` | Lua | Set when the ~1-day-out warning for the pending wave has been announced; cleared when the next wave is scheduled |
 | `dwarfipelago/mining/dig_count` | Integer string | Lua | Cumulative dig/channel/ramp jobs completed (tiles-excavated milestones) |
 | `dwarfipelago/mining/surface_z` | Integer string | Lua | Captured surface z-level (baseline for depth milestones) |
 | `dwarfipelago/mining/deepest_z` | Integer string | Lua | Deepest z any mining job has reached |
