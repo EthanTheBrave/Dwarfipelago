@@ -282,8 +282,8 @@ local BLUEPRINT_KEYWORDS = {
     ["Screw Press Blueprint"]            = {"screw press"},
     ["Soap Maker's Workshop Blueprint"]  = {"soap"},
     -- Clothing and leather
-    ["Clothier's Shop Blueprint"]        = {"clothier"},
-    ["Leather Works Blueprint"]          = {"leather"},
+    ["Clothier's Shop Blueprint"]        = {"clothes", "clothier"},
+    ["Leather Works Blueprint"]          = {"leather", "leatherworks", "leather works"},
     ["Tanner's Blueprint"]               = {"tanner"},
     ["Dyer's Workshop Blueprint"]        = {"dyer"},
     ["Loom Blueprint"]                   = {"loom"},
@@ -347,9 +347,13 @@ function BuildMenuOverlay:scan()
     local found = {}
     for y = 0, height - 1 do
         for _, cell in ipairs(row_cells(read_screen_row(y, width))) do
-            local blueprint = match_keyword(cell.text, BLUEPRINT_MATCHERS)
-            if blueprint and not blueprint_received(blueprint) then
-                found[#found + 1] = { y = y, col = cell.col, text = cell.text }
+            -- Skip category-header cells (e.g. "Clothing and leather", "Machines/fluids")
+            -- so bare keywords like "leather" don't false-positive on them.
+            if not cell.text:find(" and ", 1, true) and not cell.text:find("/", 1, true) then
+                local blueprint = match_keyword(cell.text, BLUEPRINT_MATCHERS)
+                if blueprint and not blueprint_received(blueprint) then
+                    found[#found + 1] = { y = y, col = cell.col, text = cell.text }
+                end
             end
         end
     end
