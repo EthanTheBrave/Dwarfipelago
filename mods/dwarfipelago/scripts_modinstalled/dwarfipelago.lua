@@ -1648,10 +1648,8 @@ wmap("Clothiers",        "Clothier's Shop Blueprint")
 wmap("Tanners",          "Tanner's Blueprint")
 wmap("Mechanics",        "Mechanic's Workshop Blueprint")
 wmap("Siege",            "Siege Workshop Blueprint")
-wmap("SoapMaker",        "Soap Maker's Workshop Blueprint")
 wmap("Ashery",           "Ashery Blueprint")
 wmap("Bowyers",          "Bowyer's Workshop Blueprint")
-wmap("ScrewPress",       "Screw Press Blueprint")
 wmap("Fishery",          "Fishery Blueprint")
 wmap("Loom",             "Loom Blueprint")
 wmap("Dyers",            "Dyer's Workshop Blueprint")
@@ -1665,6 +1663,13 @@ wmap("Carpenters",       "Carpenter's Workshop Blueprint")
 wmap("Masons",           "Stoneworker's Workshop Blueprint")
 wmap("Still",            "Still Blueprint")
 wmap("Leatherworks",     "Leather Works Blueprint")
+
+-- Workshops now classified as df.workshop_type.Custom in this DF version.
+-- Keyed by RAW building code (df.global.world.raws.buildings.all[i].code).
+local CUSTOM_WORKSHOP_BLUEPRINTS = {
+    ["SCREW_PRESS"] = "Screw Press Blueprint",
+    ["SOAP_MAKER"]  = "Soap Maker's Workshop Blueprint",
+}
 
 -- Furnaces (df.furnace_type → blueprint name)
 local FURNACE_BLUEPRINTS = {}
@@ -1711,6 +1716,10 @@ local function on_job_initiated(job)
 
     if df.building_workshopst:is_instance(bld) then
         blueprint_name = WORKSHOP_BLUEPRINTS[bld.type]
+        if not blueprint_name and bld.type == df.workshop_type.Custom then
+            local def = df.global.world.raws.buildings.all[bld.custom_type]
+            if def then blueprint_name = CUSTOM_WORKSHOP_BLUEPRINTS[def.code] end
+        end
     elseif df.building_furnacest:is_instance(bld) then
         blueprint_name = FURNACE_BLUEPRINTS[bld.type]
     elseif df.building_farmplotst:is_instance(bld) then
