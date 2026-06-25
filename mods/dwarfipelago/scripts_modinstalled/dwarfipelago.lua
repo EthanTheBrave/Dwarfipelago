@@ -1336,7 +1336,7 @@ local function sync_permit_overlay()
     local want = goal_setting("crafting_permits", 0) ~= 0
     if want ~= _permit_overlay_state then
         _permit_overlay_state = want
-        pcall(dfhack.run_command, "overlay", want and "enable" or "disable", "dwarfipelago-panel.permits")
+        pcall(dfhack.run_command, "overlay", want and "enable" or "disable", "dwarfipelago-overlays.permits")
     end
 end
 
@@ -2120,10 +2120,12 @@ local function start()
     -- Register poll loop
     repeatUtil.scheduleEvery(SCRIPT_NAME, POLL_TICKS, "ticks", poll_checks)
 
-    -- Enable the corner [AP] overlay button. The permit-lock workshop overlay is
+    -- Enable the corner [AP] overlay button and the Build-menu blueprint overlay
+    -- (blueprint-locking is always active). The permit-lock workshop overlay is
     -- enabled/disabled by the poll based on whether Crafting Permits are on, so it
     -- never activates on a no-permits world (e.g. Slay Megabeast).
     pcall(dfhack.run_command, "overlay", "enable", "dwarfipelago-panel.hotspot")
+    pcall(dfhack.run_command, "overlay", "enable", "dwarfipelago-overlays.buildmenu")
     _permit_overlay_state = nil  -- force the poll to (re)apply the correct state
 
     check_civilization_diversity()
@@ -2144,9 +2146,10 @@ local function stop()
     end
     repeatUtil.cancel(SCRIPT_NAME)
 
-    -- Hide the corner [AP] overlay button and the permit-lock workshop overlay.
+    -- Hide the corner [AP] overlay button and the workshop/build overlays.
     pcall(dfhack.run_command, "overlay", "disable", "dwarfipelago-panel.hotspot")
-    pcall(dfhack.run_command, "overlay", "disable", "dwarfipelago-panel.permits")
+    pcall(dfhack.run_command, "overlay", "disable", "dwarfipelago-overlays.permits")
+    pcall(dfhack.run_command, "overlay", "disable", "dwarfipelago-overlays.buildmenu")
 
     print("[Dwarfipelago] Stopped.")
 end
