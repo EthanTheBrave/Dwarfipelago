@@ -216,6 +216,7 @@ PermitOverlay.ATTRS{
     default_enabled = true,
     viewscreens     = {
         'dwarfmode/ViewSheets/BUILDING/Workshop',  -- a workshop's Tasks tab
+        'dwarfmode/ViewSheets/BUILDING/Furnace',   -- furnaces (smelter, kiln, glass furnace, etc.)
         'dwarfmode/Info/WORK_ORDERS/Create',       -- the create-work-order job picker
     },
     frame           = {w = 1, h = 1},
