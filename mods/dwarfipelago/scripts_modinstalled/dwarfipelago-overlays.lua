@@ -217,6 +217,7 @@ PermitOverlay.ATTRS{
     viewscreens     = {
         'dwarfmode/ViewSheets/BUILDING/Workshop',  -- a workshop's Tasks tab
         'dwarfmode/Info/WORK_ORDERS/Create',       -- the create-work-order job picker
+        'dwarfmode/ViewSheets/BUILDING/Furnace',
     },
     frame           = {w = 1, h = 1},
 }
