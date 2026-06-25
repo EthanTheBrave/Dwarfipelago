@@ -131,80 +131,40 @@ end
 
 local TASK_NAME_WIDTH = 44  -- craft names fit well within this
 
--- Read only a fixed window starting at "Make", so text far to the right sharing
+-- DF verb prefixes for workshop/furnace tasks.
+-- `skip` = chars to drop to reach the item name (verb + space, 1-based).
+-- Read only a fixed window starting at the verb, so text far to the right sharing
 -- the same screen row (the squad panel on a workshop, or the map "Elevation N"
 -- readout on the work-orders screen) is never pulled into the craft name.
-function text_override(row, y, start_text, end_pos)
-    local craft = row:sub(start_text, start_text + TASK_NAME_WIDTH):gsub("%s+$", "")
-    if craft:find("Requires") then return end
-    local flag = permit_required_by(craft:sub(end_pos))      -- drop the prefix
-    if flag and not permit_received(flag) then
-        return { y = y, col = start_text - 1, text = craft, flag = flag }
-    end
-end
+local TASK_VERBS = {
+    { pattern = "Make %S",     skip = 6  },
+    { pattern = "Forge %S",    skip = 7  },
+    { pattern = "Tan a %S",    skip = 7  },
+    { pattern = "Brew %S",     skip = 6  },
+    { pattern = "Assemble %S", skip = 10 },
+    { pattern = "Smelt %S",    skip = 7  },
+    { pattern = "Melt %S",     skip = 6  },
+    { pattern = "Prepare %S",  skip = 9  },
+    { pattern = "Render %S",   skip = 8  },
+    { pattern = "Press %S",    skip = 7  },
+    { pattern = "Weave %S",    skip = 7  },
+}
 
--- If a screen row is a permit-locked "Make ..." task, return where/what to mark;
--- otherwise nil. (DF's own "[Requires ...]" rows are left alone.)
+-- If a screen row is a permit-locked task, return where/what to mark; otherwise nil.
+-- (DF's own "[Requires ...]" rows are left alone.)
 local function locked_task_on_row(row, y)
-    local make_at = row:find("Make %S")
-    local forge_at = row:find("Forge %S")
-    local tan_at = row:find("Tan a %S")
-    local brew_at = row:find("Brew %S")
-    local assemble_at = row:find("Assemble %S")
-    local smelt_at = row:find("Smelt %S")
-    local melt_at = row:find("Melt %S")
-    local prepare_at = row:find("Prepare %S")
-    local render_at = row:find("Render %S")
-    local press_at = row:find("Press %S")
-    local weave_at = row:find("Weave %S")
-
-
-
-
-    if not make_at then
-        if not forge_at then
-            if not tan_at then
-                if not brew_at then
-                    if not assemble_at then
-                        if not smelt_at then
-                            if not melt_at then
-                                if not prepare_at then
-                                    if not render_at then
-                                        if not press_at then
-                                            if not weave_at then
-                                                return
-                                            else -- Weave
-                                                return text_override(row, y, weave_at, 7)
-                                            end
-                                        else -- Press
-                                            return text_override(row, y, press_at, 7)
-                                        end
-                                    else -- Render
-                                        return text_override(row, y, render_at, 8)
-                                    end
-                                else -- Prepare
-                                    return text_override(row, y, prepare_at, 9)
-                                end
-                            else -- Melt
-                                 return text_override(row, y, melt_at, 6)
-                            end
-                        else -- Smelt
-                            return text_override(row, y, smelt_at, 7)
-                        end
-                    else -- Assemble
-                        return text_override(row, y, assemble_at, 10)
-                    end
-                else -- Brew
-                    return text_override(row, y, brew_at, 6)
-                end
-            else -- Tan a
-                return text_override(row, y, tan_at, 7)
+    for _, verb in ipairs(TASK_VERBS) do
+        local pos = row:find(verb.pattern)
+        if pos then
+            local craft = row:sub(pos, pos + TASK_NAME_WIDTH):gsub("%s+$", "")
+            if craft:find("Requires") then return end
+            local flag = permit_required_by(craft:sub(verb.skip))
+            if flag and not permit_received(flag) then
+                return { y = y, col = pos - 1, text = craft, flag = flag }
             end
-        else -- Forge
-            return text_override(row, y, forge_at, 7)
+            return  -- verb matched but task isn't permit-locked; no need to check further
         end
     end
-    return text_override(row, y, make_at, 6)
 end
 
 
