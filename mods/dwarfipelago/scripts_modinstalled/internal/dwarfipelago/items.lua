@@ -1711,7 +1711,7 @@ end
 -- name shows cleanly. Clears any nickname so it isn't shown in quotes alongside.
 local function set_dwarf_name(unit, nm)
     pcall(function()
-        unit.name.first_name = nm
+        unit.name.first_name = nm .. " Dwarfipelago"
         unit.name.has_name = true
         unit.name.nickname = ""
     end)
