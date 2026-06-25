@@ -78,31 +78,39 @@ local PERMIT_KEYWORDS = {
     container = {"chest", "coffer"}, burial_container = {"casket", "coffin", "sarcophagus"},
     bin = {"bin"}, barrel = {"barrel"}, bucket = {"bucket"}, bookcase = {"bookcase"},
     cage = {"cage"}, statue = {"statue"}, slab = {"slab"}, pedestal = {"pedestal"},
-    door = {"door"}, floodgate = {"floodgate"}, grate = {"grate"}, hatch_cover = {"hatch cover"},
+    door = {"door", "Portal", "portal"}, floodgate = {"floodgate"}, grate = {"grate"}, hatch_cover = {"hatch cover"},
     altar = {"altar"}, armor_stand = {"armor stand"}, weapon_rack = {"weapon rack"},
     -- tools, mechanisms, misc
-    mechanism = {"mechanism"}, minecart = {"minecart"}, wheelbarrow = {"wheelbarrow"},
+    mechanism = {"mechanisms"}, minecart = {"minecart"}, wheelbarrow = {"wheelbarrow"},
     stepladder = {"stepladder"}, corkscrew = {"corkscrew"}, pipe_section = {"pipe section"},
     millstone = {"millstone"}, quern = {"quern"}, splint = {"splint"}, crutch = {"crutch"},
     traction_bench = {"traction bench"}, animal_trap = {"animal trap"},
     -- weapons, armor, traps
-    blocks = {"blocks", "block"}, spike = {"spike"}, ball = {"ball"},
+    blocks = {"blocks", "block", "bricks"}, spike = {"spike"}, ball = {"ball"},
     buckler = {"buckler"}, shield = {"shield"}, helm = {"helm"}, gauntlets = {"gauntlets"},
     mace = {"mace"}, spear = {"spear"}, pick = {"pick"}, anvil = {"anvil"},
     battle_axe = {"battle axe"}, short_sword = {"short sword"}, war_hammer = {"war hammer"},
     crossbow = {"crossbow"}, bolt = {"bolt", "bolts"},
     training_axe = {"training axe"}, training_spear = {"training spear"}, training_sword = {"training sword"},
-    ballista_parts = {"ballista parts"}, ballista_arrows = {"ballista arrows"}, catapult_parts = {"catapult parts"},
+    ballista_parts = {"ballista parts"}, ballista_arrows = {"ballista arrow"}, catapult_parts = {"catapult parts"},
+    lower_body_armor = {"leggings", "greaves"}, upper_body_armor = {"leather armor", "breastplate"},
     -- materials, industry, food
-    metal_bars = {"metal bars"}, coke_bars = {"coke"}, charcoal = {"charcoal"}, ash = {"ash"},
-    pearlash = {"pearlash"}, quicklime = {"quicklime"}, gypsum_plaster = {"gypsum plaster"},
-    glass = {"glass"}, window = {"window"}, jug = {"jug"}, large_pot = {"large pot"}, hive = {"hive"},
-    liquid_container = {"goblet"}, cup = {"cup"}, toy = {"toy"}, totem = {"totem"}, crafts = {"crafts"},
+    metal_bars = {"bars", "ore", "metal object", "wafers"}, coke_bars = {"coke"}, charcoal = {"charcoal"}, ash = {"ash"},
+    pearlash = {"pearlash"}, quicklime = {"quicklime"}, gypsum_plaster = {"gypsum plaster", "plaster powder"},
+    glass = {"raw clear glass", "raw crystal glass", "raw green glass" }, window = {"window"}, jug = {"jug"}, large_pot = {"pot"}, hive = {"hive"},
+    liquid_container = {"flasks", "vials", "waterskins"}, cup = {"cup", "mugs", "goblets"}, toy = {"toy"}, totem = {"totem"}, crafts = {"crafts"},
     book_binding = {"book binding"}, scroll_roller = {"scroll roller"},
-    leather = {"leather"}, cloth = {"cloth"}, sheet = {"sheet"}, dye = {"dye"}, bag = {"bag"},
+    leather = {"hide"}, cloth = {"into cloth", "into silk", "metal cloth"}, sheet = {"sheet", "parchment",}, dye = {"dye"}, bag = {"bag"},
     ["rope/chain"] = {"rope", "chain"}, soap = {"soap"}, coins = {"coins"},
-    alcohol = {"alcohol"}, lye = {"lye"}, potash = {"potash"}, tallow = {"tallow"},
-    oil = {"oil"}, honey = {"honey"}, prepared_meal = {"prepared meal"}, milk_of_lime = {"milk of lime"},
+    alcohol = {"drink from fruit", "drink from plant", "mead"}, lye = {"lye"}, potash = {"potash"}, tallow = {"fat"},
+    oil = {"oil"}, honey = {"honey"}, prepared_meal = {"meal"}, milk_of_lime = {"milk of lime"},
+    -- cloths
+    lower_body_clothing = {"loincloth", "thong", "braies", "trousers", "skirt", ""},
+    headgear_clothing = {"face veil", "mask", "headscarf", "head veil", "turban", "cap", "hood"},
+    upper_body_clothing = {"tunic", "shirt", "dress", "vest", "toga", "coat", "robe", "mail shirt", "cape", "cloak"},
+    hand_clothing = {"gloves", "mittens"},
+    footwear = {"socks", "chausses", "shoes", "boots"},
+
 }
 local PERMIT_MATCHERS = build_matchers(PERMIT_KEYWORDS)
 local function permit_required_by(craft_name)
@@ -123,21 +131,83 @@ end
 
 local TASK_NAME_WIDTH = 44  -- craft names fit well within this
 
+-- Read only a fixed window starting at "Make", so text far to the right sharing
+-- the same screen row (the squad panel on a workshop, or the map "Elevation N"
+-- readout on the work-orders screen) is never pulled into the craft name.
+function text_override(row, y, start_text, end_pos)
+    local craft = row:sub(start_text, start_text + TASK_NAME_WIDTH):gsub("%s+$", "")
+    if craft:find("Requires") then return end
+    local flag = permit_required_by(craft:sub(end_pos))      -- drop the prefix
+    if flag and not permit_received(flag) then
+        return { y = y, col = start_text - 1, text = craft, flag = flag }
+    end
+end
+
 -- If a screen row is a permit-locked "Make ..." task, return where/what to mark;
 -- otherwise nil. (DF's own "[Requires ...]" rows are left alone.)
 local function locked_task_on_row(row, y)
     local make_at = row:find("Make %S")
-    if not make_at then return end
-    -- Read only a fixed window starting at "Make", so text far to the right sharing
-    -- the same screen row (the squad panel on a workshop, or the map "Elevation N"
-    -- readout on the work-orders screen) is never pulled into the craft name.
-    local craft = row:sub(make_at, make_at + TASK_NAME_WIDTH):gsub("%s+$", "")
-    if craft:find("Requires") then return end
-    local flag = permit_required_by(craft:sub(6))      -- drop the "Make " prefix
-    if flag and not permit_received(flag) then
-        return { y = y, col = make_at - 1, text = craft, flag = flag }
+    local forge_at = row:find("Forge %S")
+    local tan_at = row:find("Tan a %S")
+    local brew_at = row:find("Brew %S")
+    local assemble_at = row:find("Assemble %S")
+    local smelt_at = row:find("Smelt %S")
+    local melt_at = row:find("Melt %S")
+    local prepare_at = row:find("Prepare %S")
+    local render_at = row:find("Render %S")
+    local press_at = row:find("Press %S")
+    local weave_at = row:find("Weave %S")
+
+
+
+
+    if not make_at then
+        if not forge_at then
+            if not tan_at then
+                if not brew_at then
+                    if not assemble_at then
+                        if not smelt_at then
+                            if not melt_at then
+                                if not prepare_at then
+                                    if not render_at then
+                                        if not press_at then
+                                            if not weave_at then
+                                                return
+                                            else -- Weave
+                                                return text_override(row, y, weave_at, 7)
+                                            end
+                                        else -- Press
+                                            return text_override(row, y, press_at, 7)
+                                        end
+                                    else -- Render
+                                        return text_override(row, y, render_at, 8)
+                                    end
+                                else -- Prepare
+                                    return text_override(row, y, prepare_at, 9)
+                                end
+                            else -- Melt
+                                 return text_override(row, y, melt_at, 6)
+                            end
+                        else -- Smelt
+                            return text_override(row, y, smelt_at, 7)
+                        end
+                    else -- Assemble
+                        return text_override(row, y, assemble_at, 10)
+                    end
+                else -- Brew
+                    return text_override(row, y, brew_at, 6)
+                end
+            else -- Tan a
+                return text_override(row, y, tan_at, 7)
+            end
+        else -- Forge
+            return text_override(row, y, forge_at, 7)
+        end
     end
+    return text_override(row, y, make_at, 6)
 end
+
+
 
 PermitOverlay = defclass(PermitOverlay, overlay.OverlayWidget)
 PermitOverlay.ATTRS{
@@ -213,7 +283,7 @@ local BLUEPRINT_KEYWORDS = {
     ["Soap Maker's Workshop Blueprint"]  = {"soap"},
     -- Clothing and leather
     ["Clothier's Shop Blueprint"]        = {"clothier"},
-    ["Leather Works Blueprint"]          = {"leather works"},
+    ["Leather Works Blueprint"]          = {"leather"},
     ["Tanner's Blueprint"]               = {"tanner"},
     ["Dyer's Workshop Blueprint"]        = {"dyer"},
     ["Loom Blueprint"]                   = {"loom"},
