@@ -149,7 +149,7 @@ class Skillsanity:
                             if self.skill_levels[levels] in location.name and location in combat_skill_locations:
                                 remove_skills.append(location)
                                 combat_skill_locations.remove(location)
-                self.world.skill_locations = skill_locations
+                self.world.skill_locations += combat_skill_locations
             self.world.remove_skill_locations_names = {n.name for n in remove_skills}
 
             
@@ -297,7 +297,7 @@ class Skillsanity:
         elif "Armordwarf" in location_name:
             set_rule(loc, self.skill_armordwarf)
         elif "Shielddwarf" in location_name:
-            set_rule(loc, self.shielddwarf)
+            set_rule(loc, self.skill_shielddwarf)
 
     def skill_bowyer(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
