@@ -79,6 +79,7 @@ local GOAL_NAMES = {
     ["2"] = "Population Boom",
     ["3"] = "Mountainhome",
     ["4"] = "Remains of the Great King",
+    ["5"] = "Dwarfsanity",
 }
 
 local function yn(val, yes_color, no_color)
@@ -162,42 +163,75 @@ local function build_unlocks_lines()
         if goal == 0 then
             if def.key == "wealth_coffers" or def.key == "baron_charter"
             or def.key == "count_charter" or def.key == "duke_charter"
-            or def.key == "monarch_invitation" or def.key == "RotGK" then
+            or def.key == "monarch_invitation" or def.key == "RotGK"
+            or def.key == "dwarfsanity" then
                 goto continue
             end
         elseif goal == 1 then
             if def.key == "military_training" or def.key == "baron_charter"
             or def.key == "count_charter" or def.key == "duke_charter"
             or def.key == "monarch_invitation" or def.key == "RotGK"
-            or def.key == "artifact_weapon" or def.key == "artifact_armor" then
+            or def.key == "artifact_weapon" or def.key == "artifact_armor"
+            or def.key == "dwarfsanity" then
                 goto continue
             end
         elseif goal == 2 then
             if def.key == "military_training" or def.key == "RotGK"
-            or def.key == "artifact_armor" or def.key == "wealth_coffers" then
+            or def.key == "artifact_armor" or def.key == "wealth_coffers"
+            or def.key == "dwarfsanity" then
                 goto continue
             end
         elseif goal == 3 then
             if def.key == "military_training" or def.key == "baron_charter"
             or def.key == "count_charter" or def.key == "duke_charter"
             or def.key == "monarch_invitation" or def.key == "RotGK"
-            or def.key == "wealth_coffers" then
+            or def.key == "wealth_coffers" or def.key == "dwarfsanity" then
                 goto continue
             end
         elseif goal == 4 then
             if def.key == "military_training" or def.key == "baron_charter"
             or def.key == "count_charter" or def.key == "duke_charter"
-            or def.key == "monarch_invitation" or def.key == "wealth_coffers" then
+            or def.key == "monarch_invitation" or def.key == "wealth_coffers"
+            or def.key == "dwarfsanity" then
                 goto continue
             elseif def.key == "RotGK" then
                 def.max = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/king_remains_goal") or 99)
             end
+        elseif goal == 5 then
+            if def.key == "military_training" or def.key == "baron_charter"
+            or def.key == "count_charter" or def.key == "duke_charter"
+            or def.key == "monarch_invitation" or def.key == "wealth_coffers"
+            or def.key == "RotGK" then
+                goto continue
+            elseif def.key == "dwarfsanity" then
+                local count = 0
+                for _ in pairs(items.BLUEPRINT_NAMES) do count = count + 1 end
+                for _ in pairs(items.CRAFTING_LOCK_ITEMS) do count = count + 1 end
+                def.max = count
+            end
         end
-        local raw = ps("unlock/" .. def.key, "0")
-        if def.max then
-            item_count(def.label, raw, def.max)
-        else
-            item_bool(def.label, raw == "1")
+        if def.key ~= "dwarfsanity" then
+            local raw = ps("unlock/" .. def.key, "0")
+            if def.max then
+                item_count(def.label, raw, def.max)
+            else
+                item_bool(def.label, raw == "1")
+            end
+        else -- collection for dwarfsanity
+            local collected = 0
+            for _, bp_name in ipairs(items.BLUEPRINT_NAMES) do
+                if ps("blueprint/" .. bp_name, "0") == "1" then
+                    collected = collected + 1
+                end
+            end
+            for _, item_name in pairs(items.CRAFTING_LOCK_ITEMS) do
+                local flag = item_name:lower():gsub(" ", "_")
+                local done_flag = tonumber(ps("craftlock/" .. flag, "0"))
+                if done_flag >= 1 then
+                    collected = collected + 1
+                end
+            end
+            item_count(def.label, collected, def.max)
         end
         ::continue::
     end
@@ -461,7 +495,6 @@ local function build_permit_lines()
     row("  " .. string.rep("-", 52), COLOR_DARKGRAY)
 
     -- Build display list
-    local craft_counts = checks.get_all_craft_counts()
     local list = {}
     for _, item_name in pairs(items.CRAFTING_LOCK_ITEMS) do
         local flag = item_name:lower():gsub(" ", "_")
