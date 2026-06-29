@@ -137,6 +137,10 @@ class DwarfFortressWorld(World):
                 f" To increase this, add more crafting item locations, increase the maximum amount or lower the threshold."
                 f" You need {len(CRAFT_ITEMS) - len(self.dynamic_locations)} more locations."
             )
+        if self.options.craftpermits == CraftingPermits.option_off and self.options.goal == DwarfFortressGoal.option_dwarfsanity:
+            raise OptionError(
+                f"{self.player_name}: You cannot set your goal to dwarfsanity without crafting permits enabled. Enable Crafting Permits."
+            )
 
         # Active set = the static non-craft locations (LOCATION_TABLE) plus the
         # craft subset this slot generated. Goal-based filtering then drops

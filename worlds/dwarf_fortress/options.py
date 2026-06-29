@@ -14,6 +14,7 @@ class DwarfFortressGoal(Choice):
     - population_boom: grow to a target population. UNSTABLE / UNFINISHED - not recommended.
     - mountainhome: achieve Mountainhome status (the monarch takes residence). Very difficult.
     - king_remains: recover all the Remains of the Great King.
+    - dwarfsanity: recover all your blueprints and permits. (permits must be enabled)
     """
     display_name = "Goal"
     option_slay_megabeast = 0
@@ -21,6 +22,7 @@ class DwarfFortressGoal(Choice):
     option_population_boom = 2
     option_mountainhome = 3
     option_king_remains = 4
+    option_dwarfsanity = 5
     default = 1
 
 
