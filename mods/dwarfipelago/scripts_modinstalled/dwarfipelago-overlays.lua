@@ -57,6 +57,9 @@ end
 
 local LOCKED_ITEM_PEN = to_pen{ fg = COLOR_RED, bg = COLOR_BLACK, bold = true }
 local LOCKED_NOTE_PEN = to_pen{ fg = COLOR_RED, bg = COLOR_BLACK }
+local UNLOCKED_NOTE_PEN = to_pen{ fg = COLOR_WHITE, bg = COLOR_BLACK }
+local COMPLETED_NOTE_PEN = to_pen{ fg = COLOR_GREEN, bg = COLOR_BLACK }
+
 local RESCAN_FRAMES   = 2    -- frames between screen re-reads; lower = snappier, costs
                              -- a full-screen scan more often (only on menu screens)
 
@@ -110,8 +113,8 @@ local PERMIT_KEYWORDS = {
     upper_body_clothing = {"tunic", "shirt", "dress", "vest", "toga", "coat", "robe", "mail shirt", "cape", "cloak"},
     hand_clothing = {"gloves", "mittens"},
     footwear = {"socks", "chausses", "shoes", "boots"},
-
 }
+
 local PERMIT_MATCHERS = build_matchers(PERMIT_KEYWORDS)
 local function permit_required_by(craft_name)
     return match_keyword(craft_name, PERMIT_MATCHERS)
@@ -337,9 +340,192 @@ function BuildMenuOverlay:onRenderBody(dc)
     end
 end
 
+
+CraftsanityOverlay = defclass(CraftsanityOverlay, overlay.OverlayWidget)
+CraftsanityOverlay.ATTRS{
+    desc            = "Dwarfipelago: marks workshop tasks that still requires X amount of Crafting",
+    default_pos     = {x = 1, y = 1},
+    default_enabled = true,
+    viewscreens     = {
+        'dwarfmode/ViewSheets/BUILDING/Workshop',  -- a workshop's Tasks tab
+        'dwarfmode/ViewSheets/BUILDING/Furnace',   -- furnaces (smelter, kiln, glass furnace, etc.)
+        'dwarfmode/Info/WORK_ORDERS/Create',       -- the create-work-order job picker
+    },
+    frame           = {w = 1, h = 1},
+}
+
+function CraftsanityOverlay:init()
+    self.locked_rows = {}
+    self.task_rows = {}
+    self.frames_since_scan = RESCAN_FRAMES
+end
+
+local TASK_LINE = {
+    "Make .*%S",
+    "Forge .*%S",
+    "Tan a .*%S",
+    "Brew .*%S",
+    "Assemble .*%S",
+    "Smelt .*%S",
+    "Melt .*%S",
+    "Prepare .*%S",
+    "Render .*%S",
+    "Press .*%S",
+    "Weave .*%S",
+}
+
+local MATERIAL_KEYWORDS = {
+    wood = {"wooden"}, stone = {"rock"}, bone = {"bone"},
+    ceramic = {"clay"}, metal = {"adamantine", "aluminum", "billon", "metal", "brass",
+    "bronze", "copper", "electrum", "elemental", "steel", "pewter", "gold", "iron",
+    "lead", "nickel", "platinum", "silver", "tin", "zinc"}, 
+    glass = {"glass"}, leather = {"leather"}, cloth = {" cloth", "yarn"}
+}
+
+local function material_required_by(craft_name)
+    for material, material_table in pairs(MATERIAL_KEYWORDS)
+    do
+        for _, keyword in pairs(material_table)
+        do
+            if string.find(craft_name, keyword) then
+                return material
+            end
+        end
+    end
+end
+
+local CRAFTSANITY_KEYWORDS = {
+    beds = {"bed"}, corkscrew = {"corkscrew"}, blocks = {"blocks", "bricks"}, spike = {"spike"},
+    ball = {"ball"}, altar = {"altar"}, animal_trap = {"animal trap"}, armor_stand = {"armor stand"}, barrel = {"barrel"},
+    bin = {"bin"}, bookcase = {"bookcase"}, bucket = {"bucket"}, buckler = {"buckler"}, cabinet = {"cabinet"},
+    cage = {"cage"}, burial_container = {"casket", "sarcophagus", "coffin"}, chair = {"chair", "throne"}, container = {"chest", "coffer"}, crutch = {"crutch"},
+    door = {"door", "portal"}, floodgate = {"floodgate"}, grate = {"grate"}, hatch_cover = {"hatch cover"},
+    minecart = {"minecart"}, pedestal = {"pedestal"}, pipe_section = {"pipe section"}, shield = {"shield"},
+    splint = {"splint"}, stepladder = {"stepladder"}, table = {"table"}, training_axe = {"training axe"},
+    training_spear = {"training spear"}, training_sword = {"training sword"}, weapon_rack = {"weapon rack"},
+    wheelbarrow = {"wheelbarrow"}, crossbow = {"crossbow"}, bolt = {"bolts"}, millstone = {"millstone"},
+    quern = {"quern"}, slab = {"slab"}, statue = {"statue"}, mechanism = {"mechanism", "mechanisms"}, 
+    traction_bench = {"traction bench"}, crafts = {"crafts"}, liquid_container = {"flasks", "vials", "waterskins"},
+    goblet = {"goblet", "goblets"}, mug = {"mugs"}, cup = {"cups"}, toy = {"toy"}, totem = {"totem"}, gauntlets = {"gauntlets"},
+    helm = {"helm"}, ballista_parts = {"ballista parts"}, catapult_parts = {"catapult parts"}, ballista_arrows = {"ballista arrow"},
+    ash = {"ash"}, charcoal = {"charcoal"}, metal_bars = {"bars", "ore", "metal object", "wafers"}, coke_bars = {"coke"},
+    pearlash = {"pearlash"}, gypsum_plaster = {"plaster powder"}, jug = {"jug"}, large_pot = {"pot"},  hive = {"hive"},
+    quicklime = {"quicklime"}, glass = {"glass"}, window = {"window"}, book_binding = {"book binding"},
+    scroll_roller = {"scroll rollers"}, leather = {"hide"}, sheet = {"sheet", "parchment"}, cloth = {"into cloth"}, alcohol = {"Brew drink", "mead"},
+    lye = {"lye"}, potash = {"potash"}, milk_of_lime = {"milk of lime"}, prepared_meal = {"meal"},
+    tallow = {"tallow"}, oil = {"oil"}, press_cake = {"press_cake"}, honey = {"honey"}, bee_wax = {"bee wax"},
+    headgear_clothing = {"veil", "mask", "headscarf", "turban", "cap", "hood"},
+    upper_body_clothing = {"tunic", "shirt", "dress", "vest", "toga", "coat", "robe", "cape", "cloak"},
+    upper_body_armor = {"leather armor", "breastplate"}, hand_clothing = {"gloves", "mittens"},
+    lower_body_clothing = {"thong", "loincloth", "braies", "trousers", "skirt"},
+    lower_body_armor = {"leggings", "greaves"}, footwear = {"socks", "chausses", "sandals", "shoes", "boots"},
+    dye = {"dye"}, bag = {"bag"}, rope_chain = {"rope", "chain"}, battle_axe = {"battle axe"},
+    mace = {"mace"}, pick = {"pick"}, short_sword = {"short sword"}, spear = {"spear"}, war_hammer = {"war hammer"},
+    anvil = {"anvil"}, coins = {"coins"}, soap = {"soap"},
+}
+
+local function craftsanity_required_by(craft_name)
+    for craft, craft_table in pairs(CRAFTSANITY_KEYWORDS)
+    do
+        for _, keyword in pairs(craft_table)
+        do
+            if string.find(craft_name, keyword .. " ") then
+                return craft
+            end
+        end
+    end
+end
+
+local function craftsanity_enabled()
+    return (dfhack.persistent.getWorldDataString("dwarfipelago/craftsanity_enabled") or "0") ~= "0"
+end
+local function craftsanity_materials_enabled()
+    return (dfhack.persistent.getWorldDataString("dwarfipelago/craftsanity_materials") or "0") ~= "0"
+end
+local function craftsanity_max()
+    return (dfhack.persistent.getWorldDataString("dwarfipelago/craftsanity_max") or "999")
+end
+local function craft_count(craft, material)
+    if craft == "rope_chain" then craft = "rope/chain" end
+    if material ~= "" then
+        return dfhack.persistent.getWorldDataString("dwarfipelago/craft_count/" .. craft .. "_" .. material)
+    else
+        return dfhack.persistent.getWorldDataString("dwarfipelago/craft_count/" .. craft)
+    end
+end
+
+local function task_on_row(row, y)
+    for _, verb in ipairs(TASK_LINE) do
+        local pos, end_pos = row:find(verb)
+        if pos then
+            local material = ""
+            local craft = craftsanity_required_by(row)
+            if craft then 
+                if craft == "beds" or craft == "ash" or craft == "charcoal" or craft == "metal_bars" or craft == "coke_bars"
+                or craft == "pearlash" or craft == "gypsum_plaster" or craft == "quicklime" or craft == "glass" or craft == "leather"
+                or craft == "sheet" or craft == "cloth" or craft == "alcohol" or craft == "lye" or craft == "potash" or craft == "milk_of_lime"
+                or craft == "prepared_meal" or craft == "tallow" or craft == "oil" or craft == "press_cake" or craft == "honey" 
+                or craft == "bee wax" or craft == "dye" or craft == "soap" or craft == "training_axe" or craft == "training_spear"
+                or craft == "training_sword" or craft == "cup" or craft == "ballista_parts" or craft == "catapult_parts" or craft == "millstone"
+                or craft == "quern" or craft == "slab" or craft == "mug" or craft == "totem" or craft == "window" or craft == "battle_axe"
+                or craft == "mace" or craft == "pick" or craft == "short_sword" or craft == "spear" or craft == "war_hammer" or craft == "anvil"
+                or craft == "coins"
+                then -- these don't have other material types
+                    return { y = y, start = pos, finish = end_pos, mat = material, craft = craft}
+                end
+                if craftsanity_enabled() then
+                    local mat = material_required_by(row)
+                    if mat then material = mat end
+                end
+                return { y = y, start = pos, finish = end_pos, mat = material, craft = craft}
+            else
+                return
+            end
+        end
+    end
+end
+
+
+-- Re-read the screen and remember which rows needs craftsanity.
+function CraftsanityOverlay:scan()
+    local width, height = dfhack.screen.getWindowSize()
+    local rows = {}
+    local task = {}
+    for y = 0, height - 1 do
+        local t = task_on_row(read_screen_row(y, width), y)
+        if t then task[#task + 1] = t end
+    end
+    self.task_rows = task
+end
+
+function CraftsanityOverlay:onRenderBody(dc)
+    if not craftsanity_enabled() then
+        self.task_rows = {}
+        return
+    end
+    max = craftsanity_max()
+    self.frames_since_scan = self.frames_since_scan + 1
+    if self.frames_since_scan >= RESCAN_FRAMES then
+        self.frames_since_scan = 0
+        self:scan()
+    end
+    local width = dfhack.screen.getWindowSize()
+    for id, row in ipairs(self.task_rows) do
+        amt = craft_count(row.craft, row.mat)
+        if amt and tonumber(amt) >= tonumber(max) then
+            dfhack.screen.paintString(COMPLETED_NOTE_PEN, row.finish + 1, row.y, "(" .. max .. "/" .. max .. ")")
+        elseif amt then
+            dfhack.screen.paintString(UNLOCKED_NOTE_PEN, row.finish + 1, row.y, "(" .. amt .. "/" .. max .. ")")
+        -- else
+        --     dfhack.screen.paintString(UNLOCKED_NOTE_PEN, row.finish + 1, row.y, "(N/A)")
+        end
+    end
+end
+
 -- Auto-discovery table - DFHack registers these when the script is loaded.
 -- Widget names: "dwarfipelago-overlays.permits", "dwarfipelago-overlays.buildmenu".
 OVERLAY_WIDGETS = {
     permits   = PermitOverlay,
     buildmenu = BuildMenuOverlay,
+    craftsanity = CraftsanityOverlay,
 }
