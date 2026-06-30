@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from BaseClasses import ItemClassification, Location, LocationProgressType, CollectionState
 from worlds.dwarf_fortress.craftsanity_rules import DynamicCraftingLocationRules
 from worlds.generic.Rules import set_rule
-from .options import CraftingPermits, SkillsanitySkillGroup
-from .locations import JOB_SKILLS, LocationData
+from .options import CraftingPermits, SkillsanitySkillGroup, SkillsanityCombatSkillGroup
+from .locations import COMBAT_SKILLS, JOB_SKILLS, LocationData
 
 if TYPE_CHECKING:
     from . import DwarfFortressWorld
@@ -52,6 +52,19 @@ class Skillsanity:
      "Papermaker", "Strand Extractor", "Wax Worker", "Gelder", "Fish Dissector"
     ]
 
+    SKILLSANITY_COMBAT_EASY: List[str] = [
+     "Archer", "Axedwarf", "Crossbowdwarf", "Dodger", "Discipline", "Fighter", "Hammerdwarf",
+     "Macedwarf", "Speardwarf", "Sworddwarf"
+    ]
+
+    SKILLSANITY_COMBAT_MEDIUM: List[str] = SKILLSANITY_COMBAT_EASY + [
+     "Armordwarf", "Kicker", "Tactics", "Wrestler", "Striker", "Shielddwarf"
+    ]
+
+    SKILLSANITY_COMBAT_HARD: List[str] = SKILLSANITY_COMBAT_MEDIUM + [
+     "Biter", "Blowgunner", "Bowdwarf", "Knifedwarf", "Lasher"
+    ]
+
 
 
     def __init__(self, world: "DwarfFortressWorld") -> None:
@@ -61,11 +74,12 @@ class Skillsanity:
     def adjust_skill_locations(self) -> None:
         if self.world.options.skillsanity == False:
             self.world.remove_skill_locations_names = [location.name for location in JOB_SKILLS]
+            self.world.remove_skill_locations_names += [location.name for location in COMBAT_SKILLS]
             return
         else:
-            skill_locations = JOB_SKILLS.copy()
             remove_skills = []
-
+            #JOB SKILLS
+            skill_locations = JOB_SKILLS.copy()
             if self.world.options.skillsanity_skill_group == SkillsanitySkillGroup.option_easy:
                 for skill in JOB_SKILLS:
                     compare = [s for s in self.SKILLSANITY_EASY if s in skill.name]
@@ -98,8 +112,46 @@ class Skillsanity:
                         if self.skill_levels[levels] in location.name and location in skill_locations:
                             remove_skills.append(location)
                             skill_locations.remove(location)
-            self.world.remove_skill_locations_names = {n.name for n in remove_skills}
             self.world.skill_locations = skill_locations
+
+            #COMBAT SKILLS
+            combat_skill_locations = COMBAT_SKILLS.copy()
+            if self.world.options.skillsanity_enable_combat:
+                if self.world.options.skillsanity_combat_skill_group == SkillsanityCombatSkillGroup.option_easy:
+                    for skill in COMBAT_SKILLS:
+                        compare = [s for s in self.SKILLSANITY_COMBAT_EASY if s in skill.name]
+                        if len(compare) == 0:
+                            remove_skills.append(skill)
+                            combat_skill_locations.remove(skill)
+                elif self.world.options.skillsanity_combat_skill_group == SkillsanityCombatSkillGroup.option_medium:
+                    for skill in COMBAT_SKILLS:
+                        compare = [s for s in self.SKILLSANITY_COMBAT_MEDIUM if s in skill.name]
+                        if len(compare) == 0:
+                            remove_skills.append(skill)
+                            combat_skill_locations.remove(skill)
+                elif self.world.options.skillsanity_combat_skill_group == SkillsanityCombatSkillGroup.option_all:
+                    for skill in COMBAT_SKILLS:
+                        compare = [s for s in self.SKILLSANITY_COMBAT_HARD if s in skill.name]
+                        if len(compare) == 0:
+                            remove_skills.append(skill)
+                            combat_skill_locations.remove(skill)
+                else: #Manually selected
+                    for skill in COMBAT_SKILLS:
+                        compare = [s for s in self.world.options.skillsanity_combat_skills.value if s in skill.name]
+                        if len(compare) == 0:
+                            remove_skills.append(skill)
+                            combat_skill_locations.remove(skill)
+                #Remove Levels
+                if self.world.options.skillsanity_max_level <15: 
+                    remove_levels = self.world.options.skillsanity_max_level + 1
+                    for levels in range(remove_levels, 15+1):
+                        for location in COMBAT_SKILLS:
+                            if self.skill_levels[levels] in location.name and location in combat_skill_locations:
+                                remove_skills.append(location)
+                                combat_skill_locations.remove(location)
+                self.world.skill_locations += combat_skill_locations
+            self.world.remove_skill_locations_names = {n.name for n in remove_skills}
+
             
     def set_skill_rules(self) -> None:
         for location in self.world.skill_locations:
@@ -112,7 +164,10 @@ class Skillsanity:
         # following doesn't require rules:
         # Miner, Wood Cutter, Engraver, Mason, Stonecutter, Ambusher
         # Diagnostician, Beekeeper, Herbalist
-        # Fisherdwarf, Appraiser
+        # Fisherdwarf, Appraiser, Axedwarf, Dodger
+        # Discipline, Fighter, kicker, tactics
+        # Wrestler, Striker, Blowgunner, Bowdwarf
+        # Knifedwarf, Lasher
         if "Bowyer" in location_name:
             set_rule(loc, self.skill_bowyer)
         elif "Carpenter" in location_name:
@@ -227,7 +282,22 @@ class Skillsanity:
             set_rule(loc, self.office)
         elif "Record Keeper" in location_name:
             set_rule(loc, self.office)
-
+        elif "Archer" in location_name:
+            set_rule(loc, self.skill_ambusher) #reuse logic
+        elif "Crossbowdwarf" in location_name:
+            set_rule(loc, self.skill_ambusher) #reuse logic
+        elif "Hammerdwarf" in location_name:
+            set_rule(loc, self.skill_hammerer)
+        elif "Macedwarf" in location_name:
+            set_rule(loc, self.skill_macer)
+        elif "Speardwarf" in location_name:
+            set_rule(loc, self.skill_speardwarf)
+        elif "Sworddwarf" in location_name:
+            set_rule(loc, self.skill_sworddwarf)
+        elif "Armordwarf" in location_name:
+            set_rule(loc, self.skill_armordwarf)
+        elif "Shielddwarf" in location_name:
+            set_rule(loc, self.skill_shielddwarf)
 
     def skill_bowyer(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
@@ -677,3 +747,49 @@ class Skillsanity:
         else:
             return dynamic_rules.wood_or_stone_or_metal_or_glass_chair(state) \
             and dynamic_rules.wood_or_stone_or_metal_or_glass_door(state)
+        
+    def skill_hammerer(self, state:CollectionState) -> bool:
+        dynamic_rules = DynamicCraftingLocationRules(self.world)
+        if self.world.options.craftpermits == CraftingPermits.option_off:
+            return dynamic_rules.metal(state)
+        else:
+            return dynamic_rules.make_warhammer(state)
+
+    def skill_macer(self, state:CollectionState) -> bool:
+        dynamic_rules = DynamicCraftingLocationRules(self.world)
+        if self.world.options.craftpermits == CraftingPermits.option_off:
+            return dynamic_rules.metal(state)
+        else:
+            return dynamic_rules.make_mace(state)
+
+    def skill_speardwarf(self, state:CollectionState) -> bool:
+        dynamic_rules = DynamicCraftingLocationRules(self.world)
+        if self.world.options.craftpermits == CraftingPermits.option_off:
+            return dynamic_rules.metal(state)
+        else:
+            return dynamic_rules.make_spear(state)
+        
+    def skill_sworddwarf(self, state:CollectionState) -> bool:
+        dynamic_rules = DynamicCraftingLocationRules(self.world)
+        if self.world.options.craftpermits == CraftingPermits.option_off:
+            return dynamic_rules.metal(state)
+        else:
+            return dynamic_rules.make_sword(state)
+        
+    def skill_armordwarf(self, state:CollectionState) -> bool:
+        dynamic_rules = DynamicCraftingLocationRules(self.world)
+        if self.world.options.craftpermits == CraftingPermits.option_off:
+            return dynamic_rules.metal(state)
+        else:
+            return dynamic_rules.metal_or_bone_or_leather_lbodyarmor(state) and dynamic_rules.metal_or_leather_ubodyarmor(state)
+        
+    def skill_shielddwarf(self, state:CollectionState) -> bool:
+        dynamic_rules = DynamicCraftingLocationRules(self.world)
+        if self.world.options.craftpermits == CraftingPermits.option_off:
+            return dynamic_rules.wood_or_leather_or_metal(state)
+        else:
+            return dynamic_rules.wood_or_leather_or_metal_buckler(state) or dynamic_rules.wood_or_leather_or_metal_shield(state)
+        
+    
+
+

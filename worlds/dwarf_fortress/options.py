@@ -14,6 +14,7 @@ class DwarfFortressGoal(Choice):
     - population_boom: grow to a target population. UNSTABLE / UNFINISHED - not recommended.
     - mountainhome: achieve Mountainhome status (the monarch takes residence). Very difficult.
     - king_remains: recover all the Remains of the Great King.
+    - dwarfsanity: recover all your blueprints and permits. (permits must be enabled)
     """
     display_name = "Goal"
     option_slay_megabeast = 0
@@ -21,6 +22,7 @@ class DwarfFortressGoal(Choice):
     option_population_boom = 2
     option_mountainhome = 3
     option_king_remains = 4
+    option_dwarfsanity = 5
     default = 1
 
 
@@ -276,6 +278,47 @@ class SkillsanitySkills(OptionList):
     }
     default = valid_keys.copy() 
 
+class SkillsanityEnableCombat(DefaultOnToggle):
+    """
+    Part of Skillsanity, should combat skills levels be included as checks?
+    Pikedwarf, Misc. Object User and Thrower are not included as they are next to impossible
+    to level up in fortress mode.
+    """
+    default_name = "Skillsanity Combat skills"
+
+class SkillsanityCombatSkillGroup(Choice):
+    """
+    Selects which combat skills count as skillsanity location checks.
+    Easy Combat Skills: Archer, Axedwarf, Crossbowdwarf, Dodger, Discipline, Fighter, Hammerdwarf,
+    Macedwarf, Speardwarf, Sworddwarf
+
+    Medium Combat Skills: Easy + Armordwarf, Kicker, Tactics, Wrestler, Striker, Shielddwarf
+
+    All Combat Skills: Easy + Medium + Biter, Blowgunner, Bowdwarf, Knifedwarf, Lasher
+
+    Choose: Pick skills manually using the 'Skillsanity Combat Skills Locations' list below.
+    """
+    display_name = "Skillsanity Combat Skill Group"
+    option_easy = 0
+    option_medium = 1
+    option_all = 2
+    option_choose = 3
+    default = 1
+
+class SkillsanityCombatSkills(OptionList):
+    """
+    Manual combat skill selection for skillsanity checks.
+    Only active when Skillsanity Combat Skill Group is set to 'Choose'.
+    """
+    display_name = "Skillsanity Combat Skills locations"
+    valid_keys = {
+        "Archer", "Axedwarf", "Crossbowdwarf", "Dodger", "Discipline", "Fighter",
+        "Hammerdwarf", "Macedwarf", "Speardwarf", "Sworddwarf", "Armordwarf", "Kicker",
+        "Tactics", "Wrestler", "Striker", "Shielddwarf", "Biter", "Blowgunner",
+        "Bowdwarf", "Knifedwarf", "Lasher"
+    }
+    default = valid_keys.copy() 
+
 class SkillsanityMaxLevel(Range):
     """
     Max level for skills as a check.
@@ -341,6 +384,9 @@ class DwarfFortressOptions(PerGameCommonOptions):
     skillsanity: Skillsanity
     skillsanity_skill_group: SkillsanitySkillGroup
     skillsanity_skills: SkillsanitySkills
+    skillsanity_enable_combat: SkillsanityEnableCombat
+    skillsanity_combat_skill_group: SkillsanityCombatSkillGroup
+    skillsanity_combat_skills: SkillsanityCombatSkills
     skillsanity_max_level: SkillsanityMaxLevel
     skillsanity_behaviour: SkillsanityLevelMechanic
     trap_item_weight: TrapItemWeight
@@ -377,6 +423,9 @@ dwarf_fortress_option_groups = [
         Skillsanity,
         SkillsanitySkillGroup,
         SkillsanitySkills,
+        SkillsanityEnableCombat,
+        SkillsanityCombatSkillGroup,
+        SkillsanityCombatSkills,
         SkillsanityMaxLevel,
         SkillsanityLevelMechanic
     ], start_collapsed=True),

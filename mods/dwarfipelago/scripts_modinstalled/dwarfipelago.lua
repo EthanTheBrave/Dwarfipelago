@@ -301,6 +301,32 @@ local function check_goal_by_poll()
                 print("[Dwarfipelago] Goal complete: Remains of the Great King!")
             end
         end
+    elseif goal == 5 then -- Dwarfsanity
+        -- Dwarfsanity is achieved when you collected all your blueprints and permits
+        local amt = 0
+        for _ in pairs(items.BLUEPRINT_NAMES) do amt = amt + 1 end
+        for _ in pairs(items.CRAFTING_LOCK_ITEMS) do amt = amt + 1 end
+        local collected = 0
+        for _, bp_name in ipairs(items.BLUEPRINT_NAMES) do
+            if goal_setting("blueprint/" .. bp_name, "0") == 1 then
+                collected = collected + 1
+            end
+        end
+        for _, item_name in pairs(items.CRAFTING_LOCK_ITEMS) do
+            local flag = item_name:lower():gsub(" ", "_")
+            local done_flag = tonumber(goal_setting("craftlock/" .. flag, "0"))
+            if done_flag >= 1 then
+                collected = collected + 1
+            end
+        end
+        if collected >= amt then
+            if state.mark_goal_complete() then
+                dfhack.gui.showAnnouncement(
+                    "[AP] Goal reached: Dwarfsanity! You've colleced all your blueprints and permits! Your fortress is impenetrable!",
+                    COLOR_CYAN, true)
+                print("[Dwarfipelago] Goal complete: Dwarfsanity!")
+            end
+        end
     end
 end
 

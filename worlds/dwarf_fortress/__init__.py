@@ -137,6 +137,10 @@ class DwarfFortressWorld(World):
                 f" To increase this, add more crafting item locations, increase the maximum amount or lower the threshold."
                 f" You need {len(CRAFT_ITEMS) - len(self.dynamic_locations)} more locations."
             )
+        if self.options.craftpermits == CraftingPermits.option_off and self.options.goal == DwarfFortressGoal.option_dwarfsanity:
+            raise OptionError(
+                f"{self.player_name}: You cannot set your goal to dwarfsanity without crafting permits enabled. Enable Crafting Permits."
+            )
 
         # Active set = the static non-craft locations (LOCATION_TABLE) plus the
         # craft subset this slot generated. Goal-based filtering then drops
@@ -224,23 +228,28 @@ class DwarfFortressWorld(World):
                 if item_data.name == "Progressive Mining Depth":
                     required.remove(item_data)
             if self.options.goal == DwarfFortressGoal.option_slay_megabeast and \
-                item_data.name in {"Merchant's Coffer", "Baron's Charter",  "Count's Charter", "Duke's Charter",
+                item_data.name in {"Baron's Charter",  "Count's Charter", "Duke's Charter",
                     "Monarch's Invitation", "Remains of the Great King"}:
                     required.remove(item_data)
             elif self.options.goal == DwarfFortressGoal.option_legendary_wealth and \
-                item_data.name in {"Baron's Charter",  "Count's Charter", "Duke's Charter", "Monarch's Invitation",
+                item_data.name in {"Count's Charter", "Duke's Charter", "Monarch's Invitation",
                     "Military Training", "Artifact Weapon", "Artifact Armor", "Remains of the Great King"}:
                     required.remove(item_data)
             elif self.options.goal == DwarfFortressGoal.option_mountainhome and \
                 item_data.name in {"Military Training","Artifact Armor", "Merchant's Coffer", "Remains of the Great King"}:
                     required.remove(item_data)
             elif self.options.goal == DwarfFortressGoal.option_population_boom and \
-                item_data.name in {"Merchant's Coffer", "Baron's Charter",  "Count's Charter", "Duke's Charter",
+                item_data.name in {"Baron's Charter",  "Count's Charter", "Duke's Charter",
                     "Monarch's Invitation", "Military Training", "Remains of the Great King"}:
                     required.remove(item_data)
             elif self.options.goal == DwarfFortressGoal.option_king_remains and \
-                item_data.name in {"Merchant's Coffer", "Baron's Charter",  "Count's Charter", "Duke's Charter",
+                item_data.name in {"Baron's Charter",  "Count's Charter", "Duke's Charter",
                     "Monarch's Invitation", "Military Training"}:
+                    required.remove(item_data)
+            elif self.options.goal == DwarfFortressGoal.option_dwarfsanity and \
+                item_data.name in {"Baron's Charter",  "Count's Charter", "Duke's Charter",
+                    "Monarch's Invitation", "Military Training", "Remains of the Great King",
+                    "Artifact Weapon", "Artifact Armor"}:
                     required.remove(item_data)
             elif self.options.goal == DwarfFortressGoal.option_king_remains and item_data.name == "Remains of the Great King":
                 item_data.quantity = self.options.remains_great_king.value
