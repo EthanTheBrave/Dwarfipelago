@@ -781,7 +781,7 @@ class Skillsanity:
         if self.world.options.craftpermits == CraftingPermits.option_off:
             return dynamic_rules.metal(state)
         else:
-            return dynamic_rules.make_lbodyarmor(state) and dynamic_rules.metal_or_leather_ubodyarmor(state)
+            return dynamic_rules.metal_or_bone_or_leather_lbodyarmor(state) and dynamic_rules.metal_or_leather_ubodyarmor(state)
         
     def skill_shielddwarf(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
