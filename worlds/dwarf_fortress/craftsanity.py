@@ -191,7 +191,7 @@ def valid_materialitem(material: str, item: str) -> bool:
         return True
     if material in {"Leather", "Metal"} and item in {"Upper Body Armor"}:
         return True
-    if material in {"Leather", "Cloth", "Leather"} and item == "Footwear":
+    if material in {"Leather", "Cloth", "Metal"} and item == "Footwear":
         return True
     if material in {"Cloth", "Metal"} and item == "Rope/Chain":
         return True
