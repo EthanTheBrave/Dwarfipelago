@@ -1,5 +1,6 @@
 from BaseClasses import MultiWorld
 from worlds.dwarf_fortress.craftsanity_rules import DynamicCraftingLocationRules
+from worlds.dwarf_fortress.items import BLUEPRINT_ITEMS, CRAFT_ITEMS
 from worlds.dwarf_fortress.skillsanity import Skillsanity
 from .options import DwarfFortressGoal, CraftingPermits
 from .locations import SHOP_SLOTS
@@ -370,7 +371,17 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         goal_location.access_rule = lambda state: (
             state.has("Remains of the Great King", player, options.remains_great_king.value)
         )
-        
+    elif options.goal == DwarfFortressGoal.option_dwarfsanity:
+        # requires all blueprints and Permits
+        required_item_list = []
+        for items in BLUEPRINT_ITEMS:
+            required_item_list.append(items.name)
+        for items in CRAFT_ITEMS:
+            if items.name in {"Beds Permit", "Charcoal Permit", "Leather Permit", "Cloth Permit",
+                "Alcohol Permit", "Prepared Meal Permit", "Barrel Permit"} and options.craftpermits == CraftingPermits.option_on:
+                continue
+            required_item_list.append(items.name)
+        goal_location.access_rule = lambda state: state.has_all(required_item_list, player)
     else:
         # Population Boom: all immigration waves must have arrived plus fortress established.
         goal_location.access_rule = lambda state: (
