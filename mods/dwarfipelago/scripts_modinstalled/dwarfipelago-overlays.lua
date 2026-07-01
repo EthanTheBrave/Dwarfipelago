@@ -216,7 +216,7 @@ function PermitOverlay:onRenderBody(dc)
     for _, row in ipairs(self.locked_rows) do
         dfhack.screen.paintString(LOCKED_ITEM_PEN, row.col, row.y, row.text)
         -- Skip our note if DF already has a [Requires ...] on the row below.
-        if not read_screen_row(row.y + 1, width):find("%[Requires", 1, true) then
+        if not read_screen_row(row.y + 1, width):find("[Requires", 1, true) then
             dfhack.screen.paintString(LOCKED_NOTE_PEN, row.col + 1, row.y + 1,
                 "[Requires " .. permit_label(row.flag) .. " Permit]")
         end
