@@ -669,6 +669,7 @@ class DwarfFortressContext(CommonContext):
         self._skill_behaviour = 0        # 0 = don't touch levels 1 = lower to next check
         self._shop_scout_sent = False    # sent LocationScouts for shop slots this AP session
         self._shop_last_sig = None       # last shop table written to Lua (skip redundant writes)
+        self._is_reembark = False        # True during re-embark item re-delivery
 
     def debug(self, msg: str):
         """Log only when debug mode is enabled (toggle with /dfdebug)."""
@@ -791,6 +792,9 @@ class DwarfFortressContext(CommonContext):
                 "locations": location_ids,
             }])
 
+    _IMMIGRATION_WAVE_ID = 37370631  # BASE_ID + 631
+    _TRAP_FLAG           = 0b100     # ItemClassification.trap bit
+
     async def _apply_pending_items(self):
         """Apply any received AP items that haven't been delivered yet."""
         # self.items_received is populated by CommonClient when the server sends ReceivedItems.
@@ -818,14 +822,55 @@ class DwarfFortressContext(CommonContext):
             self._received_index_loaded = True
             self.debug(f"Restored received item index from world data: {self._received_index}")
 
+            # Detect re-embark: fresh fortress (index=0) but AP has already sent items.
+            # The map-unload handler resets _received_index_loaded whenever the player
+            # returns to the menu, so this branch runs once per fortress load.
+            if self._received_index == 0 and len(self.items_received) > 0:
+                wave_count = sum(
+                    1 for item in self.items_received
+                    if item.item == self._IMMIGRATION_WAVE_ID
+                )
+                logger.info(
+                    f"[Dwarfipelago] Re-embark detected — restoring {len(self.items_received)} item(s), "
+                    f"{wave_count} immigration wave(s), traps skipped"
+                )
+                # Pre-set the immigration wave counter to its final value so that
+                # individual wave deliveries don't increment it (they check reembark_mode).
+                await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda wc=wave_count: self.dfhack.run_command(
+                        "lua",
+                        f'dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/immigration_waves", "{wc}");'
+                        f'dfhack.persistent.saveWorldDataString("dwarfipelago/reembark_mode", "1")',
+                    ),
+                )
+                self._is_reembark = True
+
         pending = len(self.items_received) - self._received_index
         if pending > 0:
             self.debug(f"Applying {pending} pending item(s) starting at index {self._received_index}")
 
+        skipped_traps = 0
         for i in range(self._received_index, len(self.items_received)):
             network_item = self.items_received[i]
 
-            if network_item.item == 37370530: # Cave Fisher Silk
+            if network_item.item == 37370530: # Cave Fisher Silk - always skip (junk filler)
+                self._received_index = i + 1
+                self.dfhack.run_command(
+                    "lua",
+                    f'dfhack.persistent.saveWorldDataString("dwarfipelago/received_index", "{i + 1}")',
+                )
+                continue
+
+            # During re-embark, skip all trap-classified items so a recovering fortress
+            # isn't immediately hit with goblin ambushes and vermin infestations.
+            if self._is_reembark and (network_item.flags & self._TRAP_FLAG):
+                skipped_traps += 1
+                self._received_index = i + 1
+                self.dfhack.run_command(
+                    "lua",
+                    f'dfhack.persistent.saveWorldDataString("dwarfipelago/received_index", "{i + 1}")',
+                )
                 continue
 
             # Resolve numeric item ID → human-readable name.
@@ -844,8 +889,6 @@ class DwarfFortressContext(CommonContext):
 
             self.debug(f"Delivering item [{i}]: id={network_item.item} → name={item_name!r}")
 
-           
-
             await asyncio.get_event_loop().run_in_executor(
                 None, self.dfhack.deliver_item, item_name
             )
@@ -855,6 +898,26 @@ class DwarfFortressContext(CommonContext):
                 "lua",
                 f'dfhack.persistent.saveWorldDataString("dwarfipelago/received_index",'
                 f' "{self._received_index}")',
+            )
+
+        # After all items have been delivered on re-embark, spawn one consolidated
+        # batch of immigrants and clear the reembark_mode flag in Lua.
+        if self._is_reembark and self._received_index >= len(self.items_received):
+            wave_count = sum(
+                1 for item in self.items_received
+                if item.item == self._IMMIGRATION_WAVE_ID
+            )
+            await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda wc=wave_count: self.dfhack.run_command(
+                    "lua",
+                    f'reqscript("internal/dwarfipelago/items").reembark_batch_spawn({wc})',
+                ),
+            )
+            self._is_reembark = False
+            logger.info(
+                f"[Dwarfipelago] Re-embark recovery complete"
+                + (f" — {skipped_traps} trap(s) skipped" if skipped_traps else "")
             )
 
     async def _sync_slot_data(self):
