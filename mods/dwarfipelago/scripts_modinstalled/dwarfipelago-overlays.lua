@@ -456,8 +456,14 @@ end
 
 local function task_on_row(row, y)
     for _, verb in ipairs(TASK_LINE) do
-        local pos, end_pos = row:find(verb)
+        local pos = row:find(verb)
         if pos then
+            -- ".*%S" is greedy, so its end would run to the last non-space on the whole
+            -- row - on the work-orders screen that is the map's "Elevation N" readout off
+            -- to the right, flinging the counter out over the map. Bound the label to the
+            -- first run of 2+ spaces after the verb (the panel/map gap) so the counter
+            -- lands right after the craft name.
+            local finish = (row:find("  ", pos) or (#row + 1)) - 1
             local material = ""
             local craft = craftsanity_required_by(row)
             if craft then 
@@ -471,13 +477,13 @@ local function task_on_row(row, y)
                 or craft == "mace" or craft == "pick" or craft == "short_sword" or craft == "spear" or craft == "war_hammer" or craft == "anvil"
                 or craft == "coins"
                 then -- these don't have other material types
-                    return { y = y, start = pos, finish = end_pos, mat = material, craft = craft}
+                    return { y = y, start = pos, finish = finish, mat = material, craft = craft}
                 end
                 if craftsanity_enabled() then
                     local mat = material_required_by(row)
                     if mat then material = mat end
                 end
-                return { y = y, start = pos, finish = end_pos, mat = material, craft = craft}
+                return { y = y, start = pos, finish = finish, mat = material, craft = craft}
             else
                 return
             end
