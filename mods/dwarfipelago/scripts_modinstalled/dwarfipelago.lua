@@ -2012,7 +2012,21 @@ ensure_trade_depot = function()
             pcall(function() dfhack.buildings.deconstruct(b) end)
         end
 
-        -- Clear items on the footprint.
+        -- Attempt construction before clearing items: if this candidate fails,
+        -- we must not destroy items that may be the player's starting supplies.
+        local ok, result = pcall(function()
+            return dfhack.buildings.constructBuilding{
+                type   = df.building_type.TradeDepot,
+                pos    = {x = tx, y = ty, z = sz},
+                width  = 5,
+                height = 5,
+            }
+        end)
+        if not (ok and result) then
+            return nil
+        end
+
+        -- Construction succeeded — now clear any debris from the footprint.
         local items_to_remove = {}
         for _, item in ipairs(df.global.world.items.all) do
             if item.pos.z == sz and
@@ -2025,19 +2039,7 @@ ensure_trade_depot = function()
             pcall(function() dfhack.items.remove(item) end)
         end
 
-        -- Attempt construction.
-        local ok, result = pcall(function()
-            return dfhack.buildings.constructBuilding{
-                type   = df.building_type.TradeDepot,
-                pos    = {x = tx, y = ty, z = sz},
-                width  = 5,
-                height = 5,
-            }
-        end)
-        if ok and result then
-            return result, tx, ty
-        end
-        return nil
+        return result, tx, ty
     end
 
     -- Candidate placements 7 tiles out in each cardinal direction (west first).
