@@ -167,9 +167,11 @@ def valid_materialitem(material: str, item: str) -> bool:
         return True
     if material in {"Wood", "Metal", "Leather"} and item in {"Buckler", "Shield"}:
         return True
-    if material in {"Wood", "Stone", "Metal", "Glass"} and item in {"Altar", "Armor Stand", "Bookcase", "Cabinet", "Burial Container", "Chair", "Container", "Door", "Floodgate", "Grate", "Hatch Cover", "Pedestal", "Table", "Weapon Rack", "Traction Bench", "Crafts", "Toy", "Book Binding", "Scroll Roller"}:
+    if material in {"Wood", "Stone", "Metal", "Glass"} and item in {"Altar", "Armor Stand", "Bookcase", "Cabinet", "Burial Container", "Chair", "Container", "Door", "Floodgate", "Grate", "Hatch Cover", "Pedestal", "Table", "Weapon Rack", "Traction Bench", "Toy", "Book Binding", "Scroll Roller"}:
         return True
     if material in {"Wood", "Stone", "Metal", "Glass", "Ceramic"} and item in {"Blocks", "Jug", "Large Pot", "Hive"}:
+        return True
+    if material in {"Wood", "Stone", "Metal", "Glass", "Bone", "Cloth", "Ceramic"} and item in {"Crafts"}:
         return True
     if material in {"Wood", "Bone", "Metal"} and item in {"Crossbow", "Bolt"}:
         return True
@@ -187,7 +189,7 @@ def valid_materialitem(material: str, item: str) -> bool:
         return True
     if material in {"Bone", "Leather", "Metal"} and item == "Lower Body Armor":
         return True
-    if material in {"Leather", "Cloth"} and item in {"Headgear Clothing", "Upper Body Clothing", "Hand Clothing", "Lower Body Clothing", "Bag"}:
+    if material in {"Leather", "Cloth"} and item in {"Headgear Clothing", "Upper Body Clothing", "Hand Clothing", "Lower Body Clothing", "Bag", "Backpack", "Quiver"}:
         return True
     if material in {"Leather", "Metal"} and item in {"Upper Body Armor"}:
         return True
@@ -202,7 +204,8 @@ def non_material_items(item: str) -> bool:
         "Glass", "Leather", "Sheet", "Cloth", "Alcohol", "Lye", "Potash", "Milk of Lime", "Prepared Meal", "Tallow",
         "Oil", "Press Cake", "Honey", "Bee Wax", "Dye", "Soap", "Training Axe", "Training Spear", "Training Sword",
         "Cup", "Ballista Parts", "Catapult Parts", "Millstone", "Quern", "Slab", "Mug", "Totem", "Window", 
-        "Battle Axe", "Mace", "Pick", "Short Sword", "Spear", "War Hammer", "Anvil", "Coins"}:
+        "Battle Axe", "Mace", "Pick", "Short Sword", "Spear", "War Hammer", "Anvil", "Coins", "Display Case",
+        "Bolt Thower Parts", "Book"}:
         return True
     return False
 
@@ -211,8 +214,8 @@ def assign_locationid_block(item: str) -> int:
         case "Beds": return 100000  #20 Checks Max
         case "Corkscrew": return 102000 #60
         case "Blocks": return  104000 #100
-        case "Spike": return 106000 #60
-        case "Ball": return 108000 #60 
+        case "Menacing Spike": return 106000 #60
+        case "Spiked Ball": return 108000 #60 
         case "Altar": return 110000
         case "Animal Trap": return 112000
         case "Armor Stand": return 114000
@@ -290,13 +293,13 @@ def assign_locationid_block(item: str) -> int:
         case "Press Cake": return 258000
         case "Honey": return 260000
         case "Bee Wax": return 262000
-        case "Headgear Clothing": return 264000
-        case "Upper Body Clothing": return 266000
-        case "Upper Body Armor": return 268000
-        case "Hand Clothing": return 270000
-        case "Lower Body Clothing": return 272000
-        case "Lower Body Armor": return 274000
-        case "Footwear": return 276000
+        case "Cap": return 264000
+        case "Hood": return 266000
+        case "Shirt": return 268000
+        case "Vest": return 270000
+        case "Coat": return 272000
+        case "Cloak": return 274000
+        case "Leather Armor": return 276000
         case "Dye": return 278000
         case "Bag": return 280000
         case "Rope/Chain": return 282000
@@ -309,5 +312,35 @@ def assign_locationid_block(item: str) -> int:
         case "Anvil": return 296000
         case "Coins": return 298000
         case "Soap": return 300000
+        case "Display Case": return 302000
+        case "Backpack": return 304000
+        case "Quiver": return 308000
+        case "Bolt Thower Parts": return 310000
+        case "Amulet": return 312000
+        case "Bracelet": return 314000
+        case "Crown": return 316000
+        case "Die": return 318000
+        case "Earring": return 320000
+        case "Figurine": return 322000
+        case "Nest Box": return 324000
+        case "Ring": return 326000
+        case "Scepter": return 328000
+        case "Quire": return 330000
+        case "Scroll": return 332000
+        case "Mail Shirt": return 334000
+        case "Breastplate": return 336000
+        case "Gloves": return 338000
+        case "Mittens": return 340000
+        case "Loincloth": return 342000
+        case "Trousers": return 344000
+        case "Leggings": return 346000
+        case "Greaves": return 348000
+        case "Socks": return 350000
+        case "Shoes": return 352000
+        case "Low Boots": return 354000
+        case "High Boots": return 356000
+        case "Giant Axe Blade": return 358000
+        case "Serrated Disc": return 360000
+        case "Book": return 362000
     print("Missing entry: "+item)
     return 0
