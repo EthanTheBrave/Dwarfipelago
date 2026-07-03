@@ -4,7 +4,7 @@ from typing import List, Set, Union, TYPE_CHECKING
 from dataclasses import dataclass
 from BaseClasses import ItemClassification, Location, LocationProgressType, CollectionState
 from worlds.generic.Rules import set_rule
-from .options import EnableCraftsanity, CraftsanityItemGroup, CraftsanityItems, CraftsanityMaterials
+from .options import EnableCraftsanity, CraftsanityDifficulty, CraftsanityItems, CraftsanityMaterials
 from .locations import BASE_ID, LocationData
 
 if TYPE_CHECKING:
@@ -105,14 +105,14 @@ class DynamicCraftingData:
     base_location_id: int = BASE_ID
 
 def _craftsanity_items_for_group(world: "DwarfFortressWorld") -> set:
-    group = world.options.craftsanity_item_group
-    if group == CraftsanityItemGroup.option_easy:
+    group = world.options.craftsanity_difficulty
+    if group == CraftsanityDifficulty.option_easy:
         return CRAFTSANITY_EASY
-    elif group == CraftsanityItemGroup.option_medium:
+    elif group == CraftsanityDifficulty.option_medium:
         return CRAFTSANITY_MEDIUM
-    elif group == CraftsanityItemGroup.option_hard:
+    elif group == CraftsanityDifficulty.option_hard:
         return CRAFTSANITY_HARD
-    elif group == CraftsanityItemGroup.option_craftsanity:
+    elif group == CraftsanityDifficulty.option_craftsanity:
         return CraftsanityItems.valid_keys
     else:  # option_choose
         return set(world.options.craftsanity_items)

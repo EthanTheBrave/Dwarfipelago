@@ -134,7 +134,7 @@ class CraftingPermits(Choice):
     default = 0
 
 
-class CraftsanityItemGroup(Choice):
+class CraftsanityDifficulty(Choice):
     """
     Selects which items count as craftsanity location checks.
     Easy: 10 basic items craftable from the very start.
@@ -375,7 +375,7 @@ class DwarfFortressOptions(PerGameCommonOptions):
     mining_depth: ProgressiveMiningDepth
     craftsanity: EnableCraftsanity
     craftpermits: CraftingPermits
-    craftsanity_item_group: CraftsanityItemGroup
+    craftsanity_difficulty : CraftsanityDifficulty
     craftsanity_items: CraftsanityItems
     craftsanity_enable_materials: CraftsanityEnableMaterials
     craftsanity_materials: CraftsanityMaterials
@@ -412,7 +412,7 @@ dwarf_fortress_option_groups = [
     OptionGroup("Craftsanity", [
         EnableCraftsanity,
         CraftingPermits,
-        CraftsanityItemGroup,
+        CraftsanityDifficulty,
         CraftsanityItems,
         CraftsanityEnableMaterials,
         CraftsanityMaterials,
