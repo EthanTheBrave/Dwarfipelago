@@ -163,13 +163,17 @@ def calulate_check_count(world: "DwarfFortressWorld"):
 def valid_materialitem(material: str, item: str) -> bool:
     if material in {"Wood", "Metal"} and item in {"Animal Trap", "Barrel", "Bin", "Bucket", "Crutch", "Minecart", "Splint", "Stepladder", "Wheelbarrow", "Ballista Arrows"}:
         return True
-    if material in {"Wood", "Metal", "Glass"} and item in {"Spike", "Cage", "Ball", "Pipe Section", "Corkscrew"}:
+    if material in {"Wood", "Metal", "Glass"} and item in {"Menacing Spike", "Cage", "Spiked Ball", "Pipe Section", "Corkscrew"}:
         return True
     if material in {"Wood", "Metal", "Leather"} and item in {"Buckler", "Shield"}:
         return True
     if material in {"Wood", "Stone", "Metal", "Glass"} and item in {"Altar", "Armor Stand", "Bookcase", "Cabinet", "Burial Container", "Chair", "Container", "Door", "Floodgate", "Grate", "Hatch Cover", "Pedestal", "Table", "Weapon Rack", "Traction Bench", "Toy", "Book Binding", "Scroll Roller"}:
         return True
     if material in {"Wood", "Stone", "Metal", "Glass", "Ceramic"} and item in {"Blocks", "Jug", "Large Pot", "Hive"}:
+        return True
+    if material in {"Wood", "Stone", "Bone", "Cloth", "Leather", "Metal"} and item in {"Amulet", "Bracelet", "Earring"}:
+        return True
+    if material in {"Wood", "Stone", "Bone", "Metal"} and item in {"Crown", "Die", "Figurine", "Nest Box", "Ring", "Scepter"}:
         return True
     if material in {"Wood", "Stone", "Metal", "Glass", "Bone", "Cloth", "Ceramic"} and item in {"Crafts"}:
         return True
@@ -181,19 +185,17 @@ def valid_materialitem(material: str, item: str) -> bool:
         return True
     if material in {"Leather", "Metal", "Glass"} and item in {"Liquid Container"}:
         return True
-    if material in {"Metal", "Glass"} and item == "Goblet":
+    if material in {"Metal", "Glass"} and item in {"Goblet", "Giant Axe Blade", "Serrated Disc"}:
         return True
-    if material in {"Bone", "Metal"} and item == "Gauntlets":
+    if material in {"Bone", "Metal"} and item in {"Gauntlets", "Greaves"}:
         return True
-    if material in {"Leather", "Bone", "Metal"} and item == "Helm":
+    if material in {"Leather", "Bone", "Metal"} and item in {"Helm", "Leggings"}:
         return True
-    if material in {"Bone", "Leather", "Metal"} and item == "Lower Body Armor":
+    if material in {"Leather", "Cloth"} and item in {"Bag", "Backpack", "Quiver", "Hood", "Shirt", "Gloves", "Mittens", "Loincloth", "Trousers", "Shoes"}:
         return True
-    if material in {"Leather", "Cloth"} and item in {"Headgear Clothing", "Upper Body Clothing", "Hand Clothing", "Lower Body Clothing", "Bag", "Backpack", "Quiver"}:
+    if material in {"Leather", "Metal"} and item in {"Low Boots", "High Boots"}:
         return True
-    if material in {"Leather", "Metal"} and item in {"Upper Body Armor"}:
-        return True
-    if material in {"Leather", "Cloth", "Metal"} and item == "Footwear":
+    if material in {"Leather", "Cloth", "Metal"} and item in {"Cap",  }:
         return True
     if material in {"Cloth", "Metal"} and item == "Rope/Chain":
         return True
@@ -205,7 +207,7 @@ def non_material_items(item: str) -> bool:
         "Oil", "Press Cake", "Honey", "Bee Wax", "Dye", "Soap", "Training Axe", "Training Spear", "Training Sword",
         "Cup", "Ballista Parts", "Catapult Parts", "Millstone", "Quern", "Slab", "Mug", "Totem", "Window", 
         "Battle Axe", "Mace", "Pick", "Short Sword", "Spear", "War Hammer", "Anvil", "Coins", "Display Case",
-        "Bolt Thower Parts", "Book"}:
+        "Bolt Thower Parts", "Book", "Quire", "Scroll", "Leather Armor", "Mail Shirt", "Breastplate", "Socks"}:
         return True
     return False
 
