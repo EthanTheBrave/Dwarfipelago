@@ -212,6 +212,9 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         needs_depth("Reached the Magma Sea", 4)
         needs_depth("Welcome to the Circus", 4)
 
+        loc = multiworld.get_location("Mined Adamantine", player)
+        loc.access_rule = lambda state: state.has("Progressive Mining Depth", player, 4)
+
 
 
     # -- Infrastructure ---------------------------------------------------------
