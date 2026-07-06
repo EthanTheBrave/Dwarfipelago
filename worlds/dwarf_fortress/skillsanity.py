@@ -571,7 +571,11 @@ class Skillsanity:
             or dynamic_rules.metal_liquidcontainer(state) or dynamic_rules.metal_toy(state) \
             or dynamic_rules.metal_hive(state) or dynamic_rules.metal_jug(state) \
             or dynamic_rules.metal_minecart(state) or dynamic_rules.make_coins(state) \
-            or dynamic_rules.make_chain(state)
+            or dynamic_rules.make_chain(state) or dynamic_rules.metal_amulet(state) \
+            or dynamic_rules.metal_bracelet(state) or dynamic_rules.metal_earring(state) \
+            or dynamic_rules.metal_die(state) or dynamic_rules.metal_crown(state) \
+            or dynamic_rules.metal_ring(state) or dynamic_rules.metal_scepter(state) \
+            or dynamic_rules.metal_figurine(state) or dynamic_rules.metal_nestbox(state)
         
     def skill_blacksmith(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
