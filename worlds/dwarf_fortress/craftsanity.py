@@ -88,10 +88,11 @@ CRAFTSANITY_MEDIUM: set = CRAFTSANITY_EASY | {
 
 CRAFTSANITY_HARD: set = CRAFTSANITY_MEDIUM | {
     "Metal Bars", "Glass", "Ash", "Charcoal", "Helm",
-    "Upper Body Armor", "Gauntlets", "Lower Body Armor",
+    "Cap", "Mail Shirt", "Breastplate", "Leather Armor",
+    "Gauntlets", "Leggings", "Greaves", "Low Boots", "High Boots",
     "Crossbow", "Bolt", "Battle Axe", "Short Sword",
     "War Hammer", "Anvil", "Rope/Chain", "Coins", "Goblet",
-    "Tallow", "Oil", "Dye", "Traction Bench"
+    "Tallow", "Oil", "Dye", "Traction Bench", "Shield", "Buckler"
 }
 
 
@@ -195,7 +196,7 @@ def valid_materialitem(material: str, item: str) -> bool:
         return True
     if material in {"Leather", "Metal"} and item in {"Low Boots", "High Boots"}:
         return True
-    if material in {"Leather", "Cloth", "Metal"} and item in {"Cap",  }:
+    if material in {"Leather", "Cloth", "Metal"} and item in {"Cap"}:
         return True
     if material in {"Cloth", "Metal"} and item == "Rope/Chain":
         return True
@@ -207,7 +208,7 @@ def non_material_items(item: str) -> bool:
         "Oil", "Press Cake", "Honey", "Bee Wax", "Dye", "Soap", "Training Axe", "Training Spear", "Training Sword",
         "Cup", "Ballista Parts", "Catapult Parts", "Millstone", "Quern", "Slab", "Mug", "Totem", "Window", 
         "Battle Axe", "Mace", "Pick", "Short Sword", "Spear", "War Hammer", "Anvil", "Coins", "Display Case",
-        "Bolt Thower Parts", "Book", "Quire", "Scroll", "Leather Armor", "Mail Shirt", "Breastplate", "Socks"}:
+        "Bolt Thrower Parts", "Codex", "Quire", "Scroll", "Leather Armor", "Mail Shirt", "Breastplate", "Socks"}:
         return True
     return False
 
@@ -317,7 +318,7 @@ def assign_locationid_block(item: str) -> int:
         case "Display Case": return 302000
         case "Backpack": return 304000
         case "Quiver": return 308000
-        case "Bolt Thower Parts": return 310000
+        case "Bolt Thrower Parts": return 310000
         case "Amulet": return 312000
         case "Bracelet": return 314000
         case "Crown": return 316000
@@ -343,6 +344,6 @@ def assign_locationid_block(item: str) -> int:
         case "High Boots": return 356000
         case "Giant Axe Blade": return 358000
         case "Serrated Disc": return 360000
-        case "Book": return 362000
+        case "Codex": return 362000
     print("Missing entry: "+item)
     return 0

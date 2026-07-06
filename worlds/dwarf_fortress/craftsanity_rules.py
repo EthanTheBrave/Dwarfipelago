@@ -30,6 +30,12 @@ class DynamicCraftingLocationRules:
     
     def bonecraft(self, state:CollectionState) -> bool:
         return self.process_resource(state, "bone") and self.craftdwarf_workshop(state)
+    
+    def leathercraft(self, state:CollectionState) -> bool:
+        return self.leather(state) and self.craftdwarf_workshop(state)
+    
+    def forge_only(self, state:CollectionState) -> bool:
+         return self.magma_processing(state, "forge") or state.has("Forge Blueprint", self.player)
         
     def process_resource(self, state:CollectionState, resource) -> bool: #glass, metal, ceramic
         if resource == "metal":
@@ -135,6 +141,18 @@ class DynamicCraftingLocationRules:
             else:
                 return self.leather(state) and state.has("Leather Works Blueprint", self.player) and \
                 state.has("Leather Permit", self.player)
+            
+    def metalcloth(self, state:CollectionState) -> bool: #adamantine cloth
+        if self.world.options.mining_depth:
+            return state.has("Progressive Mining Depth", self.player, 4) and self.craftdwarf_workshop(state) \
+            and self.cloth(state)
+        return  self.craftdwarf_workshop(state) and self.cloth(state)
+    
+    def metalcloth_forge(self, state:CollectionState) -> bool:
+        return self.metalcloth(state) and self.forge_only(state) 
+    
+    def metalclothforge_or_leather(self, state:CollectionState) -> bool:
+        return self.metalcloth_forge(state) or self.leather_works(state) 
     
     def cloth(self, state:CollectionState) -> bool:
         return state.has("Loom Blueprint", self.player)
@@ -152,8 +170,7 @@ class DynamicCraftingLocationRules:
             if self.world.options.craftpermits != CraftingPermits.option_all:
                 return self.cloth(state) and state.has("Clothier's Shop Blueprint", self.player)
             else:
-                return self.leather(state) and state.has("Leather Works Blueprint", self.player) and \
-                state.has("Cloth Permit", self.player)
+                return self.make_cloth(state) and state.has("Clothier's Shop Blueprint", self.player)
         
     def wood_or_metal(self, state:CollectionState) -> bool:
         return self.wood(state) or self.metal(state)
@@ -304,6 +321,9 @@ class DynamicCraftingLocationRules:
             and state.has("Soap Maker's Workshop Blueprint", self.player) \
             and (self.kitchen(state) and self.butcher_workshop(state) or self.screw_press(state))
     
+    def displaycase(self, state:CollectionState) -> bool:
+        return self.wood(state) and self.glass(state) \
+
     def bed(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Beds Permit", self.player)
     
@@ -324,20 +344,20 @@ class DynamicCraftingLocationRules:
             return self.wood_or_metal_or_glass(state) and state.has("Corkscrew Permit", self.player)
 
     def wood_spike(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Spike Permit", self.player)
+            return self.wood(state) and state.has("Menacing Spike Permit", self.player)
     def metal_spike(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Spike Permit", self.player)
+            return self.metal(state) and state.has("Menacing Spike Permit", self.player)
     def wood_or_metal_spike(self, state:CollectionState) -> bool:
-            return self.wood_or_metal(state) and state.has("Spike Permit", self.player)
+            return self.wood_or_metal(state) and state.has("Menacing Spike Permit", self.player)
 
     def wood_ball(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Ball Permit", self.player)
+            return self.wood(state) and state.has("Spiked Ball Permit", self.player)
     def metal_ball(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Ball Permit", self.player)
+            return self.metal(state) and state.has("Spiked Ball Permit", self.player)
     def glass_ball(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Ball Permit", self.player)
+            return self.glass(state) and state.has("Spiked Ball Permit", self.player)
     def wood_or_metal_ball(self, state:CollectionState) -> bool:
-            return self.wood_or_metal(state) and state.has("Ball Permit", self.player)
+            return self.wood_or_metal(state) and state.has("Spiked Ball Permit", self.player)
 
     def wood_animal_trap(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Animal Trap Permit", self.player)
@@ -704,10 +724,30 @@ class DynamicCraftingLocationRules:
     
     def stone_or_wood_crafts(self, state:CollectionState) -> bool:
         return self.craftdwarf_workshop(state) and state.has("Crafts Permit", self.player)
+    def bone_crafts(self, state:CollectionState) -> bool:
+        return self.bonecraft(state) \
+        and state.has("Crafts Permit", self.player)
     def metal_crafts(self, state:CollectionState) -> bool:
         return self.metal(state) and state.has("Crafts Permit", self.player)
     def glass_crafts(self, state:CollectionState) -> bool:
         return self.glass(state) and state.has("Crafts Permit", self.player)
+    def ceramic_crafts(self, state:CollectionState) -> bool:
+        return self.ceramic(state) and state.has("Crafts Permit", self.player)
+    def cloth_crafts(self, state:CollectionState) -> bool:
+        if self.world.options.craftpermits == CraftingPermits.option_all:
+            return self.make_cloth(state) and self.craftdwarf_workshop(state) \
+            and state.has("Crafts Permit", self.player)
+        else:
+            return self.cloth(state) and self.craftdwarf_workshop(state) \
+            and state.has("Crafts Permit", self.player)
+    def leather_crafts(self, state:CollectionState) -> bool:
+            return self.leather(state) and self.craftdwarf_workshop(state) \
+            and state.has("Crafts Permit", self.player)
+    def clothcraftdwarf(self, state:CollectionState) -> bool:
+            if self.world.options.craftpermits == CraftingPermits.option_all:
+                return self.make_cloth(state) and self.craftdwarf_workshop(state)
+            else:
+                return self.cloth(state) and self.craftdwarf_workshop(state)
     def craftdwarf_or_metal_or_glass_crafts(self, state:CollectionState) -> bool:
         return self.craftdwarf_or_metal_or_glass(state) and state.has("Crafts Permit", self.player)
     
@@ -784,6 +824,9 @@ class DynamicCraftingLocationRules:
     
     def seige_catapultparts(self, state:CollectionState) -> bool:
         return self.seige_workshop(state) and state.has("Catapult Parts Permit", self.player)
+    
+    def seige_boltthrowerparts(self, state:CollectionState) -> bool:
+        return self.seige_workshop(state) and state.has("Bolt Thrower Parts Permit", self.player)
     
     def seige_arrows(self, state:CollectionState) -> bool:
         return self.seige_workshop(state) and state.has("Catapult Parts Permit", self.player)
@@ -889,14 +932,14 @@ class DynamicCraftingLocationRules:
     def metal_or_bone_gauntlets(self, state:CollectionState) -> bool:
         return self.metal_or_bone(state) and state.has("Gauntlets Permit", self.player)
     
-    def metal_shoes(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Footwear Permit", self.player)
-    def cloth_shoes(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) and state.has("Footwear Permit", self.player)
-    def leather_shoes(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Footwear Permit", self.player)
-    def metal_or_cloth_or_leather_shoes(self, state:CollectionState) -> bool:
-        return self.metal_or_cloth_or_leather(state) and state.has("Footwear Permit", self.player)
+    # def metal_shoes(self, state:CollectionState) -> bool:
+    #     return self.metal(state) and state.has("Footwear Permit", self.player)
+    # def cloth_shoes(self, state:CollectionState) -> bool:
+    #     return self.clothier_workshop(state) and state.has("Footwear Permit", self.player)
+    # def leather_shoes(self, state:CollectionState) -> bool:
+    #     return self.leather_works(state) and state.has("Footwear Permit", self.player)
+    # def metal_or_cloth_or_leather_shoes(self, state:CollectionState) -> bool:
+    #     return self.metal_or_cloth_or_leather(state) and state.has("Footwear Permit", self.player)
     
     def dye_dye(self, state:CollectionState) -> bool:
         return self.dye(state) and state.has("Dye Permit", self.player) and self.wood_or_metal_bucket(state)
@@ -938,14 +981,318 @@ class DynamicCraftingLocationRules:
         return self.ashery_and_wood_furnace_lye(state) and (self.make_tallow(state) or self.make_oil(state)) \
         and state.has("Soap Permit", self.player) and (state.has("Soap Maker's Workshop Blueprint", self.player) \
         and self.wood_or_metal_bucket(state))
+    
+    def make_displaycase(self, state:CollectionState) -> bool:
+        return self.make_glass(state) and self.wood(state) and state.has("Display Case Permit", self.player) 
+    
+    def make_metalcloth_backpack(self, state:CollectionState) -> bool:
+        return self.metalcloth_forge(state) and state.has("Backpack Permit", self.player) 
+    def make_leather_backpack(self, state:CollectionState) -> bool:
+        return self.leather_works(state) and state.has("Backpack Permit", self.player) 
+    def make_metalclothforge_or_leather_backpack(self, state:CollectionState) -> bool:
+        return self.make_metalcloth_backpack(state) or self.make_leather_backpack(state) 
+    
+    def make_metalcloth_quiver(self, state:CollectionState) -> bool:
+        return self.metalcloth_forge(state) and state.has("Quiver Permit", self.player) 
+    def make_leather_quiver(self, state:CollectionState) -> bool:
+        return self.leather_works(state) and state.has("Quiver Permit", self.player) 
+    def make_metalclothforge_or_leather_quiver(self, state:CollectionState) -> bool:
+        return self.make_metalcloth_backpack(state) or self.make_leather_backpack(state)
+    
+    def craftdwarf_amulet(self, state:CollectionState) -> bool:
+        return self.craftdwarf_workshop(state) and state.has("Amulet Permit", self.player)
+    def bonecraftdwarf_amulet(self, state:CollectionState) -> bool:
+        return self.bonecraft(state) and state.has("Amulet Permit", self.player)
+    def leather_amulet(self, state:CollectionState) -> bool:
+        return self.leathercraft(state) and state.has("Amulet Permit", self.player)
+    def metal_amulet(self, state:CollectionState) -> bool:
+        return self.metal(state) and state.has("Amulet Permit", self.player)
+    def craftdwarf_or_metal_amulet(self, state:CollectionState) -> bool:
+        return self.craftdwarf_or_metal(state) and state.has("Amulet Permit", self.player)
+    
+    def craftdwarf_bracelet(self, state:CollectionState) -> bool:
+        return self.craftdwarf_workshop(state) and state.has("Bracelet Permit", self.player)
+    def bonecraftdwarf_bracelet(self, state:CollectionState) -> bool:
+        return self.bonecraft(state) and state.has("Bracelet Permit", self.player)
+    def leather_bracelet(self, state:CollectionState) -> bool:
+        return self.leathercraft(state) and state.has("Bracelet Permit", self.player)
+    def metal_bracelet(self, state:CollectionState) -> bool:
+        return self.metal(state) and state.has("Bracelet Permit", self.player)
+    def craftdwarf_or_metal_bracelet(self, state:CollectionState) -> bool:
+        return self.craftdwarf_or_metal(state) and state.has("Bracelet Permit", self.player)
+    
+    def craftdwarf_earring(self, state:CollectionState) -> bool:
+        return self.craftdwarf_workshop(state) and state.has("Earring Permit", self.player)
+    def bonecraftdwarf_earring(self, state:CollectionState) -> bool:
+        return self.bonecraft(state) and state.has("Earring Permit", self.player)
+    def clothcraftdwarf_earring(self, state:CollectionState) -> bool:
+        return self.clothcraftdwarf(state) and state.has("Earring Permit", self.player)
+    def leather_earring(self, state:CollectionState) -> bool:
+        return self.leathercraft(state) and state.has("Earring Permit", self.player)
+    def metal_earring(self, state:CollectionState) -> bool:
+        return self.metal(state) and state.has("Earring Permit", self.player)
+    def craftdwarf_or_metal_earring(self, state:CollectionState) -> bool:
+        return self.craftdwarf_or_metal(state) and state.has("Earring Permit", self.player)
+    
+    def craftdwarf_crown(self, state:CollectionState) -> bool:
+        return self.craftdwarf_workshop(state) and state.has("Crown Permit", self.player)
+    def bonecraftdwarf_crown(self, state:CollectionState) -> bool:
+        return self.bonecraft(state) and state.has("Crown Permit", self.player)
+    def metal_crown(self, state:CollectionState) -> bool:
+        return self.metal(state) and state.has("Crown Permit", self.player)
+    def craftdwarf_or_metal_crown(self, state:CollectionState) -> bool:
+        return self.craftdwarf_or_metal(state) and state.has("Crown Permit", self.player)
+    
+    def craftdwarf_die(self, state:CollectionState) -> bool:
+        return self.craftdwarf_workshop(state) and state.has("Die Permit", self.player)
+    def bonecraftdwarf_die(self, state:CollectionState) -> bool:
+        return self.bonecraft(state) and state.has("Die Permit", self.player)
+    def metal_die(self, state:CollectionState) -> bool:
+        return self.metal(state) and state.has("Die Permit", self.player)
+    def craftdwarf_or_metal_die(self, state:CollectionState) -> bool:
+        return self.craftdwarf_or_metal(state) and state.has("Die Permit", self.player)
 
+    def craftdwarf_figurine(self, state:CollectionState) -> bool:
+        return self.craftdwarf_workshop(state) and state.has("Figurine Permit", self.player)
+    def bonecraftdwarf_figurine(self, state:CollectionState) -> bool:
+        return self.bonecraft(state) and state.has("Figurine Permit", self.player)
+    def metal_figurine(self, state:CollectionState) -> bool:
+        return self.metal(state) and state.has("Figurine Permit", self.player)
+    def craftdwarf_or_metal_figurine(self, state:CollectionState) -> bool:
+        return self.craftdwarf_or_metal(state) and state.has("Figurine Permit", self.player)
+    
+    def craftdwarf_nestbox(self, state:CollectionState) -> bool:
+        return self.craftdwarf_workshop(state) and state.has("Nest Box Permit", self.player)
+    def bonecraftdwarf_nestbox(self, state:CollectionState) -> bool:
+        return self.bonecraft(state) and state.has("Nest Box Permit", self.player)
+    def metal_nestbox(self, state:CollectionState) -> bool:
+        return self.metal(state) and state.has("Nest Box Permit", self.player)
+    def craftdwarf_or_metal_nestbox(self, state:CollectionState) -> bool:
+        return self.craftdwarf_or_metal(state) and state.has("Nest Box Permit", self.player)
+    
+    def craftdwarf_ring(self, state:CollectionState) -> bool:
+        return self.craftdwarf_workshop(state) and state.has("Ring Permit", self.player)
+    def bonecraftdwarf_ring(self, state:CollectionState) -> bool:
+        return self.bonecraft(state) and state.has("Ring Permit", self.player)
+    def metal_ring(self, state:CollectionState) -> bool:
+        return self.metal(state) and state.has("Ring Permit", self.player)
+    def craftdwarf_or_metal_ring(self, state:CollectionState) -> bool:
+        return self.craftdwarf_or_metal(state) and state.has("Ring Permit", self.player)
+    
+    def craftdwarf_scepter(self, state:CollectionState) -> bool:
+        return self.craftdwarf_workshop(state) and state.has("Scepter Permit", self.player)
+    def bonecraftdwarf_scepter(self, state:CollectionState) -> bool:
+        return self.bonecraft(state) and state.has("Scepter Permit", self.player)
+    def metal_scepter(self, state:CollectionState) -> bool:
+        return self.metal(state) and state.has("Scepter Permit", self.player)
+    def craftdwarf_or_metal_scepter(self, state:CollectionState) -> bool:
+        return self.craftdwarf_or_metal(state) and state.has("Scepter Permit", self.player)
+    
+    def make_quire(self, state:CollectionState) -> bool:
+        return self.craftdwarf_workshop(state) and state.has("Quire Permit", self.player) \
+        and self.make_sheet(state)
+    def quire(self, state:CollectionState) -> bool:
+        return self.craftdwarf_workshop(state) and self.make_paper(state)
+    
+    def make_scroll(self, state:CollectionState) -> bool:
+        return self.craftdwarf_workshop(state) and state.has("Quire Permit", self.player) \
+        and self.make_sheet(state) and self.wood_or_stone_or_metal_or_glass_scrollroller(state)
+    def scroll(self, state:CollectionState) -> bool:
+        return self.craftdwarf_workshop(state) and self.make_paper(state)
+    
+    def make_mailshirt(self, state:CollectionState) -> bool:
+        return self.metal(state) and state.has("Mail Shirt Permit", self.player)
+    
+    def make_breastplate(self, state:CollectionState) -> bool:
+        return self.metal(state) and state.has("Breastplate Permit", self.player)
+    
+    def cloth_gloves(self, state:CollectionState) -> bool:
+        return self.clothier_workshop(state) and state.has("Gloves Permit", self.player)
+    def leather_gloves(self, state:CollectionState) -> bool:
+        return self.leather_works(state) and state.has("Gloves Permit", self.player)
+    def leather_or_cloth_gloves(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth(state) and state.has("Gloves Permit", self.player)
+    
+    def cloth_mittens(self, state:CollectionState) -> bool:
+        return self.clothier_workshop(state) and state.has("Mittens Permit", self.player)
+    def leather_mittens(self, state:CollectionState) -> bool:
+        return self.leather_works(state) and state.has("Mittens Permit", self.player)
+    def leather_or_cloth_mittens(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth(state) and state.has("Mittens Permit", self.player)
+    
+    def cloth_loincloth(self, state:CollectionState) -> bool:
+        return self.clothier_workshop(state) and state.has("Loincloth Permit", self.player)
+    def leather_loincloth(self, state:CollectionState) -> bool:
+        return self.leather_works(state) and state.has("Loincloth Permit", self.player)
+    def leather_or_cloth_loincloth(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth(state) and state.has("Loincloth Permit", self.player)
+    
+    def cloth_trousers(self, state:CollectionState) -> bool:
+        return self.clothier_workshop(state) and state.has("Trousers Permit", self.player)
+    def leather_trousers(self, state:CollectionState) -> bool:
+        return self.leather_works(state) and state.has("Trousers Permit", self.player)
+    def leather_or_cloth_trousers(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth(state) and state.has("Trousers Permit", self.player)
+    
+    def bone_leggings(self, state:CollectionState) -> bool:
+        return self.bonecraft(state) and state.has("Leggings Permit", self.player)
+    def metal_leggings(self, state:CollectionState) -> bool:
+        return self.metal(state) and state.has("Leggings Permit", self.player)
+    def leather_leggings(self, state:CollectionState) -> bool:
+        return self.leather_works(state) and state.has("Leggings Permit", self.player)
+    def metal_or_bone_or_leather_leggings(self, state:CollectionState) -> bool:
+        return self.metal_or_bone_or_leather(state) and state.has("Leggings Permit", self.player)
+    
+    def metal_greaves(self, state:CollectionState) -> bool:
+        return self.metal(state) and state.has("Greaves Permit", self.player)
+    def bone_greaves(self, state:CollectionState) -> bool:
+        return self.bonecraft(state) and state.has("Greaves Permit", self.player)
+    def metal_or_bone_greaves(self, state:CollectionState) -> bool:
+        return self.metal_or_bone(state) and state.has("Greaves Permit", self.player)
+    
+    def make_socks(self, state:CollectionState) -> bool:
+        return self.clothier_workshop(state) and state.has("Socks Permit", self.player)
+
+    def cloth_shoes(self, state:CollectionState) -> bool:
+        return self.clothier_workshop(state) and state.has("Shoes Permit", self.player)
+    def leather_shoes(self, state:CollectionState) -> bool:
+        return self.leather_works(state) and state.has("Shoes Permit", self.player)
+    def leather_or_cloth_shoes(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth(state) and state.has("Shoes Permit", self.player)
+
+    def metal_lboots(self, state:CollectionState) -> bool:
+        return self.metal(state) and state.has("Low Boots Permit", self.player)
+    def leather_lboots(self, state:CollectionState) -> bool:
+        return self.leather_works(state) and state.has("Low Boots Permit", self.player)
+    def metal_or_leather_lboots(self, state:CollectionState) -> bool:
+        return self.metal_or_leather(state) and state.has("Low Boots Permit", self.player)
+    
+    def metal_hboots(self, state:CollectionState) -> bool:
+        return self.metal(state) and state.has("High Boots Permit", self.player)
+    def leather_hboots(self, state:CollectionState) -> bool:
+        return self.leather_works(state) and state.has("High Boots Permit", self.player)
+    def metal_or_leather_hboots(self, state:CollectionState) -> bool:
+        return self.metal_or_bone_or_leather(state) and state.has("High Boots Permit", self.player)
+    
+    def make_codex(self, state:CollectionState) -> bool:
+        return self.make_quire(state) and state.has("Codex Permit", self.player) \
+        and self.craftdwarf_or_metal_or_glass_bookbinding(state)
+    def codex(self, state:CollectionState) -> bool:
+        return self.quire(state) and self.craftdwarf_or_metal_or_glass(state)
+    
+    def metal_axeblade(self, state:CollectionState) -> bool:
+        return self.metal(state) and state.has("Giant Axe Blade Permit", self.player)
+    def glass_axeblade(self, state:CollectionState) -> bool:
+        return self.glass(state) and state.has("Giant Axe Blade Permit", self.player)
+    def metal_or_glass_axeblade(self, state:CollectionState) -> bool:
+        return self.metal_or_glass(state) and state.has("Giant Axe Blade Permit", self.player)
+
+    def metal_disc(self, state:CollectionState) -> bool:
+        return self.metal(state) and state.has("Serrated Disc Permit", self.player)
+    def glass_disc(self, state:CollectionState) -> bool:
+        return self.glass(state) and state.has("Serrated Disc Permit", self.player)
+    def metal_or_glass_disc(self, state:CollectionState) -> bool:
+        return self.metal_or_glass(state) and state.has("Serrated Disc Permit", self.player)
+    
+    def cloth_cap(self, state:CollectionState) -> bool:
+        return self.clothier_workshop(state) and state.has("Cap Permit", self.player)
+    def leather_cap(self, state:CollectionState) -> bool:
+        return self.leather_works(state) and state.has("Cap Permit", self.player)
+    def metal_cap(self, state:CollectionState) -> bool:
+        return self.metal(state) and state.has("Cap Permit", self.player)
+    def metal_or_cloth_or_leather_cap(self, state:CollectionState) -> bool:
+        return self.metal_or_cloth_or_leather(state) and state.has("Cap Permit", self.player)
+    
+    def cloth_hood(self, state:CollectionState) -> bool:
+        return self.clothier_workshop(state) and state.has("Hood Permit", self.player)
+    def leather_hood(self, state:CollectionState) -> bool:
+        return self.leather_works(state) and state.has("Hood Permit", self.player)
+    def leather_or_cloth_hood(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth(state) and state.has("Hood Permit", self.player)
+    
+    def cloth_shirt(self, state:CollectionState) -> bool:
+        return self.clothier_workshop(state) and state.has("Shirt Permit", self.player)
+    def leather_shirt(self, state:CollectionState) -> bool:
+        return self.leather_works(state) and state.has("Shirt Permit", self.player)
+    def leather_or_cloth_shirt(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth(state) and state.has("Shirt Permit", self.player)
+    
+    def cloth_vest(self, state:CollectionState) -> bool:
+        return self.clothier_workshop(state) and state.has("Vest Permit", self.player)
+    def leather_vest(self, state:CollectionState) -> bool:
+        return self.leather_works(state) and state.has("Vest Permit", self.player)
+    def leather_or_cloth_vest(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth(state) and state.has("Vest Permit", self.player)
+    
+    def cloth_coat(self, state:CollectionState) -> bool:
+        return self.clothier_workshop(state) and state.has("Coat Permit", self.player)
+    def leather_coat(self, state:CollectionState) -> bool:
+        return self.leather_works(state) and state.has("Coat Permit", self.player)
+    def leather_or_cloth_coat(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth(state) and state.has("Coat Permit", self.player)
+    
+    def cloth_cloak(self, state:CollectionState) -> bool:
+        return self.clothier_workshop(state) and state.has("Cloak Permit", self.player)
+    def leather_cloak(self, state:CollectionState) -> bool:
+        return self.leather_works(state) and state.has("Cloak Permit", self.player)
+    def leather_or_cloth_cloak(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth(state) and state.has("Cloak Permit", self.player)
+    
+    def leather_leatherarmor(self, state:CollectionState) -> bool:
+        return self.leather_works(state) and state.has("Leather Armor Permit", self.player)
+    
+    def leather_products(self, state:CollectionState) -> bool:
+        return self.leather_cap(state) or self.leather_hood(state) \
+        or self.leather_shirt(state) or self.leather_vest(state) \
+        or self.leather_coat(state) or self.leather_leatherarmor(state) \
+        or self.leather_cloak(state) or self.leather_bag(state) \
+        or self.make_leather_backpack(state) or self.make_leather_quiver(state) \
+        or self.leather_gloves(state) or self.leather_mittens(state) \
+        or self.leather_loincloth(state) or self.leather_trousers(state) \
+        or self.leather_leggings(state) or self.leather_shoes(state) \
+        or self.leather_lboots(state) or self.leather_hboots(state) \
+        or self.leather_buckler(state) or self.leather_shield(state) \
+        or self.leather_crafts(state) or self.leather_amulet(state) \
+        or self.leather_bracelet(state) or self.leather_earring(state)
+    
+    def metal_cloth_and_armor(self, state:CollectionState) -> bool:
+        return self.metal_cap(state) or self.metal_helm(state) \
+        or self.make_mailshirt(state) or self.make_breastplate(state) \
+        or self.metal_gauntlets(state) or self.metal_leggings(state) \
+        or self.metal_greaves(state) or self.metal_lboots(state) \
+        or self.metal_hboots(state) or self.metal_buckler(state) \
+        or self.metal_shield(state)
+    
+    def bone_products(self, state:CollectionState) -> bool:
+        return self.bone_bolt(state) or self.bone_crossbow(state) \
+        or self.bone_crafts(state) or self.bone_gauntlets(state) \
+        or self.bone_greaves(state) or self.bone_helm(state) \
+        or self.bone_leggings(state) or self.bonecraftdwarf_amulet(state) \
+        or self.bonecraftdwarf_bracelet(state) or self.bonecraftdwarf_crown(state) \
+        or self.bonecraftdwarf_die(state) or self.bonecraftdwarf_earring(state) \
+        or self.bonecraftdwarf_figurine(state) or self.bonecraftdwarf_nestbox(state) \
+        or self.bonecraftdwarf_ring(state) or self.bonecraftdwarf_scepter(state) 
+    
+    def cloth_products(self, state:CollectionState) -> bool:
+        return self.cloth_bag(state) or self.cloth_cap(state) \
+        or self.cloth_crafts(state) or self.cloth_hood(state) \
+        or self.cloth_shirt(state) or self.cloth_vest(state) \
+        or self.cloth_coat(state) or self.cloth_cloak(state) \
+        or self.cloth_gloves(state) or self.cloth_mittens(state) \
+        or self.cloth_loincloth(state) or self.cloth_trousers(state) \
+        or self.make_socks(state) or self.cloth_shoes(state)
+    
+    def armor(self, state:CollectionState) -> bool:
+        return (self.make_mailshirt(state) or self.make_breastplate(state) \
+        or self.leather_leatherarmor(state)) and (self.metal_or_bone_or_leather_leggings(state) \
+        or self.metal_or_bone_greaves(state))
         
+    
     def set_dynamic_rules(self) -> None:
         for location in self.world.dynamic_locations:
             self.world.multiworld
             loc = self.world.multiworld.get_location(location.name, self.player)
-            self.df_location_rule(loc, location.df_item, location.material_type)
-            
+            self.df_location_rule(loc, location.df_item, location.material_type)        
 
     def df_location_rule(self, loc, item_name, material_type) -> None:
         match item_name:
@@ -990,7 +1337,7 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.wood_or_metal_or_glass_corkscrew)
                     else:
                         set_rule(loc, self.wood_or_metal_or_glass)
-            case "Spike":
+            case "Menacing Spike":
                 if material_type == "Wood":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.wood_spike)
@@ -1006,7 +1353,7 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.wood_or_metal_spike)
                     else:
                         set_rule(loc, self.wood_or_metal)
-            case "Ball":
+            case "Spiked Ball":
                 if material_type == "Wood":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.wood_ball)
@@ -1874,7 +2221,7 @@ class DynamicCraftingLocationRules:
                 else:
                     set_rule(loc, self.stone)
             case "Crafts":
-                if material_type in {"Wood", "Stone"} :
+                if material_type in {"Wood", "Stone", "Bone"} :
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.stone_or_wood_crafts)
                     else:
@@ -1884,6 +2231,21 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.glass_crafts)
                     else:
                         set_rule(loc, self.glass)
+                elif material_type == "Ceramic":  
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.ceramic_crafts)
+                    else:
+                        set_rule(loc, self.ceramic)
+                elif material_type == "Cloth":  
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.cloth_crafts)
+                    else:
+                        set_rule(loc, self.clothcraftdwarf)
+                elif material_type == "Leather":  
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_crafts)
+                    else:
+                        set_rule(loc, self.leathercraft)
                 elif material_type == "Metal":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.metal_crafts)
@@ -2006,27 +2368,6 @@ class DynamicCraftingLocationRules:
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.metal_or_bone_or_leather_helm)
-                    else:
-                        set_rule(loc, self.metal_or_bone_or_leather)
-            case "Lower Body Armor":
-                if material_type == "Metal":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                            set_rule(loc, self.metal_lbodyarmor)
-                    else:
-                        set_rule(loc, self.metal)
-                elif material_type == "Bone":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.bone_lbodyarmor)
-                    else:
-                        set_rule(loc, self.craftdwarf_workshop)
-                elif material_type == "Leather":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_lbodyarmor)
-                    else:
-                        set_rule(loc, self.leather_works)
-                else:
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.metal_or_bone_or_leather_lbodyarmor)
                     else:
                         set_rule(loc, self.metal_or_bone_or_leather)
             case "Ballista Parts":
@@ -2155,86 +2496,6 @@ class DynamicCraftingLocationRules:
                     set_rule(loc, self.make_honey)
                 else:
                     set_rule(loc, self.screw_press)
-            case "Headgear Clothing":
-                if material_type == "Cloth":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.cloth_headgear)
-                    else:
-                        set_rule(loc, self.clothier_workshop)
-                elif material_type == "Leather":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_headgear)
-                    else:
-                        set_rule(loc, self.leather_works)
-                else:
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_headgear)
-                    else:
-                        set_rule(loc, self.leather_or_cloth)
-            case "Upper Body Clothing":
-                if material_type == "Cloth":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.cloth_upperbodycloth)
-                    else:
-                        set_rule(loc, self.clothier_workshop)
-                elif material_type == "Leather":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_upperbodycloth)
-                    else:
-                        set_rule(loc, self.leather_works)
-                else:
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_upperbodycloth)
-                    else:
-                        set_rule(loc, self.leather_or_cloth)
-            case "Hand Clothing":
-                if material_type == "Cloth":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.cloth_hands)
-                    else:
-                        set_rule(loc, self.clothier_workshop)
-                elif material_type == "Leather":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_hands)
-                    else:
-                        set_rule(loc, self.leather_works)
-                else:
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_hands)
-                    else:
-                        set_rule(loc, self.leather_or_cloth)
-            case "Lower Body Clothing":
-                if material_type == "Cloth":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.cloth_lbodyclothing)
-                    else:
-                        set_rule(loc, self.clothier_workshop)
-                elif material_type == "Leather":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_lbodyclothing)
-                    else:
-                        set_rule(loc, self.leather_works)
-                else:
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_lbodyclothing)
-                    else:
-                        set_rule(loc, self.leather_or_cloth)
-            case "Upper Body Armor":
-                if material_type == "Metal":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.metal_ubodyarmor)
-                    else:
-                        set_rule(loc, self.metal)
-                elif material_type == "Leather":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_ubodyarmor)
-                    else:
-                        set_rule(loc, self.leather_works)
-                else:
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.metal_or_leather_ubodyarmor)
-                    else:
-                        set_rule(loc, self.metal_or_leather)
             case "Gauntlets":
                 if material_type == "Metal":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
@@ -2251,27 +2512,6 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.metal_or_bone_gauntlets)
                     else:
                         set_rule(loc, self.metal_or_bone)  
-            case "Footwear":
-                if material_type == "Metal":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.metal_shoes)
-                    else:
-                        set_rule(loc, self.metal)
-                elif material_type == "Cloth":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.cloth_shoes)
-                    else:
-                        set_rule(loc, self.clothier_workshop)
-                elif material_type == "Leather":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_shoes)
-                    else:
-                        set_rule(loc, self.leather_works)
-                else:
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.metal_or_cloth_or_leather_shoes)
-                    else:
-                        set_rule(loc, self.metal_or_cloth_or_leather)
             case "Dye":
                 if self.world.options.craftpermits != CraftingPermits.option_off:
                     set_rule(loc, self.dye_dye)
@@ -2354,3 +2594,571 @@ class DynamicCraftingLocationRules:
                     set_rule(loc, self.make_soap)
                 else:
                     set_rule(loc, self.soap)
+            case "Display Case":
+                if self.world.options.craftpermits != CraftingPermits.option_off:
+                    set_rule(loc, self.make_displaycase)
+                else:
+                    set_rule(loc, self.displaycase)
+            case "Backpack":
+                if material_type == "Cloth":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.make_metalcloth_backpack)
+                    else:
+                        set_rule(loc, self.metalcloth_forge)
+                elif material_type == "Leather":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.make_leather_backpack)
+                    else:
+                        set_rule(loc, self.leather_works)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.make_metalclothforge_or_leather_backpack)
+                    else:
+                        set_rule(loc, self.metalclothforge_or_leather)
+            case "Quiver":
+                if material_type == "Cloth":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.make_metalcloth_quiver)
+                    else:
+                        set_rule(loc, self.metalcloth_forge)
+                elif material_type == "Leather":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.make_leather_quiver)
+                    else:
+                        set_rule(loc, self.leather_works)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.make_metalclothforge_or_leather_quiver)
+                    else:
+                        set_rule(loc, self.metalclothforge_or_leather)
+            case "Bolt Thrower Parts":
+                if self.world.options.craftpermits != CraftingPermits.option_off:
+                    set_rule(loc, self.seige_boltthrowerparts)
+                else:
+                    set_rule(loc, self.seige_workshop)
+            case "Amulet":
+                if material_type in {"Wood", "Stone", "Cloth"}:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.craftdwarf_amulet)
+                    else:
+                        set_rule(loc, self.craftdwarf_workshop)
+                elif material_type == "Bone":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.bonecraftdwarf_amulet)
+                    else:
+                        set_rule(loc, self.bonecraft)
+                elif material_type == "Leather":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_amulet)
+                    else:
+                        set_rule(loc, self.leathercraft)
+                elif material_type == "Metal":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_amulet)
+                    else:
+                        set_rule(loc, self.metal)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.craftdwarf_or_metal_amulet)
+                    else:
+                        set_rule(loc, self.craftdwarf_or_metal)
+            case "Bracelet":
+                if material_type in {"Wood", "Stone", "Cloth"}:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.craftdwarf_bracelet)
+                    else:
+                        set_rule(loc, self.craftdwarf_workshop)
+                elif material_type == "Bone":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.bonecraftdwarf_bracelet)
+                    else:
+                        set_rule(loc, self.bonecraft)
+                elif material_type == "Leather":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_bracelet)
+                    else:
+                        set_rule(loc, self.leathercraft)
+                elif material_type == "Metal":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_bracelet)
+                    else:
+                        set_rule(loc, self.metal)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.craftdwarf_or_metal_bracelet)
+                    else:
+                        set_rule(loc, self.craftdwarf_or_metal)
+            case "Crown":
+                if material_type in {"Wood", "Stone"}:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.craftdwarf_crown)
+                    else:
+                        set_rule(loc, self.craftdwarf_workshop)
+                elif material_type == "Bone":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.bonecraftdwarf_crown)
+                    else:
+                        set_rule(loc, self.bonecraft)
+                elif material_type == "Metal":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_crown)
+                    else:
+                        set_rule(loc, self.metal)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.craftdwarf_or_metal_crown)
+                    else:
+                        set_rule(loc, self.craftdwarf_or_metal)
+            case "Die":
+                if material_type in {"Wood", "Stone"}:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.craftdwarf_die)
+                    else:
+                        set_rule(loc, self.craftdwarf_workshop)
+                elif material_type == "Bone":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.bonecraftdwarf_die)
+                    else:
+                        set_rule(loc, self.bonecraft)
+                elif material_type == "Metal":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_die)
+                    else:
+                        set_rule(loc, self.metal)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.craftdwarf_or_metal_die)
+                    else:
+                        set_rule(loc, self.craftdwarf_or_metal)
+            case "Earring":
+                if material_type in {"Wood", "Stone"}:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.craftdwarf_earring)
+                    else:
+                        set_rule(loc, self.craftdwarf_workshop)
+                elif material_type == "Bone":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.bonecraftdwarf_earring)
+                    else:
+                        set_rule(loc, self.bonecraft)
+                elif material_type == "Leather":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_earring)
+                    else:
+                        set_rule(loc, self.leathercraft)
+                elif material_type == "Cloth":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.clothcraftdwarf_earring)
+                    else:
+                        set_rule(loc, self.clothcraftdwarf)
+                elif material_type == "Metal":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_earring)
+                    else:
+                        set_rule(loc, self.metal)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.craftdwarf_or_metal_earring)
+                    else:
+                        set_rule(loc, self.craftdwarf_or_metal)
+            case "Figurine":
+                if material_type in {"Wood", "Stone"}:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.craftdwarf_figurine)
+                    else:
+                        set_rule(loc, self.craftdwarf_workshop)
+                elif material_type == "Bone":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.bonecraftdwarf_figurine)
+                    else:
+                        set_rule(loc, self.bonecraft)
+                elif material_type == "Metal":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_figurine)
+                    else:
+                        set_rule(loc, self.metal)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.craftdwarf_or_metal_figurine)
+                    else:
+                        set_rule(loc, self.craftdwarf_or_metal)
+            case "Nest Box":
+                if material_type in {"Wood", "Stone"}:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.craftdwarf_nestbox)
+                    else:
+                        set_rule(loc, self.craftdwarf_workshop)
+                elif material_type == "Bone":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.bonecraftdwarf_nestbox)
+                    else:
+                        set_rule(loc, self.bonecraft)
+                elif material_type == "Metal":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_nestbox)
+                    else:
+                        set_rule(loc, self.metal)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.craftdwarf_or_metal_nestbox)
+                    else:
+                        set_rule(loc, self.craftdwarf_or_metal)
+            case "Ring":
+                if material_type in {"Wood", "Stone"}:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.craftdwarf_ring)
+                    else:
+                        set_rule(loc, self.craftdwarf_workshop)
+                elif material_type == "Bone":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.bonecraftdwarf_ring)
+                    else:
+                        set_rule(loc, self.bonecraft)
+                elif material_type == "Metal":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_ring)
+                    else:
+                        set_rule(loc, self.metal)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.craftdwarf_or_metal_ring)
+                    else:
+                        set_rule(loc, self.craftdwarf_or_metal)
+            case "Scepter":
+                if material_type in {"Wood", "Stone"}:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.craftdwarf_scepter)
+                    else:
+                        set_rule(loc, self.craftdwarf_workshop)
+                elif material_type == "Bone":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.bonecraftdwarf_scepter)
+                    else:
+                        set_rule(loc, self.bonecraft)
+                elif material_type == "Metal":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_scepter)
+                    else:
+                        set_rule(loc, self.metal)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.craftdwarf_or_metal_scepter)
+                    else:
+                        set_rule(loc, self.craftdwarf_or_metal)
+            case "Quire":
+                if self.world.options.craftpermits != CraftingPermits.option_off:
+                    set_rule(loc, self.make_quire)
+                else:
+                    set_rule(loc, self.quire)
+            case "Scroll":
+                if self.world.options.craftpermits != CraftingPermits.option_off:
+                    set_rule(loc, self.make_scroll)
+                else:
+                    set_rule(loc, self.scroll)
+            case "Cap":
+                if material_type == "Cloth":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.cloth_cap)
+                    else:
+                        set_rule(loc, self.clothier_workshop)
+                elif material_type == "Leather":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_cap)
+                    else:
+                        set_rule(loc, self.leather_works)
+                elif material_type == "Metal":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_cap)
+                    else:
+                        set_rule(loc, self.metal)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_or_cloth_or_leather_cap)
+                    else:
+                        set_rule(loc, self.metal_or_cloth_or_leather) 
+            case "Hood":
+                if material_type == "Cloth":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.cloth_hood)
+                    else:
+                        set_rule(loc, self.clothier_workshop)
+                elif material_type == "Leather":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_hood)
+                    else:
+                        set_rule(loc, self.leather_works)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_or_cloth_hood)
+                    else:
+                        set_rule(loc, self.leather_or_cloth)
+            case "Shirt":
+                if material_type == "Cloth":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.cloth_shirt)
+                    else:
+                        set_rule(loc, self.clothier_workshop)
+                elif material_type == "Leather":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_shirt)
+                    else:
+                        set_rule(loc, self.leather_works)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_or_cloth_shirt)
+                    else:
+                        set_rule(loc, self.leather_or_cloth)
+            case "Vest": 
+                if material_type == "Cloth":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.cloth_vest)
+                    else:
+                        set_rule(loc, self.clothier_workshop)
+                elif material_type == "Leather":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_vest)
+                    else:
+                        set_rule(loc, self.leather_works)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_or_cloth_vest)
+                    else:
+                        set_rule(loc, self.leather_or_cloth)
+            case "Coat": 
+                if material_type == "Cloth":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.cloth_coat)
+                    else:
+                        set_rule(loc, self.clothier_workshop)
+                elif material_type == "Leather":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_coat)
+                    else:
+                        set_rule(loc, self.leather_works)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_or_cloth_coat)
+                    else:
+                        set_rule(loc, self.leather_or_cloth)
+            case "Cloak":
+                if material_type == "Cloth":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.cloth_cloak)
+                    else:
+                        set_rule(loc, self.clothier_workshop)
+                elif material_type == "Leather":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_cloak)
+                    else:
+                        set_rule(loc, self.leather_works)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_or_cloth_cloak)
+                    else:
+                        set_rule(loc, self.leather_or_cloth)
+            case "Leather Armor":
+                if self.world.options.craftpermits != CraftingPermits.option_off:
+                    set_rule(loc, self.leather_leatherarmor)
+                else:
+                    set_rule(loc, self.leather_works)
+            case "Mail Shirt":
+                if self.world.options.craftpermits != CraftingPermits.option_off:
+                    set_rule(loc, self.make_mailshirt)
+                else:
+                    set_rule(loc, self.metal)
+            case "Breastplate":
+                if self.world.options.craftpermits != CraftingPermits.option_off:
+                    set_rule(loc, self.make_breastplate)
+                else:
+                    set_rule(loc, self.metal)
+            case "Gloves":
+                if material_type == "Cloth":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.cloth_gloves)
+                    else:
+                        set_rule(loc, self.clothier_workshop)
+                elif material_type == "Leather":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_gloves)
+                    else:
+                        set_rule(loc, self.leather_works)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_or_cloth_gloves)
+                    else:
+                        set_rule(loc, self.leather_or_cloth)
+            case "Mittens":
+                if material_type == "Cloth":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.cloth_mittens)
+                    else:
+                        set_rule(loc, self.clothier_workshop)
+                elif material_type == "Leather":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_mittens)
+                    else:
+                        set_rule(loc, self.leather_works)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_or_cloth_mittens)
+                    else:
+                        set_rule(loc, self.leather_or_cloth)
+            case "Loincloth":
+                if material_type == "Cloth":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.cloth_loincloth)
+                    else:
+                        set_rule(loc, self.clothier_workshop)
+                elif material_type == "Leather":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_loincloth)
+                    else:
+                        set_rule(loc, self.leather_works)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_or_cloth_loincloth)
+                    else:
+                        set_rule(loc, self.leather_or_cloth)
+            case "Trousers":
+                if material_type == "Cloth":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.cloth_trousers)
+                    else:
+                        set_rule(loc, self.clothier_workshop)
+                elif material_type == "Leather":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_trousers)
+                    else:
+                        set_rule(loc, self.leather_works)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_or_cloth_trousers)
+                    else:
+                        set_rule(loc, self.leather_or_cloth)
+            case "Leggings":
+                if material_type == "Metal":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                            set_rule(loc, self.metal_leggings)
+                    else:
+                        set_rule(loc, self.metal)
+                elif material_type == "Bone":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.bone_leggings)
+                    else:
+                        set_rule(loc, self.craftdwarf_workshop)
+                elif material_type == "Leather":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_leggings)
+                    else:
+                        set_rule(loc, self.leather_works)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_or_bone_or_leather_leggings)
+                    else:
+                        set_rule(loc, self.metal_or_bone_or_leather)
+            case "Greaves":
+                if material_type == "Metal":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_greaves)
+                    else:
+                        set_rule(loc, self.metal)
+                elif material_type == "Bone":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.bone_greaves)
+                    else:
+                        set_rule(loc, self.bonecraft)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_or_bone_greaves)
+                    else:
+                        set_rule(loc, self.metal_or_bone)
+            case "Socks":
+                if self.world.options.craftpermits != CraftingPermits.option_off:
+                    set_rule(loc, self.make_socks)
+                else:
+                    set_rule(loc, self.clothier_workshop)
+            case "Shoes":
+                if material_type == "Cloth":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.cloth_shoes)
+                    else:
+                        set_rule(loc, self.clothier_workshop)
+                elif material_type == "Leather":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_shoes)
+                    else:
+                        set_rule(loc, self.leather_works)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_or_cloth_shoes)
+                    else:
+                        set_rule(loc, self.leather_or_cloth)
+            case "Low Boots":
+                if material_type == "Leather":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_lboots)
+                    else:
+                        set_rule(loc, self.leather_works)
+                elif material_type == "Metal":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_lboots)
+                    else:
+                        set_rule(loc, self.metal)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_or_leather_lboot)
+                    else:
+                        set_rule(loc, self.metal_or_leather)
+            case "High Boots":
+                if material_type == "Leather":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.leather_hboots)
+                    else:
+                        set_rule(loc, self.leather_works)
+                elif material_type == "Metal":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_hboots)
+                    else:
+                        set_rule(loc, self.metal)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_or_leather_hboot)
+                    else:
+                        set_rule(loc, self.metal_or_leather)
+            case "Giant Axe Blade":
+                if material_type == "Metal":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_axeblade)
+                    else:
+                        set_rule(loc, self.metal)
+                elif material_type == "Glass":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.glass_axeblade)
+                    else:
+                        set_rule(loc, self.glass)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_or_glass_axeblade)
+                    else:
+                        set_rule(loc, self.metal_or_glass)
+            case "Serrated Disc":
+                if material_type == "Metal":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_disc)
+                    else:
+                        set_rule(loc, self.metal)
+                elif material_type == "Glass":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.glass_disc)
+                    else:
+                        set_rule(loc, self.glass)
+                else:
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.metal_or_glass_disc)
+                    else:
+                        set_rule(loc, self.metal_or_glass)
+            case "Codex":
+                if self.world.options.craftpermits != CraftingPermits.option_off:
+                    set_rule(loc, self.make_codex)
+                else:
+                    set_rule(loc, self.codex)
