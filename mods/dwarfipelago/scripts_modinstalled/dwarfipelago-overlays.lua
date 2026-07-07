@@ -387,7 +387,7 @@ local MATERIAL_KEYWORDS = {
     ceramic = {"clay"}, metal = {"adamantine", "aluminum", "billon", "metal", "brass",
     "bronze", "copper", "electrum", "elemental", "steel", "pewter", "gold", "iron",
     "lead", "nickel", "platinum", "silver", "tin", "zinc"}, 
-    glass = {"glass"}, leather = {"leather"}, cloth = {" cloth", "yarn", " adamantine"}
+    glass = {"glass"}, leather = {"leather"}, cloth = {" cloth", "yarn"}
 }
 
 local function material_required_by(craft_name)
@@ -495,6 +495,10 @@ local function task_on_row(row, y)
                 if craftsanity_enabled() then
                     local mat = material_required_by(row)
                     if mat then material = mat end
+                    if craft == "backpack" or craft == "quiver" then --override for cloth instead
+                        local found = string.find(row, "adamantine")
+                        if found then material = "cloth" end
+                    end
                 end
                 return { y = y, start = pos, finish = finish, mat = material, craft = craft}
             else
