@@ -178,7 +178,7 @@ def valid_materialitem(material: str, item: str) -> bool:
         return True
     if material in {"Wood", "Stone", "Bone", "Metal", "Glass"} and item in {"Die", "Nest Box"}:
         return True
-    if material in {"Wood", "Stone", "Metal", "Glass", "Bone", "Cloth", "Ceramic"} and item in {"Crafts"}:
+    if material in {"Wood", "Stone", "Metal", "Glass", "Bone", "Cloth", "Ceramic", "Leather"} and item in {"Crafts"}:
         return True
     if material in {"Wood", "Bone", "Metal"} and item in {"Crossbow", "Bolt"}:
         return True
@@ -194,7 +194,7 @@ def valid_materialitem(material: str, item: str) -> bool:
         return True
     if material in {"Leather", "Bone", "Metal"} and item in {"Helm", "Leggings"}:
         return True
-    if material in {"Leather", "Cloth"} and item in {"Bag", "Backpack", "Quiver", "Hood", "Shirt", "Gloves", "Mittens", "Loincloth", "Trousers", "Shoes", "Tunic", "Dress", "Toga", "Robe", "Braies"}:
+    if material in {"Leather", "Cloth"} and item in {"Bag", "Backpack", "Quiver", "Hood", "Shirt", "Gloves", "Mittens", "Loincloth", "Trousers", "Shoes", "Tunic", "Dress", "Toga", "Robe", "Braies", "Cloak", "Coat", "Vest"}:
         return True
     if material in {"Leather", "Metal"} and item in {"Low Boots", "High Boots"}:
         return True

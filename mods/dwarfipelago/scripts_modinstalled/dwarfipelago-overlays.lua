@@ -95,7 +95,7 @@ local PERMIT_KEYWORDS = {
     crossbow = {"crossbow"}, bolt_thrower_parts = {"bolt thrower parts"}, bolt = {"bolts"},
     training_axe = {"training axe"}, training_spear = {"training spear"}, training_sword = {"training sword"},
     ballista_parts = {"ballista parts"}, ballista_arrows = {"ballista arrow"}, catapult_parts = {"catapult parts"},
-    gaint_axe_blade = {"axe blade"}, serrated_disc = {"disc"},
+    giant_axe_blade = {"axe blade"}, serrated_disc = {"disc"},
     -- materials, industry, food
     metal_bars = {"bars", "ore", "metal object", "wafers"}, coke_bars = {"coke"}, charcoal = {"charcoal"}, ash = {"ash"},
     pearlash = {"pearlash"}, quicklime = {"quicklime"}, gypsum_plaster = {"gypsum plaster", "plaster powder"},
@@ -106,7 +106,7 @@ local PERMIT_KEYWORDS = {
     ["rope/chain"] = {"rope", "chain"}, soap = {"soap"}, coins = {"coins"},
     alcohol = {"drink from fruit", "drink from plant", "mead"}, lye = {"lye"}, potash = {"potash"}, tallow = {"fat"},
     oil = {"oil"}, honey = {"honey"}, prepared_meal = {"meal"}, milk_of_lime = {"milk of lime"}, amulet = {"amulet"}, bracelet = {"bracelet"},
-    crown = {"crown"}, die = {"die"}, earring = {"earring"}, figurine = {"figurine"}, nest_box = {"nest box"}, ring = {"ring"},
+    crown = {"crown"}, die = {"die"}, earring = {"earring"}, figurine = {"figurine"}, nest_box = {"nest box"}, ring = {" ring"},
     scepter = {"scepter"}, quire = {"quire"}, scroll = {"scroll"}, codex = {"book"},
     -- cloths
     greaves = {"greaves"}, buckler = {"buckler"}, shield = {"shield"}, helm = {"helm"}, gauntlets = {"gauntlets"},
@@ -157,6 +157,7 @@ local TASK_VERBS = {
     { pattern = "Press %S",    skip = 7  },
     { pattern = "Weave %S",    skip = 7  },
     { pattern = "Bind %S",    skip = 6  },
+    { pattern = "Mint %S",    skip = 6  },
 }
 
 -- If a screen row is a permit-locked task, return where/what to mark; otherwise nil.
@@ -378,14 +379,15 @@ local TASK_LINE = {
     "Render .*%S",
     "Press .*%S",
     "Bind .*%S",
+    "Mint .*%S",
 }
 
 local MATERIAL_KEYWORDS = {
-    wood = {"wooden"}, stone = {"rock"}, bone = {"bone"},
+    wood = {"wooden"}, stone = {"rock"}, bone = {"bone", "ivory/tooth", "horn"},
     ceramic = {"clay"}, metal = {"adamantine", "aluminum", "billon", "metal", "brass",
     "bronze", "copper", "electrum", "elemental", "steel", "pewter", "gold", "iron",
     "lead", "nickel", "platinum", "silver", "tin", "zinc"}, 
-    glass = {"glass"}, leather = {"leather"}, cloth = {" cloth", "yarn"}
+    glass = {"glass"}, leather = {"leather"}, cloth = {" cloth", "yarn", " adamantine"}
 }
 
 local function material_required_by(craft_name)
@@ -405,7 +407,7 @@ local CRAFTSANITY_KEYWORDS = {
     spiked_ball = {"ball"}, altar = {"altar"}, animal_trap = {"animal trap"}, armor_stand = {"armor stand"}, barrel = {"barrel"},
     bin = {"bin"}, bookcase = {"bookcase"}, bucket = {"bucket"}, buckler = {"buckler"}, cabinet = {"cabinet"},
     cage = {"cage", "terrarium"}, burial_container = {"casket", "sarcophagus", "coffin"}, chair = {"chair", "throne"}, container = {"chest", "coffer", "box"}, crutch = {"crutch"},
-    door = {"door", "portal"}, floodgate = {"floodgate"}, grate = {"grate"}, hatch_cover = {"hatch cover"},
+    door = {"door", "portal", "Portal"}, floodgate = {"floodgate"}, grate = {"grate"}, hatch_cover = {"hatch cover"},
     minecart = {"minecart"}, pedestal = {"pedestal"}, pipe_section = {"pipe section", "tube"}, shield = {"shield"},
     splint = {"splint"}, stepladder = {"stepladder"}, table = {"table"}, training_axe = {"training axe"},
     training_spear = {"training spear"}, training_sword = {"training sword"}, weapon_rack = {"weapon rack"},
@@ -423,7 +425,7 @@ local CRAFTSANITY_KEYWORDS = {
     dye = {"dye"}, bag = {"bag"}, rope_chain = {"rope", "chain"}, battle_axe = {"battle axe"},
     mace = {"mace"}, pick = {"pick"}, short_sword = {"short sword"}, spear = {"spear"}, war_hammer = {"war hammer"},
     anvil = {"anvil"}, coins = {"coins"}, soap = {"soap"}, display_case = {"display case"}, amulet = {"amulet"}, bracelet = {"bracelet"},
-    crown = {"crown"}, die = {"die"}, earring = {"earring"}, figurine = {"figurine"}, nest_box = {"nest box"}, ring = {"ring"},
+    crown = {"crown"}, die = {"die"}, earring = {"earring"}, figurine = {"figurine"}, nest_box = {"nest box"}, ring = {" ring"},
     scepter = {"scepter"}, greaves = {"greaves"}, quire = {"quire"}, scroll = {"scroll"}, codex = {"book"},
     leather_armor = {"leather armor"}, breastplate = {"breastplate"}, mail_shirt = {"mail shirt"}, socks = {"socks"},
     backpack = {"backpack"}, quiver = {"quiver"}, face_veil = {"face_viel"}, mask = {"mask"}, headscarf = {"headscarf"},
@@ -431,7 +433,7 @@ local CRAFTSANITY_KEYWORDS = {
     braies = {"braies"}, trousers = {"trousers"}, skirt = {"skirt"}, gloves = {"gloves"}, mittens = {"mittens"},
     tunic = {"tunic"}, shirt = {"shirt"}, dress = {"dress"}, vest = {"vest"}, toga = {"toga"}, coat = {"coat"},
     robe = {"robe"}, cape = {"cape"}, cloak = {"cloak"}, chausses = {"chausses"}, shoes = {"shoes"}, low_boots = {"low boots"},
-    high_boots = {"high boots"}, gaint_axe_blade = {"axe blade"}, serrated_disc = {"disc"},
+    high_boots = {"high boots"}, giant_axe_blade = {"axe blade"}, serrated_disc = {"disc"},
 }
 
 local function craftsanity_required_by(craft_name)
