@@ -180,7 +180,7 @@ class CraftsanityItems(OptionList):
         "Leather Armor", "Mail Shirt", "Breastplate", "Codex", "Socks", "Backpack", "Quiver", "Amulet", "Bracelet", "Crown",
         "Die", "Earring", "Figurine", "Nest Box", "Ring", "Scepter", "Cap", "Hood", "Shirt", "Gloves", "Mittens", "Loincloth",
         "Trousers", "Leggings", "Greaves", "Shoes", "Low Boots", "High Boots", "Giant Axe Blade", "Serrated Disc", "Tunic",
-        "Dress", "Toga", "Robe", "Braies"
+        "Dress", "Toga", "Robe", "Braies", "Cloak", "Vest", "Coat"
     }
     default = valid_keys.copy()
 
