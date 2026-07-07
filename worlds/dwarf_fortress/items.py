@@ -255,6 +255,11 @@ CRAFT_ITEMS: list[ItemData] = [ #commented items people should get when getting 
     ItemData("Giant Axe Blade Permit", BASE_ID + 1131, ItemClassification.progression),
     ItemData("Serrated Disc Permit", BASE_ID + 1132, ItemClassification.progression),
     ItemData("Codex Permit", BASE_ID + 1133, ItemClassification.progression),
+    ItemData("Tunic Permit", BASE_ID + 1134, ItemClassification.progression),
+    ItemData("Dress Permit", BASE_ID + 1135, ItemClassification.progression),
+    ItemData("Toga Permit", BASE_ID + 1136, ItemClassification.progression),
+    ItemData("Robe Permit", BASE_ID + 1137, ItemClassification.progression),
+    ItemData("Braies Permit", BASE_ID + 1138, ItemClassification.progression),
 ]
 
 # ── Items the DF player receives from the multiworld ─────────────────────────

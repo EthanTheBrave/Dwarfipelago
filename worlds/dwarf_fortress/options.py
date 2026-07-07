@@ -179,7 +179,8 @@ class CraftsanityItems(OptionList):
         "Pick", "Short Sword", "Spear", "War Hammer", "Anvil", "Coins", "Soap", "Display Case", "Bolt Thrower Parts", "Quire", "Scroll",
         "Leather Armor", "Mail Shirt", "Breastplate", "Codex", "Socks", "Backpack", "Quiver", "Amulet", "Bracelet", "Crown",
         "Die", "Earring", "Figurine", "Nest Box", "Ring", "Scepter", "Cap", "Hood", "Shirt", "Gloves", "Mittens", "Loincloth",
-        "Trousers", "Leggings", "Greaves", "Shoes", "Low Boots", "High Boots", "Giant Axe Blade", "Serrated Disc"
+        "Trousers", "Leggings", "Greaves", "Shoes", "Low Boots", "High Boots", "Giant Axe Blade", "Serrated Disc", "Tunic",
+        "Dress", "Toga", "Robe", "Braies"
     }
     default = valid_keys.copy()
 

@@ -174,7 +174,9 @@ def valid_materialitem(material: str, item: str) -> bool:
         return True
     if material in {"Wood", "Stone", "Bone", "Cloth", "Leather", "Metal"} and item in {"Amulet", "Bracelet", "Earring"}:
         return True
-    if material in {"Wood", "Stone", "Bone", "Metal"} and item in {"Crown", "Die", "Figurine", "Nest Box", "Ring", "Scepter"}:
+    if material in {"Wood", "Stone", "Bone", "Metal"} and item in {"Crown", "Figurine", "Ring", "Scepter"}:
+        return True
+    if material in {"Wood", "Stone", "Bone", "Metal", "Glass"} and item in {"Die", "Nest Box"}:
         return True
     if material in {"Wood", "Stone", "Metal", "Glass", "Bone", "Cloth", "Ceramic"} and item in {"Crafts"}:
         return True
@@ -192,7 +194,7 @@ def valid_materialitem(material: str, item: str) -> bool:
         return True
     if material in {"Leather", "Bone", "Metal"} and item in {"Helm", "Leggings"}:
         return True
-    if material in {"Leather", "Cloth"} and item in {"Bag", "Backpack", "Quiver", "Hood", "Shirt", "Gloves", "Mittens", "Loincloth", "Trousers", "Shoes"}:
+    if material in {"Leather", "Cloth"} and item in {"Bag", "Backpack", "Quiver", "Hood", "Shirt", "Gloves", "Mittens", "Loincloth", "Trousers", "Shoes", "Tunic", "Dress", "Toga", "Robe", "Braies"}:
         return True
     if material in {"Leather", "Metal"} and item in {"Low Boots", "High Boots"}:
         return True
@@ -345,5 +347,10 @@ def assign_locationid_block(item: str) -> int:
         case "Giant Axe Blade": return 358000
         case "Serrated Disc": return 360000
         case "Codex": return 362000
+        case "Tunic": return 364000
+        case "Dress": return 366000
+        case "Toga": return 368000
+        case "Robe": return 370000
+        case "Braies": return 372000
     print("Missing entry: "+item)
     return 0
