@@ -78,14 +78,14 @@ local RESCAN_FRAMES   = 2    -- frames between screen re-reads; lower = snappier
 local PERMIT_KEYWORDS = {
     -- furniture
     beds = {"bed"}, chair = {"chair", "throne"}, table = {"table"}, cabinet = {"cabinet"},
-    container = {"chest", "coffer"}, burial_container = {"casket", "coffin", "sarcophagus"},
+    container = {"chest", "coffer", "box"}, burial_container = {"casket", "coffin", "sarcophagus"},
     bin = {"bin"}, barrel = {"barrel"}, bucket = {"bucket"}, bookcase = {"bookcase"},
-    cage = {"cage"}, statue = {"statue"}, slab = {"slab"}, pedestal = {"pedestal"},
+    cage = {"cage", "terrarium"}, statue = {"statue"}, slab = {"slab"}, pedestal = {"pedestal"},
     door = {"door", "Portal", "portal"}, floodgate = {"floodgate"}, grate = {"grate"}, hatch_cover = {"hatch cover"},
     altar = {"altar"}, armor_stand = {"armor stand"}, weapon_rack = {"weapon rack"}, display_case = {"display case"},
     -- tools, mechanisms, misc
     mechanism = {"mechanisms"}, minecart = {"minecart"}, wheelbarrow = {"wheelbarrow"},
-    stepladder = {"stepladder"}, corkscrew = {"corkscrew"}, pipe_section = {"pipe section"},
+    stepladder = {"stepladder"}, corkscrew = {"corkscrew"}, pipe_section = {"pipe section", "tube"},
     millstone = {"millstone"}, quern = {"quern"}, splint = {"splint"}, crutch = {"crutch"},
     traction_bench = {"traction bench"}, animal_trap = {"animal trap"},
     -- weapons, traps
@@ -95,6 +95,7 @@ local PERMIT_KEYWORDS = {
     crossbow = {"crossbow"}, bolt_thrower_parts = {"bolt thrower parts"}, bolt = {"bolts"},
     training_axe = {"training axe"}, training_spear = {"training spear"}, training_sword = {"training sword"},
     ballista_parts = {"ballista parts"}, ballista_arrows = {"ballista arrow"}, catapult_parts = {"catapult parts"},
+    gaint_axe_blade = {"axe blade"}, serrated_disc = {"disc"},
     -- materials, industry, food
     metal_bars = {"bars", "ore", "metal object", "wafers"}, coke_bars = {"coke"}, charcoal = {"charcoal"}, ash = {"ash"},
     pearlash = {"pearlash"}, quicklime = {"quicklime"}, gypsum_plaster = {"gypsum plaster", "plaster powder"},
@@ -403,9 +404,9 @@ local CRAFTSANITY_KEYWORDS = {
     beds = {"bed"}, corkscrew = {"corkscrew"}, blocks = {"blocks", "bricks"}, menacing_spike = {"spike"},
     spiked_ball = {"ball"}, altar = {"altar"}, animal_trap = {"animal trap"}, armor_stand = {"armor stand"}, barrel = {"barrel"},
     bin = {"bin"}, bookcase = {"bookcase"}, bucket = {"bucket"}, buckler = {"buckler"}, cabinet = {"cabinet"},
-    cage = {"cage"}, burial_container = {"casket", "sarcophagus", "coffin"}, chair = {"chair", "throne"}, container = {"chest", "coffer"}, crutch = {"crutch"},
+    cage = {"cage", "terrarium"}, burial_container = {"casket", "sarcophagus", "coffin"}, chair = {"chair", "throne"}, container = {"chest", "coffer", "box"}, crutch = {"crutch"},
     door = {"door", "portal"}, floodgate = {"floodgate"}, grate = {"grate"}, hatch_cover = {"hatch cover"},
-    minecart = {"minecart"}, pedestal = {"pedestal"}, pipe_section = {"pipe section"}, shield = {"shield"},
+    minecart = {"minecart"}, pedestal = {"pedestal"}, pipe_section = {"pipe section", "tube"}, shield = {"shield"},
     splint = {"splint"}, stepladder = {"stepladder"}, table = {"table"}, training_axe = {"training axe"},
     training_spear = {"training spear"}, training_sword = {"training sword"}, weapon_rack = {"weapon rack"},
     wheelbarrow = {"wheelbarrow"}, crossbow = {"crossbow"}, bolt_thrower_parts = {"bolt thrower parts"}, bolt = {"bolts"}, millstone = {"millstone"},
@@ -415,7 +416,7 @@ local CRAFTSANITY_KEYWORDS = {
     helm = {"helm"}, ballista_parts = {"ballista parts"}, catapult_parts = {"catapult parts"}, ballista_arrows = {"ballista arrow"},
     ash = {"ash"}, charcoal = {"charcoal"}, metal_bars = {"bars", "ore", "metal object", "wafers"}, coke_bars = {"coke"},
     pearlash = {"pearlash"}, gypsum_plaster = {"plaster powder"}, jug = {"jug"}, large_pot = {"pot"},  hive = {"hive"},
-    quicklime = {"quicklime"}, glass = {"glass"}, window = {"window"}, book_binding = {"book binding"},
+    quicklime = {"quicklime"}, glass = {"raw green glass", "raw clear glass", "raw crystal glass"}, window = {"window"}, book_binding = {"book binding"},
     scroll_roller = {"scroll rollers"}, leather = {"hide"}, sheet = {"sheet", "parchment"}, cloth = {"into cloth"}, alcohol = {"Brew drink", "mead"},
     lye = {"lye"}, potash = {"potash"}, milk_of_lime = {"milk of lime"}, prepared_meal = {"meal"},
     tallow = {"tallow"}, oil = {"oil"}, press_cake = {"press_cake"}, honey = {"honey"}, bee_wax = {"bee wax"},
@@ -430,7 +431,7 @@ local CRAFTSANITY_KEYWORDS = {
     braies = {"braies"}, trousers = {"trousers"}, skirt = {"skirt"}, gloves = {"gloves"}, mittens = {"mittens"},
     tunic = {"tunic"}, shirt = {"shirt"}, dress = {"dress"}, vest = {"vest"}, toga = {"toga"}, coat = {"coat"},
     robe = {"robe"}, cape = {"cape"}, cloak = {"cloak"}, chausses = {"chausses"}, shoes = {"shoes"}, low_boots = {"low boots"},
-    high_boots = {"high boots"}
+    high_boots = {"high boots"}, gaint_axe_blade = {"axe blade"}, serrated_disc = {"disc"},
 }
 
 local function craftsanity_required_by(craft_name)
