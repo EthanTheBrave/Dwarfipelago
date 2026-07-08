@@ -601,14 +601,6 @@ function DwarfipelagoPanel:onDismiss()
     _panel_instance = nil
 end
 
-function DwarfipelagoPanel:onInput(keys)
-    if keys._MOUSE_L and not self:isMouseOver() then
-        self:dismiss()
-        return true
-    end
-    return DwarfipelagoPanel.super.onInput(self, keys)
-end
-
 -- Live-refresh the Shop tab (shrine status can change while the panel is open).
 -- Throttled so we rebuild the list only a couple of times a second.
 function DwarfipelagoPanel:onRenderFrame(dc, rect)
