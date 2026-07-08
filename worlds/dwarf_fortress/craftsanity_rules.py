@@ -49,6 +49,119 @@ class DynamicCraftingLocationRules:
                 return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player) and \
                 state.has("Charcoal Permit", self.player)) or self.magma_processing(state, "metal")) and \
                 state.has("Metal Bars Permit", self.player)
+        if resource == "adamantine_metal":
+            if self.world.options.craftpermits == CraftingPermits.option_off:
+                if self.world.options.mining_depth: # need to dig deep
+                    if self.world.options.trades_inlogic: # don't need fuel
+                        return (state.has("Smelter Blueprint", self.player) or self.magma_processing(state, "metal")) \
+                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
+                        and (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
+                        and state.has("Progressive Mining Depth", self.player, 4)
+                    else:
+                        return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player)) \
+                        or self.magma_processing(state, "metal")) \
+                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
+                        and (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
+                        and state.has("Progressive Mining Depth", self.player, 4)
+                else:
+                    if self.world.options.trades_inlogic: # don't need fuel
+                        return (state.has("Smelter Blueprint", self.player) or self.magma_processing(state, "metal")) \
+                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
+                        and (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge"))
+                    else:
+                        return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player)) \
+                        or self.magma_processing(state, "metal")) \
+                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
+                        and (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) 
+            elif self.world.options.craftpermits == CraftingPermits.option_on:
+                if self.world.options.mining_depth: # need to dig deep
+                    if self.world.options.trades_inlogic: # don't need fuel
+                        return (state.has("Smelter Blueprint", self.player) or self.magma_processing(state, "metal")) \
+                        and (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
+                        and state.has("Metal Bars Permit", self.player) and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
+                        and state.has("Progressive Mining Depth", self.player, 4)
+                    else:
+                        return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player)) or \
+                        self.magma_processing(state, "metal")) and state.has("Metal Bars Permit", self.player) \
+                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) and (state.has("Forge Blueprint", self.player) or \
+                        self.magma_processing(state, "forge")) and state.has("Progressive Mining Depth", self.player, 4)
+                else:
+                    if self.world.options.trades_inlogic: # don't need fuel
+                        return (state.has("Smelter Blueprint", self.player) or self.magma_processing(state, "metal")) \
+                        and (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
+                        and state.has("Metal Bars Permit", self.player) and state.has("Craftsdwarf's Workshop Blueprint", self.player)
+                    else:
+                        return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player)) or \
+                        self.magma_processing(state, "metal")) and state.has("Metal Bars Permit", self.player) \
+                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) and (state.has("Forge Blueprint", self.player) or \
+                        self.magma_processing(state, "forge"))
+            else:
+                if self.world.options.mining_depth: # need to dig deep
+                    if self.world.options.trades_inlogic: # don't need fuel
+                        return (state.has("Smelter Blueprint", self.player) or self.magma_processing(state, "metal")) and \
+                        state.has("Metal Bars Permit", self.player) and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
+                        (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
+                        and state.has("Progressive Mining Depth", self.player, 4)
+                    else:
+                        return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player) and \
+                        state.has("Charcoal Permit", self.player)) or (self.magma_processing(state, "metal") \
+                        and state.has("Coke Bars Permit", self.player))) and state.has("Metal Bars Permit", self.player) \
+                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
+                        (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
+                        and state.has("Progressive Mining Depth", self.player, 4)
+                else:
+                    if self.world.options.trades_inlogic: # don't need fuel
+                        return (state.has("Smelter Blueprint", self.player) or self.magma_processing(state, "metal")) and \
+                        state.has("Metal Bars Permit", self.player) and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
+                        (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge"))
+                    else:
+                        return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player) and \
+                        state.has("Charcoal Permit", self.player)) or (self.magma_processing(state, "metal") \
+                        and state.has("Coke Bars Permit", self.player))) and state.has("Metal Bars Permit", self.player) \
+                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
+                        (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge"))
+        if resource == "adamantine_cloth":
+            if self.world.options.craftpermits != CraftingPermits.option_all:
+                if self.world.options.mining_depth:  # can't mine adamantine without depth  
+                    if self.world.options.trades_inlogic: # obtain fuel
+                        return (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
+                            and state.has("Craftsdwarf's Workshop Blueprint", self.player) and state.has("Loom Blueprint", self.player) \
+                            and state.has("Progressive Mining Depth", self.player, 4)
+                    else:
+                        return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Charcoal Permit", self.player) \
+                            and state.has("Forge Blueprint", self.player)) or self.magma_processing(state, "forge")) \
+                            and state.has("Craftsdwarf's Workshop Blueprint", self.player) and state.has("Loom Blueprint", self.player) \
+                            and state.has("Cloth Permit", self.player) and state.has("Progressive Mining Depth", self.player, 4)
+                else: # no depth item
+                    if self.world.options.trades_inlogic: # obtain fuel
+                        return (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
+                            and state.has("Craftsdwarf's Workshop Blueprint", self.player) and state.has("Loom Blueprint", self.player)
+                    else:
+                        return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Charcoal Permit", self.player) \
+                            and state.has("Forge Blueprint", self.player)) or self.magma_processing(state, "forge")) \
+                            and state.has("Craftsdwarf's Workshop Blueprint", self.player) and state.has("Loom Blueprint", self.player) \
+                            and state.has("Cloth Permit", self.player)
+            else:
+                if self.world.options.mining_depth:  # can't mine adamantine without depth 
+                    if self.world.options.trades_inlogic: #obtain fuel
+                        return (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
+                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) and state.has("Loom Blueprint", self.player) \
+                        and state.has("Cloth Permit", self.player) and state.has("Progressive Mining Depth", self.player, 4)
+                    else:
+                        return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Charcoal Permit", self.player) \
+                        and state.has("Forge Blueprint", self.player)) or self.magma_processing(state, "forge")) \
+                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) and state.has("Loom Blueprint", self.player) \
+                        and state.has("Cloth Permit", self.player) and state.has("Progressive Mining Depth", self.player, 4)
+                else: #no depth
+                    if self.world.options.trades_inlogic: #obtain fuel
+                        return (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
+                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) and state.has("Loom Blueprint", self.player) \
+                        and state.has("Cloth Permit", self.player)
+                    else:
+                        return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Charcoal Permit", self.player) \
+                        and state.has("Forge Blueprint", self.player)) or self.magma_processing(state, "forge")) \
+                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) and state.has("Loom Blueprint", self.player) \
+                        and state.has("Cloth Permit", self.player)
         if resource == "coke":
             if self.world.options.craftpermits == CraftingPermits.option_off:
                 return (state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player)) or \
@@ -119,6 +232,9 @@ class DynamicCraftingLocationRules:
         
     def needs_make_metal(self, state:CollectionState) -> bool:
         return self.process_resource(state, "metal")
+    
+    def adamantine_metal(self, state:CollectionState) -> bool:
+        return self.process_resource(state, "adamantine_metal")
         
     def ceramic(self, state:CollectionState) -> bool:
         return self.process_resource(state, "ceramic")
@@ -141,18 +257,12 @@ class DynamicCraftingLocationRules:
             else:
                 return self.leather(state) and state.has("Leather Works Blueprint", self.player) and \
                 state.has("Leather Permit", self.player)
-            
-    def metalcloth(self, state:CollectionState) -> bool: #adamantine cloth
-        if self.world.options.mining_depth:
-            return state.has("Progressive Mining Depth", self.player, 4) and self.craftdwarf_workshop(state) \
-            and self.cloth(state)
-        return  self.craftdwarf_workshop(state) and self.cloth(state)
-    
-    def metalcloth_forge(self, state:CollectionState) -> bool:
-        return self.metalcloth(state) and self.forge_only(state) 
-    
-    def metalclothforge_or_leather(self, state:CollectionState) -> bool:
-        return self.metalcloth_forge(state) or self.leather_works(state) 
+
+    def adamantine_cloth(self, state:CollectionState) -> bool:
+        return self.process_resource(state, "adamantine_cloth")
+
+    def adamantineclothforge_or_leather(self, state:CollectionState) -> bool:
+        return self.process_resource(state, "adamantine_cloth") or self.leather_works(state) 
     
     def cloth(self, state:CollectionState) -> bool:
         return state.has("Loom Blueprint", self.player)
@@ -985,19 +1095,19 @@ class DynamicCraftingLocationRules:
     def make_displaycase(self, state:CollectionState) -> bool:
         return self.make_glass(state) and self.wood(state) and state.has("Display Case Permit", self.player) 
     
-    def make_metalcloth_backpack(self, state:CollectionState) -> bool:
-        return self.metalcloth_forge(state) and state.has("Backpack Permit", self.player) 
+    def make_adamantinecloth_backpack(self, state:CollectionState) -> bool:
+        return self.process_resource(state, "adamantine_cloth") and state.has("Backpack Permit", self.player) 
     def make_leather_backpack(self, state:CollectionState) -> bool:
         return self.leather_works(state) and state.has("Backpack Permit", self.player) 
-    def make_metalclothforge_or_leather_backpack(self, state:CollectionState) -> bool:
-        return self.make_metalcloth_backpack(state) or self.make_leather_backpack(state) 
+    def make_adamantineclothforge_or_leather_backpack(self, state:CollectionState) -> bool:
+        return self.make_adamantinecloth_backpack(state) or self.make_leather_backpack(state) 
     
-    def make_metalcloth_quiver(self, state:CollectionState) -> bool:
-        return self.metalcloth_forge(state) and state.has("Quiver Permit", self.player) 
+    def make_adamantinecloth_quiver(self, state:CollectionState) -> bool:
+        return self.process_resource(state, "adamantine_cloth") and state.has("Quiver Permit", self.player) 
     def make_leather_quiver(self, state:CollectionState) -> bool:
         return self.leather_works(state) and state.has("Quiver Permit", self.player) 
-    def make_metalclothforge_or_leather_quiver(self, state:CollectionState) -> bool:
-        return self.make_metalcloth_backpack(state) or self.make_leather_backpack(state)
+    def make_adamantineclothforge_or_leather_quiver(self, state:CollectionState) -> bool:
+        return self.make_adamantinecloth_quiver(state) or self.make_leather_quiver(state)
     
     def craftdwarf_amulet(self, state:CollectionState) -> bool:
         return self.craftdwarf_workshop(state) and state.has("Amulet Permit", self.player)
@@ -2646,11 +2756,11 @@ class DynamicCraftingLocationRules:
                 else:
                     set_rule(loc, self.displaycase)
             case "Backpack":
-                if material_type == "Cloth":
+                if material_type == "Adamantine":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.make_metalcloth_backpack)
+                        set_rule(loc, self.make_adamantinecloth_backpack)
                     else:
-                        set_rule(loc, self.metalcloth_forge)
+                        set_rule(loc, self.adamantine_cloth)
                 elif material_type == "Leather":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.make_leather_backpack)
@@ -2658,15 +2768,15 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.make_metalclothforge_or_leather_backpack)
+                        set_rule(loc, self.make_adamantineclothforge_or_leather_backpack)
                     else:
-                        set_rule(loc, self.metalclothforge_or_leather)
+                        set_rule(loc, self.adamantineclothforge_or_leather)
             case "Quiver":
-                if material_type == "Cloth":
+                if material_type == "Adamantine":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.make_metalcloth_quiver)
+                        set_rule(loc, self.make_adamantinecloth_quiver)
                     else:
-                        set_rule(loc, self.metalcloth_forge)
+                        set_rule(loc, self.adamantine_cloth)
                 elif material_type == "Leather":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.make_leather_quiver)
@@ -2674,9 +2784,9 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.make_metalclothforge_or_leather_quiver)
+                        set_rule(loc, self.make_adamantineclothforge_or_leather_quiver)
                     else:
-                        set_rule(loc, self.metalclothforge_or_leather)
+                        set_rule(loc, self.adamantineclothforge_or_leather)
             case "Bolt Thrower Parts":
                 if self.world.options.craftpermits != CraftingPermits.option_off:
                     set_rule(loc, self.seige_boltthrowerparts)
@@ -3162,7 +3272,7 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.metal)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.metal_or_leather_lboot)
+                        set_rule(loc, self.metal_or_leather_lboots)
                     else:
                         set_rule(loc, self.metal_or_leather)
             case "High Boots":
@@ -3178,7 +3288,7 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.metal)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.metal_or_leather_hboot)
+                        set_rule(loc, self.metal_or_leather_hboots)
                     else:
                         set_rule(loc, self.metal_or_leather)
             case "Giant Axe Blade":
