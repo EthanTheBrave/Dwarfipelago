@@ -765,6 +765,8 @@ reaction_subtype("MAKE WOODEN DISPLAY CASE",        "display_case")
 reaction_subtype("MAKE_WOODEN_DISPLAY_CASE",        "display_case")
 reaction_subtype("MAKE_SCROLL",                     "scroll")
 reaction_subtype("MAKE_QUIRE",                      "quire")
+reaction_subtype("BIND_BOOK",                       "codex")
+
 
 
 
