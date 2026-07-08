@@ -666,7 +666,7 @@ local TRAP_SUBTYPE_FLAG = {}
 local function trap_subtype(subtype_id, flag)
     TRAP_SUBTYPE_FLAG[subtype_id] = flag
 end
-trap_subtype(1, "giant_axe_blade")
+trap_subtype(0, "giant_axe_blade")
 trap_subtype(1, "corkscrew")
 trap_subtype(2, "spiked_ball")
 trap_subtype(3, "serrated_disc")
@@ -763,6 +763,10 @@ reaction_subtype("MAKE_SOAP_FROM_OIL",              "soap")
 reaction_subtype("MAKE_SOAP_FROM_TALLOW",           "soap")
 reaction_subtype("MAKE WOODEN DISPLAY CASE",        "display_case")
 reaction_subtype("MAKE_WOODEN_DISPLAY_CASE",        "display_case")
+reaction_subtype("MAKE_SCROLL",                     "scroll")
+reaction_subtype("MAKE_QUIRE",                      "quire")
+
+
 
 -- Clay items are fired at a Kiln as CustomReactions (not Construct*/MakeTool jobs),
 -- so they reach here by reaction_name. Their material resolves to "ceramic" (the
