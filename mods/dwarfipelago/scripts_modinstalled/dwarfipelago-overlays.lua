@@ -115,7 +115,7 @@ local PERMIT_KEYWORDS = {
     face_veil = {"face_viel"}, mask = {"mask"}, headscarf = {"headscarf"}, head_veil = {"head veil"}, turban = {"turban"},
     cap = {"cap"}, hood = {"hood"}, leggings = {"leggings"}, loincloth = {"loincloth"}, thong = {"thong"},
     braies = {"braies"}, trousers = {"trousers"}, skirt = {"skirt"}, gloves = {"gloves"}, mittens = {"mittens"},
-    tunic = {"tunic"}, shirt = {"shirt"}, dress = {"dress"}, vest = {"vest"}, toga = {"toga"}, coat = {"coat"},
+    tunic = {"tunic"}, shirt = {"cloth shirt", "yarn shirt"}, dress = {"dress"}, vest = {"vest"}, toga = {"toga"}, coat = {"coat"},
     robe = {"robe"}, cape = {"cape"}, cloak = {"cloak"}, chausses = {"chausses"}, shoes = {"shoes"}, low_boots = {"low boots"},
     high_boots = {"high boots"}
 }
@@ -431,7 +431,7 @@ local CRAFTSANITY_KEYWORDS = {
     backpack = {"backpack"}, quiver = {"quiver"}, face_veil = {"face_viel"}, mask = {"mask"}, headscarf = {"headscarf"},
     head_veil = {"head veil"}, turban = {"turban"}, cap = {"cap"}, hood = {"hood"}, leggings = {"leggings"}, loincloth = {"loincloth"}, thong = {"thong"},
     braies = {"braies"}, trousers = {"trousers"}, skirt = {"skirt"}, gloves = {"gloves"}, mittens = {"mittens"},
-    tunic = {"tunic"}, shirt = {"shirt"}, dress = {"dress"}, vest = {"vest"}, toga = {"toga"}, coat = {"coat"},
+    tunic = {"tunic"}, shirt = {"cloth shirt", "yarn shirt"}, dress = {"dress"}, vest = {"vest"}, toga = {"toga"}, coat = {"coat"},
     robe = {"robe"}, cape = {"cape"}, cloak = {"cloak"}, chausses = {"chausses"}, shoes = {"shoes"}, low_boots = {"low boots"},
     high_boots = {"high boots"}, giant_axe_blade = {"axe blade"}, serrated_disc = {"disc"},
 }
