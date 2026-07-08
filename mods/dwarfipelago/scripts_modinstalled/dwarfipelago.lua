@@ -178,7 +178,7 @@ local function mining_floor_z()
     for tier = unlocks, 0, -1 do
         local ceil = tonumber(
             dfhack.persistent.getWorldDataString("dwarfipelago/mining/ceiling/" .. MINING_FLOOR_KEYS[tier]))
-        if ceil then return ceil + 2 end                   -- +2: cavern global_feature bleeds onto the solid block above the open ceiling, so +1 still triggers the breach detector
+        if ceil then return ceil + 1 end                   -- deepest minable level
     end
     return nil
 end

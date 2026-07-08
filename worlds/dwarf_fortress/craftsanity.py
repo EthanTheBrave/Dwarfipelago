@@ -38,6 +38,7 @@ MATERIAL_SLOTS: dict[str, int] = {
     "Cloth":   6,
     "Bone":    7,
     "Ceramic": 8,
+    "Adamantine": 9
 }
 
 
@@ -162,45 +163,51 @@ def calulate_check_count(world: "DwarfFortressWorld"):
         return checks
     
 def valid_materialitem(material: str, item: str) -> bool:
-    if material in {"Wood", "Metal"} and item in {"Animal Trap", "Barrel", "Bin", "Bucket", "Crutch", "Minecart", "Splint", "Stepladder", "Wheelbarrow", "Ballista Arrows"}:
+    if material in {"Wood", "Metal", "Adamantine"} and item in {"Animal Trap", "Barrel", "Bin", "Bucket", "Crutch", "Minecart", "Splint", "Stepladder", "Wheelbarrow", "Ballista Arrows"}:
         return True
-    if material in {"Wood", "Metal", "Glass"} and item in {"Menacing Spike", "Cage", "Spiked Ball", "Pipe Section", "Corkscrew"}:
+    if material in {"Wood", "Metal", "Glass", "Adamantine"} and item in {"Menacing Spike", "Cage", "Spiked Ball", "Pipe Section", "Corkscrew"}:
         return True
-    if material in {"Wood", "Metal", "Leather"} and item in {"Buckler", "Shield"}:
+    if material in {"Wood", "Metal", "Leather", "Adamantine"} and item in {"Buckler", "Shield"}:
         return True
-    if material in {"Wood", "Stone", "Metal", "Glass"} and item in {"Altar", "Armor Stand", "Bookcase", "Cabinet", "Burial Container", "Chair", "Container", "Door", "Floodgate", "Grate", "Hatch Cover", "Pedestal", "Table", "Weapon Rack", "Traction Bench", "Toy", "Book Binding", "Scroll Roller"}:
+    if material in {"Wood", "Stone", "Metal", "Glass", "Adamantine"} and item in {"Altar", "Armor Stand", "Bookcase", "Cabinet", "Burial Container", "Chair", "Container", "Door", "Floodgate", "Grate", "Hatch Cover", "Pedestal", "Table", "Weapon Rack", "Traction Bench", "Toy", "Book Binding", "Scroll Roller"}:
         return True
-    if material in {"Wood", "Stone", "Metal", "Glass", "Ceramic"} and item in {"Blocks", "Jug", "Large Pot", "Hive"}:
+    if material in {"Wood", "Stone", "Metal", "Glass", "Ceramic", "Adamantine"} and item in {"Blocks", "Jug", "Large Pot", "Hive"}:
         return True
-    if material in {"Wood", "Stone", "Bone", "Cloth", "Leather", "Metal"} and item in {"Amulet", "Bracelet", "Earring"}:
+    if material in {"Wood", "Stone", "Bone", "Cloth", "Leather", "Metal", "Adamantine"} and item in {"Amulet", "Bracelet", "Earring"}:
         return True
-    if material in {"Wood", "Stone", "Bone", "Metal"} and item in {"Crown", "Figurine", "Ring", "Scepter"}:
+    if material in {"Wood", "Stone", "Bone", "Metal", "Adamantine"} and item in {"Crown", "Figurine", "Ring", "Scepter"}:
         return True
-    if material in {"Wood", "Stone", "Bone", "Metal", "Glass"} and item in {"Die", "Nest Box"}:
+    if material in {"Wood", "Stone", "Bone", "Metal", "Glass", "Adamantine"} and item in {"Die", "Nest Box"}:
         return True
-    if material in {"Wood", "Stone", "Metal", "Glass", "Bone", "Cloth", "Ceramic", "Leather"} and item in {"Crafts"}:
+    if material in {"Wood", "Stone", "Metal", "Glass", "Bone", "Cloth", "Ceramic", "Leather", "Adamantine"} and item in {"Crafts"}:
         return True
-    if material in {"Wood", "Bone", "Metal"} and item in {"Crossbow", "Bolt"}:
+    if material in {"Wood", "Bone", "Metal", "Adamantine"} and item in {"Crossbow", "Bolt"}:
         return True
-    if material in {"Stone", "Metal", "Glass", "Ceramic"} and item in {"Statue"}:
+    if material in {"Stone", "Metal", "Glass", "Ceramic", "Adamantine"} and item in {"Statue"}:
         return True
-    if material in {"Stone", "Metal"} and item in {"Mechanism"}:
+    if material in {"Stone", "Metal", "Adamantine"} and item in {"Mechanism"}:
         return True
-    if material in {"Leather", "Metal", "Glass"} and item in {"Liquid Container"}:
+    if material in {"Leather", "Metal", "Glass", "Adamantine"} and item in {"Liquid Container"}:
         return True
-    if material in {"Metal", "Glass"} and item in {"Goblet", "Giant Axe Blade", "Serrated Disc"}:
+    if material in {"Metal", "Glass", "Adamantine"} and item in {"Goblet", "Giant Axe Blade", "Serrated Disc"}:
         return True
-    if material in {"Bone", "Metal"} and item in {"Gauntlets", "Greaves"}:
+    if material in {"Bone", "Metal", "Adamantine"} and item in {"Gauntlets", "Greaves"}:
         return True
-    if material in {"Leather", "Bone", "Metal"} and item in {"Helm", "Leggings"}:
+    if material in {"Leather", "Bone", "Metal", "Adamantine"} and item in {"Helm", "Leggings"}:
         return True
-    if material in {"Leather", "Cloth"} and item in {"Bag", "Backpack", "Quiver", "Hood", "Shirt", "Gloves", "Mittens", "Loincloth", "Trousers", "Shoes", "Tunic", "Dress", "Toga", "Robe", "Braies", "Cloak", "Coat", "Vest"}:
+    if material in {"Leather", "Cloth", "Adamantine"} and item in {"Bag", "Hood", "Shirt", "Gloves", "Mittens", "Loincloth", "Trousers", "Shoes", "Tunic", "Dress", "Toga", "Robe", "Braies", "Cloak", "Coat", "Vest"}:
         return True
-    if material in {"Leather", "Metal"} and item in {"Low Boots", "High Boots"}:
+    if material in {"Leather", "Cloth", "Adamantine"} and item in {"Backpack", "Quiver"}:
         return True
-    if material in {"Leather", "Cloth", "Metal"} and item in {"Cap"}:
+    if material in {"Leather", "Metal", "Adamantine"} and item in {"Low Boots", "High Boots"}:
         return True
-    if material in {"Cloth", "Metal"} and item == "Rope/Chain":
+    if material in {"Leather", "Cloth", "Metal", "Adamantine"} and item in {"Cap"}:
+        return True
+    if material in {"Cloth", "Metal", "Adamantine"} and item == "Rope/Chain":
+        return True
+    if material in {"Metal", "Adamantine"} and item in {"Mail Shirt", "Breastplate", "Battle Axe", "Mace", "Pick", "Short Sword", "Spear", "War Hammer", "Anvil", "Coins",}:
+        return True
+    if material in {"Cloth", "Adamantine"} and item in {"Socks", "Breastplate"}:
         return True
     return False
 
@@ -209,8 +216,7 @@ def non_material_items(item: str) -> bool:
         "Glass", "Leather", "Sheet", "Cloth", "Alcohol", "Lye", "Potash", "Milk of Lime", "Prepared Meal", "Tallow",
         "Oil", "Press Cake", "Honey", "Bee Wax", "Dye", "Soap", "Training Axe", "Training Spear", "Training Sword",
         "Cup", "Ballista Parts", "Catapult Parts", "Millstone", "Quern", "Slab", "Mug", "Totem", "Window", 
-        "Battle Axe", "Mace", "Pick", "Short Sword", "Spear", "War Hammer", "Anvil", "Coins", "Display Case",
-        "Bolt Thrower Parts", "Codex", "Quire", "Scroll", "Leather Armor", "Mail Shirt", "Breastplate", "Socks"}:
+         "Display Case", "Bolt Thrower Parts", "Codex", "Quire", "Scroll", "Leather Armor"}:
         return True
     return False
 

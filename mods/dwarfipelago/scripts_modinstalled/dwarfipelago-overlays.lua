@@ -384,10 +384,11 @@ local TASK_LINE = {
 
 local MATERIAL_KEYWORDS = {
     wood = {"wooden"}, stone = {"rock"}, bone = {"bone", "ivory/tooth", "horn"},
-    ceramic = {"clay"}, metal = {"adamantine", "aluminum", "billon", "metal", "brass",
+    ceramic = {"clay"}, metal = {"aluminum", "billon", "metal", "brass",
     "bronze", "copper", "electrum", "elemental", "steel", "pewter", "gold", "iron",
     "lead", "nickel", "platinum", "silver", "tin", "zinc"}, 
-    glass = {"glass"}, leather = {"leather"}, cloth = {" cloth", "yarn"}
+    glass = {"glass"}, leather = {"leather"}, cloth = {" cloth", "yarn"},
+    adamantine = {"adamantine"}
 }
 
 local function material_required_by(craft_name)
@@ -485,20 +486,15 @@ local function task_on_row(row, y)
                 or craft == "prepared_meal" or craft == "tallow" or craft == "oil" or craft == "press_cake" or craft == "honey" 
                 or craft == "bee wax" or craft == "dye" or craft == "soap" or craft == "training_axe" or craft == "training_spear"
                 or craft == "training_sword" or craft == "cup" or craft == "ballista_parts" or craft == "catapult_parts" or craft == "millstone"
-                or craft == "quern" or craft == "slab" or craft == "mug" or craft == "totem" or craft == "window" or craft == "battle_axe"
-                or craft == "mace" or craft == "pick" or craft == "short_sword" or craft == "spear" or craft == "war_hammer" or craft == "anvil"
-                or craft == "coins" or craft == "display_case" or craft == "bolt_thrower_parts" or craft == "quire" or craft == "scroll"
-                or craft == "leather_armor" or craft == "mail_shirt" or craft == "breastplate" or craft == "codex" or craft == "socks" 
+                or craft == "quern" or craft == "slab" or craft == "mug" or craft == "totem" or craft == "window"
+                or craft == "display_case" or craft == "bolt_thrower_parts" or craft == "quire" or craft == "scroll"
+                or craft == "leather_armor" or craft == "codex"
                 then -- these don't have other material types
                     return { y = y, start = pos, finish = finish, mat = material, craft = craft}
                 end
                 if craftsanity_enabled() then
                     local mat = material_required_by(row)
                     if mat then material = mat end
-                    if craft == "backpack" or craft == "quiver" then --override for cloth instead
-                        local found = string.find(row, "adamantine")
-                        if found then material = "cloth" end
-                    end
                 end
                 return { y = y, start = pos, finish = finish, mat = material, craft = craft}
             else
