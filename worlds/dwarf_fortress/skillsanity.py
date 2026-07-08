@@ -342,12 +342,12 @@ class Skillsanity:
             or dynamic_rules.stone_armorstand(state) or dynamic_rules.stone_blocks(state) \
             or dynamic_rules.stone_bookcase(state) or dynamic_rules.stone_burial(state) \
             or dynamic_rules.stone_cabinet(state) or dynamic_rules.stone_chair(state) \
-            or dynamic_rules.stone_container(state) or dynamic_rules.stone_cup(state) \
+            or dynamic_rules.stone_container(state) or dynamic_rules.stone_weaponrack(state) \
             or dynamic_rules.stone_door(state) or dynamic_rules.stone_floodgate(state) \
             or dynamic_rules.stone_grate(state) or dynamic_rules.stone_hatchcover(state) \
             or dynamic_rules.stone_slab(state) or dynamic_rules.stone_millstone(state) \
             or dynamic_rules.stone_quern(state) or dynamic_rules.stone_statue(state) \
-            or dynamic_rules.stone_table(state) or dynamic_rules.stone_weaponrack(state)
+            or dynamic_rules.stone_table(state) or dynamic_rules.craftdwarf_nestbox(state)
 
     def skill_ambusher(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
@@ -542,10 +542,7 @@ class Skillsanity:
         if self.world.options.craftpermits == CraftingPermits.option_off:
             return dynamic_rules.metal(state)
         else:
-            return dynamic_rules.metal_helm(state) or dynamic_rules.metal_ubodyarmor(state) \
-            or dynamic_rules.metal_lbodyarmor(state) or dynamic_rules.metal_shield(state) \
-            or dynamic_rules.metal_buckler(state) or dynamic_rules.metal_gauntlets(state) \
-            or dynamic_rules.metal_shoes(state)
+            return dynamic_rules.metal_cloth_and_armor(state)
         
     def skill_weaponsmith(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
@@ -574,7 +571,11 @@ class Skillsanity:
             or dynamic_rules.metal_liquidcontainer(state) or dynamic_rules.metal_toy(state) \
             or dynamic_rules.metal_hive(state) or dynamic_rules.metal_jug(state) \
             or dynamic_rules.metal_minecart(state) or dynamic_rules.make_coins(state) \
-            or dynamic_rules.make_chain(state)
+            or dynamic_rules.make_chain(state) or dynamic_rules.metal_amulet(state) \
+            or dynamic_rules.metal_bracelet(state) or dynamic_rules.metal_earring(state) \
+            or dynamic_rules.metal_die(state) or dynamic_rules.metal_crown(state) \
+            or dynamic_rules.metal_ring(state) or dynamic_rules.metal_scepter(state) \
+            or dynamic_rules.metal_figurine(state) or dynamic_rules.metal_nestbox(state)
         
     def skill_blacksmith(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
@@ -620,16 +621,17 @@ class Skillsanity:
         
     def skill_bonecarver(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
-        return dynamic_rules.craftdwarf_and_butchery(state)
+        if self.world.options.craftpermits == CraftingPermits.option_off:
+            return dynamic_rules.craftdwarf_and_butchery(state)
+        else:
+            return dynamic_rules.bone_products(state)
 
     def skill_clothier(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
         if self.world.options.craftpermits == CraftingPermits.option_off:
             return dynamic_rules.clothier_workshop(state)
         else:
-            return dynamic_rules.cloth_headgear(state) or dynamic_rules.cloth_bag(state) \
-            or dynamic_rules.cloth_upperbodycloth(state) or dynamic_rules.cloth_lbodyclothing(state) \
-            or dynamic_rules.cloth_hands(state) or dynamic_rules.cloth_shoes(state)
+            return dynamic_rules.cloth_products(state)
     
     def skill_glassmaker(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
@@ -650,10 +652,7 @@ class Skillsanity:
         if self.world.options.craftpermits == CraftingPermits.option_off:
             return dynamic_rules.leather_works(state)
         else:
-            return dynamic_rules.leather_bag(state) or dynamic_rules.leather_ubodyarmor(state) \
-            or dynamic_rules.leather_lbodyarmor(state) or dynamic_rules.leather_shield(state) \
-            or dynamic_rules.leather_buckler(state) or dynamic_rules.leather_hands(state) \
-            or dynamic_rules.leather_lbodyclothing(state) or dynamic_rules.leather_upperbodycloth(state)
+            return dynamic_rules.leather_products(state)
         
     def skill_papermaker(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
@@ -678,8 +677,12 @@ class Skillsanity:
         else:
             return dynamic_rules.stone_cup(state) or dynamic_rules.stone_or_wood_crafts(state) \
             or dynamic_rules.wood_or_stone_toy(state) or dynamic_rules.stone_jug(state) \
-            or dynamic_rules.stone_pot(state) or dynamic_rules.wood_or_stone_hive(state)
-    
+            or dynamic_rules.stone_pot(state) or dynamic_rules.wood_or_stone_hive(state) \
+            or dynamic_rules.craftdwarf_amulet(state) or dynamic_rules.craftdwarf_bracelet(state) \
+            or dynamic_rules.craftdwarf_crown(state) or dynamic_rules.craftdwarf_die(state) \
+            or dynamic_rules.craftdwarf_earring(state) or dynamic_rules.craftdwarf_figurine(state) \
+            or dynamic_rules.craftdwarf_ring(state) or dynamic_rules.craftdwarf_scepter(state)
+
     def skill_strandextractor(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
         if self.world.options.mining_depth:
@@ -781,7 +784,7 @@ class Skillsanity:
         if self.world.options.craftpermits == CraftingPermits.option_off:
             return dynamic_rules.metal(state)
         else:
-            return dynamic_rules.metal_or_bone_or_leather_lbodyarmor(state) and dynamic_rules.metal_or_leather_ubodyarmor(state)
+            return dynamic_rules.armor(state)
         
     def skill_shielddwarf(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)

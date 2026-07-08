@@ -134,7 +134,7 @@ class CraftingPermits(Choice):
     default = 0
 
 
-class CraftsanityItemGroup(Choice):
+class CraftsanityDifficulty(Choice):
     """
     Selects which items count as craftsanity location checks.
     Easy: 10 basic items craftable from the very start.
@@ -144,7 +144,7 @@ class CraftsanityItemGroup(Choice):
     (Easy + Crafts, Mechanism, Cage, Leather, Prepared Meal, Bin, Cabinet, Floodgate, Animal Trap, Statue, Armor Stand, Pedestal, Weapon Rack, Corkscrew, Bookcase)
 
     Hard: ~45 items spanning early and late game production.
-    (Easy + Medium + Metal Bars, Glass, Ash, Charcoal, Helm, Upper Body Armor, Gauntlets, Lower Body Armor, Crossbow, Bolt, Battle Axe, Short Sword,
+    (Easy + Medium + Metal Bars, Glass, Ash, Charcoal, all Armor, Crossbow, Bolt, Battle Axe, Short Sword,
     War Hammer, Anvil, Rope/Chain, Coins, Goblet, Tallow, Oil, Dye, Traction Bench)
     Craftsanity: Every craftable item becomes a check.
     Choose: Pick items manually using the 'Craftsanity Items Locations' list below.
@@ -165,7 +165,7 @@ class CraftsanityItems(OptionList):
     """
     display_name = "craftsanity Items locations"
     valid_keys = {
-        "Beds", "Corkscrew", "Blocks", "Spike", "Ball", "Altar", "Animal Trap", "Armor Stand",
+        "Beds", "Corkscrew", "Blocks", "Menacing Spike", "Spiked Ball", "Altar", "Animal Trap", "Armor Stand",
         "Barrel", "Bin", "Bookcase", "Bucket", "Buckler", "Cabinet", "Cage", "Burial Container", "Chair",
         "Container", "Crutch", "Door", "Floodgate", "Grate", "Hatch Cover", "Minecart", "Pedestal",
         "Pipe Section", "Shield", "Splint", "Stepladder", "Table", "Training Axe", "Training Spear",
@@ -175,10 +175,12 @@ class CraftsanityItems(OptionList):
         "Ash", "Charcoal", "Metal Bars", "Coke Bars", "Pearlash", "Gypsum Plaster", "Jug", "Large Pot",
         "Hive", "Quicklime", "Glass", "Window", "Book Binding",
         "Scroll Roller", "Leather", "Sheet", "Cloth", "Alcohol", "Lye", "Potash", "Milk of Lime",
-        "Prepared Meal", "Tallow", "Oil", "Press Cake", "Honey", "Bee Wax", "Headgear Clothing",
-        "Upper Body Clothing", "Upper Body Armor", "Hand Clothing", "Gauntlets", "Lower Body Clothing",
-        "Lower Body Armor", "Footwear", "Dye", "Bag", "Rope/Chain", "Battle Axe", "Mace",
-        "Pick", "Short Sword", "Spear", "War Hammer", "Anvil", "Coins", "Soap"
+        "Prepared Meal", "Tallow", "Oil", "Press Cake", "Honey", "Bee Wax", "Gauntlets",  "Dye", "Bag", "Rope/Chain", "Battle Axe", "Mace",
+        "Pick", "Short Sword", "Spear", "War Hammer", "Anvil", "Coins", "Soap", "Display Case", "Bolt Thrower Parts", "Quire", "Scroll",
+        "Leather Armor", "Mail Shirt", "Breastplate", "Codex", "Socks", "Backpack", "Quiver", "Amulet", "Bracelet", "Crown",
+        "Die", "Earring", "Figurine", "Nest Box", "Ring", "Scepter", "Cap", "Hood", "Shirt", "Gloves", "Mittens", "Loincloth",
+        "Trousers", "Leggings", "Greaves", "Shoes", "Low Boots", "High Boots", "Giant Axe Blade", "Serrated Disc", "Tunic",
+        "Dress", "Toga", "Robe", "Braies", "Cloak", "Vest", "Coat"
     }
     default = valid_keys.copy()
 
@@ -331,7 +333,8 @@ class SkillsanityMaxLevel(Range):
 
 class SkillsanityLevelMechanic(Choice):
     """
-    When new dwarves comes in, do you want their skills untouched (level 7 miner = 7 mining checks sent at once)
+    When a dwarf joins your fortress from a migrant wave or as part of your embark, 
+    do you want their skills untouched (level 7 miner = 7 mining checks sent at once)
     Or do you want them to come in with skills lowered to match your next check? 
     eg: If you already have a level 3 Miner on site (meaning 3 mining skill checks already sent), if a new level 7
     miner shows up, their mining skill lowers to Level 4 and only 1 additional mining check is sent.  
@@ -375,7 +378,7 @@ class DwarfFortressOptions(PerGameCommonOptions):
     mining_depth: ProgressiveMiningDepth
     craftsanity: EnableCraftsanity
     craftpermits: CraftingPermits
-    craftsanity_item_group: CraftsanityItemGroup
+    craftsanity_difficulty : CraftsanityDifficulty
     craftsanity_items: CraftsanityItems
     craftsanity_enable_materials: CraftsanityEnableMaterials
     craftsanity_materials: CraftsanityMaterials
@@ -412,7 +415,7 @@ dwarf_fortress_option_groups = [
     OptionGroup("Craftsanity", [
         EnableCraftsanity,
         CraftingPermits,
-        CraftsanityItemGroup,
+        CraftsanityDifficulty,
         CraftsanityItems,
         CraftsanityEnableMaterials,
         CraftsanityMaterials,

@@ -510,9 +510,14 @@ local function build_permit_lines()
             done  = done_flag,
         })
     end
-    -- -- Sort: done (alpha) → not done (alpha) 
+    
     table.sort(list, function(a, b)
-        return a.done > b.done
+        -- 1. Sort by done (descending: 1 before 0)
+        if a.done ~= b.done then
+            return a.done > b.done
+        end
+        -- 2. If done is the same, sort by label (ascending: A to Z)
+        return a.label < b.label
     end)
     
     local n_done = 0
