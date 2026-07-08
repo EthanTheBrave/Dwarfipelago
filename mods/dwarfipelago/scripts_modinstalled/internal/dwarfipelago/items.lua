@@ -447,12 +447,9 @@ local function recv_fine_cloth()
     announce_at_depot("Received: Fine Cloth!")
 end
 
-local function recv_adamantine_fiber()
-    -- Adamantine cloth material token may vary by DF version; fall back to cloth.
-    if spawn_item("CLOTH", "INORGANIC:ADAMANTINE", 2) == 0 then
-        spawn_item("CLOTH", "PLANT_MAT:GRASS_TAIL_PIG:THREAD", 3)
-    end
-    announce_at_depot("Received: Adamantine Fiber!")
+local function recv_raw_adamantine()
+    spawn_item("BOULDER", "INORGANIC:ADAMANTINE", 1)
+    announce_at_depot("Received: Raw Adamantine!")
 end
 
 -- ── Item handlers: livestock ──────────────────────────────────────────────────
@@ -1785,6 +1782,10 @@ local function spawn_citizen_dwarves(count)
 end
 
 local function recv_immigration_wave()
+    -- During re-embark recovery the client pre-sets the counter and will call
+    -- reembark_batch_spawn once at the end, so skip both here.
+    if dfhack.persistent.getWorldDataString("dwarfipelago/reembark_mode") == "1" then return end
+
     local key = "dwarfipelago/unlock/immigration_waves"
     local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
     dfhack.persistent.saveWorldDataString(key, tostring(n))
@@ -2059,7 +2060,7 @@ M.handlers = {
     ["Masterwork Crafts"]    = recv_masterwork_crafts,
     ["Dwarven Steel Sword"]  = recv_dwarven_steel_sword,
     ["Fine Cloth"]           = recv_fine_cloth,
-    ["Adamantine Fiber"]     = recv_adamantine_fiber,
+    ["Raw Adamantine"]       = recv_raw_adamantine,
     ["Sunlight Tonic"]       = recv_sunlight_tonic,
 
     -- Livestock
@@ -2437,6 +2438,22 @@ function M.run_test(name, rest)
         end
     end
     dfhack.printerr("[Dwarfipelago] Unknown test '" .. name .. "'. Run 'dwarfipelago test' to list.")
+end
+
+-- Called by the client after re-embark item re-delivery to spawn one consolidated
+-- batch of migrants (rather than N separate waves) and clear reembark_mode.
+function M.reembark_batch_spawn(wave_count)
+    wave_count = tonumber(wave_count) or 0
+    dfhack.persistent.saveWorldDataString("dwarfipelago/reembark_mode", "")
+    if wave_count == 0 then return end
+    local count = wave_count * math.random(2, 5)
+    local made = spawn_citizen_dwarves(count)
+    if made == 0 then
+        pcall(function() dfhack.run_command("force", "Migrants") end)
+        announce("Re-embark! Your reputation precedes you — migrants are on their way.")
+    else
+        announce(("Re-embark! %d migrants join the rebuilt fortress."):format(made))
+    end
 end
 
 -- Called by main.lua when the client delivers an item by name.
