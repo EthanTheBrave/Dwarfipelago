@@ -875,7 +875,10 @@ local function classify_mat(mat_type, mat_index)
         pcall(function()
             is_metal = (mat.material and mat.material.flags and mat.material.flags.IS_METAL) or false
         end)
-        if is_metal then return "metal" end
+        if is_metal then
+            if up:find("ADAMANTINE") then return "adamantine" end
+            return "metal"
+        end
 
         if mat.mode == "plant" then
             if up:find(":WOOD") then return "wood" end
