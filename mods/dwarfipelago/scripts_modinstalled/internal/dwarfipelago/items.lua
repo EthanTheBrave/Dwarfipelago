@@ -2175,7 +2175,7 @@ end
 -- job. Names must match CRAFT_ITEMS in items.py exactly (minus the "Crafting " prefix).
 
 local CRAFTING_LOCK_ITEMS = {
-    "Beds", "Corkscrew", "Blocks", "Spike", "Ball", "Altar", "Animal Trap",
+    "Beds", "Corkscrew", "Blocks", "Menacing Spike", "Spiked Ball", "Altar", "Animal Trap",
     "Armor Stand", "Barrel", "Bin", "Bookcase", "Bucket", "Buckler", "Cabinet",
     "Cage", "Burial Container", "Chair", "Container", "Crutch", "Door",
     "Floodgate", "Grate", "Hatch Cover", "Minecart", "Pedestal", "Pipe Section",
@@ -2187,11 +2187,14 @@ local CRAFTING_LOCK_ITEMS = {
     "Metal Bars", "Coke Bars", "Pearlash", "Gypsum Plaster", "Jug", "Large Pot",
     "Hive", "Quicklime", "Glass", "Window", "Book Binding", "Scroll Roller",
     "Leather", "Sheet", "Cloth", "Alcohol", "Lye", "Potash", "Milk of Lime",
-    "Prepared Meal", "Tallow", "Oil", "Honey", "Headgear Clothing",
-    "Upper Body Clothing", "Upper Body Armor", "Hand Clothing", "Gauntlets",
-    "Lower Body Clothing", "Lower Body Armor", "Footwear", "Dye", "Bag",
-    "Rope/Chain", "Battle Axe", "Mace", "Pick", "Short Sword", "Spear",
-    "War Hammer", "Anvil", "Coins", "Soap",
+    "Prepared Meal", "Tallow", "Oil", "Honey", "Dye", "Bag", "Rope/Chain",
+    "Battle Axe", "Mace", "Pick", "Short Sword", "Spear", "War Hammer", 
+    "Anvil", "Coins", "Soap", "Display Case", "Bolt Thrower Parts", "Quire",
+    "Scroll", "Leather Armor", "Mail Shirt", "Breastplate", "Codex", "Socks",
+    "Backpack", "Quiver", "Amulet", "Bracelet", "Crown", "Die", "Earring", "Figurine",
+    "Nest Box", "Ring", "Scepter", "Cap", "Hood", "Shirt", "Gloves", "Mittens", "Loincloth",
+    "Trousers", "Leggings", "Greaves", "Shoes", "Low Boots", "High Boots", "Giant Axe Blade",
+    "Serrated Disc", "Tunic", "Dress", "Toga", "Robe", "Braies", "Cloak", "Vest", "Coat"
 }
 
 M.CRAFTING_LOCK_ITEMS = CRAFTING_LOCK_ITEMS
