@@ -86,7 +86,7 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     else:
         # if you can make mechanisms, just make a stonefall trap and your done
         loc.access_rule = lambda state: dynamic_rules.mechanic_mechanism(state) \
-        or dynamic_rules.make_spear(state) or dynamic_rules.training_spear(state)
+        or dynamic_rules.metal_spear(state) or dynamic_rules.training_spear(state)
     
     loc = multiworld.get_location("First Millstone Made", player)
     dynamic_rules.df_location_rule(loc, "Millstone", "")
@@ -127,8 +127,9 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     else:
         loc.access_rule = lambda state: dynamic_rules.training_axe(state) \
             or dynamic_rules.training_spear(state) or dynamic_rules.training_sword(state) \
-            or dynamic_rules.make_battleaxe(state) or dynamic_rules.make_sword(state) or dynamic_rules.make_spear(state) \
-            or dynamic_rules.make_warhammer(state) or dynamic_rules.woodcraft_or_bonecraft_or_metal_bolt(state)
+            or dynamic_rules.metal_battleaxe(state) or dynamic_rules.metal_sword(state) or dynamic_rules.metal_spear(state) \
+            or dynamic_rules.metal_warhammer(state) or dynamic_rules.woodcraft_or_bonecraft_or_metal_bolt(state) \
+            or dynamic_rules.metal_mace(state)
     
     loc = multiworld.get_location("First Armor Crafted", player)
     if options.craftpermits == CraftingPermits.option_off:
@@ -136,11 +137,10 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     else:
         loc.access_rule = lambda state: dynamic_rules.metal_or_bone_or_leather_helm(state) \
             or dynamic_rules.metal_or_bone_gauntlets(state) or dynamic_rules.metal_cap(state) \
-            or dynamic_rules.leather_cap(state) or dynamic_rules.make_mailshirt(state) \
+            or dynamic_rules.leather_cap(state) or dynamic_rules.metal_mailshirt(state) \
             or dynamic_rules.metal_lboots(state) or dynamic_rules.metal_or_bone_greaves(state) \
             or dynamic_rules.metal_buckler(state) or dynamic_rules.metal_or_bone_or_leather_leggings(state) \
-            or dynamic_rules.metal_hboots(state) or dynamic_rules.make_breastplate(state) \
-            or dynamic_rules.make_mailshirt(state)
+            or dynamic_rules.metal_hboots(state) or dynamic_rules.metal_breastplate(state) 
     
     loc = multiworld.get_location("First Anvil Made", player)
     dynamic_rules.df_location_rule(loc, "Anvil", "")
@@ -297,7 +297,7 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         else:
             loc.access_rule = lambda state, n=tier: (
                 state.count("Merchant's Coffer", player) >= n
-                and dynamic_rules.make_coins(state)
+                and dynamic_rules.metal_coins(state)
             )
 
     # ── Sold an Artifact (endgame) ────────────────────────────────────────────

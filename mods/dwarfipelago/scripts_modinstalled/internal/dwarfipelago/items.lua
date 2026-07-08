@@ -447,9 +447,12 @@ local function recv_fine_cloth()
     announce_at_depot("Received: Fine Cloth!")
 end
 
-local function recv_raw_adamantine()
-    spawn_item("BOULDER", "INORGANIC:ADAMANTINE", 1)
-    announce_at_depot("Received: Raw Adamantine!")
+local function recv_adamantine_fiber()
+    -- Adamantine cloth material token may vary by DF version; fall back to cloth.
+    if spawn_item("CLOTH", "INORGANIC:ADAMANTINE", 2) == 0 then
+        spawn_item("CLOTH", "PLANT_MAT:GRASS_TAIL_PIG:THREAD", 3)
+    end
+    announce_at_depot("Received: Adamantine Fiber!")
 end
 
 -- ── Item handlers: livestock ──────────────────────────────────────────────────
@@ -2060,7 +2063,7 @@ M.handlers = {
     ["Masterwork Crafts"]    = recv_masterwork_crafts,
     ["Dwarven Steel Sword"]  = recv_dwarven_steel_sword,
     ["Fine Cloth"]           = recv_fine_cloth,
-    ["Raw Adamantine"]       = recv_raw_adamantine,
+    ["Adamantine Fiber"]     = recv_adamantine_fiber,
     ["Sunlight Tonic"]       = recv_sunlight_tonic,
 
     -- Livestock

@@ -985,9 +985,7 @@ local NON_MATERIAL = {
     bee_wax=true, dye=true, soap=true, training_axe=true,
     training_spear=true, training_sword=true, cup=true, ballista_parts=true,
     catapult_parts=true, millstone=true, quern=true, slab=true,
-    mug=true, totem=true, window=true, battle_axe=true,
-    mace=true, pick=true, short_sword=true, spear=true,
-    war_hammer=true, anvil=true, coins=true,
+    mug=true, totem=true, window=true,
 }
 
 -- Returns the base item flag for a job (no material suffix). Used by the

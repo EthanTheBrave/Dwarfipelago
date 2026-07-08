@@ -205,7 +205,7 @@ def valid_materialitem(material: str, item: str) -> bool:
         return True
     if material in {"Cloth", "Metal", "Adamantine"} and item == "Rope/Chain":
         return True
-    if material in {"Metal", "Adamantine"} and item in {"Mail Shirt", "Breastplate"}:
+    if material in {"Metal", "Adamantine"} and item in {"Mail Shirt", "Breastplate", "Battle Axe", "Mace", "Pick", "Short Sword", "Spear", "War Hammer", "Anvil", "Coins",}:
         return True
     if material in {"Cloth", "Adamantine"} and item in {"Socks", "Breastplate"}:
         return True
@@ -216,8 +216,7 @@ def non_material_items(item: str) -> bool:
         "Glass", "Leather", "Sheet", "Cloth", "Alcohol", "Lye", "Potash", "Milk of Lime", "Prepared Meal", "Tallow",
         "Oil", "Press Cake", "Honey", "Bee Wax", "Dye", "Soap", "Training Axe", "Training Spear", "Training Sword",
         "Cup", "Ballista Parts", "Catapult Parts", "Millstone", "Quern", "Slab", "Mug", "Totem", "Window", 
-        "Battle Axe", "Mace", "Pick", "Short Sword", "Spear", "War Hammer", "Anvil", "Coins", "Display Case",
-        "Bolt Thrower Parts", "Codex", "Quire", "Scroll", "Leather Armor"}:
+         "Display Case", "Bolt Thrower Parts", "Codex", "Quire", "Scroll", "Leather Armor"}:
         return True
     return False
 
