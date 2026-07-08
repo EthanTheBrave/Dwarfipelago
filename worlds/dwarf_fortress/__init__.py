@@ -9,7 +9,7 @@ from .options import DwarfFortressOptions, DwarfFortressGoal, CraftingPermits, d
 from .settings import DwarfFortressSettings
 from .items import (
     ItemData, ITEM_TABLE, AP_ITEM_POOL, FILLER_ITEMS, TRAP_ITEMS,
-    PROGRESSION_ITEMS, USEFUL_ITEMS, CRAFT_ITEMS, RECEIVED_TRAPS
+    PROGRESSION_ITEMS, USEFUL_ITEMS, CRAFT_ITEMS
 )
 from .locations import (
     LocationData, LOCATION_TABLE, ALL_LOCATIONS, SHOP_LOCATIONS, SHOP_SLOTS,
@@ -218,11 +218,9 @@ class DwarfFortressWorld(World):
             d for d in self.ap_item_pool
             if d.classification == ItemClassification.progression
         ]
-        received_trap_names = {d.name for d in RECEIVED_TRAPS}
         optional: list[ItemData] = [
             d for d in self.ap_item_pool
             if d.classification != ItemClassification.progression
-            and (trap_weight > 0 or d.name not in received_trap_names)
         ]
 
         for item_data in self.ap_item_pool:
