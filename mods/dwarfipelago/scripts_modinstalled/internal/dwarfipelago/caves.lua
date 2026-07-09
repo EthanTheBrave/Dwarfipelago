@@ -152,12 +152,13 @@ local function is_solid_wall(x, y, z)
     return ok and result
 end
 
--- Returns true if the 5×5×3 area centred on (cx,cy,cz) is entirely solid walls,
--- guaranteeing that the carved 3×3×2 interior has at least a 1-tile stone border.
+-- Returns true if the area around (cx,cy,cz) is entirely solid walls.
+-- Checks ±5 in x/y (cave max-radius 4 + 1-tile border) and 0..4 in z
+-- (floor + up to 2 open tiles + 2-tile solid ceiling margin).
 local function site_ok(cx, cy, cz)
-    for dx = -2, 2 do
-        for dy = -2, 2 do
-            for dz = 0, 2 do
+    for dx = -5, 5 do
+        for dy = -5, 5 do
+            for dz = 0, 4 do
                 if not is_solid_wall(cx + dx, cy + dy, cz + dz) then return false end
             end
         end
@@ -180,12 +181,33 @@ local function set_tile(x, y, z, tt)
     end)
 end
 
--- Hollow out a 3×3×2 pocket: floor at cz, open space at cz+1.
+-- Hollow out an organic oval pocket centred on (cx,cy,cz).
+-- Radii rx ∈ [3,4] and ry ∈ [2,3] are chosen randomly, then edge tiles
+-- (ellipse dist 0.7–1.1) are included with probability proportional to how
+-- far inside the boundary they sit, giving a ragged, natural silhouette.
+-- Height: 3 z-levels (floor + 2 open) within the inner half, 2 z-levels at edges.
 local function carve(cx, cy, cz)
-    for dx = -1, 1 do
-        for dy = -1, 1 do
-            set_tile(cx + dx, cy + dy, cz,     TT_ROCK_FLOOR)
-            set_tile(cx + dx, cy + dy, cz + 1, TT_OPEN_SPACE)
+    local rx = math.random(3, 4)
+    local ry = math.random(2, 3)
+    for dx = -(rx + 1), rx + 1 do
+        for dy = -(ry + 1), ry + 1 do
+            local dist2 = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry)
+            local include
+            if dist2 < 0.7 then
+                include = true
+            elseif dist2 < 1.1 then
+                -- Probability 100%→0% as dist2 crosses 0.7→1.1
+                include = math.random(100) <= math.floor(100 * (1.1 - dist2) / 0.4)
+            else
+                include = false
+            end
+            if include then
+                set_tile(cx + dx, cy + dy, cz,     TT_ROCK_FLOOR)
+                set_tile(cx + dx, cy + dy, cz + 1, TT_OPEN_SPACE)
+                if dist2 < 0.5 then
+                    set_tile(cx + dx, cy + dy, cz + 2, TT_OPEN_SPACE)
+                end
+            end
         end
     end
 end
@@ -211,8 +233,8 @@ local function find_site(z_hi, z_lo, slot)
     local z = math.floor((lo + hi) / 2) + ((slot * 3) % 5) - 2
 
     for attempt = 0, 50 do
-        local x = math.max(5, math.min(map_w - 6, base_x + (attempt * 7)  % 50))
-        local y = math.max(5, math.min(map_h - 6, base_y + (attempt * 11) % 50))
+        local x = math.max(8, math.min(map_w - 9, base_x + (attempt * 7)  % 50))
+        local y = math.max(8, math.min(map_h - 9, base_y + (attempt * 11) % 50))
         if site_ok(x, y, z) then return x, y, z end
     end
     return nil
@@ -309,12 +331,12 @@ function M.check_discoveries()
     end
     if not next(pending) then return {} end
 
-    -- Build a lookup of all citizen positions (expanded by 1 tile for edge detection).
+    -- Build a lookup of all citizen positions (expanded by 2 tiles for edge detection).
     local occupied = {}
     for _, unit in ipairs(df.global.world.units.active) do
         if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
-            for dx = -1, 1 do
-                for dy = -1, 1 do
+            for dx = -2, 2 do
+                for dy = -2, 2 do
                     occupied[(unit.pos.x + dx) .. "," .. (unit.pos.y + dy) .. "," .. unit.pos.z] = true
                 end
             end
@@ -324,9 +346,9 @@ function M.check_discoveries()
     local newly = {}
     for idx, cave in pairs(pending) do
         local found = false
-        for dx = -1, 1 do
+        for dx = -2, 2 do
             if found then break end
-            for dy = -1, 1 do
+            for dy = -2, 2 do
                 if occupied[(cave.x + dx) .. "," .. (cave.y + dy) .. "," .. cave.z] then
                     found = true; break
                 end

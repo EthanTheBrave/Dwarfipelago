@@ -71,9 +71,19 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/mining/surface_z` | Integer string | Lua | Captured surface z-level (baseline for depth milestones) |
 | `dwarfipelago/mining/deepest_z` | Integer string | Lua | Deepest z any mining job has reached |
 | `dwarfipelago/mining/cavern1`..`cavern3` | `"1"` or absent | Lua | Set when the 1st/2nd/3rd cavern layer is breached |
+| `dwarfipelago/mining/ceiling/cavern1`..`cavern3` | Integer string | Lua | Z-level of the ceiling (topmost tile) of each cavern layer, recorded by `compute_cavern_ceilings()` and used to place custom caves in the gaps between layers |
+| `dwarfipelago/mining/ceilings_done` | `"1"` or absent | Lua | Set once all three cavern ceiling z-levels have been measured; gates custom cave generation |
 | `dwarfipelago/mining/magma` | `"1"` or absent | Lua | Set when the magma sea is reached |
 | `dwarfipelago/mining/circus` | `"1"` or absent | Lua | Set when the Circus (underworld) is breached |
 | `dwarfipelago/farming/crop_count` | Integer string | Lua | Cumulative harvested crops (harvest milestones) |
+| `dwarfipelago/caves/generated` | `"1"` or absent | Lua | Set once all custom caves have been carved and stocked; prevents re-generation on reload |
+| `dwarfipelago/caves/fragment_index` | Integer string | Lua | How many Cave Map Fragment hints have been revealed so far (0–6); incremented by `caves.reveal_next()` each time a fragment item is received |
+| `dwarfipelago/cave/N/x` | Integer string | Lua | Map X coordinate of custom cave N (1–6); `-1` if the cave could not be placed |
+| `dwarfipelago/cave/N/y` | Integer string | Lua | Map Y coordinate of custom cave N |
+| `dwarfipelago/cave/N/z` | Integer string | Lua | Map Z coordinate (floor level) of custom cave N |
+| `dwarfipelago/cave/N/type` | `"treasure"` or `"trap"` | Lua | Type of custom cave N — treasure caves send an AP check on discovery; trap caves also spawn hostile underground creatures |
+| `dwarfipelago/cave/N/discovered` | `"0"` or `"1"` | Lua | Set to `"1"` when a living citizen first walks within the cave footprint; read by the Python client to fire the matching AP location check |
+| `dwarfipelago/cave/N/revealed` | `"0"` or `"1"` | Lua | Set to `"1"` when a Cave Map Fragment hint for cave N has been announced (currently unused by the client; reserved for future UI) |
 
 ### Config (written by Python, read by Lua)
 
@@ -99,6 +109,7 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/version` | Version string | Lua | Mod version recorded on `start()` |
 | `dwarfipelago/craftsanity_enabled` | `"0"`, `"1"`, or `"2"` | Python | Craftsanity mode: 0=off, 1=on (crafted), 2=storage |
 | `dwarfipelago/craftsanity_materials` | `"0"` or `"1"` | Python | When `"1"`, craft counts are split by material type (e.g. `barrel_wood` vs `barrel_metal`) |
+| `dwarfipelago/custom_caves` | `"0"` or `"1"` | Python | Whether the Custom Caves feature is enabled for this slot; written by `_sync_slot_data` from `slot_data["custom_caves"]` |
 
 ---
 
@@ -259,6 +270,22 @@ Load them from Python via `reqscript("internal/dwarfipelago/<module>")`.
 | `dump()` | fn | Print full state summary to DFHack console |
 | `reset()` | fn | Wipe all persistent state (use with care) |
 
+### `caves`
+
+Custom cave generation, discovery detection, and Cave Map Fragment hint system.
+Only active when `dwarfipelago/custom_caves` is `"1"`.
+
+| Symbol | Type | Description |
+|--------|------|-------------|
+| `generate()` | fn | Carve and stock all custom caves on a fresh seed. No-ops if already done (`caves/generated == "1"`) or if cavern ceilings haven't been measured yet (`mining/ceilings_done != "1"`). Called from `poll_checks()` in `dwarfipelago.lua` after `compute_cavern_ceilings()`. |
+| `check_discoveries()` | fn → table | Poll for living citizens within ±4 tiles of any undiscovered cave centre. Returns a list of `{index, cave_type, x, y, z}` for newly discovered caves and marks them as discovered in persistent storage. Called every poll cycle from `dwarfipelago.lua`. |
+| `get_hint(idx)` | fn → string | Return a displayable hint string for cave `idx` (1–6). Treasure caves return an approximate coordinate string; trap caves return a cardinal-direction warning. Returns a "too worn to read" string if the cave was never placed. |
+| `reveal_next()` | fn | Increment `caves/fragment_index` and announce the next cave hint via `dfhack.gui.showAnnouncement`. Called from `items.lua` when a Cave Map Fragment is received. Extra calls past index 6 show a "all caves already revealed" notice. |
+
+Cave shapes are organic ovals carved with a random horizontal radius rx ∈ {3, 4} and vertical radius ry ∈ {2, 3}. Edge tiles are probabilistically included/excluded so the silhouette is irregular. The vaulted centre (dist² < 0.5 from ellipse centre) is 3 z-levels tall; outer tiles are 2 z-levels tall.
+
+---
+
 ### `log`
 
 Levelled logging that writes to a file **and** mirrors to the DFHack console.
@@ -380,6 +407,14 @@ dwarfipelago test caravan elf
 # Peek at any storage key
 lua print(dfhack.persistent.getWorldDataString("dwarfipelago/pending_item_created"))
 lua print(dfhack.persistent.getWorldDataString("dwarfipelago/pending_checks"))
+
+# Check custom cave state (N = 1..6)
+lua print(dfhack.persistent.getWorldDataString("dwarfipelago/caves/generated"))
+lua print(dfhack.persistent.getWorldDataString("dwarfipelago/cave/1/type"))
+lua print(dfhack.persistent.getWorldDataString("dwarfipelago/cave/1/discovered"))
+
+# Force a Cave Map Fragment hint for cave N (bypasses the item system)
+lua reqscript("internal/dwarfipelago/caves").reveal_next()
 
 # Read a single craft count (use single quotes to avoid the console eating the string)
 lua print(dfhack.persistent.getWorldDataString('dwarfipelago/craft_count/door'))
