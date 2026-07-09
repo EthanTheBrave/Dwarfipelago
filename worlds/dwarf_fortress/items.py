@@ -98,7 +98,7 @@ USEFUL_ITEMS: list[ItemData] = [
     ItemData("Breeding Cows",          BASE_ID + 518, ItemClassification.useful),
     ItemData("Breeding Sheep",         BASE_ID + 519, ItemClassification.useful),
     ItemData("Breeding Yaks",          BASE_ID + 538, ItemClassification.useful),
-    ItemData("Cave Map Fragment",      BASE_ID + 1200, ItemClassification.useful, weight=8),
+    ItemData("Cave Map Fragment",      BASE_ID + 1200, ItemClassification.useful),
 ]
 CAVE_MAP_FRAGMENT = USEFUL_ITEMS[-1]
 
