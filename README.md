@@ -499,7 +499,7 @@ A running list of ideas, planned features, and things that still need doing. No 
 - [ ] **Combat milestone locations** - first kill, first siege survived, first forgotten beast
 - [ ] **Artifact creation check** - a dwarf goes into a strange mood and produces an artifact
 - [ ] **Custom AP items** - define unique DF-flavored items as raw reactions for cleaner in-game delivery
-- [ ] **Overlay UI** - DFHack overlay panel showing current AP connection status and recent items
+- [X] **Overlay UI** - DFHack overlay panel showing current AP connection status and recent items
 - [X] **Multi-fortress support** - allow switching between saves without resetting AP state
 - [ ] **DeathLink targeting** - option to target specific skill types when applying received DeathLink deaths
 - [x] **Craftsanity item group presets** - Easy / Medium / Hard / Craftsanity / Choose dropdown replaces the raw item list for most players
