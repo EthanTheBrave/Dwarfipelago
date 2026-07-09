@@ -332,6 +332,25 @@ end
 
 -- ── Goal completion: eventful hook (megabeast death) ─────────────────────────
 
+-- isCitizen() returns false for dead units because DFHack explicitly checks
+-- flags1.dead before any other condition. was_citizen() replicates the same
+-- checks without the liveness guard, for use in the on_unit_death hook.
+local function was_citizen(unit)
+    local ok, civ_ok = pcall(function()
+        return unit.civ_id == df.global.plotinfo.civ_id
+    end)
+    if not (ok and civ_ok) then return false end
+    if unit.flags1.merchant or unit.flags1.diplomat then return false end
+    if unit.flags2.visitor or unit.flags2.visitor_uninvited then return false end
+    if unit.flags2.resident then return false end
+    -- Exclude caravan members who share our civ but follow an NPC group leader
+    local gok, gl = pcall(function()
+        return unit.relationship_ids[df.unit_relationship_type.GroupLeader]
+    end)
+    if gok and gl ~= -1 then return false end
+    return true
+end
+
 local function on_unit_death(uid)
     if not state.is_enabled() then return end
 
@@ -378,7 +397,7 @@ local function on_unit_death(uid)
     -- Skip deaths we inflicted ourselves when applying a received DeathLink,
     -- so those don't feed back into our outgoing threshold.
     if applying_recv_deathlink then return end
-    if dfhack.units.isCitizen(unit) then
+    if was_citizen(unit) then
         local count = state.increment_death_count()
         -- Python polls death_count vs deathlinks_sent and fires the Bounce packets.
         print(("[Dwarfipelago] Citizen death #%d counted for DeathLink"):format(count))
