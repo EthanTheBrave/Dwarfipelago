@@ -10,11 +10,10 @@ from .settings import DwarfFortressSettings
 from .items import (
     ItemData, ITEM_TABLE, AP_ITEM_POOL, FILLER_ITEMS, TRAP_ITEMS,
     PROGRESSION_ITEMS, USEFUL_ITEMS, CRAFT_ITEMS, RECEIVED_TRAPS,
-    CAVE_MAP_FRAGMENT,
 )
 from .locations import (
     LocationData, LOCATION_TABLE, ALL_LOCATIONS, SHOP_LOCATIONS, SHOP_SLOTS,
-    SHOP_PRICE_MIN, SHOP_PRICE_MAX, CAVE_LOCATIONS, CAVE_LOCATION_COUNT,
+    SHOP_PRICE_MIN, SHOP_PRICE_MAX, CAVE_LOCATIONS,
 )
 from .craftsanity import (
     generate_location_data,
@@ -143,12 +142,6 @@ class DwarfFortressWorld(World):
                 f"{self.player_name}: You cannot set your goal to dwarfsanity without crafting permits enabled. Enable Crafting Permits."
             )
 
-        # Custom caves always exist — add 5 more Cave Map Fragments (1 is already
-        # in AP_ITEM_POOL via USEFUL_ITEMS) for a total of 6, matching the 6 cave
-        # location checks.
-        for _ in range(CAVE_LOCATION_COUNT - 1):
-            self.ap_item_pool.append(CAVE_MAP_FRAGMENT)
-
         # Active set = the static non-craft locations (LOCATION_TABLE) plus the
         # craft subset this slot generated. Goal-based filtering then drops
         # locations that don't apply to the chosen goal:
@@ -228,6 +221,7 @@ class DwarfFortressWorld(World):
         received_trap_names = {d.name for d in RECEIVED_TRAPS}
         optional: list[ItemData] = [
             d for d in self.ap_item_pool
+            for _ in range(d.quantity)
             if d.classification != ItemClassification.progression
             and (trap_weight > 0 or d.name not in received_trap_names)
         ]
