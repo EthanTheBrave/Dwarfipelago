@@ -166,6 +166,7 @@ Completing these milestones sends items to other players:
 - **Infrastructure** - Built a Well, Pumped Water, Pumped Magma
 - **Biology** - First Eggs Hatched, Caged a Hostile Beast
 - **Deep / Endgame** - Mined Adamantine, Sold an Artifact
+- **Custom Caves** - 6 hidden pre-carved pockets between cavern layers, discovered when a dwarf first enters one (optional, enable with `custom_caves: true` — see Custom Caves section below)
 - **Craftsanity** - optional crafting milestone checks (see below)
 
 </details>
@@ -296,6 +297,41 @@ Ale and food deposits, the current pool balance (shown in MJ and raw kJ), and th
 ---
 
 <details>
+<summary>Custom Caves</summary>
+
+When `custom_caves` is enabled in your YAML, Dwarfipelago carves **6 hidden pockets** into the solid rock between your three cavern layers (2 per inter-cavern gap) at the start of the world. They are completely invisible on the map until a dwarf walks into one.
+
+Caves are shaped as organic ovals (roughly 15–35 tiles of floor depending on random radius), with a taller vaulted centre and ragged natural-looking edges. Their interiors are stocked with physical DF items at generation time.
+
+### Cave types
+
+| Type | Physical contents | Discovery effect |
+|------|------------------|-----------------|
+| **Treasure cave** | Random filler items (boulders, bars, cloth, leather, plump helmet wine) plus 2 varieties of cut gems | Sends an AP location check |
+| **Trap cave** | Iron and copper ore boulders — designed to look like a promising mine find, but discovery spawns a wave of hostile underground creatures | Sends an AP location check and spawns enemies |
+
+Caves alternate treasure/trap so each pair of caves in a gap has one of each type.
+
+### Cave Map Fragments
+
+**Cave Map Fragments** are useful items placed into the multiworld item pool (6 per slot). Receiving one reveals the next cave hint in sequence via an in-game announcement:
+
+- **Treasure cave** — `Riches await at approximately (x, y), N levels underground.`
+- **Trap cave** — `Danger lurks to the [east/west/north/south], deep underground (z=N). Tread carefully!`
+
+Hints are revealed one per fragment received in index order. If you have already discovered all caves before receiving all fragments, extra fragments are acknowledged but produce no additional text.
+
+### Enabling
+
+```yaml
+custom_caves: true
+```
+
+</details>
+
+---
+
+<details>
 <summary>Items Received</summary>
 
 | Type | Examples |
@@ -308,6 +344,7 @@ Ale and food deposits, the current pool balance (shown in MJ and raw kJ), and th
 | Industry materials | Flux stone, pig iron, charcoal, cloth bolts, tanned leather, **bags of sand** (glassmaking), raw clay (kaolinite for porcelain), plus rare low-grade copper tools (pick/axe/sword) |
 | Traps | Goblin ambush, cave bear incursion, vermin infestation, tantrum trigger, lost caravan |
 | Crafting Permits | When `craftpermits` is enabled, each permit item unlocks the ability to craft one item type (e.g. you can't make a table until the Table permit arrives). See the Crafting Permits section. |
+| Cave Map Fragment | Reveals a hint about the next undiscovered custom cave — coordinate hint for treasure caves, directional warning for trap caves. Up to 6 per slot; extra fragments beyond 6 are acknowledged but produce no new hint. |
 | Remains of the Great King | Treasure-hunt goal item - collect all of them (`king_remains` goal) to win. |
 
 All received goods are delivered to the **trade depot**.
@@ -453,19 +490,21 @@ A running list of ideas, planned features, and things that still need doing. No 
 - [~] Validate `df.job_type` enum values against a live DFHack console for all production checks
 - [~] Validate `createitem` material strings against DF raws (gem types, metal bar identifiers)
 - [x] Write end-to-end test instructions in `docs/`
+- [x] Fix DeathLink never sending — `isCitizen()` returns false for dead units; replaced with `was_citizen()` helper that checks civ_id and resident/merchant flags without reading the dead flag
+- [x] Custom Caves — 6 pre-carved organic oval pockets between cavern layers (2 per gap); treasure caves stock filler items + cut gems; trap caves stock iron/copper ore and spawn hostile creatures on discovery; Cave Map Fragment item reveals coordinate or directional hints
 
 ### Ideas / Future Features
 
-- [ ] **Skill milestone locations** - first Skilled / Expert / Master dwarf per skill category (originally cut for scope)
+- [X] **Skill milestone locations** - first Skilled / Expert / Master dwarf per skill category (originally cut for scope)
 - [ ] **Combat milestone locations** - first kill, first siege survived, first forgotten beast
 - [ ] **Artifact creation check** - a dwarf goes into a strange mood and produces an artifact
 - [ ] **Custom AP items** - define unique DF-flavored items as raw reactions for cleaner in-game delivery
-- [ ] **Overlay UI** - DFHack overlay panel showing current AP connection status and recent items
-- [ ] **Multi-fortress support** - allow switching between saves without resetting AP state
+- [X] **Overlay UI** - DFHack overlay panel showing current AP connection status and recent items
+- [X] **Multi-fortress support** - allow switching between saves without resetting AP state
 - [ ] **DeathLink targeting** - option to target specific skill types when applying received DeathLink deaths
 - [x] **Craftsanity item group presets** - Easy / Medium / Hard / Craftsanity / Choose dropdown replaces the raw item list for most players
 - [ ] **Random Option for Crafting Check** - selects a specified number of random item checks to have included in AP gen
-- [ ] **Rival Beast When MegaBeast is Victory** - finds a named beast during world gen and spawns them in when a specific check is sent
+- [X] **Rival Beast When MegaBeast is Victory** - finds a named beast during world gen and spawns them in when a specific check is sent
 
 </details>
 

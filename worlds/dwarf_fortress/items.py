@@ -98,7 +98,9 @@ USEFUL_ITEMS: list[ItemData] = [
     ItemData("Breeding Cows",          BASE_ID + 518, ItemClassification.useful),
     ItemData("Breeding Sheep",         BASE_ID + 519, ItemClassification.useful),
     ItemData("Breeding Yaks",          BASE_ID + 538, ItemClassification.useful),
+    ItemData("Cave Map Fragment",      BASE_ID + 2306, ItemClassification.useful, quantity=6),
 ]
+CAVE_MAP_FRAGMENT = USEFUL_ITEMS[-1]
 
 FILLER_ITEMS: list[ItemData] = [
     # Flavor filler - kept but down-weighted so they no longer dominate the pool.
@@ -318,7 +320,6 @@ AP_ITEM_POOL: list[ItemData] = \
 
 
 # All items (for name→ID mapping used by item_name_to_id).
-# AP_ITEM_POOL already covers every item the world deals with.
 ALL_ITEMS: list[ItemData] = AP_ITEM_POOL
 ITEM_TABLE: dict[str, int] = {}
 for data in ALL_ITEMS:

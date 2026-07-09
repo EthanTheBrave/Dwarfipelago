@@ -1559,6 +1559,14 @@ SHOP_LOCATIONS: list[LocationData] = [
     for i in range(1, SHOP_SLOTS + 1)
 ]
 
+# Custom cave locations: 6 pre-carved pockets hidden between cavern layers.
+# Always active — 2 per inter-cavern gap × 3 gaps. IDs 2300..2305.
+CAVE_LOCATION_COUNT = 6
+CAVE_LOCATIONS: list[LocationData] = [
+    LocationData(f"Custom Cave {i + 1}", BASE_ID + 2300 + i, "Fortress")
+    for i in range(CAVE_LOCATION_COUNT)
+]
+
 # Craft locations are NOT included here. They are computed deterministically by
 # craftsanity.build_craft_location_table() and merged into the World's
 # location_name_to_id in __init__.py (see _FULL_LOCATION_TABLE). Keeping them out
@@ -1567,7 +1575,7 @@ ALL_LOCATIONS: list[LocationData] = (
     WEALTH_LOCATIONS + PRODUCTION_LOCATIONS + TRADE_LOCATIONS
     + STATUS_LOCATIONS + TITLE_LOCATIONS + MINING_LOCATIONS
     + FARMING_LOCATIONS + INFRASTRUCTURE_LOCATIONS
-    + BIOLOGY_LOCATIONS + ENDGAME_LOCATIONS + SIEGE_LOCATIONS 
-    + JOB_SKILLS + COMBAT_SKILLS + SHOP_LOCATIONS
+    + BIOLOGY_LOCATIONS + ENDGAME_LOCATIONS + SIEGE_LOCATIONS
+    + JOB_SKILLS + COMBAT_SKILLS + SHOP_LOCATIONS + CAVE_LOCATIONS
 )
 LOCATION_TABLE: dict[str, int] = {loc.name: loc.ap_id for loc in ALL_LOCATIONS}

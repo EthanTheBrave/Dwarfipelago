@@ -14,6 +14,7 @@
 local state  = reqscript("internal/dwarfipelago/state")
 local checks = reqscript("internal/dwarfipelago/checks")
 local items  = reqscript("internal/dwarfipelago/items")
+local caves  = reqscript("internal/dwarfipelago/caves")
 local log    = reqscript("internal/dwarfipelago/log")
 local json   = require('json')
 
@@ -1407,6 +1408,10 @@ local function poll_checks()
     end
 
     compute_cavern_ceilings()
+    -- Secret world caves: always generate, independent of the custom_caves option.
+    caves.generate_secret_caves()
+    -- AP custom caves: conditional on the custom_caves option, no-op if disabled.
+    caves.generate()
 
     -- Count Manager work-order completions (their jobs don't fire onJobCompleted).
     -- Done before the depot gate so craft counts accumulate like manual jobs do.
@@ -1446,6 +1451,30 @@ local function poll_checks()
     guard("skills",        checks.update_skill_levels)
     guard("waves",         poll_warband_waves)
     guard("permit_overlay", sync_permit_overlay)
+    guard("custom_caves",  function()
+        local discovered = caves.check_discoveries()
+        for _, info in ipairs(discovered) do
+            if info.cave_type == "trap" then
+                local TRAP_CREATURES = {"TROGLODYTE", "CAVE_CRAWLER", "BLIND_CAVE_BEAR"}
+                local spawned = false
+                for _, race in ipairs(TRAP_CREATURES) do
+                    if caves.spawn_unit(race, info.x, info.y, info.z, true) then
+                        spawned = true; break
+                    end
+                end
+                local msg = spawned
+                    and "[AP] Trap Cave! Hostile creatures lurk within — you've been warned!"
+                    or  "[AP] Trap Cave! Something feels deeply wrong about this place..."
+                dfhack.gui.showAnnouncement(msg, COLOR_RED, true)
+            else
+                dfhack.gui.showAnnouncement(
+                    "[AP] Custom Cave discovered!",
+                    COLOR_GREEN, true)
+            end
+            print(("[Dwarfipelago] Cave #%d (%s) discovered at (%d,%d,%d)"):format(
+                info.index, info.cave_type, info.x, info.y, info.z))
+        end
+    end)
 
     for _, check in ipairs(checks.checks) do
         if not state.is_location_checked(check.id) then
