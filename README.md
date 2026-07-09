@@ -314,7 +314,7 @@ Caves alternate treasure/trap so each pair of caves in a gap has one of each typ
 
 ### Cave Map Fragments
 
-**Cave Map Fragments** are filler items placed into the multiworld item pool (6 per slot). Receiving one reveals the next cave hint in sequence via an in-game announcement:
+**Cave Map Fragments** are useful items placed into the multiworld item pool (6 per slot). Receiving one reveals the next cave hint in sequence via an in-game announcement:
 
 - **Treasure cave** — `Riches await at approximately (x, y), N levels underground.`
 - **Trap cave** — `Danger lurks to the [east/west/north/south], deep underground (z=N). Tread carefully!`
@@ -344,7 +344,7 @@ custom_caves: true
 | Industry materials | Flux stone, pig iron, charcoal, cloth bolts, tanned leather, **bags of sand** (glassmaking), raw clay (kaolinite for porcelain), plus rare low-grade copper tools (pick/axe/sword) |
 | Traps | Goblin ambush, cave bear incursion, vermin infestation, tantrum trigger, lost caravan |
 | Crafting Permits | When `craftpermits` is enabled, each permit item unlocks the ability to craft one item type (e.g. you can't make a table until the Table permit arrives). See the Crafting Permits section. |
-| Cave Map Fragment | Reveals a hint about the next undiscovered custom cave — coordinate hint for treasure caves, directional warning for trap caves. Up to 6 per slot; extra fragments beyond 6 are acknowledged but produce no new hint. Only present when `custom_caves: true`. |
+| Cave Map Fragment | Reveals a hint about the next undiscovered custom cave — coordinate hint for treasure caves, directional warning for trap caves. Up to 6 per slot; extra fragments beyond 6 are acknowledged but produce no new hint. |
 | Remains of the Great King | Treasure-hunt goal item - collect all of them (`king_remains` goal) to win. |
 
 All received goods are delivered to the **trade depot**.

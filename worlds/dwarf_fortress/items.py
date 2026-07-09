@@ -128,9 +128,9 @@ TRAP_ITEMS: list[ItemData] = [
 ]
 
 # Cave Map Fragment: received from AP — reveals a hint (coords or directional
-# warning) about the next undiscovered custom cave.  Filler tier; 6 copies are
-# always added to every slot's item pool (one per cave location).
-CAVE_MAP_FRAGMENT = ItemData("Cave Map Fragment", BASE_ID + 1200, ItemClassification.filler, weight=8)
+# warning) about the next undiscovered custom cave.  Useful tier (not filler —
+# trap cave warnings have real gameplay value); 6 copies always in the pool.
+CAVE_MAP_FRAGMENT = ItemData("Cave Map Fragment", BASE_ID + 1200, ItemClassification.useful, weight=8)
 
 CRAFT_ITEMS: list[ItemData] = [ #commented items people should get when getting the blueprints
     ItemData("Beds Permit", BASE_ID + 1000, ItemClassification.progression),
