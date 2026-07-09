@@ -1436,29 +1436,12 @@ local function poll_checks()
         local discovered = caves.check_discoveries()
         for _, info in ipairs(discovered) do
             if info.cave_type == "trap" then
-                -- Trap cave: spawn hostile creatures at the discovered location.
-                -- Uses resolve_race/create_unit pattern from items.lua.
                 local TRAP_CREATURES = {"TROGLODYTE", "CAVE_CRAWLER", "BLIND_CAVE_BEAR"}
                 local spawned = false
                 for _, race in ipairs(TRAP_CREATURES) do
-                    local ok, unit = pcall(function()
-                        local race_idx = nil
-                        for i, cr in ipairs(df.global.world.raws.creatures.all) do
-                            if cr.creature_id == race then race_idx = i; break end
-                        end
-                        if not race_idx then return nil end
-                        local u = dfhack.units.create(race_idx, 0)
-                        if not u then return nil end
-                        if not dfhack.units.teleport(u, {x=info.x, y=info.y, z=info.z}) then
-                            u.pos.x, u.pos.y, u.pos.z = info.x, info.y, info.z
-                        end
-                        df.global.world.units.active:insert('#', u)
-                        pcall(function() u.civ_id = -1 end)
-                        pcall(function() u.flags1.active_invader = true end)
-                        pcall(function() u.flags1.marauder = true end)
-                        return u
-                    end)
-                    if ok and unit then spawned = true; break end
+                    if caves.spawn_unit(race, info.x, info.y, info.z, true) then
+                        spawned = true; break
+                    end
                 end
                 local msg = spawned
                     and "[AP] Trap Cave! Hostile creatures lurk within — you've been warned!"

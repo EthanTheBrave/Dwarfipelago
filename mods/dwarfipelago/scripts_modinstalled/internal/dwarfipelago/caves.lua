@@ -132,7 +132,7 @@ end
 -- Spawn one creature of the given race token at (x,y,z).
 -- Pass hostile=true to mark as active invader/marauder (for trap creatures).
 -- Returns true on success.
-local function spawn_unit(race_token, x, y, z, hostile)
+function M.spawn_unit(race_token, x, y, z, hostile)
     local race_idx = nil
     for i = 0, #df.global.world.raws.creatures.all - 1 do
         if df.global.world.raws.creatures.all[i].creature_id == race_token then
@@ -492,7 +492,7 @@ function M.generate_secret_caves()
             carve(x, y, z, 2, 2)
             local n = 0
             for _ = 1, 3 do
-                if spawn_unit("CAVE_SPIDER", x, y, z, false) then n = n + 1 end
+                if M.spawn_unit("CAVE_SPIDER", x, y, z, false) then n = n + 1 end
             end
             log.info(("Secret cave 1 (spider silk) at (%d,%d,%d), %d spiders"):format(x, y, z, n))
         else

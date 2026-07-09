@@ -1141,15 +1141,17 @@ class DwarfFortressContext(CommonContext):
         CAVE_BASE_ID = 37372300  # BASE_ID + 2300
 
         def read_discoveries():
+            raw = self.dfhack.run_command(
+                "lua",
+                'local r={} for i=1,6 do'
+                ' r[i]=dfhack.persistent.getWorldDataString("dwarfipelago/cave/"..i.."/discovered") or "0"'
+                ' end print(table.concat(r,","))',
+            )
+            if not raw or not raw.strip():
+                return {}
             results = {}
-            for idx in range(1, 7):
-                if idx in self._discovered_caves:
-                    continue
-                raw = self.dfhack.run_command(
-                    "lua",
-                    f'print(dfhack.persistent.getWorldDataString("dwarfipelago/cave/{idx}/discovered") or "0")',
-                )
-                if raw and raw.strip() == "1":
+            for idx, val in enumerate(raw.strip().split(","), start=1):
+                if val.strip() == "1" and idx not in self._discovered_caves:
                     results[idx] = CAVE_BASE_ID + (idx - 1)
             return results
 
