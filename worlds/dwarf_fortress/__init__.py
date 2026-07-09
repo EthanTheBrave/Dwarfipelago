@@ -143,10 +143,10 @@ class DwarfFortressWorld(World):
                 f"{self.player_name}: You cannot set your goal to dwarfsanity without crafting permits enabled. Enable Crafting Permits."
             )
 
-        # Custom caves always exist — add 6 Cave Map Fragment filler items to match
-        # the 6 cave location checks. Inserted before the optional shuffle so the
-        # pool count stays balanced with the location count.
-        for _ in range(CAVE_LOCATION_COUNT):
+        # Custom caves always exist — add 5 more Cave Map Fragments (1 is already
+        # in AP_ITEM_POOL via USEFUL_ITEMS) for a total of 6, matching the 6 cave
+        # location checks.
+        for _ in range(CAVE_LOCATION_COUNT - 1):
             self.ap_item_pool.append(CAVE_MAP_FRAGMENT)
 
         # Active set = the static non-craft locations (LOCATION_TABLE) plus the

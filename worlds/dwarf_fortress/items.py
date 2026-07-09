@@ -98,7 +98,9 @@ USEFUL_ITEMS: list[ItemData] = [
     ItemData("Breeding Cows",          BASE_ID + 518, ItemClassification.useful),
     ItemData("Breeding Sheep",         BASE_ID + 519, ItemClassification.useful),
     ItemData("Breeding Yaks",          BASE_ID + 538, ItemClassification.useful),
+    ItemData("Cave Map Fragment",      BASE_ID + 1200, ItemClassification.useful, weight=8),
 ]
+CAVE_MAP_FRAGMENT = USEFUL_ITEMS[-1]
 
 FILLER_ITEMS: list[ItemData] = [
     # Flavor filler - kept but down-weighted so they no longer dominate the pool.
@@ -126,11 +128,6 @@ TRAP_ITEMS: list[ItemData] = [
     ItemData("Dwarf Bones",            BASE_ID + 531, ItemClassification.trap),
     ItemData("Goblin Trophy",          BASE_ID + 532, ItemClassification.trap),
 ]
-
-# Cave Map Fragment: received from AP — reveals a hint (coords or directional
-# warning) about the next undiscovered custom cave.  Useful tier (not filler —
-# trap cave warnings have real gameplay value); 6 copies always in the pool.
-CAVE_MAP_FRAGMENT = ItemData("Cave Map Fragment", BASE_ID + 1200, ItemClassification.useful, weight=8)
 
 CRAFT_ITEMS: list[ItemData] = [ #commented items people should get when getting the blueprints
     ItemData("Beds Permit", BASE_ID + 1000, ItemClassification.progression),
@@ -323,9 +320,7 @@ AP_ITEM_POOL: list[ItemData] = \
 
 
 # All items (for name→ID mapping used by item_name_to_id).
-# AP_ITEM_POOL covers all standard items. CAVE_MAP_FRAGMENT is registered here
-# so create_item() can look up its ID; copies are added per-slot in __init__.py.
-ALL_ITEMS: list[ItemData] = AP_ITEM_POOL + [CAVE_MAP_FRAGMENT]
+ALL_ITEMS: list[ItemData] = AP_ITEM_POOL
 ITEM_TABLE: dict[str, int] = {}
 for data in ALL_ITEMS:
     ITEM_TABLE.update({data.name: data.ap_id})
