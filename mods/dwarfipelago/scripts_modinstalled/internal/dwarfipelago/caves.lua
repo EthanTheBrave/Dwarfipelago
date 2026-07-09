@@ -9,11 +9,12 @@ local M = {}
 local log = reqscript("internal/dwarfipelago/log")
 
 -- Persistent storage keys
-local KEY_ENABLED  = "dwarfipelago/custom_caves"
-local KEY_DONE     = "dwarfipelago/caves/generated"
-local KEY_FRAG_IDX = "dwarfipelago/caves/fragment_index"
-local KEY_PREFIX   = "dwarfipelago/cave/"
-local NUM_CAVES    = 6  -- 2 per inter-cavern gap × 3 potential gaps
+local KEY_ENABLED      = "dwarfipelago/custom_caves"
+local KEY_DONE         = "dwarfipelago/caves/generated"
+local KEY_FRAG_IDX     = "dwarfipelago/caves/fragment_index"
+local KEY_PREFIX       = "dwarfipelago/cave/"
+local KEY_SECRETS_DONE = "dwarfipelago/caves/secrets_done"
+local NUM_CAVES        = 6  -- 2 per inter-cavern gap × 3 potential gaps
 
 -- Tiletype IDs.  Names are resolved at load time; hardcoded fallback values are
 -- from the canonical DF/DFHack enum in case naming ever shifts.
@@ -127,6 +128,70 @@ local function stock_cave(cx, cy, cz, cave_type)
     end
 end
 
+-- ── Secret cave helpers ───────────────────────────────────────────────────────
+
+-- Spawn one creature of the given race token at (x,y,z).
+-- Pass hostile=true to mark as active invader/marauder (for trap creatures).
+-- Returns true on success.
+local function spawn_unit(race_token, x, y, z, hostile)
+    local race_idx = nil
+    for i = 0, #df.global.world.raws.creatures.all - 1 do
+        if df.global.world.raws.creatures.all[i].creature_id == race_token then
+            race_idx = i; break
+        end
+    end
+    if not race_idx then return false end
+    local ok = pcall(function()
+        local u = dfhack.units.create(race_idx, 0)
+        if not u then error("create returned nil") end
+        if not dfhack.units.teleport(u, {x=x, y=y, z=z}) then
+            u.pos.x, u.pos.y, u.pos.z = x, y, z
+        end
+        df.global.world.units.active:insert('#', u)
+        pcall(function() u.civ_id = -1 end)
+        if hostile then
+            pcall(function() u.flags1.active_invader = true end)
+            pcall(function() u.flags1.marauder       = true end)
+        end
+    end)
+    return ok
+end
+
+-- Place a gold (or silver) coffin at (x,y,z) and register it as an artifact
+-- named "Karl" so it displays as "Karl the Gold Coffin" in-game.
+local function place_karls_coffin(x, y, z)
+    local pre_n = #df.global.world.items.all
+    if place_item_at(x, y, z, "COFFIN", "INORGANIC:GOLD",     1) == 0 then
+        if place_item_at(x, y, z, "COFFIN", "INORGANIC:SILVER",   1) == 0 then
+            place_item_at(x, y, z, "COFFIN", "INORGANIC:PLATINUM", 1)
+        end
+    end
+    pcall(function()
+        local all  = df.global.world.items.all
+        if #all <= pre_n then return end
+        -- The newly created item is appended; search from pre_n forward for a COFFIN.
+        local item = nil
+        for i = pre_n, #all - 1 do
+            local it = all[i]
+            local ok, match = pcall(function() return it:getType() == df.item_type.COFFIN end)
+            if ok and match then item = it; break end
+        end
+        if not item then return end
+
+        item.flags.artifact = true
+
+        local ar = df.artifact_record:new()
+        ar.id       = #df.global.world.artifacts.all
+        ar.item     = item.id
+        ar.unit_id  = -1
+        pcall(function() ar.mystery = false end)
+        ar.name.has_name   = true
+        ar.name.first_name = "Karl"
+        df.global.world.artifacts.all:insert('#', ar)
+        log.info("Karl's Coffin artifact registered (id=" .. ar.id .. ")")
+    end)
+end
+
 -- ── Helpers ───────────────────────────────────────────────────────────────────
 
 local function read_int(key)
@@ -182,13 +247,14 @@ local function set_tile(x, y, z, tt)
 end
 
 -- Hollow out an organic oval pocket centred on (cx,cy,cz).
--- Radii rx ∈ [3,4] and ry ∈ [2,3] are chosen randomly, then edge tiles
--- (ellipse dist 0.7–1.1) are included with probability proportional to how
--- far inside the boundary they sit, giving a ragged, natural silhouette.
--- Height: 3 z-levels (floor + 2 open) within the inner half, 2 z-levels at edges.
-local function carve(cx, cy, cz)
-    local rx = math.random(3, 4)
-    local ry = math.random(2, 3)
+-- Radii default to rx ∈ [3,4] and ry ∈ [2,3]; pass explicit values for a
+-- fixed size (e.g. carve(x,y,z, 2,2) for a small spider-cave circle).
+-- Edge tiles (ellipse dist² 0.7–1.1) are included with linearly-falling
+-- probability, giving a ragged, natural silhouette.
+-- Height: 3 z-levels (floor + 2 open) in the inner half, 2 z-levels at edges.
+local function carve(cx, cy, cz, rx_in, ry_in)
+    local rx = rx_in or math.random(3, 4)
+    local ry = ry_in or math.random(2, 3)
     for dx = -(rx + 1), rx + 1 do
         for dy = -(ry + 1), ry + 1 do
             local dist2 = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry)
@@ -399,6 +465,57 @@ function M.reveal_next()
         ("[AP] Cave Map Fragment #%d: %s"):format(next_idx, hint),
         COLOR_CYAN, true)
     print(("[Dwarfipelago] Map fragment #%d: %s"):format(next_idx, hint))
+end
+
+-- Generate the two secret world-flavour caves.  These always exist regardless of
+-- the custom_caves AP option.  No-ops if already done or ceilings not measured yet.
+--
+--   Secret 1 — Spider Silk Cave (surface → cavern 1 gap, slot 3 / SW quadrant):
+--     Small oval (rx=2, ry=2).  3 wild cave spiders spawn at generation time;
+--     they spin silk webs as they roam, giving dwarves a silk thread source before
+--     the first cavern is breached.
+--
+--   Secret 2 — Karl's Coffin Cave (cavern 1 → cavern 2 gap, slot 4 / NE quadrant):
+--     Standard organic oval.  Contains a gold coffin registered as the artifact
+--     "Karl" — displayed in-game as "Karl the Gold Coffin".  Stupid, but valuable.
+function M.generate_secret_caves()
+    if dfhack.persistent.getWorldDataString(KEY_SECRETS_DONE) == "1" then return end
+    if dfhack.persistent.getWorldDataString("dwarfipelago/mining/ceilings_done") ~= "1" then return end
+
+    local surface_z = read_int("dwarfipelago/mining/surface_z")
+        or (df.global.world.map.z_count - 10)
+    local c1 = cavern_ceil("cavern1")
+    local c2 = cavern_ceil("cavern2")
+
+    -- Secret 1: spider silk cave in the surface → cavern 1 gap.
+    if c1 then
+        local x, y, z = find_site(surface_z - 5, c1 + 5, 3)
+        if x then
+            carve(x, y, z, 2, 2)
+            local n = 0
+            for _ = 1, 3 do
+                if spawn_unit("CAVE_SPIDER", x, y, z, false) then n = n + 1 end
+            end
+            log.info(("Secret cave 1 (spider silk) at (%d,%d,%d), %d spiders"):format(x, y, z, n))
+        else
+            log.warn("Secret cave 1 (spider silk): no suitable site found in surface→C1 gap")
+        end
+    end
+
+    -- Secret 2: Karl's Coffin cave in the cavern 1 → cavern 2 gap.
+    if c1 and c2 then
+        local x, y, z = find_site(c1 - 5, c2 + 5, 4)
+        if x then
+            carve(x, y, z)
+            place_karls_coffin(x, y, z)
+            log.info(("Secret cave 2 (Karl's Coffin) at (%d,%d,%d)"):format(x, y, z))
+        else
+            log.warn("Secret cave 2 (Karl's Coffin): no suitable site found in C1→C2 gap")
+        end
+    end
+
+    dfhack.persistent.saveWorldDataString(KEY_SECRETS_DONE, "1")
+    log.info("Secret cave generation complete")
 end
 
 return M

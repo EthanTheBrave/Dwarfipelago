@@ -1389,7 +1389,9 @@ local function poll_checks()
     end
 
     compute_cavern_ceilings()
-    -- Generate custom caves once ceilings are known (no-op if already done or disabled).
+    -- Secret world caves: always generate, independent of the custom_caves option.
+    caves.generate_secret_caves()
+    -- AP custom caves: conditional on the custom_caves option, no-op if disabled.
     caves.generate()
 
     -- Count Manager work-order completions (their jobs don't fire onJobCompleted).
