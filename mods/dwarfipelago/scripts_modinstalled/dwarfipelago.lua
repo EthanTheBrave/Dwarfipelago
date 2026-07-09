@@ -1466,7 +1466,7 @@ local function poll_checks()
                 dfhack.gui.showAnnouncement(msg, COLOR_RED, true)
             else
                 dfhack.gui.showAnnouncement(
-                    "[AP] Custom Cave discovered! Report your find to the Archipelago server.",
+                    "[AP] Custom Cave discovered!",
                     COLOR_GREEN, true)
             end
             print(("[Dwarfipelago] Cave #%d (%s) discovered at (%d,%d,%d)"):format(
