@@ -345,16 +345,6 @@ class SkillsanityLevelMechanic(Choice):
     option_lower_skills = 1
     default = 0
 
-class EnableCustomCaves(Toggle):
-    """
-    Generate 6 pre-carved secret caves hidden between your cavern layers (2 per gap).
-    Caves come in two flavours: treasure caves grant a multiworld item when explored;
-    trap caves spawn hostile underground creatures when your dwarves breach them.
-    Receive Cave Map Fragment items for location hints — coordinates for treasure caves,
-    directional warnings for dangerous ones.
-    """
-    display_name = "Enable Custom Caves"
-
 class ProgressiveMiningDepth(DefaultOnToggle):
     """
     You are only allowed to mine down to certain Z levels depending on the generated map (based on discoveries).
@@ -404,7 +394,6 @@ class DwarfFortressOptions(PerGameCommonOptions):
     skillsanity_behaviour: SkillsanityLevelMechanic
     trap_item_weight: TrapItemWeight
     start_inventory: StartingDefaultDFInventory
-    custom_caves: EnableCustomCaves
 
 
 # ── Option Groups ─────────────────────────────────────────────────────────

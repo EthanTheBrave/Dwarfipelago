@@ -9,7 +9,6 @@ local M = {}
 local log = reqscript("internal/dwarfipelago/log")
 
 -- Persistent storage keys
-local KEY_ENABLED      = "dwarfipelago/custom_caves"
 local KEY_DONE         = "dwarfipelago/caves/generated"
 local KEY_FRAG_IDX     = "dwarfipelago/caves/fragment_index"
 local KEY_PREFIX       = "dwarfipelago/cave/"
@@ -308,12 +307,11 @@ end
 
 -- ── Public API ────────────────────────────────────────────────────────────────
 
--- Generate and carve all custom caves on a fresh seed.  No-ops if the feature
--- is disabled, already done, or cavern ceilings haven't been computed yet.
+-- Generate and carve all AP custom caves on a fresh seed.  No-ops if already
+-- done or cavern ceilings haven't been computed yet.
 -- Called from poll_checks() in dwarfipelago.lua after compute_cavern_ceilings().
 function M.generate()
-    if dfhack.persistent.getWorldDataString(KEY_ENABLED) ~= "1" then return end
-    if dfhack.persistent.getWorldDataString(KEY_DONE)    == "1" then return end
+    if dfhack.persistent.getWorldDataString(KEY_DONE) == "1" then return end
     if dfhack.persistent.getWorldDataString("dwarfipelago/mining/ceilings_done") ~= "1" then return end
 
     local surface_z = read_int("dwarfipelago/mining/surface_z")
@@ -467,8 +465,8 @@ function M.reveal_next()
     print(("[Dwarfipelago] Map fragment #%d: %s"):format(next_idx, hint))
 end
 
--- Generate the two secret world-flavour caves.  These always exist regardless of
--- the custom_caves AP option.  No-ops if already done or ceilings not measured yet.
+-- Generate the two secret world-flavour caves.  Always generated alongside the
+-- AP caves.  No-ops if already done or ceilings not measured yet.
 --
 --   Secret 1 — Spider Silk Cave (surface → cavern 1 gap, slot 3 / SW quadrant):
 --     Small oval (rx=2, ry=2).  3 wild cave spiders spawn at generation time;

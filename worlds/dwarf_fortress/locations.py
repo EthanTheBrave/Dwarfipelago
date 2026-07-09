@@ -1560,8 +1560,7 @@ SHOP_LOCATIONS: list[LocationData] = [
 ]
 
 # Custom cave locations: 6 pre-carved pockets hidden between cavern layers.
-# Always registered in the DataPackage; active only when EnableCustomCaves is on.
-# IDs 2300..2305 (2 per inter-cavern gap × 3 gaps).
+# Always active — 2 per inter-cavern gap × 3 gaps. IDs 2300..2305.
 CAVE_LOCATION_COUNT = 6
 CAVE_LOCATIONS: list[LocationData] = [
     LocationData(f"Custom Cave {i + 1}", BASE_ID + 2300 + i, "Fortress")
