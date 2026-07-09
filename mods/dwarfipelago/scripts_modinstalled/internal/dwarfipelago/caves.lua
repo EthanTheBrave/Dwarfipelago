@@ -22,6 +22,111 @@ local TT_ROCK_FLOOR = 53   -- df.tiletype['RockFloor1']
 pcall(function() TT_OPEN_SPACE = df.tiletype['Open Space'] end)
 pcall(function() TT_ROCK_FLOOR = df.tiletype['RockFloor1']  end)
 
+-- ── Item placement ───────────────────────────────────────────────────────────
+
+-- Filler items randomly placed in treasure caves (same tokens as items.lua handlers).
+local FILLER_POOL = {
+    {"BOULDER",     "INORGANIC:LIMESTONE",                   4},
+    {"BAR",         "INORGANIC:PIG_IRON",                    2},
+    {"BAR",         "COAL:CHARCOAL",                         3},
+    {"CLOTH",       "PLANT_MAT:GRASS_TAIL_PIG:THREAD",       3},
+    {"SKIN_TANNED", "CREATURE_MAT:COW:LEATHER",              3},
+    {"DRINK",       "PLANT_MAT:MUSHROOM_HELMET_PLUMP:DRINK", 3},
+    {"FIGURINE",    "INORGANIC:MARBLE",                      1},
+    {"BOULDER",     "INORGANIC:MAGNETITE",                   3},
+}
+
+-- Gem pairs for treasure caves: {primary, fallback}.
+local GEM_POOL = {
+    {"INORGANIC:RUBY",     "INORGANIC:GARNET"},
+    {"INORGANIC:SAPPHIRE", "INORGANIC:AQUAMARINE"},
+    {"INORGANIC:DIAMOND",  "INORGANIC:TOPAZ"},
+    {"INORGANIC:EMERALD",  "INORGANIC:OLIVINE"},
+    {"INORGANIC:AMETHYST", "INORGANIC:OPAL"},
+}
+
+-- Ore fallback chains for trap caves.
+local IRON_ORES   = {"INORGANIC:HEMATITE",    "INORGANIC:MAGNETITE",    "INORGANIC:LIMONITE"}
+local COPPER_ORES = {"INORGANIC:MALACHITE",   "INORGANIC:NATIVE_COPPER","INORGANIC:TETRAHEDRITE"}
+
+-- Place `count` copies of (item_type, material) at (x,y,z) using the DFHack
+-- createitem script (same mechanism as spawn_item in items.lua).
+-- Returns the number successfully created.
+local has_silent = type(dfhack.run_command_silent) == "function"
+local function place_item_at(x, y, z, item_type, material, count)
+    local ox = df.global.cursor.x
+    local oy = df.global.cursor.y
+    local oz = df.global.cursor.z
+    df.global.cursor.x = x
+    df.global.cursor.y = y
+    df.global.cursor.z = z
+
+    local created = 0
+    for _ = 1, (count or 1) do
+        if has_silent then
+            local ok, r1, r2 = pcall(dfhack.run_command_silent, "createitem", item_type, material)
+            local out = (type(r1) == "string" and r1) or (type(r2) == "string" and r2) or ""
+            if ok and not out:find("nrecognized") then created = created + 1 end
+        else
+            if pcall(dfhack.run_command, "createitem", item_type, material) then
+                created = created + 1
+            end
+        end
+    end
+
+    df.global.cursor.x = ox
+    df.global.cursor.y = oy
+    df.global.cursor.z = oz
+    return created
+end
+
+-- Stock a cave with appropriate items immediately after carving.
+local function stock_cave(cx, cy, cz, cave_type)
+    if cave_type == "trap" then
+        -- A tempting lode of iron and copper ore to lure dwarves deeper.
+        local placed_iron = false
+        for _, ore in ipairs(IRON_ORES) do
+            if place_item_at(cx, cy, cz, "BOULDER", ore, 8) > 0 then
+                placed_iron = true; break
+            end
+        end
+        local placed_copper = false
+        for _, ore in ipairs(COPPER_ORES) do
+            if place_item_at(cx, cy, cz, "BOULDER", ore, 6) > 0 then
+                placed_copper = true; break
+            end
+        end
+        log.info(("Trap cave stocked: iron=%s copper=%s"):format(
+            tostring(placed_iron), tostring(placed_copper)))
+    else
+        -- Shuffle filler pool and pick 3-4 items.
+        local pool = {}
+        for _, v in ipairs(FILLER_POOL) do table.insert(pool, v) end
+        for i = #pool, 2, -1 do
+            local j = math.random(i)
+            pool[i], pool[j] = pool[j], pool[i]
+        end
+        local n_filler = 3 + math.random(0, 1)
+        for i = 1, math.min(n_filler, #pool) do
+            place_item_at(cx, cy, cz, pool[i][1], pool[i][2], pool[i][3])
+        end
+        -- Add 2 random cut gems (try primary material, fall back to secondary).
+        local gem_pool = {}
+        for _, v in ipairs(GEM_POOL) do table.insert(gem_pool, v) end
+        for i = #gem_pool, 2, -1 do
+            local j = math.random(i)
+            gem_pool[i], gem_pool[j] = gem_pool[j], gem_pool[i]
+        end
+        for i = 1, 2 do
+            local gem = gem_pool[i]
+            if place_item_at(cx, cy, cz, "SMALLGEM", gem[1], 2) == 0 then
+                place_item_at(cx, cy, cz, "SMALLGEM", gem[2], 2)
+            end
+        end
+        log.info("Treasure cave stocked with filler items and gems")
+    end
+end
+
 -- ── Helpers ───────────────────────────────────────────────────────────────────
 
 local function read_int(key)
@@ -151,6 +256,7 @@ function M.generate()
             local cave_type = cave_types[cave_idx]
             if x then
                 carve(x, y, z)
+                stock_cave(x, y, z, cave_type)
                 dfhack.persistent.saveWorldDataString(cave_key(cave_idx, "x"),    tostring(x))
                 dfhack.persistent.saveWorldDataString(cave_key(cave_idx, "y"),    tostring(y))
                 dfhack.persistent.saveWorldDataString(cave_key(cave_idx, "z"),    tostring(z))
