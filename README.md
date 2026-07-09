@@ -495,16 +495,16 @@ A running list of ideas, planned features, and things that still need doing. No 
 
 ### Ideas / Future Features
 
-- [ ] **Skill milestone locations** - first Skilled / Expert / Master dwarf per skill category (originally cut for scope)
+- [X] **Skill milestone locations** - first Skilled / Expert / Master dwarf per skill category (originally cut for scope)
 - [ ] **Combat milestone locations** - first kill, first siege survived, first forgotten beast
 - [ ] **Artifact creation check** - a dwarf goes into a strange mood and produces an artifact
 - [ ] **Custom AP items** - define unique DF-flavored items as raw reactions for cleaner in-game delivery
 - [ ] **Overlay UI** - DFHack overlay panel showing current AP connection status and recent items
-- [ ] **Multi-fortress support** - allow switching between saves without resetting AP state
+- [X] **Multi-fortress support** - allow switching between saves without resetting AP state
 - [ ] **DeathLink targeting** - option to target specific skill types when applying received DeathLink deaths
 - [x] **Craftsanity item group presets** - Easy / Medium / Hard / Craftsanity / Choose dropdown replaces the raw item list for most players
 - [ ] **Random Option for Crafting Check** - selects a specified number of random item checks to have included in AP gen
-- [ ] **Rival Beast When MegaBeast is Victory** - finds a named beast during world gen and spawns them in when a specific check is sent
+- [X] **Rival Beast When MegaBeast is Victory** - finds a named beast during world gen and spawns them in when a specific check is sent
 
 </details>
 
