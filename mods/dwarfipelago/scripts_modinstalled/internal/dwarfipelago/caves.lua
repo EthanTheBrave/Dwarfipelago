@@ -1,0 +1,276 @@
+--@ module = true
+-- Custom cave generation and discovery for Dwarfipelago.
+--
+-- Generates 6 pre-carved pockets in solid rock between cavern layers (2 per gap).
+-- Treasure caves yield a multiworld item on discovery; trap caves spawn hostile
+-- underground creatures.  Cave Map Fragment items reveal hints about cave locations.
+
+local M = {}
+local log = reqscript("internal/dwarfipelago/log")
+
+-- Persistent storage keys
+local KEY_ENABLED  = "dwarfipelago/custom_caves"
+local KEY_DONE     = "dwarfipelago/caves/generated"
+local KEY_FRAG_IDX = "dwarfipelago/caves/fragment_index"
+local KEY_PREFIX   = "dwarfipelago/cave/"
+local NUM_CAVES    = 6  -- 2 per inter-cavern gap × 3 potential gaps
+
+-- Tiletype IDs.  Names are resolved at load time; hardcoded fallback values are
+-- from the canonical DF/DFHack enum in case naming ever shifts.
+local TT_OPEN_SPACE = 32   -- df.tiletype['Open Space']
+local TT_ROCK_FLOOR = 53   -- df.tiletype['RockFloor1']
+pcall(function() TT_OPEN_SPACE = df.tiletype['Open Space'] end)
+pcall(function() TT_ROCK_FLOOR = df.tiletype['RockFloor1']  end)
+
+-- ── Helpers ───────────────────────────────────────────────────────────────────
+
+local function read_int(key)
+    return tonumber(dfhack.persistent.getWorldDataString(key))
+end
+
+local function cavern_ceil(name)
+    return read_int("dwarfipelago/mining/ceiling/" .. name)
+end
+
+local function cave_key(idx, field)
+    return KEY_PREFIX .. idx .. "/" .. field
+end
+
+-- True iff (x,y,z) has the WALL shape (unbroken solid rock).
+local function is_solid_wall(x, y, z)
+    local ok, result = pcall(function()
+        local tt = dfhack.maps.getTileType(x, y, z)
+        if not tt then return false end
+        local shape = df.tiletype_shape[df.tiletype.attrs[tt].shape]
+        return shape == "WALL"
+    end)
+    return ok and result
+end
+
+-- Returns true if the 5×5×3 area centred on (cx,cy,cz) is entirely solid walls,
+-- guaranteeing that the carved 3×3×2 interior has at least a 1-tile stone border.
+local function site_ok(cx, cy, cz)
+    for dx = -2, 2 do
+        for dy = -2, 2 do
+            for dz = 0, 2 do
+                if not is_solid_wall(cx + dx, cy + dy, cz + dz) then return false end
+            end
+        end
+    end
+    return true
+end
+
+-- Change a single tile type and flush the block.
+local function set_tile(x, y, z, tt)
+    pcall(function()
+        local b = dfhack.maps.getTileBlock(x, y, z)
+        if not b then return end
+        local lx, ly = x % 16, y % 16
+        b.tiletype[lx][ly] = tt
+        pcall(function()
+            b.designation[lx][ly].feature_local  = false
+            b.designation[lx][ly].feature_global = false
+        end)
+        dfhack.maps.enableBlockUpdates(b, false, false)
+    end)
+end
+
+-- Hollow out a 3×3×2 pocket: floor at cz, open space at cz+1.
+local function carve(cx, cy, cz)
+    for dx = -1, 1 do
+        for dy = -1, 1 do
+            set_tile(cx + dx, cy + dy, cz,     TT_ROCK_FLOOR)
+            set_tile(cx + dx, cy + dy, cz + 1, TT_OPEN_SPACE)
+        end
+    end
+end
+
+-- Find a suitable cave site in the z-range [z_lo, z_hi] (z_hi > z_lo = shallower).
+-- `slot` (1-based within the gap) seeds the quadrant so the two per-gap caves
+-- are spread across different parts of the map.
+local function find_site(z_hi, z_lo, slot)
+    local margin = 5
+    local lo = z_lo + margin
+    local hi = z_hi - margin
+    if lo >= hi then return nil end
+
+    local map_w = df.global.world.map.x_count
+    local map_h = df.global.world.map.y_count
+
+    -- Spread: slot 1 → NW quadrant, slot 2 → SE quadrant.
+    local base_x = (slot % 2 == 1)
+        and math.floor(map_w * 0.20) or math.floor(map_w * 0.55)
+    local base_y = (slot <= 2)
+        and math.floor(map_h * 0.20) or math.floor(map_h * 0.55)
+
+    local z = math.floor((lo + hi) / 2) + ((slot * 3) % 5) - 2
+
+    for attempt = 0, 50 do
+        local x = math.max(5, math.min(map_w - 6, base_x + (attempt * 7)  % 50))
+        local y = math.max(5, math.min(map_h - 6, base_y + (attempt * 11) % 50))
+        if site_ok(x, y, z) then return x, y, z end
+    end
+    return nil
+end
+
+-- ── Public API ────────────────────────────────────────────────────────────────
+
+-- Generate and carve all custom caves on a fresh seed.  No-ops if the feature
+-- is disabled, already done, or cavern ceilings haven't been computed yet.
+-- Called from poll_checks() in dwarfipelago.lua after compute_cavern_ceilings().
+function M.generate()
+    if dfhack.persistent.getWorldDataString(KEY_ENABLED) ~= "1" then return end
+    if dfhack.persistent.getWorldDataString(KEY_DONE)    == "1" then return end
+    if dfhack.persistent.getWorldDataString("dwarfipelago/mining/ceilings_done") ~= "1" then return end
+
+    local surface_z = read_int("dwarfipelago/mining/surface_z")
+        or (df.global.world.map.z_count - 10)
+
+    local c1 = cavern_ceil("cavern1")
+    local c2 = cavern_ceil("cavern2")
+    local c3 = cavern_ceil("cavern3")
+
+    -- Build inter-layer gaps: {hi, lo} where hi > lo (hi = shallower z).
+    local gaps = {}
+    if c1 then table.insert(gaps, {hi = surface_z - 5, lo = c1 + 5}) end
+    if c1 and c2 then table.insert(gaps, {hi = c1 - 5,      lo = c2 + 5}) end
+    if c2 and c3 then table.insert(gaps, {hi = c2 - 5,      lo = c3 + 5}) end
+    if #gaps == 0 then
+        local mid = math.floor(df.global.world.map.z_count / 2)
+        table.insert(gaps, {hi = mid + 20, lo = mid - 20})
+    end
+
+    -- Alternate treasure/trap so each pair of caves has one of each.
+    local cave_types = {"treasure", "trap", "treasure", "trap", "treasure", "trap"}
+    local cave_idx   = 1
+
+    for gap_i, gap in ipairs(gaps) do
+        for slot = 1, 2 do
+            if cave_idx > NUM_CAVES then break end
+            local x, y, z = find_site(gap.hi, gap.lo, slot)
+            local cave_type = cave_types[cave_idx]
+            if x then
+                carve(x, y, z)
+                dfhack.persistent.saveWorldDataString(cave_key(cave_idx, "x"),    tostring(x))
+                dfhack.persistent.saveWorldDataString(cave_key(cave_idx, "y"),    tostring(y))
+                dfhack.persistent.saveWorldDataString(cave_key(cave_idx, "z"),    tostring(z))
+                dfhack.persistent.saveWorldDataString(cave_key(cave_idx, "type"), cave_type)
+                log.info(("Custom cave #%d (%s) at (%d,%d,%d)"):format(cave_idx, cave_type, x, y, z))
+            else
+                -- Mark as invalid so Python skips this slot cleanly.
+                dfhack.persistent.saveWorldDataString(cave_key(cave_idx, "x"), "-1")
+                log.warn(("Custom cave #%d: no suitable site in gap %d"):format(cave_idx, gap_i))
+            end
+            dfhack.persistent.saveWorldDataString(cave_key(cave_idx, "discovered"), "0")
+            dfhack.persistent.saveWorldDataString(cave_key(cave_idx, "revealed"),   "0")
+            cave_idx = cave_idx + 1
+        end
+    end
+
+    -- Pad any remaining slots (< 3 gaps) with null entries for consistent indexing.
+    while cave_idx <= NUM_CAVES do
+        dfhack.persistent.saveWorldDataString(cave_key(cave_idx, "x"),          "-1")
+        dfhack.persistent.saveWorldDataString(cave_key(cave_idx, "discovered"), "0")
+        dfhack.persistent.saveWorldDataString(cave_key(cave_idx, "revealed"),   "0")
+        cave_idx = cave_idx + 1
+    end
+
+    dfhack.persistent.saveWorldDataString(KEY_DONE, "1")
+    log.info("Custom cave generation complete")
+end
+
+-- Check whether any living citizen is standing inside an undiscovered cave.
+-- Returns a list of {index, cave_type, x, y, z} for newly-discovered caves
+-- and marks each as discovered in persistent storage.
+-- Called from the poll loop in dwarfipelago.lua.
+function M.check_discoveries()
+    if dfhack.persistent.getWorldDataString(KEY_DONE) ~= "1" then return {} end
+
+    -- Collect undiscovered caves.
+    local pending = {}
+    for i = 1, NUM_CAVES do
+        local x = tonumber(dfhack.persistent.getWorldDataString(cave_key(i, "x")))
+        if x and x > 0 then
+            if dfhack.persistent.getWorldDataString(cave_key(i, "discovered")) ~= "1" then
+                pending[i] = {
+                    x         = x,
+                    y         = tonumber(dfhack.persistent.getWorldDataString(cave_key(i, "y"))),
+                    z         = tonumber(dfhack.persistent.getWorldDataString(cave_key(i, "z"))),
+                    cave_type = dfhack.persistent.getWorldDataString(cave_key(i, "type")) or "treasure",
+                }
+            end
+        end
+    end
+    if not next(pending) then return {} end
+
+    -- Build a lookup of all citizen positions (expanded by 1 tile for edge detection).
+    local occupied = {}
+    for _, unit in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+            for dx = -1, 1 do
+                for dy = -1, 1 do
+                    occupied[(unit.pos.x + dx) .. "," .. (unit.pos.y + dy) .. "," .. unit.pos.z] = true
+                end
+            end
+        end
+    end
+
+    local newly = {}
+    for idx, cave in pairs(pending) do
+        local found = false
+        for dx = -1, 1 do
+            if found then break end
+            for dy = -1, 1 do
+                if occupied[(cave.x + dx) .. "," .. (cave.y + dy) .. "," .. cave.z] then
+                    found = true; break
+                end
+            end
+        end
+        if found then
+            dfhack.persistent.saveWorldDataString(cave_key(idx, "discovered"), "1")
+            table.insert(newly, {index=idx, cave_type=cave.cave_type, x=cave.x, y=cave.y, z=cave.z})
+        end
+    end
+    return newly
+end
+
+-- Return a displayable hint string for cave `idx`.
+function M.get_hint(idx)
+    local x  = tonumber(dfhack.persistent.getWorldDataString(cave_key(idx, "x")))
+    if not x or x < 0 then return "The fragment is too worn to read." end
+    local y  = tonumber(dfhack.persistent.getWorldDataString(cave_key(idx, "y")))
+    local z  = tonumber(dfhack.persistent.getWorldDataString(cave_key(idx, "z")))
+    local ct = dfhack.persistent.getWorldDataString(cave_key(idx, "type")) or "treasure"
+
+    if ct == "trap" then
+        local map_w = df.global.world.map.x_count
+        local map_h = df.global.world.map.y_count
+        local rx = x - math.floor(map_w / 2)
+        local ry = y - math.floor(map_h / 2)
+        local dir = (math.abs(rx) >= math.abs(ry))
+            and (rx >= 0 and "east" or "west")
+            or  (ry >= 0 and "south" or "north")
+        return ("Danger lurks to the %s, deep underground (z=%d). Tread carefully!"):format(dir, z)
+    else
+        return ("Riches await at approximately (%d, %d), %d levels underground."):format(x, y, z)
+    end
+end
+
+-- Reveal the next unrevealed cave hint when a Cave Map Fragment is received.
+function M.reveal_next()
+    local next_idx = (tonumber(dfhack.persistent.getWorldDataString(KEY_FRAG_IDX)) or 0) + 1
+    if next_idx > NUM_CAVES then
+        dfhack.gui.showAnnouncement(
+            "[AP] Cave Map Fragment: all known caves have already been revealed.",
+            COLOR_YELLOW, false)
+        return
+    end
+    local hint = M.get_hint(next_idx)
+    dfhack.persistent.saveWorldDataString(KEY_FRAG_IDX, tostring(next_idx))
+    dfhack.gui.showAnnouncement(
+        ("[AP] Cave Map Fragment #%d: %s"):format(next_idx, hint),
+        COLOR_CYAN, true)
+    print(("[Dwarfipelago] Map fragment #%d: %s"):format(next_idx, hint))
+end
+
+return M

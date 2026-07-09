@@ -670,6 +670,8 @@ class DwarfFortressContext(CommonContext):
         self._shop_scout_sent = False    # sent LocationScouts for shop slots this AP session
         self._shop_last_sig = None       # last shop table written to Lua (skip redundant writes)
         self._is_reembark = False        # True during re-embark item re-delivery
+        self._custom_caves_enabled = False   # from slot_data; gates cave generation + discovery
+        self._discovered_caves: set[int] = set()  # cave indices already sent as location checks
 
     def debug(self, msg: str):
         """Log only when debug mode is enabled (toggle with /dfdebug)."""
@@ -738,10 +740,11 @@ class DwarfFortressContext(CommonContext):
                 # ── Fortress operations (map guaranteed loaded) ───────────────
                 await self._sync_slot_data()
                 if self._slot_data_synced:
-                    # DeathLink and goal checks are safe to run at any time.
+                    # DeathLink, goal, and cave checks are safe to run at any time.
                     await self._apply_received_deathlinks()
                     await self._check_deathlink_send()
                     await self._check_goal_complete()
+                    await self._check_cave_discoveries()
 
                     # Location checks and item delivery are held until the trade
                     # depot is established - either auto-placed by the mod or
@@ -971,6 +974,7 @@ class DwarfFortressContext(CommonContext):
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_threshold", "{dl_threshold}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_percentage", "{int(dl_percentage)}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/seed", "{self.seed}")')
+                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/custom_caves", "{1 if self._custom_caves_enabled else 0}")')
                     write()
                     self.init_crafting_locations()
                     self.init_skill_locations()
@@ -1129,6 +1133,35 @@ class DwarfFortressContext(CommonContext):
             self._goal_complete = True
             await self.send_msgs([{"cmd": "StatusUpdate", "status": ClientStatus.CLIENT_GOAL}])
             logger.info("Goal complete - sent ClientStatus.CLIENT_GOAL to AP server")
+
+    async def _check_cave_discoveries(self):
+        """
+        Poll the Lua-side cave discovery flags and send AP location checks for
+        each cave a dwarf has entered. Custom Cave N maps to BASE_ID + 2300 + (N-1).
+        """
+        if not self._custom_caves_enabled:
+            return
+
+        CAVE_BASE_ID = 37372300  # BASE_ID + 2300
+
+        def read_discoveries():
+            results = {}
+            for idx in range(1, 7):
+                if idx in self._discovered_caves:
+                    continue
+                raw = self.dfhack.run_command(
+                    "lua",
+                    f'print(dfhack.persistent.getWorldDataString("dwarfipelago/cave/{idx}/discovered") or "0")',
+                )
+                if raw and raw.strip() == "1":
+                    results[idx] = CAVE_BASE_ID + (idx - 1)
+            return results
+
+        newly = await asyncio.get_event_loop().run_in_executor(None, read_discoveries)
+        for cave_idx, loc_id in newly.items():
+            await self.send_msgs([{"cmd": "LocationChecks", "locations": [loc_id]}])
+            self._discovered_caves.add(cave_idx)
+            logger.info(f"Custom cave {cave_idx} discovered — sent location check {loc_id}")
 
     def init_crafting_locations(self):
         last_item = ""
@@ -1529,6 +1562,7 @@ class DwarfFortressContext(CommonContext):
             self._deathlink_enabled = bool(self.slot_data.get("deathlink", 0))
             if self._deathlink_enabled:
                 asyncio.create_task(self.update_death_link(True))
+            self._custom_caves_enabled = bool(self.slot_data.get("custom_caves", 0))
             self.energy_link_enabled = bool(self.slot_data.get("energy_link", 0))
             if self.energy_link_enabled:
                 async_start(self.send_msgs([{

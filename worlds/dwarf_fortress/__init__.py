@@ -5,15 +5,16 @@ from Options import OptionError
 from worlds.LauncherComponents import Component, icon_paths, components, Type, launch_subprocess
 from worlds.dwarf_fortress.skillsanity import Skillsanity
 
-from .options import DwarfFortressOptions, DwarfFortressGoal, CraftingPermits, dwarf_fortress_option_groups
+from .options import DwarfFortressOptions, DwarfFortressGoal, CraftingPermits, dwarf_fortress_option_groups, EnableCustomCaves
 from .settings import DwarfFortressSettings
 from .items import (
     ItemData, ITEM_TABLE, AP_ITEM_POOL, FILLER_ITEMS, TRAP_ITEMS,
-    PROGRESSION_ITEMS, USEFUL_ITEMS, CRAFT_ITEMS, RECEIVED_TRAPS
+    PROGRESSION_ITEMS, USEFUL_ITEMS, CRAFT_ITEMS, RECEIVED_TRAPS,
+    CAVE_MAP_FRAGMENT,
 )
 from .locations import (
     LocationData, LOCATION_TABLE, ALL_LOCATIONS, SHOP_LOCATIONS, SHOP_SLOTS,
-    SHOP_PRICE_MIN, SHOP_PRICE_MAX,
+    SHOP_PRICE_MIN, SHOP_PRICE_MAX, CAVE_LOCATIONS, CAVE_LOCATION_COUNT,
 )
 from .craftsanity import (
     generate_location_data,
@@ -142,6 +143,13 @@ class DwarfFortressWorld(World):
                 f"{self.player_name}: You cannot set your goal to dwarfsanity without crafting permits enabled. Enable Crafting Permits."
             )
 
+        # Custom caves: add 6 cave location names and 6 Cave Map Fragment items
+        # when the feature is enabled. Fragments are inserted before the optional
+        # shuffle so the pool count stays balanced with the location count.
+        if self.options.custom_caves:
+            for _ in range(CAVE_LOCATION_COUNT):
+                self.ap_item_pool.append(CAVE_MAP_FRAGMENT)
+
         # Active set = the static non-craft locations (LOCATION_TABLE) plus the
         # craft subset this slot generated. Goal-based filtering then drops
         # locations that don't apply to the chosen goal:
@@ -149,7 +157,10 @@ class DwarfFortressWorld(World):
         #   - the noble ladder is charter progression locks (mountainhome only)
         # rules.py only references these for their matching goal, so dropping them
         # leaves no dangling rule lookups. (Mirrors the item removal in create_items.)
+        cave_location_names = {loc.name for loc in CAVE_LOCATIONS}
         active = set(LOCATION_TABLE.keys()) | set(self.dynamic_locations_names)
+        if not self.options.custom_caves:
+            active -= cave_location_names
         WEALTH_TIER_LOCATIONS = {
             "Humble Beginnings (1,000)",
             "Growing Stronghold (10,000)",
@@ -353,6 +364,7 @@ class DwarfFortressWorld(World):
             "deathlink_percentage": self.options.deathlink_percentage.value,
             "energy_link": self.options.energy_link.value,
             "mining_depth": self.options.mining_depth.value,
+            "custom_caves": self.options.custom_caves.value,
             "shop": shop_data,
             "version": f"{self.world_version.as_simple_string()}",
         }

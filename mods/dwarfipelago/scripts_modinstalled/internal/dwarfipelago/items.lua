@@ -2110,6 +2110,12 @@ M.handlers = {
     ["Monarch's Invitation"] = recv_monarchs_invitation,
     ["Military Training"]    = recv_military_training,
     ["Progressive Mining Depth"] = recv_progressive_mining_depth,
+
+    -- Cave Map Fragment: reveal the next undiscovered custom cave hint.
+    ["Cave Map Fragment"] = function()
+        local caves = reqscript("internal/dwarfipelago/caves")
+        caves.reveal_next()
+    end,
 }
 
 -- ── Blueprint items ───────────────────────────────────────────────────────────

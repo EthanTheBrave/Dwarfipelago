@@ -127,6 +127,11 @@ TRAP_ITEMS: list[ItemData] = [
     ItemData("Goblin Trophy",          BASE_ID + 532, ItemClassification.trap),
 ]
 
+# Cave Map Fragment: received from AP — reveals a hint (coords or directional
+# warning) about the next undiscovered custom cave.  Filler tier since it is
+# informational only; active in the pool whenever EnableCustomCaves is on.
+CAVE_MAP_FRAGMENT = ItemData("Cave Map Fragment", BASE_ID + 1200, ItemClassification.filler, weight=8)
+
 CRAFT_ITEMS: list[ItemData] = [ #commented items people should get when getting the blueprints
     ItemData("Beds Permit", BASE_ID + 1000, ItemClassification.progression),
     ItemData("Corkscrew Permit", BASE_ID + 1001, ItemClassification.progression),
@@ -318,8 +323,10 @@ AP_ITEM_POOL: list[ItemData] = \
 
 
 # All items (for name→ID mapping used by item_name_to_id).
-# AP_ITEM_POOL already covers every item the world deals with.
-ALL_ITEMS: list[ItemData] = AP_ITEM_POOL
+# AP_ITEM_POOL covers all standard items. CAVE_MAP_FRAGMENT is registered here
+# so create_item() can look up its ID, but copies are added per-slot in __init__.py
+# only when EnableCustomCaves is on.
+ALL_ITEMS: list[ItemData] = AP_ITEM_POOL + [CAVE_MAP_FRAGMENT]
 ITEM_TABLE: dict[str, int] = {}
 for data in ALL_ITEMS:
     ITEM_TABLE.update({data.name: data.ap_id})
