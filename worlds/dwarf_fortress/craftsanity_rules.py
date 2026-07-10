@@ -13,188 +13,176 @@ class DynamicCraftingLocationRules:
     def __init__(self, world: "DwarfFortressWorld") -> None:
         self.player = world.player
         self.world = world
-            
 
-    def wood(self, state:CollectionState) -> bool:
-        return state.has("Carpenter's Workshop Blueprint", self.player)
-    
+    def job_type(self, state:CollectionState, material:str) -> bool:
+        match material:
+            case "Metal" | "Metalcraft" | "Metalworks":
+                return self.metal(state)
+            case "Adamantinemetal":
+                return self.adamantine_metal(state)
+            case "Wood" | "Woodworks":
+                return state.has("Carpenter's Workshop Blueprint", self.player)
+            case "Woodcraft":
+                return self.craftdwarf_workshop(state)
+            case "Bone":
+                return self.process_resource(state, "bone")
+            case "Bonecraft":
+                return self.process_resource(state, "bone") and self.craftdwarf_workshop(state)
+            case "Cloth":
+                return self.process_resource(state, "cloth")
+            case "Clothworks":
+                return self.process_resource(state, "cloth") and state.has("Clothier's Shop Blueprint", self.player)
+            case "Clothcraft":
+                return (self.process_resource(state, "cloth") or self.silk(state)) \
+                and self.craftdwarf_workshop(state) #TODO doublecheck this in-game for cloth crafts
+            case "Silk":
+                return self.silk(state)
+            case "Silkworks":
+                return self.silk(state) and state.has("Clothier's Shop Blueprint", self.player)
+            case "Adamantinecloth":
+                return self.adamantine_cloth(state)
+            case "Glass":
+                return self.process_resource(state, "glass")
+            case "Ceramic" | "Ceramics":
+                return self.process_resource(state, "ceramic")
+            case "Leather":
+                return self.process_resource(state, "leather")
+            case "Leatherworks":
+                return self.process_resource(state, "leather") and state.has("Leather Works Blueprint", self.player)
+            case "Leathercraft":
+                return self.process_resource(state, "leather") and self.craftdwarf_workshop(state)
+            case "Stone":
+                return state.has("Stoneworker's Workshop Blueprint", self.player)
+            case "Stonecraft":
+                return self.craftdwarf_workshop(state)
+            case "Fishing":
+                return True
+            case "Fish Cleaner" | "Fish Dissector":
+                return state.has("Fishery Blueprint", self.player)
+            case "Prepare Food":
+                return (state.has("Fishery Blueprint", self.player) or state.has("Farm Plot Blueprint", self.player) \
+                or state.has("Butcher's Shop Blueprint", self.player)) and state.has("Kitchen Blueprint", self.player)
+
+        "need_material type missing: "+material
+        return False
+            
     def metal(self, state:CollectionState) -> bool:
-        if self.world.options.trades_inlogic:
-            return state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")
-        else:
-            return self.process_resource(state, "metal") and (state.has("Forge Blueprint", self.player) or \
-            self.magma_processing(state, "forge"))
+        return self.process_resource(state, "metal") and ((self.can_fuel_workshops(state) \
+        and state.has("Forge Blueprint", self.player)) or \
+        self.magma_processing(state, "forge"))
         
-    def bone(self, state:CollectionState) -> bool:
-        return self.process_resource(state, "bone")
+    def adamantine_metal(self, state:CollectionState) -> bool:
+        return self.process_resource(state, "adamantine_metal") and ((self.can_fuel_workshops(state) \
+        and state.has("Forge Blueprint", self.player)) or self.magma_processing(state, "forge"))
     
-    def bonecraft(self, state:CollectionState) -> bool:
-        return self.process_resource(state, "bone") and self.craftdwarf_workshop(state)
+    def adamantine_cloth(self, state:CollectionState) -> bool:
+        return self.process_resource(state, "adamantine_cloth") and ((self.can_fuel_workshops(state) \
+        and state.has("Forge Blueprint", self.player)) or self.magma_processing(state, "forge"))
     
-    def leathercraft(self, state:CollectionState) -> bool:
-        return self.leather(state) and self.craftdwarf_workshop(state)
+    def adamantine_thread(self, state:CollectionState) -> bool:
+        self.can_mine_adamantine(state) and state.has("Craftsdwarf's Workshop Blueprint", self.player)
+
+    def silk(self, state:CollectionState) -> bool:
+        if self.world.options.trades_inlogic:
+            return True
+        else:
+            if self.world.options.mining_depth:
+                return self.process_resource(state, "silk") and state.has("Progressive Mining Depth", self.player, 2) #TODO check how many mining depth
+            else:
+                return self.process_resource(state, "silk")
+            
+    def silk_thread(self, state:CollectionState) -> bool:
+        if self.world.options.trades_inlogic:
+            return True
+        else:
+            if self.world.options.mining_depth:
+                return state.has("Loom Blueprint", self.player) and state.has("Progressive Mining Depth", self.player, 2) #TODO check how many mining depth
+            else:
+                return state.has("Loom Blueprint", self.player)
     
-    def forge_only(self, state:CollectionState) -> bool:
-         return self.magma_processing(state, "forge") or state.has("Forge Blueprint", self.player)
+    def permit(self, state:CollectionState, permit:str) -> bool:
+        return state.has(permit + " Permit", self.player)
+    
+    def can_mine_adamantine(self, state:CollectionState) -> bool:
+        if self.world.options.mining_depth:
+            return state.has("Progressive Mining Depth", self.player, 4)
+        else:
+            return True
+        
+    def can_fuel_workshops(self, state:CollectionState) -> bool:
+        if self.world.options.trades_inlogic: #can buy fuel
+            return True
+        else:
+            if self.world.options.craftpermits == CraftingPermits.option_off:
+                return state.has("Wood Furnace Blueprint", self.player) or self.magma_processing(state, "coke")
+            elif self.world.options.craftpermits == CraftingPermits.option_on:
+                return state.has("Wood Furnace Blueprint", self.player) or (self.magma_processing(state, "coke") \
+                and self.permit(state, "Coke"))
+            else:
+                return (state.has("Wood Furnace Blueprint", self.player) and self.permit(state, "Charcoal")) or (self.magma_processing(state, "coke") \
+                and self.permit(state, "Coke"))
         
     def process_resource(self, state:CollectionState, resource) -> bool: #glass, metal, ceramic
         if resource == "metal":
             if self.world.options.craftpermits == CraftingPermits.option_off:
-                return (state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player)) or \
-                self.magma_processing(state, "metal")
-            elif self.world.options.craftpermits == CraftingPermits.option_on:
-                return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player)) or \
-                self.magma_processing(state, "metal")) and state.has("Metal Bars Permit", self.player)
+                return (self.can_fuel_workshops(state) and state.has("Smelter Blueprint", self.player)) \
+                or self.magma_processing(state, "metal")
             else:
-                return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player) and \
-                state.has("Charcoal Permit", self.player)) or self.magma_processing(state, "metal")) and \
-                state.has("Metal Bars Permit", self.player)
-        if resource == "adamantine_metal":
-            if self.world.options.craftpermits == CraftingPermits.option_off:
-                if self.world.options.mining_depth: # need to dig deep
-                    if self.world.options.trades_inlogic: # don't need fuel
-                        return (state.has("Smelter Blueprint", self.player) or self.magma_processing(state, "metal")) \
-                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
-                        and (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
-                        and state.has("Progressive Mining Depth", self.player, 4)
-                    else:
-                        return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player)) \
-                        or self.magma_processing(state, "metal")) \
-                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
-                        and (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
-                        and state.has("Progressive Mining Depth", self.player, 4)
-                else:
-                    if self.world.options.trades_inlogic: # don't need fuel
-                        return (state.has("Smelter Blueprint", self.player) or self.magma_processing(state, "metal")) \
-                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
-                        and (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge"))
-                    else:
-                        return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player)) \
-                        or self.magma_processing(state, "metal")) \
-                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
-                        and (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) 
-            elif self.world.options.craftpermits == CraftingPermits.option_on:
-                if self.world.options.mining_depth: # need to dig deep
-                    if self.world.options.trades_inlogic: # don't need fuel
-                        return (state.has("Smelter Blueprint", self.player) or self.magma_processing(state, "metal")) \
-                        and (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
-                        and state.has("Metal Bars Permit", self.player) and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
-                        and state.has("Progressive Mining Depth", self.player, 4)
-                    else:
-                        return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player)) or \
-                        self.magma_processing(state, "metal")) and state.has("Metal Bars Permit", self.player) \
-                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) and (state.has("Forge Blueprint", self.player) or \
-                        self.magma_processing(state, "forge")) and state.has("Progressive Mining Depth", self.player, 4)
-                else:
-                    if self.world.options.trades_inlogic: # don't need fuel
-                        return (state.has("Smelter Blueprint", self.player) or self.magma_processing(state, "metal")) \
-                        and (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
-                        and state.has("Metal Bars Permit", self.player) and state.has("Craftsdwarf's Workshop Blueprint", self.player)
-                    else:
-                        return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player)) or \
-                        self.magma_processing(state, "metal")) and state.has("Metal Bars Permit", self.player) \
-                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) and (state.has("Forge Blueprint", self.player) or \
-                        self.magma_processing(state, "forge"))
-            else:
-                if self.world.options.mining_depth: # need to dig deep
-                    if self.world.options.trades_inlogic: # don't need fuel
-                        return (state.has("Smelter Blueprint", self.player) or self.magma_processing(state, "metal")) \
-                        and state.has("Metal Bars Permit", self.player) and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
-                        and (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
-                        and state.has("Progressive Mining Depth", self.player, 4)
-                    else:
-                        return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player) \
-                        and state.has("Charcoal Permit", self.player)) or (self.magma_processing(state, "metal") \
-                        and state.has("Coke Bars Permit", self.player))) and state.has("Metal Bars Permit", self.player) \
-                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
-                        and (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
-                        and state.has("Progressive Mining Depth", self.player, 4)
-                else:
-                    if self.world.options.trades_inlogic: # don't need fuel
-                        return (state.has("Smelter Blueprint", self.player) or self.magma_processing(state, "metal")) \
-                        and state.has("Metal Bars Permit", self.player) and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
-                        and (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge"))
-                    else:
-                        return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player) \
-                        and state.has("Charcoal Permit", self.player)) or (self.magma_processing(state, "metal") \
-                        and state.has("Coke Bars Permit", self.player))) and state.has("Metal Bars Permit", self.player) \
-                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
-                        and (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge"))
-        if resource == "adamantine_cloth":
+                return ((self.can_fuel_workshops(state) and state.has("Smelter Blueprint", self.player)) \
+                or self.magma_processing(state, "metal")) and state.has("Metal Bars Permit", self.player)
+        elif resource == "adamantine_metal":
+            return self.can_mine_adamantine(state) and self.process_resource(state, "metal") \
+            and state.has("Craftsdwarf's Workshop Blueprint", self.player)
+        elif resource == "adamantine_cloth":
             if self.world.options.craftpermits != CraftingPermits.option_all:
-                if self.world.options.mining_depth:  # can't mine adamantine without depth  
-                    if self.world.options.trades_inlogic: # obtain fuel
-                        return (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
-                            and state.has("Craftsdwarf's Workshop Blueprint", self.player) and state.has("Loom Blueprint", self.player) \
-                            and state.has("Progressive Mining Depth", self.player, 4)
-                    else:
-                        return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Charcoal Permit", self.player) \
-                            and state.has("Forge Blueprint", self.player)) or self.magma_processing(state, "forge")) \
-                            and state.has("Craftsdwarf's Workshop Blueprint", self.player) and state.has("Loom Blueprint", self.player) \
-                            and state.has("Cloth Permit", self.player) and state.has("Progressive Mining Depth", self.player, 4)
-                else: # no depth item
-                    if self.world.options.trades_inlogic: # obtain fuel
-                        return (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
-                            and state.has("Craftsdwarf's Workshop Blueprint", self.player) and state.has("Loom Blueprint", self.player)
-                    else:
-                        return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Charcoal Permit", self.player) \
-                            and state.has("Forge Blueprint", self.player)) or self.magma_processing(state, "forge")) \
-                            and state.has("Craftsdwarf's Workshop Blueprint", self.player) and state.has("Loom Blueprint", self.player) \
-                            and state.has("Cloth Permit", self.player)
+                return self.can_mine_adamantine(state) and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
+                and state.has("Loom Blueprint", self.player) 
             else:
-                if self.world.options.mining_depth:  # can't mine adamantine without depth 
-                    if self.world.options.trades_inlogic: #obtain fuel
-                        return (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
-                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) and state.has("Loom Blueprint", self.player) \
-                        and state.has("Cloth Permit", self.player) and state.has("Progressive Mining Depth", self.player, 4)
-                    else:
-                        return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Charcoal Permit", self.player) \
-                        and state.has("Forge Blueprint", self.player)) or self.magma_processing(state, "forge")) \
-                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) and state.has("Loom Blueprint", self.player) \
-                        and state.has("Cloth Permit", self.player) and state.has("Progressive Mining Depth", self.player, 4)
-                else: #no depth
-                    if self.world.options.trades_inlogic: #obtain fuel
-                        return (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
-                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) and state.has("Loom Blueprint", self.player) \
-                        and state.has("Cloth Permit", self.player)
-                    else:
-                        return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Charcoal Permit", self.player) \
-                        and state.has("Forge Blueprint", self.player)) or self.magma_processing(state, "forge")) \
-                        and state.has("Craftsdwarf's Workshop Blueprint", self.player) and state.has("Loom Blueprint", self.player) \
-                        and state.has("Cloth Permit", self.player)
-        if resource == "coke":
+                return self.can_mine_adamantine(state) and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
+                and state.has("Loom Blueprint", self.player) and self.permit(state, "Cloth")
+        elif resource == "cloth":
+            if self.world.options.trades_inlogic:
+                return True
+            else:
+                if self.world.options.craftpermits != CraftingPermits.option_all:
+                    return self.thread(state) 
+                else:
+                    return self.thread(state) and self.permit(state, "Cloth")
+        elif resource == "silk":
+            if self.world.options.craftpermits != CraftingPermits.option_all:
+                state.has("Loom Blueprint", self.player) 
+            else:
+                return state.has("Loom Blueprint", self.player) and self.permit(state, "Cloth")
+        elif resource == "coke":
             if self.world.options.craftpermits == CraftingPermits.option_off:
-                return (state.has("Wood Furnace Blueprint", self.player) and state.has("Smelter Blueprint", self.player)) or \
-                self.magma_processing(state, "coke")
-            elif self.world.options.craftpermits == CraftingPermits.option_on:
-                return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Forge Blueprint", self.player)) or \
-                self.magma_processing(state, "coke")) and state.has("Coke Bars Permit", self.player)
+                return (self.can_fuel_workshops(state) and state.has("Smelter Blueprint", self.player)) \
+                or self.magma_processing(state, "coke")
             else:
-                return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Forge Blueprint", self.player) and \
-                state.has("Charcoal Permit", self.player)) or self.magma_processing(state, "coke")) and \
-                state.has("Coke Bars Permit", self.player)
+                return ((self.can_fuel_workshops(state) and state.has("Smelter Blueprint", self.player)) \
+                or self.magma_processing(state, "coke")) and self.permit(state, "Coke Bars")
         elif resource == "glass":
             if self.world.options.craftpermits == CraftingPermits.option_off:
-                return (state.has("Wood Furnace Blueprint", self.player) and state.has("Glass Furnace Blueprint", self.player)) or \
+                return (self.can_fuel_workshops(state) and state.has("Glass Furnace Blueprint", self.player)) or \
                 self.magma_processing(state, "glass")
-            elif self.world.options.craftpermits == CraftingPermits.option_on:
-                return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Glass Furnace Blueprint", self.player)) or \
-                self.magma_processing(state, "glass")) and state.has("Glass Permit", self.player)
             else:
-                return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Glass Furnace Blueprint", self.player) and \
-                state.has("Charcoal Permit", self.player)) or self.magma_processing(state, "glass")) and \
-                state.has("Glass Permit", self.player) 
+                return ((self.can_fuel_workshops(state) and state.has("Glass Furnace Blueprint", self.player)) or \
+                self.magma_processing(state, "glass")) and self.permit(state, "Glass") 
         elif resource == "ceramic":
-            if self.world.options.craftpermits != CraftingPermits.option_all:
-                return (state.has("Wood Furnace Blueprint", self.player) and state.has("Kiln Blueprint", self.player)) or \
+                return (self.can_fuel_workshops(state) and state.has("Kiln Blueprint", self.player)) or \
                 self.magma_processing(state, "ceramic")
-            else:
-                return (state.has("Wood Furnace Blueprint", self.player) and state.has("Kiln Blueprint", self.player) and \
-                state.has("Charcoal Permit", self.player)) or self.magma_processing(state, "ceramic")
         elif resource == "bone":
              return state.has("Butcher's Shop Blueprint", self.player)
         elif resource == "farming":
                 return state.has("Farm Plot Blueprint", self.player)
+        elif resource == "leather":
+            if self.world.options.trades_inlogic:
+                return True
+            else:
+                if self.world.options.craftpermits != CraftingPermits.option_all:
+                    return state.has("Tanner's Blueprint", self.player) and self.butcher_workshop(state)
+                else:
+                    return state.has("Tanner's Blueprint", self.player) and self.butcher_workshop(state) \
+                    and self.permit(state, "Leather")
         else:
             print("Missing Resource Type for process_resource function")
             return False
@@ -230,81 +218,53 @@ class DynamicCraftingLocationRules:
         else:
             return self.process_resource(state, "metal")
         
-    def needs_make_metal(self, state:CollectionState) -> bool:
-        return self.process_resource(state, "metal")
-    
-    def adamantine_metal(self, state:CollectionState) -> bool:
-        return self.process_resource(state, "adamantine_metal")
-        
-    def ceramic(self, state:CollectionState) -> bool:
-        return self.process_resource(state, "ceramic")
-    
-    def glass(self, state:CollectionState) -> bool:
-        return self.process_resource(state, "glass")
-    
-    def stone(self, state:CollectionState) -> bool:
-        return state.has("Stoneworker's Workshop Blueprint", self.player)
-    
-    def leather(self, state:CollectionState) -> bool:
-        return state.has("Tanner's Blueprint", self.player) and self.butcher_workshop(state)
-
-    def leather_works(self, state:CollectionState) -> bool:
-        if self.world.options.trades_inlogic:
-            return state.has("Leather Works Blueprint", self.player)
-        else:
-            if self.world.options.craftpermits != CraftingPermits.option_all:
-                return self.leather(state) and state.has("Leather Works Blueprint", self.player)
-            else:
-                return self.leather(state) and state.has("Leather Works Blueprint", self.player) and \
-                state.has("Leather Permit", self.player)
-
-    def adamantine_cloth(self, state:CollectionState) -> bool:
-        return self.process_resource(state, "adamantine_cloth")
-    
     def adamantine_or_cloth(self, state:CollectionState) -> bool:
         return self.clothier_workshop(state) or self.adamantine_cloth(state)
 
     def adamantinecloth_or_leather(self, state:CollectionState) -> bool:
         return self.adamantine_cloth(state) or self.leather_works(state) 
     
-    def cloth(self, state:CollectionState) -> bool:
-        return state.has("Loom Blueprint", self.player)
-    
-    def thread(self, state:CollectionState) -> bool:
+    def any_thread(self, state:CollectionState) -> bool:
         if self.world.options.trades_inlogic:
              return True
         else:
-            return state.has("Farmer's Workshop Blueprint", self.player) or state.has("Loom Blueprint", self.player)
-    
-    def clothier_workshop(self, state:CollectionState) -> bool:
+            return self.cloth_thread(state) or self.silk_thread(state) or self.wool_thread(state) \
+            or self.adamantine_thread(state)
+        
+    def cloth_thread(self, state:CollectionState) -> bool:
         if self.world.options.trades_inlogic:
-            return state.has("Clothier's Shop Blueprint", self.player)
+             return True
         else:
-            if self.world.options.craftpermits != CraftingPermits.option_all:
-                return self.cloth(state) and state.has("Clothier's Shop Blueprint", self.player)
-            else:
-                return self.make_cloth(state) and state.has("Clothier's Shop Blueprint", self.player)
+            return (state.has("Loom Blueprint", self.player) and state.has("Farm Plot Blueprint", self.player))
+        
+    def wool_thread(self, state:CollectionState) -> bool:
+        if self.world.options.trades_inlogic:
+             return True
+        else:
+            return state.has("Farmer's Workshop Blueprint", self.player)
         
     def wood_or_metal(self, state:CollectionState) -> bool:
-        return self.wood(state) or self.metal(state)
+        return self.job_type(state, "Metal") or self.job_type(state, "Woodworks")
     
     def wood_or_metal_or_glass(self, state:CollectionState) -> bool:
-        return self.wood(state) or self.metal(state) or self.glass(state)
+        return self.job_type(state, "Metal") or self.job_type(state, "Woodworks") or self.job_type(state, "Glass")
     
     def wood_or_stone_or_metal_or_glass(self, state:CollectionState) -> bool:
-        return self.wood(state) or self.stone(state) or self.metal(state) or self.glass(state)
+        return self.job_type(state, "Metal") or self.job_type(state, "Woodworks") or self.job_type(state, "Glass") \
+        or self.job_type(state, "Stone")
     
     def wood_or_stone_or_metal_or_glass_or_ceramic(self, state:CollectionState) -> bool:
-        return self.wood(state) or self.stone(state) or self.metal(state) or self.glass(state) or self.ceramic(state)
+        return self.job_type(state, "Metal") or self.job_type(state, "Woodworks") or self.job_type(state, "Glass") \
+        or self.job_type(state, "Stone") or self.job_type(state, "Ceramics")
     
-    def wood_or_leather_or_metal(self, state:CollectionState) -> bool:
-        return self.wood(state) or self.leather_works(state) or self.metal(state) 
+    def wood_or_leatherworks_or_metal(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Metal") or self.job_type(state, "Woodworks") or self.job_type(state, "Leatherworks")
     
     def bowyer_workshop(self, state:CollectionState) -> bool:
         return state.has("Bowyer's Workshop Blueprint", self.player)
     
     def bone_bowyer_workshop(self, state:CollectionState) -> bool:
-        return state.has("Bowyer's Workshop Blueprint", self.player) and self.bone(state)
+        return state.has("Bowyer's Workshop Blueprint", self.player) and self.job_type(state, "Bone")
     
     def craftdwarf_workshop(self, state:CollectionState) -> bool:
         return state.has("Craftsdwarf's Workshop Blueprint", self.player)
@@ -334,8 +294,7 @@ class DynamicCraftingLocationRules:
         return state.has("Still Blueprint", self.player)
     
     def ashery(self, state:CollectionState) -> bool:
-        if self.world.options.trades_inlogic == True \
-        or self.world.options.craftpermits == CraftingPermits.option_off:
+        if self.world.options.trades_inlogic == True or self.world.options.craftpermits == CraftingPermits.option_off:
             return state.has("Ashery Blueprint", self.player)
         elif self.world.options.craftpermits == CraftingPermits.option_on:
             return state.has("Ashery Blueprint", self.player) and self.wood_or_metal_bucket(state)
@@ -351,65 +310,65 @@ class DynamicCraftingLocationRules:
         return self.kitchen(state) and self.butcher_workshop(state)
     
     def seige_and_metal(self, state:CollectionState) -> bool:
-        return self.seige_workshop(state) and self.metal(state)
+        return self.seige_workshop(state) and self.job_type(state, "Metal")
 
     def bowyer_or_metal(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.bowyer_workshop(state) 
+        return self.job_type(state, "Metal") or self.bowyer_workshop(state) 
     
     def woodcraft_or_bonecraft_or_metal(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.craftdwarf_workshop(state) or self.bonecraft(state)
+        return self.job_type(state, "Metal") or self.craftdwarf_workshop(state) or self.bonecraft(state)
 
     def craftdwarf_or_metal(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.craftdwarf_workshop(state) 
+        return self.job_type(state, "Metal") or self.craftdwarf_workshop(state) 
     
     def craftdwarf_and_butchery(self, state:CollectionState) -> bool:
         return self.craftdwarf_workshop(state) and self.butcher_workshop(state)
     
     def craftdwarf_or_metal_or_glass(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) or self.metal(state) or self.glass(state)
+        return self.craftdwarf_workshop(state) or self.job_type(state, "Metal") or self.glass(state)
     
     def craftdwarf_or_metal_or_glass_or_ceramic(self, state:CollectionState) -> bool:
-         return self.craftdwarf_workshop(state) or self.metal(state) or self.glass(state) or self.ceramic(state)
+         return self.craftdwarf_workshop(state) or self.job_type(state, "Metal") or self.glass(state) or self.ceramic(state)
     
     def wooden_traction_bench(self, state:CollectionState) -> bool:
         return self.wood(state) and self.mechanic_workshop(state) and \
-        (self.metal(state) or self.clothier_workshop(state))
+        (self.job_type(state, "Metal") or self.clothier_workshop(state))
     
     def stone_traction_bench(self, state:CollectionState) -> bool:
         return self.stone(state) and self.mechanic_workshop(state) and \
-        (self.metal(state) or self.clothier_workshop(state))
+        (self.job_type(state, "Metal") or self.clothier_workshop(state))
     
     def metal_traction_bench(self, state:CollectionState) -> bool:
-        return self.metal(state) and self.mechanic_workshop(state)
+        return self.job_type(state, "Metal") and self.mechanic_workshop(state)
     
     def glass_traction_bench(self, state:CollectionState) -> bool:
         return self.glass(state) and self.mechanic_workshop(state) and \
-        (self.metal(state) or self.clothier_workshop(state))
+        (self.job_type(state, "Metal") or self.clothier_workshop(state))
     
     def any_traction_bench(self, state:CollectionState) -> bool:
-        return (self.glass(state) or self.metal(state) or self.wood(state) or self.stone(state)) \
-        and self.mechanic_workshop(state) and (self.metal(state) or self.clothier_workshop(state))
+        return (self.glass(state) or self.job_type(state, "Metal") or self.wood(state) or self.stone(state)) \
+        and self.mechanic_workshop(state) and (self.job_type(state, "Metal") or self.clothier_workshop(state))
     
     def metal_or_glass_or_leather(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.glass(state) or self.leather_works(state)
+        return self.job_type(state, "Metal") or self.glass(state) or self.leather_works(state)
     
     def metal_or_glass(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.glass(state)
+        return self.job_type(state, "Metal") or self.glass(state)
     
     def metal_or_leather(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.leather_works(state)
+        return self.job_type(state, "Metal") or self.leather_works(state)
     
     def metal_or_bone(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.bonecraft(state)
+        return self.job_type(state, "Metal") or self.bonecraft(state)
     
     def metal_or_cloth(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.clothier_workshop(state)
+        return self.job_type(state, "Metal") or self.clothier_workshop(state)
 
     def metal_or_bone_or_leather(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.leather_works(state) or self.bonecraft(state)
+        return self.job_type(state, "Metal") or self.leather_works(state) or self.bonecraft(state)
     
     def metal_or_cloth_or_leather(self, state:CollectionState) -> bool:
-        return self.metal(state) or self.leather_works(state) or self.clothier_workshop(state)
+        return self.job_type(state, "Metal") or self.leather_works(state) or self.clothier_workshop(state)
     
     def make_paper(self, state:CollectionState) -> bool:
         return self.famer_workshop(state) or self.screw_press(state) or self.leather(state)
@@ -453,7 +412,7 @@ class DynamicCraftingLocationRules:
     def wood_corkscrew(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Corkscrew Permit", self.player)
     def metal_corkscrew(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Corkscrew Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Corkscrew Permit", self.player)
     def adamantine_corkscrew(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Corkscrew Permit", self.player)
     def glass_corkscrew(self, state:CollectionState) -> bool:
@@ -464,7 +423,7 @@ class DynamicCraftingLocationRules:
     def wood_spike(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Menacing Spike Permit", self.player)
     def metal_spike(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Menacing Spike Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Menacing Spike Permit", self.player)
     def adamantine_spike(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Menacing Spike Permit", self.player)
     def wood_or_metal_spike(self, state:CollectionState) -> bool:
@@ -473,7 +432,7 @@ class DynamicCraftingLocationRules:
     def wood_ball(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Spiked Ball Permit", self.player)
     def metal_ball(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Spiked Ball Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Spiked Ball Permit", self.player)
     def adamantine_ball(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Spiked Ball Permit", self.player)
     def glass_ball(self, state:CollectionState) -> bool:
@@ -484,7 +443,7 @@ class DynamicCraftingLocationRules:
     def wood_animal_trap(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Animal Trap Permit", self.player)
     def metal_animal_trap(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Animal Trap Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Animal Trap Permit", self.player)
     def adamantine_animal_trap(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Animal Trap Permit", self.player)
     def wood_or_metal_animal_trap(self, state:CollectionState) -> bool:
@@ -493,7 +452,7 @@ class DynamicCraftingLocationRules:
     def wood_barrel(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Barrel Permit", self.player)
     def metal_barrel(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Barrel Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Barrel Permit", self.player)
     def adamantine_barrel(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Barrel Permit", self.player)
     def wood_or_metal_barrel(self, state:CollectionState) -> bool:
@@ -502,7 +461,7 @@ class DynamicCraftingLocationRules:
     def wood_bin(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Bin Permit", self.player)
     def metal_bin(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Bin Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Bin Permit", self.player)
     def adamantine_bin(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Bin Permit", self.player)
     def wood_or_metal_bin(self, state:CollectionState) -> bool:
@@ -511,7 +470,7 @@ class DynamicCraftingLocationRules:
     def wood_bucket(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Bucket Permit", self.player)
     def metal_bucket(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Bucket Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Bucket Permit", self.player)
     def adamantine_bucket(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Bucket Permit", self.player)
     def wood_or_metal_bucket(self, state:CollectionState) -> bool:
@@ -520,7 +479,7 @@ class DynamicCraftingLocationRules:
     def wood_crutch(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Crutch Permit", self.player)
     def metal_crutch(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Crutch Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Crutch Permit", self.player)
     def adamantine_crutch(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Crutch Permit", self.player)
     def wood_or_metal_crutch(self, state:CollectionState) -> bool:
@@ -529,7 +488,7 @@ class DynamicCraftingLocationRules:
     def wood_minecart(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Minecart Permit", self.player)
     def metal_minecart(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Minecart Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Minecart Permit", self.player)
     def adamantine_minecart(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Minecart Permit", self.player)
     def wood_or_metal_minecart(self, state:CollectionState) -> bool:
@@ -538,7 +497,7 @@ class DynamicCraftingLocationRules:
     def wood_splint(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Splint Permit", self.player)
     def metal_splint(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Splint Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Splint Permit", self.player)
     def adamantine_splint(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Splint Permit", self.player)
     def wood_or_metal_splint(self, state:CollectionState) -> bool:
@@ -547,7 +506,7 @@ class DynamicCraftingLocationRules:
     def wood_stepladder(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Stepladder Permit", self.player)
     def metal_stepladder(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Stepladder Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Stepladder Permit", self.player)
     def adamantine_stepladder(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Stepladder Permit", self.player)
     def wood_or_metal_stepladder(self, state:CollectionState) -> bool:
@@ -556,7 +515,7 @@ class DynamicCraftingLocationRules:
     def wood_wheelbarrow(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Wheelbarrow Permit", self.player)
     def metal_wheelbarrow(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Wheelbarrow Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Wheelbarrow Permit", self.player)
     def adamantine_wheelbarrow(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Wheelbarrow Permit", self.player)
     def wood_or_metal_wheelbarrow(self, state:CollectionState) -> bool:
@@ -567,7 +526,7 @@ class DynamicCraftingLocationRules:
     def stone_blocks(self, state:CollectionState) -> bool:
             return self.stone(state) and state.has("Blocks Permit", self.player)
     def metal_blocks(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Blocks Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Blocks Permit", self.player)
     def adamantine_blocks(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Blocks Permit", self.player)
     def glass_blocks(self, state:CollectionState) -> bool:
@@ -582,7 +541,7 @@ class DynamicCraftingLocationRules:
     def stone_jug(self, state:CollectionState) -> bool:
             return self.craftdwarf_workshop(state) and state.has("Jug Permit", self.player)
     def metal_jug(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Jug Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Jug Permit", self.player)
     def adamantine_jug(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Jug Permit", self.player)
     def glass_jug(self, state:CollectionState) -> bool:
@@ -597,7 +556,7 @@ class DynamicCraftingLocationRules:
     def stone_pot(self, state:CollectionState) -> bool:
             return self.craftdwarf_workshop(state) and state.has("Large Pot Permit", self.player)
     def metal_pot(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Large Pot Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Large Pot Permit", self.player)
     def adamantine_pot(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Large Pot Permit", self.player)
     def glass_pot(self, state:CollectionState) -> bool:
@@ -610,7 +569,7 @@ class DynamicCraftingLocationRules:
     def wood_or_stone_hive(self, state:CollectionState) -> bool:
             return self.craftdwarf_workshop(state) and state.has("Hive Permit", self.player)
     def metal_hive(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Hive Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Hive Permit", self.player)
     def adamantine_hive(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Hive Permit", self.player)
     def glass_hive(self, state:CollectionState) -> bool:
@@ -625,7 +584,7 @@ class DynamicCraftingLocationRules:
     def stone_altar(self, state:CollectionState) -> bool:
             return self.stone(state) and state.has("Altar Permit", self.player)
     def metal_altar(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Altar Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Altar Permit", self.player)
     def adamantine_altar(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Altar Permit", self.player)
     def glass_altar(self, state:CollectionState) -> bool:
@@ -638,7 +597,7 @@ class DynamicCraftingLocationRules:
     def stone_armorstand(self, state:CollectionState) -> bool:
             return self.stone(state) and state.has("Armor Stand Permit", self.player)
     def metal_armorstand(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Armor Stand Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Armor Stand Permit", self.player)
     def adamantine_armorstand(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Armor Stand Permit", self.player)
     def glass_armorstand(self, state:CollectionState) -> bool:
@@ -651,7 +610,7 @@ class DynamicCraftingLocationRules:
     def stone_bookcase(self, state:CollectionState) -> bool:
             return self.stone(state) and state.has("Bookcase Permit", self.player)
     def metal_bookcase(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Bookcase Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Bookcase Permit", self.player)
     def adamantine_bookcase(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Bookcase Permit", self.player)
     def glass_bookcase(self, state:CollectionState) -> bool:
@@ -664,7 +623,7 @@ class DynamicCraftingLocationRules:
     def stone_cabinet(self, state:CollectionState) -> bool:
             return self.stone(state) and state.has("Cabinet Permit", self.player)
     def metal_cabinet(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Cabinet Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Cabinet Permit", self.player)
     def adamantine_cabinet(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Cabinet Permit", self.player)
     def glass_cabinet(self, state:CollectionState) -> bool:
@@ -677,7 +636,7 @@ class DynamicCraftingLocationRules:
     def stone_burial(self, state:CollectionState) -> bool:
             return self.stone(state) and state.has("Burial Container Permit", self.player)
     def metal_burial(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Burial Container Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Burial Container Permit", self.player)
     def adamantine_burial(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Burial Container Permit", self.player)
     def glass_burial(self, state:CollectionState) -> bool:
@@ -690,7 +649,7 @@ class DynamicCraftingLocationRules:
     def stone_chair(self, state:CollectionState) -> bool:
             return self.stone(state) and state.has("Chair Permit", self.player)
     def metal_chair(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Chair Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Chair Permit", self.player)
     def adamantine_chair(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Chair Permit", self.player)
     def glass_chair(self, state:CollectionState) -> bool:
@@ -703,7 +662,7 @@ class DynamicCraftingLocationRules:
     def stone_container(self, state:CollectionState) -> bool:
             return self.stone(state) and state.has("Container Permit", self.player)
     def metal_container(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Container Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Container Permit", self.player)
     def adamantine_container(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Container Permit", self.player)
     def glass_container(self, state:CollectionState) -> bool:
@@ -716,7 +675,7 @@ class DynamicCraftingLocationRules:
     def stone_door(self, state:CollectionState) -> bool:
             return self.stone(state) and state.has("Door Permit", self.player)
     def metal_door(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Door Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Door Permit", self.player)
     def adamantine_door(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Door Permit", self.player)
     def glass_door(self, state:CollectionState) -> bool:
@@ -729,7 +688,7 @@ class DynamicCraftingLocationRules:
     def stone_floodgate(self, state:CollectionState) -> bool:
             return self.stone(state) and state.has("Floodgate Permit", self.player)
     def metal_floodgate(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Floodgate Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Floodgate Permit", self.player)
     def adamantine_floodgate(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Floodgate Permit", self.player)
     def glass_floodgate(self, state:CollectionState) -> bool:
@@ -742,7 +701,7 @@ class DynamicCraftingLocationRules:
     def stone_grate(self, state:CollectionState) -> bool:
             return self.stone(state) and state.has("Grate Permit", self.player)
     def metal_grate(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Grate Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Grate Permit", self.player)
     def adamantine_grate(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Grate Permit", self.player)
     def glass_grate(self, state:CollectionState) -> bool:
@@ -755,7 +714,7 @@ class DynamicCraftingLocationRules:
     def stone_hatchcover(self, state:CollectionState) -> bool:
             return self.stone(state) and state.has("Hatch Cover Permit", self.player)
     def metal_hatchcover(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Hatch Cover Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Hatch Cover Permit", self.player)
     def adamantine_hatchcover(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Hatch Cover Permit", self.player)
     def glass_hatchcover(self, state:CollectionState) -> bool:
@@ -768,7 +727,7 @@ class DynamicCraftingLocationRules:
     def stone_pedestal(self, state:CollectionState) -> bool:
             return self.stone(state) and state.has("Pedestal Permit", self.player)
     def metal_pedestal(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Pedestal Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Pedestal Permit", self.player)
     def adamantine_pedestal(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Pedestal Permit", self.player)
     def glass_pedestal(self, state:CollectionState) -> bool:
@@ -781,7 +740,7 @@ class DynamicCraftingLocationRules:
     def stone_table(self, state:CollectionState) -> bool:
             return self.stone(state) and state.has("Table Permit", self.player)
     def metal_table(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Table Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Table Permit", self.player)
     def adamantine_table(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Table Permit", self.player)
     def glass_table(self, state:CollectionState) -> bool:
@@ -794,7 +753,7 @@ class DynamicCraftingLocationRules:
     def stone_weaponrack(self, state:CollectionState) -> bool:
             return self.stone(state) and state.has("Weapon Rack Permit", self.player)
     def metal_weaponrack(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Weapon Rack Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Weapon Rack Permit", self.player)
     def adamantine_weaponrack(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Weapon Rack Permit", self.player)
     def glass_weaponrack(self, state:CollectionState) -> bool:
@@ -807,7 +766,7 @@ class DynamicCraftingLocationRules:
     def stone_statue(self, state:CollectionState) -> bool:
             return self.stone(state) and state.has("Statue Permit", self.player)
     def metal_statue(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Statue Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Statue Permit", self.player)
     def adamantine_statue(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Statue Permit", self.player)
     def glass_statue(self, state:CollectionState) -> bool:
@@ -820,7 +779,7 @@ class DynamicCraftingLocationRules:
     def wood_or_stone_bookbinding(self, state:CollectionState) -> bool:
             return self.craftdwarf_workshop(state) and state.has("Book Binding Permit", self.player)
     def metal_bookbinding(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Book Binding Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Book Binding Permit", self.player)
     def adamantine_bookbinding(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Book Binding Permit", self.player)
     def glass_bookbinding(self, state:CollectionState) -> bool:
@@ -833,7 +792,7 @@ class DynamicCraftingLocationRules:
     def stone_scrollroller(self, state:CollectionState) -> bool:
             return self.stone(state) and state.has("Scroll Roller Permit", self.player)
     def metal_scrollroller(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Scroll Roller Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Scroll Roller Permit", self.player)
     def adamantine_scrollroller(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Scroll Roller Permit", self.player)
     def glass_scrollroller(self, state:CollectionState) -> bool:
@@ -844,7 +803,7 @@ class DynamicCraftingLocationRules:
     def wood_buckler(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Buckler Permit", self.player)
     def metal_buckler(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Buckler Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Buckler Permit", self.player)
     def adamantine_buckler(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Buckler Permit", self.player)
     def leather_buckler(self, state:CollectionState) -> bool:
@@ -855,7 +814,7 @@ class DynamicCraftingLocationRules:
     def wood_shield(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Shield Permit", self.player)
     def metal_shield(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Shield Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Shield Permit", self.player)
     def adamantine_shield(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Shield Permit", self.player)
     def leather_shield(self, state:CollectionState) -> bool:
@@ -866,7 +825,7 @@ class DynamicCraftingLocationRules:
     def wood_cage(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Cage Permit", self.player)
     def metal_cage(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Cage Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Cage Permit", self.player)
     def adamantine_cage(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Cage Permit", self.player)
     def glass_cage(self, state:CollectionState) -> bool:
@@ -877,7 +836,7 @@ class DynamicCraftingLocationRules:
     def wood_pipesection(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Pipe Section Permit", self.player)
     def metal_pipesection(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Pipe Section Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Pipe Section Permit", self.player)
     def adamantine_pipesection(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Pipe Section Permit", self.player)
     def glass_pipesection(self, state:CollectionState) -> bool:
@@ -890,7 +849,7 @@ class DynamicCraftingLocationRules:
     def bone_crossbow(self, state:CollectionState) -> bool:
             return self.bowyer_workshop(state) and self.bone(state) and state.has("Crossbow Permit", self.player)
     def metal_crossbow(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Crossbow Permit", self.player)
+            return self.job_type(state, "Metal") and state.has("Crossbow Permit", self.player)
     def adamantine_crossbow(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Crossbow Permit", self.player)
     def bowyer_or_metal_crossbow(self, state:CollectionState) -> bool:
@@ -901,7 +860,7 @@ class DynamicCraftingLocationRules:
     def bone_bolt(self, state:CollectionState) -> bool:
         return self. bonecraft(state) and state.has("Bolt Permit", self.player)
     def metal_bolt(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Bolt Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Bolt Permit", self.player)
     def adamantine_bolt(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Bolt Permit", self.player)
     def woodcraft_or_bonecraft_or_metal_bolt(self, state:CollectionState) -> bool:
@@ -922,7 +881,7 @@ class DynamicCraftingLocationRules:
         return self.bonecraft(state) \
         and state.has("Crafts Permit", self.player)
     def metal_crafts(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Crafts Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Crafts Permit", self.player)
     def adamantine_crafts(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Crafts Permit", self.player)
     def glass_crafts(self, state:CollectionState) -> bool:
@@ -977,7 +936,7 @@ class DynamicCraftingLocationRules:
     def glass_liquidcontainer(self, state:CollectionState) -> bool:
         return self.glass(state) and state.has("Liquid Container Permit", self.player)
     def metal_liquidcontainer(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Liquid Container Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Liquid Container Permit", self.player)
     def adamantine_liquidcontainer(self, state:CollectionState) -> bool:
             return self.adamantine_metal(state) and state.has("Liquid Container Permit", self.player)
     def leather_liquidcontainer(self, state:CollectionState) -> bool:
@@ -988,7 +947,7 @@ class DynamicCraftingLocationRules:
     def metal_or_glass_cup(self, state:CollectionState) -> bool:
         return self.metal_or_glass(state) and state.has("Cup Permit", self.player)
     def metal_cup(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Cup Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Cup Permit", self.player)
     def glass_cup(self, state:CollectionState) -> bool:
         return self.glass(state) and state.has("Cup Permit", self.player)
     def adamantine_cup(self, state:CollectionState) -> bool:
@@ -1001,7 +960,7 @@ class DynamicCraftingLocationRules:
     def wood_or_stone_toy(self, state:CollectionState) -> bool:
         return self.craftdwarf_workshop(state) and state.has("Toy Permit", self.player)
     def metal_toy(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Toy Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Toy Permit", self.player)
     def adamantine_toy(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Toy Permit", self.player)
     def glass_toy(self, state:CollectionState) -> bool:
@@ -1015,7 +974,7 @@ class DynamicCraftingLocationRules:
     def bone_helm(self, state:CollectionState) -> bool:
         return self.bonecraft(state) and state.has("Helm Permit", self.player)
     def metal_helm(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Helm Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Helm Permit", self.player)
     def adamantine_helm(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Helm Permit", self.player)
     def leather_helm(self, state:CollectionState) -> bool:
@@ -1097,7 +1056,7 @@ class DynamicCraftingLocationRules:
             and state.has("Honey Permit", self.player) 
     
     def metal_gauntlets(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Gauntlets Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Gauntlets Permit", self.player)
     def adamantine_gauntlets(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Gauntlets Permit", self.player)
     def bone_gauntlets(self, state:CollectionState) -> bool:
@@ -1118,7 +1077,7 @@ class DynamicCraftingLocationRules:
         return self.leather_or_cloth_or_adamantinecloth(state) and state.has("Bag Permit", self.player)
     
     def metal_chain(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Rope/Chain Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Rope/Chain Permit", self.player)
     def adamantine_chain(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Rope/Chain Permit", self.player)
     def make_rope(self, state:CollectionState) -> bool:
@@ -1127,42 +1086,42 @@ class DynamicCraftingLocationRules:
         return self.metal_or_cloth(state) and state.has("Rope/Chain Permit", self.player)
 
     def metal_battleaxe(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Battle Axe Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Battle Axe Permit", self.player)
     def adamantine_battleaxe(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Battle Axe Permit", self.player)
     
     def metal_mace(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Mace Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Mace Permit", self.player)
     def adamantine_mace(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Mace Permit", self.player)
     
     def metal_pick(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Pick Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Pick Permit", self.player)
     def adamantine_pick(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Pick Permit", self.player)
     
     def metal_sword(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Short Sword Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Short Sword Permit", self.player)
     def adamantine_sword(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Short Sword Permit", self.player)
     
     def metal_spear(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Spear Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Spear Permit", self.player)
     def adamantine_spear(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Spear Permit", self.player)
     
     def metal_warhammer(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("War Hammer Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("War Hammer Permit", self.player)
     def adamantine_warhammer(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("War Hammer Permit", self.player)
     
     def metal_anvil(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Anvil Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Anvil Permit", self.player)
     def adamantine_anvil(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Anvil Permit", self.player)
     
     def metal_coins(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Coins Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Coins Permit", self.player)
     def adamantine_coins(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Coins Permit", self.player)
     
@@ -1195,7 +1154,7 @@ class DynamicCraftingLocationRules:
     def leather_amulet(self, state:CollectionState) -> bool:
         return self.leathercraft(state) and state.has("Amulet Permit", self.player)
     def metal_amulet(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Amulet Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Amulet Permit", self.player)
     def adamantine_amulet(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Amulet Permit", self.player)
     def craftdwarf_or_metal_amulet(self, state:CollectionState) -> bool:
@@ -1208,7 +1167,7 @@ class DynamicCraftingLocationRules:
     def leather_bracelet(self, state:CollectionState) -> bool:
         return self.leathercraft(state) and state.has("Bracelet Permit", self.player)
     def metal_bracelet(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Bracelet Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Bracelet Permit", self.player)
     def adamantine_bracelet(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Bracelet Permit", self.player)
     def craftdwarf_or_metal_bracelet(self, state:CollectionState) -> bool:
@@ -1223,7 +1182,7 @@ class DynamicCraftingLocationRules:
     def leather_earring(self, state:CollectionState) -> bool:
         return self.leathercraft(state) and state.has("Earring Permit", self.player)
     def metal_earring(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Earring Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Earring Permit", self.player)
     def adamantine_earring(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Earring Permit", self.player)
     def craftdwarf_or_metal_earring(self, state:CollectionState) -> bool:
@@ -1234,7 +1193,7 @@ class DynamicCraftingLocationRules:
     def bonecraftdwarf_crown(self, state:CollectionState) -> bool:
         return self.bonecraft(state) and state.has("Crown Permit", self.player)
     def metal_crown(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Crown Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Crown Permit", self.player)
     def adamantine_crown(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Crown Permit", self.player)
     def craftdwarf_or_metal_crown(self, state:CollectionState) -> bool:
@@ -1245,7 +1204,7 @@ class DynamicCraftingLocationRules:
     def bonecraftdwarf_die(self, state:CollectionState) -> bool:
         return self.bonecraft(state) and state.has("Die Permit", self.player)
     def metal_die(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Die Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Die Permit", self.player)
     def adamantine_die(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Die Permit", self.player)
     def glass_die(self, state:CollectionState) -> bool:
@@ -1259,7 +1218,7 @@ class DynamicCraftingLocationRules:
     def bonecraftdwarf_figurine(self, state:CollectionState) -> bool:
         return self.bonecraft(state) and state.has("Figurine Permit", self.player)
     def metal_figurine(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Figurine Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Figurine Permit", self.player)
     def adamantine_figurine(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Figurine Permit", self.player)
     def craftdwarf_or_metal_figurine(self, state:CollectionState) -> bool:
@@ -1270,7 +1229,7 @@ class DynamicCraftingLocationRules:
     def bonecraftdwarf_nestbox(self, state:CollectionState) -> bool:
         return self.bonecraft(state) and state.has("Nest Box Permit", self.player)
     def metal_nestbox(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Nest Box Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Nest Box Permit", self.player)
     def adamantine_nestbox(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Nest Box Permit", self.player)
     def glass_nestbox(self, state:CollectionState) -> bool:
@@ -1283,7 +1242,7 @@ class DynamicCraftingLocationRules:
     def bonecraftdwarf_ring(self, state:CollectionState) -> bool:
         return self.bonecraft(state) and state.has("Ring Permit", self.player)
     def metal_ring(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Ring Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Ring Permit", self.player)
     def adamantine_ring(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Ring Permit", self.player)
     def craftdwarf_or_metal_ring(self, state:CollectionState) -> bool:
@@ -1294,7 +1253,7 @@ class DynamicCraftingLocationRules:
     def bonecraftdwarf_scepter(self, state:CollectionState) -> bool:
         return self.bonecraft(state) and state.has("Scepter Permit", self.player)
     def metal_scepter(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Scepter Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Scepter Permit", self.player)
     def adamantine_scepter(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Scepter Permit", self.player)
     def craftdwarf_or_metal_scepter(self, state:CollectionState) -> bool:
@@ -1313,12 +1272,12 @@ class DynamicCraftingLocationRules:
         return self.craftdwarf_workshop(state) and self.make_paper(state)
     
     def metal_mailshirt(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Mail Shirt Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Mail Shirt Permit", self.player)
     def adamantine_mailshirt(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Mail Shirt Permit", self.player)
     
     def metal_breastplate(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Breastplate Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Breastplate Permit", self.player)
     def adamantine_breastplate(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Breastplate Permit", self.player)
     
@@ -1361,7 +1320,7 @@ class DynamicCraftingLocationRules:
     def bone_leggings(self, state:CollectionState) -> bool:
         return self.bonecraft(state) and state.has("Leggings Permit", self.player)
     def metal_leggings(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Leggings Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Leggings Permit", self.player)
     def adamantine_leggings(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Leggings Permit", self.player)
     def leather_leggings(self, state:CollectionState) -> bool:
@@ -1370,7 +1329,7 @@ class DynamicCraftingLocationRules:
         return self.metal_or_bone_or_leather(state) and state.has("Leggings Permit", self.player)
     
     def metal_greaves(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Greaves Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Greaves Permit", self.player)
     def adamantine_greaves(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Greaves Permit", self.player)
     def bone_greaves(self, state:CollectionState) -> bool:
@@ -1395,7 +1354,7 @@ class DynamicCraftingLocationRules:
         return self.leather_or_cloth_or_adamantinecloth(state) and state.has("Shoes Permit", self.player)
 
     def metal_lboots(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Low Boots Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Low Boots Permit", self.player)
     def adamantine_lboots(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Low Boots Permit", self.player)
     def leather_lboots(self, state:CollectionState) -> bool:
@@ -1404,7 +1363,7 @@ class DynamicCraftingLocationRules:
         return self.metal_or_leather(state) and state.has("Low Boots Permit", self.player)
     
     def metal_hboots(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("High Boots Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("High Boots Permit", self.player)
     def adamantine_hboots(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("High Boots Permit", self.player)
     def leather_hboots(self, state:CollectionState) -> bool:
@@ -1419,7 +1378,7 @@ class DynamicCraftingLocationRules:
         return self.quire(state) and self.craftdwarf_or_metal_or_glass(state)
     
     def metal_axeblade(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Giant Axe Blade Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Giant Axe Blade Permit", self.player)
     def adamantine_axeblade(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Giant Axe Blade Permit", self.player)
     def glass_axeblade(self, state:CollectionState) -> bool:
@@ -1428,7 +1387,7 @@ class DynamicCraftingLocationRules:
         return self.metal_or_glass(state) and state.has("Giant Axe Blade Permit", self.player)
 
     def metal_disc(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Serrated Disc Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Serrated Disc Permit", self.player)
     def adamantine_disc(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Serrated Disc Permit", self.player)
     def glass_disc(self, state:CollectionState) -> bool:
@@ -1441,7 +1400,7 @@ class DynamicCraftingLocationRules:
     def leather_cap(self, state:CollectionState) -> bool:
         return self.leather_works(state) and state.has("Cap Permit", self.player)
     def metal_cap(self, state:CollectionState) -> bool:
-        return self.metal(state) and state.has("Cap Permit", self.player)
+        return self.job_type(state, "Metal") and state.has("Cap Permit", self.player)
     def adamantine_cap(self, state:CollectionState) -> bool:
         return self.adamantine_metal(state) and state.has("Cap Permit", self.player)
     def metal_or_cloth_or_leather_cap(self, state:CollectionState) -> bool:
