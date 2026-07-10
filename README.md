@@ -166,7 +166,7 @@ Completing these milestones sends items to other players:
 - **Infrastructure** - Built a Well, Pumped Water, Pumped Magma
 - **Biology** - First Eggs Hatched, Caged a Hostile Beast
 - **Deep / Endgame** - Mined Adamantine, Sold an Artifact
-- **Custom Caves** - 6 hidden pre-carved pockets between cavern layers, discovered when a dwarf first enters one (optional, enable with `custom_caves: true` — see Custom Caves section below)
+- **Custom Caves** - 6 hidden pre-carved pockets between cavern layers, discovered when a dwarf first enters one (see Custom Caves section below)
 - **Craftsanity** - optional crafting milestone checks (see below)
 
 </details>
@@ -299,7 +299,7 @@ Ale and food deposits, the current pool balance (shown in MJ and raw kJ), and th
 <details>
 <summary>Custom Caves</summary>
 
-When `custom_caves` is enabled in your YAML, Dwarfipelago carves **6 hidden pockets** into the solid rock between your three cavern layers (2 per inter-cavern gap) at the start of the world. They are completely invisible on the map until a dwarf walks into one.
+Dwarfipelago always carves **6 hidden pockets** into the solid rock between your three cavern layers (2 per inter-cavern gap) at the start of the world. They are completely invisible on the map until a dwarf walks into one.
 
 Caves are shaped as organic ovals (roughly 15–35 tiles of floor depending on random radius), with a taller vaulted centre and ragged natural-looking edges. Their interiors are stocked with physical DF items at generation time.
 
@@ -320,12 +320,6 @@ Caves alternate treasure/trap so each pair of caves in a gap has one of each typ
 - **Trap cave** — `Danger lurks to the [east/west/north/south], deep underground (z=N). Tread carefully!`
 
 Hints are revealed one per fragment received in index order. If you have already discovered all caves before receiving all fragments, extra fragments are acknowledged but produce no additional text.
-
-### Enabling
-
-```yaml
-custom_caves: true
-```
 
 </details>
 
