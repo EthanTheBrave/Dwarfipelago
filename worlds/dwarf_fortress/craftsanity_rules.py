@@ -86,19 +86,13 @@ class DynamicCraftingLocationRules:
         if self.world.options.trades_inlogic:
             return True
         else:
-            if self.world.options.mining_depth:
-                return self.process_resource(state, "silk") and state.has("Progressive Mining Depth", self.player, 2) #TODO check how many mining depth
-            else:
-                return self.process_resource(state, "silk")
+            return self.process_resource(state, "silk") #silk can be obtained in a AP created cave between the surface and cavern1.
             
     def silk_thread(self, state:CollectionState) -> bool:
         if self.world.options.trades_inlogic:
             return True
         else:
-            if self.world.options.mining_depth:
-                return state.has("Loom Blueprint", self.player) and state.has("Progressive Mining Depth", self.player, 2) #TODO check how many mining depth
-            else:
-                return state.has("Loom Blueprint", self.player)
+            return state.has("Loom Blueprint", self.player) #silk can be obtained in a AP created cave between the surface and cavern1.
     
     def permit(self, state:CollectionState, permit:str) -> bool:
         return state.has(permit + " Permit", self.player)
