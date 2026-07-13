@@ -1112,7 +1112,7 @@ class DynamicCraftingLocationRules:
         return self.clothier_workshop(state) and state.has("Bag Permit", self.player)
     def leather_bag(self, state:CollectionState) -> bool:
         return self.leather_works(state) and state.has("Bag Permit", self.player)
-    def leather_or_cloth(self, state:CollectionState) -> bool:
+    def leather_or_cloth_bag(self, state:CollectionState) -> bool:
         return self.leather_or_cloth(state) and state.has("Bag Permit", self.player)
     
     def metal_chain(self, state:CollectionState) -> bool:
@@ -3098,7 +3098,7 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth)
+                        set_rule(loc, self.leather_or_cloth_bag)
                     else:
                         set_rule(loc, self.leather_or_cloth)
             case "Rope/Chain":
