@@ -324,13 +324,18 @@ class DwarfFortressWorld(World):
         # Shop slots: per-slot random coin price + coffer tier, keyed by location id
         # (as a string for JSON). The client scouts these ids to learn each slot's
         # item/recipient and writes them, with the price, for the in-game shop tab.
+        # Price is banded by tier so higher-coffer slots always cost more than
+        # lower-coffer ones: tier N draws from the Nth fifth of [PRICE_MIN, PRICE_MAX].
         shop_data = {}
-        lo, hi = SHOP_PRICE_MIN, SHOP_PRICE_MAX
+        tier_step = (SHOP_PRICE_MAX - SHOP_PRICE_MIN) // 5
         for slot, loc in enumerate(SHOP_LOCATIONS, start=1):
+            tier = (slot - 1) // 10 + 1
+            tier_lo = SHOP_PRICE_MIN + (tier - 1) * tier_step
+            tier_hi = SHOP_PRICE_MIN + tier * tier_step if tier < 5 else SHOP_PRICE_MAX
             shop_data[str(loc.ap_id)] = {
                 "slot": slot,
-                "tier": (slot - 1) // 10 + 1,
-                "price": self.random.randint(lo, hi),
+                "tier": tier,
+                "price": self.random.randint(tier_lo, tier_hi),
             }
         return {
             "goal": self.options.goal.value,

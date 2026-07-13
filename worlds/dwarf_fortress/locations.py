@@ -1550,10 +1550,11 @@ COMBAT_SKILLS: list[LocationData] = [
 # the client/mod) and releases that slot's item to its recipient.
 # NOTE: ids 800..1084 are reserved for an unimplemented feature; keep clear of it.
 SHOP_SLOTS = 50
-# Per-slot price (minted-coin VALUE) is rolled randomly in this range at gen time.
-# Hardcoded -- the shop has no YAML options.
+# Per-slot price (minted-coin VALUE) is rolled within a tier band at gen time:
+# the [MIN, MAX] range is split into 5 equal fifths, one per coffer tier, so
+# higher-tier slots always cost more than lower-tier ones. Hardcoded -- no YAML options.
 SHOP_PRICE_MIN = 2000
-SHOP_PRICE_MAX = 20000
+SHOP_PRICE_MAX = 100000
 SHOP_LOCATIONS: list[LocationData] = [
     LocationData(f"Shop Slot {i}", BASE_ID + 2199 + i, "Fortress")
     for i in range(1, SHOP_SLOTS + 1)
