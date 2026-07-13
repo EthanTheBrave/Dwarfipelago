@@ -1110,12 +1110,10 @@ class DynamicCraftingLocationRules:
     
     def cloth_bag(self, state:CollectionState) -> bool:
         return self.clothier_workshop(state) and state.has("Bag Permit", self.player)
-    def adamantine_bag(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) and state.has("Bag Permit", self.player)
     def leather_bag(self, state:CollectionState) -> bool:
         return self.leather_works(state) and state.has("Bag Permit", self.player)
-    def leather_or_cloth_or_adamantine_bag(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and state.has("Bag Permit", self.player)
+    def leather_or_cloth(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth(state) and state.has("Bag Permit", self.player)
     
     def metal_chain(self, state:CollectionState) -> bool:
         return self.metal(state) and state.has("Rope/Chain Permit", self.player)
@@ -3093,11 +3091,6 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.cloth_bag)
                     else:   
                         set_rule(loc, self.clothier_workshop)
-                elif material_type == "Adamantine":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.adamantine_bag)
-                    else:
-                        set_rule(loc, self.adamantine_cloth)
                 elif material_type == "Leather":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.leather_bag)
@@ -3105,9 +3098,9 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_or_adamantine_bag)
+                        set_rule(loc, self.leather_or_cloth)
                     else:
-                        set_rule(loc, self.leather_or_cloth_or_adamantinecloth)
+                        set_rule(loc, self.leather_or_cloth)
             case "Rope/Chain":
                 if material_type == "Cloth":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
