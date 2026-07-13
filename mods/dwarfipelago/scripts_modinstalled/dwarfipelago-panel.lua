@@ -254,7 +254,7 @@ local CROPS_THRESHOLDS  = {50, 100, 250, 500, 1000}
 
 -- {threshold, name_at_or_above_threshold}; first entry is the base (value >= 0) name.
 local TEMPLE_TIERS    = {{0, "Shrine"}, {2000, "Temple"}, {10000, "Temple Complex"}}
-local GUILDHALL_TIERS = {{0, "Meeting Place"}, {2000, "Guildhall"}, {10000, "Grand Guildhall"}}
+local GUILDHALL_TIERS = {{2000, "Guildhall"}, {10000, "Grand Guildhall"}}
 
 local PROD_FLAGS = {
     {"Crafted item",   "crafted_item",  "Weapon forged",  "weapon"},
@@ -307,12 +307,7 @@ local function build_progress_lines()
         best_desc ~= "" and COLOR_WHITE or COLOR_DARKGRAY)
 
     local function location_row(label, value, has_zone, tiers)
-        if not has_zone then
-            row(("  %s: none"):format(label), COLOR_DARKGRAY)
-            return
-        end
-        local tier_name = tiers[1][2]
-        local next_val, next_name
+        local tier_name, next_val, next_name
         for _, t in ipairs(tiers) do
             if value >= t[1] then
                 tier_name = t[2]
@@ -322,7 +317,10 @@ local function build_progress_lines()
                 break
             end
         end
-        if next_val then
+        if not tier_name then
+            -- zone exists (or not) but hasn't reached the first threshold
+            row(("  %s: none"):format(label), COLOR_DARKGRAY)
+        elseif next_val then
             row(("  %s: %s (%s / %s for %s)"):format(
                 label, tier_name, fmt_num(value), fmt_num(next_val), next_name))
         else
@@ -330,13 +328,8 @@ local function build_progress_lines()
         end
     end
 
-    local tv = checks.best_temple_value()
-    local has_t = checks.has_temple_zone()
-    location_row("Temple",   tv, has_t,   TEMPLE_TIERS)
-
-    local gv = checks.best_guildhall_value()
-    local has_g = checks.has_guildhall_zone()
-    location_row("Guildhall", gv, has_g, GUILDHALL_TIERS)
+    location_row("Temple",    checks.best_temple_value(),    nil, TEMPLE_TIERS)
+    location_row("Guildhall", checks.best_guildhall_value(), nil, GUILDHALL_TIERS)
 
     -- Production
     blank()
