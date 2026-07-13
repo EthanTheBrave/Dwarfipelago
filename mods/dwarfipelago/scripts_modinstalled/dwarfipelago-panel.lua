@@ -738,7 +738,7 @@ function DwarfipelagoPanel:init()
         and ("  (%d%% of population)"):format(dl_thresh)
         or  ("  (every %d deaths)"):format(dl_thresh)) or ""
 
-    local W, H = 62, 48
+    local W, H = 76, 48
 
     -- Tab 1 Status -----------------------
     function StatusTab()
@@ -1053,13 +1053,13 @@ function DwarfipelagoPanel:init()
                 elseif not unlocked then
                     state, pen = "shrine needed", COLOR_DARKGRAY
                 elseif coffers < (e.tier or 1) then
-                    state, pen = ("LOCKED (%d coffers)"):format(e.tier or 1), COLOR_RED
+                    state, pen = ("need %d coffers"):format(e.tier or 1), COLOR_RED
                 elseif coins < price then
                     state, pen = "need coins", COLOR_YELLOW
                 else
                     state, pen, buyable = "BUY", COLOR_GREEN, true
                 end
-                local text = ("%-20.20s -> %-12.12s %8s* [%s]"):format(
+                local text = ("%-30.30s -> %-12.12s %8s* [%s]"):format(
                     tostring(e.item or "?"), tostring(e.player or "?"), fmt_num(price), state)
                 table.insert(choices, {text = text, pen = pen, slot = sn, buyable = buyable})
             end
