@@ -330,10 +330,9 @@ M.checks = {
     { id = 37370010, name = "First Temple",    fn = function() return best_temple_value()   >= 2000  end },
     { id = 37370011, name = "Temple Complex",  fn = function() return best_temple_value()   >= 10000 end },
 
-    -- Guildhall tiers: meeting place (<2000), guildhall (>=2000), grand guildhall (>=10000).
-    { id = 37370004, name = "First Meeting Place", fn = function() return has_location_type(function(b) return df.abstract_building_guildhallst:is_instance(b) end) end },
-    { id = 37370012, name = "First Guildhall",     fn = function() return best_guildhall_value() >= 2000  end },
-    { id = 37370013, name = "Grand Guildhall",     fn = function() return best_guildhall_value() >= 10000 end },
+    -- Guildhall tiers: guildhall (>=2000), grand guildhall (>=10000).
+    { id = 37370012, name = "First Guildhall", fn = function() return best_guildhall_value() >= 2000  end },
+    { id = 37370013, name = "Grand Guildhall", fn = function() return best_guildhall_value() >= 10000 end },
 
     -- Room quality milestones - best tier across Bedroom/Office/DiningHall/Tomb.
     -- Tiers 3-7 match DF value thresholds: 500 / 1000 / 1500 / 2500 / 10000.

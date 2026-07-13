@@ -25,8 +25,7 @@ ROOM_LOCATIONS: list[LocationData] = [
     LocationData("First Shrine",        BASE_ID + 3,  "Fortress"),
     LocationData("First Temple",        BASE_ID + 10, "Fortress"),
     LocationData("Temple Complex",      BASE_ID + 11, "Fortress"),
-    # Guildhall tiers: meeting place / guildhall (2000+) / grand guildhall (10000+)
-    LocationData("First Meeting Place", BASE_ID + 4,  "Fortress"),
+    # Guildhall tiers: guildhall (2000+) / grand guildhall (10000+)
     LocationData("First Guildhall",     BASE_ID + 12, "Fortress"),
     LocationData("Grand Guildhall",     BASE_ID + 13, "Fortress"),
     # Room quality tiers (best across Bedroom/Office/DiningHall/Tomb)
