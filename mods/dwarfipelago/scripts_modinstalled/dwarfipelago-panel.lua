@@ -293,14 +293,16 @@ local function build_progress_lines()
     -- Rooms
     blank()
     hdr("Rooms")
-    local has_bed  = checks.has_zone_type(df.civzone_type.Bedroom)
-    local has_off  = checks.has_zone_type(df.civzone_type.Office)
-    local has_tomb = checks.has_zone_type(df.civzone_type.Tomb)
-    row(("  Bedroom: %-3s  Office: %-3s  Tomb: %-3s"):format(
+    local has_bed   = checks.has_zone_type(df.civzone_type.Bedroom)
+    local has_off   = checks.has_zone_type(df.civzone_type.Office)
+    local has_tomb  = checks.has_zone_type(df.civzone_type.Tomb)
+    local has_dine  = checks.has_zone_type(df.civzone_type.DiningHall)
+    row(("  Bedroom: %-3s  Office: %-3s  Tomb: %-3s  Dining Hall: %-3s"):format(
         has_bed  and "YES" or "no",
         has_off  and "YES" or "no",
-        has_tomb and "YES" or "no"),
-        (has_bed or has_off or has_tomb) and COLOR_WHITE or COLOR_DARKGRAY)
+        has_tomb and "YES" or "no",
+        has_dine and "YES" or "no"),
+        (has_bed or has_off or has_tomb or has_dine) and COLOR_WHITE or COLOR_DARKGRAY)
 
     local best_desc = checks.best_room_description()
     row(("  Best quality: %s"):format(best_desc ~= "" and best_desc or "none"),

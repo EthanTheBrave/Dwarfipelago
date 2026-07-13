@@ -21,6 +21,7 @@ ROOM_LOCATIONS: list[LocationData] = [
     LocationData("First Bedroom",       BASE_ID + 0,  "Fortress"),
     LocationData("First Office",        BASE_ID + 1,  "Fortress"),
     LocationData("First Tomb",          BASE_ID + 2,  "Fortress"),
+    LocationData("First Dining Hall",   BASE_ID + 4,  "Fortress"),
     # Temple tiers: shrine / temple (2000+) / temple complex (10000+)
     LocationData("First Shrine",        BASE_ID + 3,  "Fortress"),
     LocationData("First Temple",        BASE_ID + 10, "Fortress"),
