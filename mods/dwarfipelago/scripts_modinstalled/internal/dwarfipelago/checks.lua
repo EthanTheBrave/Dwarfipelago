@@ -14,7 +14,87 @@ local function has_noble_role(code)
     return ok and units ~= nil and #units > 0
 end
 
--- ── Wealth milestones ─────────────────────────────────────────────────────────
+-- ── Room milestones ──────────────────────────────────────────────────────────
+
+-- Quality rank for a zone (1=Meager .. 7=Legendary, 0=no description).
+local QUALITY_RANK = {
+    Meager=1, Modest=2, Adequate=3, Fine=4, Grand=5, Royal=6, Legendary=7
+}
+
+local function zone_quality_rank(zone)
+    local desc = ""
+    pcall(function() desc = dfhack.buildings.getRoomDescription(zone) or "" end)
+    for word, rank in pairs(QUALITY_RANK) do
+        if desc:find(word) then return rank end
+    end
+    return 0
+end
+
+-- True if at least one Civzone of the given df.civzone_type exists.
+local function has_zone_type(zone_type)
+    local found = false
+    pcall(function()
+        for _, z in ipairs(df.global.world.buildings.all) do
+            if not found then
+                local ok, t = pcall(function() return z:getType() end)
+                if ok and t == df.building_type.Civzone then
+                    local ok2, st = pcall(function() return z:getSubtype() end)
+                    if ok2 and st == zone_type then found = true end
+                end
+            end
+        end
+    end)
+    return found
+end
+
+-- Highest quality rank across all Bedroom/Office/Tomb civzones. 0 if none exist.
+local function best_room_quality()
+    local best = 0
+    pcall(function()
+        local ct = df.civzone_type
+        for _, z in ipairs(df.global.world.buildings.all) do
+            local ok, t = pcall(function() return z:getType() end)
+            if ok and t == df.building_type.Civzone then
+                local ok2, st = pcall(function() return z:getSubtype() end)
+                if ok2 and (st == ct.Bedroom or st == ct.Office or st == ct.Tomb) then
+                    local r = zone_quality_rank(z)
+                    if r > best then best = r end
+                end
+            end
+        end
+    end)
+    return best
+end
+
+-- True if any Civzone is assigned to a location whose abstract building passes
+-- the given is_instance check (e.g. df.abstract_building_templest:is_instance).
+local function has_location_type(check_fn)
+    local found = false
+    pcall(function()
+        local site = dfhack.world.getCurrentSite()
+        if not site then return end
+        for _, z in ipairs(df.global.world.buildings.all) do
+            if found then return end
+            local ok, t = pcall(function() return z:getType() end)
+            if ok and t == df.building_type.Civzone then
+                local loc_id = -1
+                pcall(function() loc_id = z.location_id end)
+                if loc_id and loc_id >= 0 then
+                    pcall(function()
+                        for _, bld in ipairs(site.buildings) do
+                            if bld.id == loc_id and check_fn(bld) then
+                                found = true; break
+                            end
+                        end
+                    end)
+                end
+            end
+        end
+    end)
+    return found
+end
+
+-- ── Wealth helpers (kept for the legendary_wealth goal and panel display) ────
 
 -- Returns current total fortress wealth (items + buildings + stocks).
 -- DF 50+ (Steam / 2022+) renamed df.global.ui → df.global.plotinfo.
@@ -130,13 +210,19 @@ local function has_fortress_title(pop_req, created_req, exported_req, waves_req)
 end
 
 M.checks = {
-    -- Wealth milestones - based on combined coin + cut-gem value in fortress stocks.
-    -- Each tier requires the matching Merchant's Coffer count to have been received.
-    { id = 37370000, name = "Humble Beginnings (1,000)",    fn = function() return unlock_count("wealth_coffers") >= 1 and treasury_wealth() >= 1000    end },
-    { id = 37370001, name = "Growing Stronghold (10,000)",  fn = function() return unlock_count("wealth_coffers") >= 2 and treasury_wealth() >= 10000   end },
-    { id = 37370002, name = "Prosperous Fortress (50,000)", fn = function() return unlock_count("wealth_coffers") >= 3 and treasury_wealth() >= 50000   end },
-    { id = 37370003, name = "Rich Citadel (100,000)",       fn = function() return unlock_count("wealth_coffers") >= 4 and treasury_wealth() >= 100000  end },
-    { id = 37370004, name = "Legendary Vault (500,000)",    fn = function() return unlock_count("wealth_coffers") >= 5 and treasury_wealth() >= 500000  end },
+    -- Room type milestones - first time each zone type is designated.
+    { id = 37370000, name = "First Bedroom",   fn = function() return has_zone_type(df.civzone_type.Bedroom)  end },
+    { id = 37370001, name = "First Office",    fn = function() return has_zone_type(df.civzone_type.Office)   end },
+    { id = 37370002, name = "First Tomb",      fn = function() return has_zone_type(df.civzone_type.Tomb)     end },
+    { id = 37370003, name = "First Temple",    fn = function() return has_location_type(function(b) return df.abstract_building_templest:is_instance(b)    end) end },
+    { id = 37370004, name = "First Guildhall", fn = function() return has_location_type(function(b) return df.abstract_building_guildhallst:is_instance(b) end) end },
+
+    -- Room quality milestones - best quality across all Bedroom/Office/Tomb zones.
+    { id = 37370005, name = "Adequate Room",   fn = function() return best_room_quality() >= QUALITY_RANK.Adequate   end },
+    { id = 37370006, name = "Fine Room",       fn = function() return best_room_quality() >= QUALITY_RANK.Fine        end },
+    { id = 37370007, name = "Grand Room",      fn = function() return best_room_quality() >= QUALITY_RANK.Grand       end },
+    { id = 37370008, name = "Royal Room",      fn = function() return best_room_quality() >= QUALITY_RANK.Royal       end },
+    { id = 37370009, name = "Legendary Room",  fn = function() return best_room_quality() >= QUALITY_RANK.Legendary   end },
 
     -- First production milestones
     -- These are tracked via a persistent counter set by the eventful job hook in main.lua.
