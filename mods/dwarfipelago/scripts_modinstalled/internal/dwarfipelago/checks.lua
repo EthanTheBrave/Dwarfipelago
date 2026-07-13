@@ -111,6 +111,100 @@ local function has_location_type(check_fn)
     return found
 end
 
+-- Returns the highest total item value found inside any temple zone.
+-- DF names: shrine (<2000), temple (>=2000), temple complex (>=10000).
+local function best_temple_value()
+    local best = 0
+    pcall(function()
+        local site = dfhack.world.getCurrentSite()
+        if not site then return end
+        for _, z in ipairs(df.global.world.buildings.all) do
+            local ok, t = pcall(function() return z:getType() end)
+            if ok and t == df.building_type.Civzone then
+                local loc_id = -1
+                pcall(function() loc_id = z.location_id end)
+                if loc_id and loc_id >= 0 then
+                    local is_temple = false
+                    pcall(function()
+                        for _, bld in ipairs(site.buildings) do
+                            if bld.id == loc_id and df.abstract_building_templest:is_instance(bld) then
+                                is_temple = true; break
+                            end
+                        end
+                    end)
+                    if is_temple then
+                        local x1 = math.min(z.x1, z.x2)
+                        local x2 = math.max(z.x1, z.x2)
+                        local y1 = math.min(z.y1, z.y2)
+                        local y2 = math.max(z.y1, z.y2)
+                        local zz = z.z
+                        local total = 0
+                        for _, it in ipairs(df.global.world.items.all) do
+                            local p = it.pos
+                            if p and p.z == zz
+                                    and p.x >= x1 and p.x <= x2
+                                    and p.y >= y1 and p.y <= y2 then
+                                local v = 0
+                                pcall(function() v = dfhack.items.getValue(it) end)
+                                total = total + v
+                            end
+                        end
+                        if total > best then best = total end
+                    end
+                end
+            end
+        end
+    end)
+    return best
+end
+
+-- Mirrors best_temple_value() for guildhall zones.
+-- DF names: meeting place (<2000), guildhall (>=2000), grand guildhall (>=10000).
+local function best_guildhall_value()
+    local best = 0
+    pcall(function()
+        local site = dfhack.world.getCurrentSite()
+        if not site then return end
+        for _, z in ipairs(df.global.world.buildings.all) do
+            local ok, t = pcall(function() return z:getType() end)
+            if ok and t == df.building_type.Civzone then
+                local loc_id = -1
+                pcall(function() loc_id = z.location_id end)
+                if loc_id and loc_id >= 0 then
+                    local is_guildhall = false
+                    pcall(function()
+                        for _, bld in ipairs(site.buildings) do
+                            if bld.id == loc_id and df.abstract_building_guildhallst:is_instance(bld) then
+                                is_guildhall = true; break
+                            end
+                        end
+                    end)
+                    if is_guildhall then
+                        local x1 = math.min(z.x1, z.x2)
+                        local x2 = math.max(z.x1, z.x2)
+                        local y1 = math.min(z.y1, z.y2)
+                        local y2 = math.max(z.y1, z.y2)
+                        local zz = z.z
+                        local total = 0
+                        for _, it in ipairs(df.global.world.items.all) do
+                            local p = it.pos
+                            if p and p.z == zz
+                                    and p.x >= x1 and p.x <= x2
+                                    and p.y >= y1 and p.y <= y2 then
+                                local v = 0
+                                pcall(function() v = dfhack.items.getValue(it) end)
+                                total = total + v
+                            end
+                        end
+                        if total > best then best = total end
+                    end
+                end
+            end
+        end
+    end)
+    return best
+end
+
 -- ── Wealth helpers (kept for the legendary_wealth goal and panel display) ────
 
 -- Returns current total fortress wealth (items + buildings + stocks).
@@ -231,8 +325,15 @@ M.checks = {
     { id = 37370000, name = "First Bedroom",   fn = function() return has_zone_type(df.civzone_type.Bedroom)  end },
     { id = 37370001, name = "First Office",    fn = function() return has_zone_type(df.civzone_type.Office)   end },
     { id = 37370002, name = "First Tomb",      fn = function() return has_zone_type(df.civzone_type.Tomb)     end },
-    { id = 37370003, name = "First Temple",    fn = function() return has_location_type(function(b) return df.abstract_building_templest:is_instance(b)    end) end },
-    { id = 37370004, name = "First Guildhall", fn = function() return has_location_type(function(b) return df.abstract_building_guildhallst:is_instance(b) end) end },
+    -- Temple tiers: shrine (<2000), temple (>=2000), temple complex (>=10000).
+    { id = 37370003, name = "First Shrine",    fn = function() return has_location_type(function(b) return df.abstract_building_templest:is_instance(b)    end) end },
+    { id = 37370010, name = "First Temple",    fn = function() return best_temple_value()   >= 2000  end },
+    { id = 37370011, name = "Temple Complex",  fn = function() return best_temple_value()   >= 10000 end },
+
+    -- Guildhall tiers: meeting place (<2000), guildhall (>=2000), grand guildhall (>=10000).
+    { id = 37370004, name = "First Meeting Place", fn = function() return has_location_type(function(b) return df.abstract_building_guildhallst:is_instance(b) end) end },
+    { id = 37370012, name = "First Guildhall",     fn = function() return best_guildhall_value() >= 2000  end },
+    { id = 37370013, name = "Grand Guildhall",     fn = function() return best_guildhall_value() >= 10000 end },
 
     -- Room quality milestones - best tier across Bedroom/Office/DiningHall/Tomb.
     -- Tiers 3-7 match DF value thresholds: 500 / 1000 / 1500 / 2500 / 10000.

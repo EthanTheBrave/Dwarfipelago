@@ -17,16 +17,24 @@ class LocationData:
 
 # ── Room Milestones ───────────────────────────────────────────────────────────
 ROOM_LOCATIONS: list[LocationData] = [
-    LocationData("First Bedroom",   BASE_ID + 0,  "Fortress"),
-    LocationData("First Office",    BASE_ID + 1,  "Fortress"),
-    LocationData("First Tomb",      BASE_ID + 2,  "Fortress"),
-    LocationData("First Temple",    BASE_ID + 3,  "Fortress"),
-    LocationData("First Guildhall", BASE_ID + 4,  "Fortress"),
-    LocationData("Decent Room",     BASE_ID + 5,  "Fortress"),
-    LocationData("Fine Room",       BASE_ID + 6,  "Fortress"),
-    LocationData("Great Room",      BASE_ID + 7,  "Fortress"),
-    LocationData("Grand Room",      BASE_ID + 8,  "Fortress"),
-    LocationData("Royal Room",      BASE_ID + 9,  "Fortress"),
+    # First room of each type
+    LocationData("First Bedroom",       BASE_ID + 0,  "Fortress"),
+    LocationData("First Office",        BASE_ID + 1,  "Fortress"),
+    LocationData("First Tomb",          BASE_ID + 2,  "Fortress"),
+    # Temple tiers: shrine / temple (2000+) / temple complex (10000+)
+    LocationData("First Shrine",        BASE_ID + 3,  "Fortress"),
+    LocationData("First Temple",        BASE_ID + 10, "Fortress"),
+    LocationData("Temple Complex",      BASE_ID + 11, "Fortress"),
+    # Guildhall tiers: meeting place / guildhall (2000+) / grand guildhall (10000+)
+    LocationData("First Meeting Place", BASE_ID + 4,  "Fortress"),
+    LocationData("First Guildhall",     BASE_ID + 12, "Fortress"),
+    LocationData("Grand Guildhall",     BASE_ID + 13, "Fortress"),
+    # Room quality tiers (best across Bedroom/Office/DiningHall/Tomb)
+    LocationData("Decent Room",         BASE_ID + 5,  "Fortress"),
+    LocationData("Fine Room",           BASE_ID + 6,  "Fortress"),
+    LocationData("Great Room",          BASE_ID + 7,  "Fortress"),
+    LocationData("Grand Room",          BASE_ID + 8,  "Fortress"),
+    LocationData("Royal Room",          BASE_ID + 9,  "Fortress"),
 ]
 
 # ── First Production Milestones ───────────────────────────────────────────────
