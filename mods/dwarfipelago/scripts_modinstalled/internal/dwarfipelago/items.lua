@@ -8,10 +8,10 @@ local M = {}
 local log      = reqscript("internal/dwarfipelago/log")
 local bestiary = reqscript("internal/dwarfipelago/bestiary")
 
--- ── Helpers ───────────────────────────────────────────────────────────────────
+-- -- Helpers -------------------------------------------------------------------
 
 -- Return the center tile of the first trade depot in the fortress, or nil.
--- The depot is 5×5; (x1+2, y1+2) is its center tile.
+-- The depot is 5x5; (x1+2, y1+2) is its center tile.
 local function find_trade_depot_center()
     for _, bld in ipairs(df.global.world.buildings.all) do
         if df.building_tradedepotst:is_instance(bld) then
@@ -178,11 +178,11 @@ local function find_civ_id(token)
     return fallback
 end
 
--- ── Item handlers: trade goods ────────────────────────────────────────────────
+-- -- Item handlers: trade goods ------------------------------------------------
 -- createitem syntax: <item-token> <material>
---   Cut gems  → SMALLGEM INORGANIC:<gem>   (SMALLGEM = cut gem; ROUGH = uncut)
---   Metal bars → BAR INORGANIC:<metal>
---   Figurines  → FIGURINE INORGANIC:<stone>
+--   Cut gems  -> SMALLGEM INORGANIC:<gem>   (SMALLGEM = cut gem; ROUGH = uncut)
+--   Metal bars -> BAR INORGANIC:<metal>
+--   Figurines  -> FIGURINE INORGANIC:<stone>
 
 local function recv_cut_sapphire()
     spawn_item("SMALLGEM", "INORGANIC:SAPPHIRE")
@@ -239,12 +239,12 @@ local function recv_masterwork_craft()
     announce_at_depot("Received: Masterwork Craft!")
 end
 
--- ── Item handlers: resources ──────────────────────────────────────────────────
+-- -- Item handlers: resources --------------------------------------------------
 -- createitem syntax:
---   Food (edible growths) → PLANT_GROWTH PLANT:<plant>:<growth>
---   Wood logs             → WOOD PLANT_MAT:<tree>:WOOD
---   Iron ore boulders     → BOULDER INORGANIC:<ore>
---   Fuel bars             → BAR COAL:COKE  (or COAL:CHARCOAL)
+--   Food (edible growths) -> PLANT_GROWTH PLANT:<plant>:<growth>
+--   Wood logs             -> WOOD PLANT_MAT:<tree>:WOOD
+--   Iron ore boulders     -> BOULDER INORGANIC:<ore>
+--   Fuel bars             -> BAR COAL:COKE  (or COAL:CHARCOAL)
 
 local function recv_food_bundle()
     for _ = 1, 5 do
@@ -274,7 +274,7 @@ local function recv_coal_bundle()
     announce_at_depot("Received: Coal Bundle!")
 end
 
--- ── Item handlers: filler items ──────────────────────────────────────────────
+-- -- Item handlers: filler items ----------------------------------------------
 -- These are items the DF world contributes to the multiworld pool. The DF
 -- player may receive them back if the AP server places them at DF locations.
 
@@ -425,7 +425,7 @@ local function recv_copper_short_sword()
     announce("Received: a Copper Short Sword.")
 end
 
--- ── Item handlers: useful items ───────────────────────────────────────────────
+-- -- Item handlers: useful items -----------------------------------------------
 
 local function recv_masterwork_crafts()
     spawn_item("FIGURINE", "INORGANIC:OBSIDIAN")
@@ -452,7 +452,7 @@ local function recv_raw_adamantine()
     announce_at_depot("Received: Raw Adamantine!")
 end
 
--- ── Item handlers: livestock ──────────────────────────────────────────────────
+-- -- Item handlers: livestock --------------------------------------------------
 -- Spawns a small group of tame, fortress-owned animals. Always guarantees at
 -- least one male (caste 0) and one female (caste 1) so the pair can breed.
 -- Total count is 2-5; extras are random sex.
@@ -543,7 +543,7 @@ local function recv_sunlight_tonic()
     announce_at_depot("Sunlight Tonic received! Your dwarves may now walk freely in sunlight.")
 end
 
--- ── Item handlers: progression gate items ────────────────────────────────────
+-- -- Item handlers: progression gate items ------------------------------------
 -- These items are purely flag-based - receiving them writes a persistent key
 -- that the goal-completion checks in dwarfipelago.lua read back.
 
@@ -661,7 +661,7 @@ local function recv_king_remains()
     print("[Dwarfipelago] Progression item received: Remains of the Great King")
 end
 
--- ── Item handlers: junk traps (AP filler trap items sent back to DF) ─────────
+-- -- Item handlers: junk traps (AP filler trap items sent back to DF) ---------
 -- These items land back in the DF player's inventory as padding. They have no
 -- meaningful in-game effect - just a flavour announcement.
 
@@ -732,7 +732,7 @@ local function find_surface_spawn_pos()
     return nil
 end
 
--- ── Item handlers: traps ──────────────────────────────────────────────────────
+-- -- Item handlers: traps ------------------------------------------------------
 -- Hostile-spawn traps create units directly through the dfhack.units API instead
 -- of the modtools/create-unit script (which errors on this build:
 -- "Cannot read field world.arena_spawn"). Each trap still falls back to a
@@ -781,8 +781,8 @@ local function create_unit(race_token, pos, opts)
 
         -- A freshly created unit is neutral wildlife (it just stands around). To
         -- make a trap creature an actual threat we flag it as an active hostile:
-        --   active_invader → the game treats it as a hostile that seeks targets
-        --   marauder       → roams/attacks rather than fleeing
+        --   active_invader -> the game treats it as a hostile that seeks targets
+        --   marauder       -> roams/attacks rather than fleeing
         -- For civ units (goblins) civ_id is also set so they invade as that race.
         if opts.hostile then
             unit.flags1.active_invader = true
@@ -1017,7 +1017,7 @@ local function recv_lost_caravan()
     announce("Trap: A caravan has been lost on the road...")
 end
 
--- ── Megabeast spawn helpers ───────────────────────────────────────────────────
+-- -- Megabeast spawn helpers ---------------------------------------------------
 
 -- Search for an open, non-surface floor tile well below ground.
 -- Randomly samples positions across multiple z-levels so it handles any
@@ -1120,7 +1120,7 @@ local function beast_label(unit, species)
     return (label and label ~= "") and label or species
 end
 
--- ── Curated impact crater for the climax ──────────────────────────────────────
+-- -- Curated impact crater for the climax --------------------------------------
 local CRATER_RIM_R = 6   -- radius at the surface rim
 local CRATER_DEPTH = 5   -- z-levels carved (stepped bowl with ramped walls)
 
@@ -1438,7 +1438,7 @@ local function spawn_target_megabeast()
 end
 M.spawn_target_megabeast = spawn_target_megabeast
 
--- ── Megabeast siege: roaming warbands ─────────────────────────────────────────
+-- -- Megabeast siege: roaming warbands -----------------------------------------
 -- Time-paced enemy waves for the Slay Megabeast goal. Difficulty scales with the
 -- player's War Readiness level (1-9); readiness 10 is the curated breach. Units
 -- spawn at the embark perimeter and are armed via the verified createItem +
@@ -1660,7 +1660,7 @@ local function spawn_warband(readiness)
 end
 M.spawn_warband = spawn_warband
 
--- ── Item handlers: progression locks ─────────────────────────────────────────
+-- -- Item handlers: progression locks -----------------------------------------
 
 local function recv_merchants_coffer()
     local key = "dwarfipelago/unlock/wealth_coffers"
@@ -2009,13 +2009,13 @@ local function recv_progressive_mining_depth()
         :format(where, math.min(n, 4)))
 end
 
--- ── Progression unlock definitions ───────────────────────────────────────────
+-- -- Progression unlock definitions -------------------------------------------
 -- Single source of truth for all progression unlocks.
 -- The panel reads this to build its Unlocks tab automatically.
 -- Add new entries here when adding a new progression item handler.
---   key  → suffix after "dwarfipelago/unlock/" in persistent storage
---   label → display name shown in the panel
---   max  → if set, treated as a counter (shows "n/max"); otherwise a boolean
+--   key  -> suffix after "dwarfipelago/unlock/" in persistent storage
+--   label -> display name shown in the panel
+--   max  -> if set, treated as a counter (shows "n/max"); otherwise a boolean
 
 M.UNLOCK_DEFS = {
     { key = "wealth_coffers",        label = "Merchant's Coffers",     max = 5 },
@@ -2034,8 +2034,8 @@ M.UNLOCK_DEFS = {
     { key = "mining_depth",          label = "Progressive Mining Depth", max = 4 },
 }
 
--- ── Dispatch table ────────────────────────────────────────────────────────────
--- Maps AP item name → handler function.
+-- -- Dispatch table ------------------------------------------------------------
+-- Maps AP item name -> handler function.
 -- Names must match items.py exactly.
 
 M.handlers = {
@@ -2118,7 +2118,7 @@ M.handlers = {
     end,
 }
 
--- ── Blueprint items ───────────────────────────────────────────────────────────
+-- -- Blueprint items -----------------------------------------------------------
 -- Workshop blueprints unlock the ability to build specific workshops.
 -- The unlock_blueprint function is defined in main.lua and writes to
 -- persistent storage so the onJobInitiated hook can check it.
@@ -2176,7 +2176,7 @@ for _, bp_name in ipairs(BLUEPRINT_NAMES) do
     end
 end
 
--- ── Crafting lock items ───────────────────────────────────────────────────────
+-- -- Crafting lock items -------------------------------------------------------
 -- Receiving "Crafting X" from the AP multiworld writes a craftlock flag that
 -- dwarfipelago.lua's on_job_initiated hook reads to decide whether to allow the
 -- job. Names must match CRAFT_ITEMS in items.py exactly (minus the "Crafting " prefix).
@@ -2217,7 +2217,7 @@ for _, item_name in ipairs(CRAFTING_LOCK_ITEMS) do
     end
 end
 
--- ── Test harness (dwarfipelago test <name>) ──────────────────────────────────
+-- -- Test harness (dwarfipelago test <name>) ----------------------------------
 -- Manual in-game verification of the spawn / effect mechanics. Each test prints
 -- what happened so a failure is obvious in the console.
 
@@ -2420,6 +2420,108 @@ local TEST_LIST = {
                        print("[test] It enters at a map edge and walks to your depot; give it time. "
                              .. "A race not neighboring your embark may not actually arrive.")
                    end },
+    { "caves",      "Mark all 6 cave locations as discovered, drill light shafts, and reveal the map",
+                   function()
+                       if dfhack.persistent.getWorldDataString("dwarfipelago/caves/generated") ~= "1" then
+                           dfhack.printerr("[test] Caves not generated yet - start the mod and wait a moment.")
+                           return
+                       end
+                       -- Read surface z from persistent storage; fall back to a living citizen's z.
+                       local surface_z = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/mining/surface_z"))
+                       if not surface_z then
+                           for _, u in ipairs(df.global.world.units.active) do
+                               if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then
+                                   surface_z = u.pos.z; break
+                               end
+                           end
+                       end
+                       -- Convert raw z to the elevation shown in the DF UI (matches masspit.lua formula).
+                       local region_z = df.global.world.map.region_z
+                       local function to_elev(z) return region_z + z - 100 end
+                       -- Channel a 1x1 shaft from just above the cave ceiling (z+3) up to
+                       -- one below the surface, then execute immediately with dig-now.
+                       -- The cave floor is at cz, with 2 open levels above it (cz+1, cz+2).
+
+                       -- Force outside=true on every non-wall tile in the cave footprint so DF
+                       -- renders them lit. Underground tiles default to outside=false (black) even
+                       -- after reveal; DF only propagates this flag on a game tick, so we set it
+                       -- directly for immediate visibility in tests.
+                       local function illuminate_cave(cx, cy, cz)
+                           for dx = -6, 6 do
+                               for dy = -6, 6 do
+                                   for dz = -1, 3 do
+                                       local x, y, z = cx + dx, cy + dy, cz + dz
+                                       local blk = dfhack.maps.getTileBlock(x, y, z)
+                                       if blk then
+                                           pcall(function()
+                                               local lx, ly = x % 16, y % 16
+                                               local shape = df.tiletype.attrs[blk.tiletype[lx][ly]].shape
+                                               if shape ~= df.tiletype_shape.WALL then
+                                                   blk.designation[lx][ly].outside = true
+                                               end
+                                           end)
+                                       end
+                                   end
+                               end
+                           end
+                       end
+
+                       local function drill_shaft(sx, sy, sz)
+                           if not surface_z then return false end
+                           -- Start at sz+4: sz+3 is solid ceiling above cave; channeling it
+                           -- would create a down-ramp at sz+2 (cave ceiling), overwriting OpenSpace.
+                           -- Set tiles directly to OpenSpace to avoid any Channel ramp side-effects.
+                           local z_bot = sz + 4
+                           local z_top = surface_z - 1
+                           if z_bot > z_top then return false end
+                           for z = z_bot, z_top do
+                               local blk = dfhack.maps.getTileBlock(sx, sy, z)
+                               if blk then
+                                   pcall(function()
+                                       local lx, ly = sx % 16, sy % 16
+                                       blk.tiletype[lx][ly]          = df.tiletype.OpenSpace
+                                       blk.designation[lx][ly].hidden = false
+                                   end)
+                               end
+                           end
+                           return true
+                       end
+                       -- AP caves
+                       local found = 0
+                       for i = 1, 6 do
+                           local key = "dwarfipelago/cave/" .. i .. "/"
+                           local x = tonumber(dfhack.persistent.getWorldDataString(key .. "x"))
+                           if x and x > 0 then
+                               dfhack.persistent.saveWorldDataString(key .. "discovered", "1")
+                               local y = tonumber(dfhack.persistent.getWorldDataString(key .. "y"))
+                               local z = tonumber(dfhack.persistent.getWorldDataString(key .. "z"))
+                               local shafted = drill_shaft(x, y, z)
+                               illuminate_cave(x, y, z)
+                               print(("[test] Cave #%d at (%d, %d, elev %d) - marked discovered%s"):format(
+                                   i, x, y, to_elev(z), shafted and ", light shaft drilled" or ""))
+                               found = found + 1
+                           else
+                               print(("[test] Cave #%d - no valid site, skipped"):format(i))
+                           end
+                       end
+                       -- Secret caves
+                       for idx, prefix in ipairs({"dwarfipelago/cave/secret/1/", "dwarfipelago/cave/secret/2/"}) do
+                           local x = tonumber(dfhack.persistent.getWorldDataString(prefix .. "x"))
+                           if x and x > 0 then
+                               local y = tonumber(dfhack.persistent.getWorldDataString(prefix .. "y"))
+                               local z = tonumber(dfhack.persistent.getWorldDataString(prefix .. "z"))
+                               local shafted = drill_shaft(x, y, z)
+                               illuminate_cave(x, y, z)
+                               print(("[test] Secret cave #%d at (%d, %d, elev %d)%s"):format(
+                                   idx, x, y, to_elev(z), shafted and " - light shaft drilled" or ""))
+                           else
+                               print(("[test] Secret cave #%d - not yet generated"):format(idx))
+                           end
+                       end
+                       -- Reveal the whole map so all shafts and caves are visible
+                       dfhack.run_command("reveal")
+                       print(("[test] %d AP cave(s) marked; run 'unreveal' when done testing."):format(found))
+                   end },
 }
 
 -- Dispatch a named test. `rest` is an array of any extra args after the name.
@@ -2456,7 +2558,7 @@ function M.reembark_batch_spawn(wave_count)
     local made = spawn_citizen_dwarves(count)
     if made == 0 then
         pcall(function() dfhack.run_command("force", "Migrants") end)
-        announce("Re-embark! Your reputation precedes you — migrants are on their way.")
+        announce("Re-embark! Your reputation precedes you - migrants are on their way.")
     else
         announce(("Re-embark! %d migrants join the rebuilt fortress."):format(made))
     end

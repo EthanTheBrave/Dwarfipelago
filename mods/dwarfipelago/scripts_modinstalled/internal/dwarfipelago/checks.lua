@@ -1155,8 +1155,7 @@ function M.find_fortress_coins_energy()
         if ok and t == df.item_type.COIN
                 and not item.flags.removed
                 and not item.flags.trader
-                and not item.flags.in_inventory
-                and not item.flags.in_job then
+                and not held_by_unit(item) then
             local j = 0
             pcall(function()
                 local ok2, mat = pcall(dfhack.matinfo.decode, item.mat_type, item.mat_index)
