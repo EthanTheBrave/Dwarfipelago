@@ -17,25 +17,41 @@ local KEY_SECRET1      = "dwarfipelago/cave/secret/1/"
 local KEY_SECRET2      = "dwarfipelago/cave/secret/2/"
 local NUM_CAVES        = 6  -- 2 per inter-cavern gap x 3 potential gaps
 
--- Tiletype IDs.  Names are resolved at load time; hardcoded fallback values are
--- from the canonical DF/DFHack enum in case naming ever shifts.
-local TT_OPEN_SPACE = 32   -- df.tiletype['Open Space']
-local TT_ROCK_FLOOR = 53   -- df.tiletype['RockFloor1']
-pcall(function() TT_OPEN_SPACE = df.tiletype['Open Space'] end)
-pcall(function() TT_ROCK_FLOOR = df.tiletype['RockFloor1']  end)
+-- Tiletype IDs resolved at load time by scanning the enum, so we never depend on
+-- a hardcoded number or a name that may differ between DF/DFHack versions.
+-- (df.tiletype.RockFloor1 is nil in this build; df.tiletype[53] is Grass2StairD.)
+local TT_OPEN_SPACE = df.tiletype.OpenSpace  -- 32; confirmed via console
+local TT_ROCK_FLOOR = TT_OPEN_SPACE          -- fallback: should always be overwritten below
+pcall(function()
+    for i = df.tiletype._first_item, df.tiletype._last_item do
+        local a = df.tiletype.attrs[i]
+        if a and a.shape == df.tiletype_shape.FLOOR
+             and a.material == df.tiletype_material.STONE then
+            TT_ROCK_FLOOR = i
+            break
+        end
+    end
+end)
 
 -- Item placement
 
--- Filler items randomly placed in treasure caves (same tokens as items.lua handlers).
-local FILLER_POOL = {
-    {"BOULDER",     "INORGANIC:LIMESTONE",                   4},
-    {"BAR",         "INORGANIC:PIG_IRON",                    2},
-    {"BAR",         "COAL:CHARCOAL",                         3},
-    {"CLOTH",       "PLANT_MAT:GRASS_TAIL_PIG:THREAD",       3},
-    {"SKIN_TANNED", "CREATURE_MAT:COW:LEATHER",              3},
-    {"DRINK",       "PLANT_MAT:MUSHROOM_HELMET_PLUMP:DRINK", 3},
-    {"FIGURINE",    "INORGANIC:MARBLE",                      1},
-    {"BOULDER",     "INORGANIC:MAGNETITE",                   3},
+-- Loot scattered across treasure cave floors.
+local TREASURE_POOL = {
+    {"BAR",         "INORGANIC:GOLD",                        6},
+    {"BAR",         "INORGANIC:SILVER",                      8},
+    {"BAR",         "INORGANIC:PLATINUM",                    4},
+    {"BAR",         "INORGANIC:STEEL",                       6},
+    {"BAR",         "INORGANIC:COPPER",                      8},
+    {"FIGURINE",    "INORGANIC:GOLD",                        4},
+    {"FIGURINE",    "INORGANIC:OBSIDIAN",                    5},
+    {"FIGURINE",    "INORGANIC:MARBLE",                      6},
+    {"CLOTH",       "PLANT_MAT:GRASS_TAIL_PIG:THREAD",       8},
+    {"SKIN_TANNED", "CREATURE_MAT:COW:LEATHER",              6},
+    {"BOULDER",     "INORGANIC:MAGNETITE",                   8},
+    {"DRINK",       "PLANT_MAT:MUSHROOM_HELMET_PLUMP:DRINK", 5},
+    {"BAR",         "INORGANIC:PIG_IRON",                    6},
+    {"BOULDER",     "INORGANIC:LIMONITE",                    8},
+    {"BAR",         "COAL:COKE",                             6},
 }
 
 -- Gem pairs for treasure caves: {primary, fallback}.
@@ -83,9 +99,19 @@ local function place_item_at(x, y, z, item_type, material, count)
 end
 
 -- Stock a cave with appropriate items immediately after carving.
-local function stock_cave(cx, cy, cz, cave_type)
+-- floor_tiles: list of {x,y} positions from carve(); items are scattered across them.
+local function stock_cave(cx, cy, cz, cave_type, floor_tiles)
+    -- Pick a random floor tile for item placement, or fall back to centre.
+    local function rand_pos()
+        if floor_tiles and #floor_tiles > 0 then
+            local t = floor_tiles[math.random(#floor_tiles)]
+            return t.x, t.y, cz
+        end
+        return cx, cy, cz
+    end
+
     if cave_type == "trap" then
-        -- A tempting lode of iron and copper ore to lure dwarves deeper.
+        -- Ore piled in the centre so it looks like a tempting lode.
         local placed_iron = false
         for _, ore in ipairs(IRON_ORES) do
             if place_item_at(cx, cy, cz, "BOULDER", ore, 8) > 0 then
@@ -101,31 +127,35 @@ local function stock_cave(cx, cy, cz, cave_type)
         log.info(("Trap cave stocked: iron=%s copper=%s"):format(
             tostring(placed_iron), tostring(placed_copper)))
     else
-        -- Shuffle filler pool and pick 3-4 items.
+        -- Shuffle treasure pool and pick 7-10 item types, each at a random floor tile.
         local pool = {}
-        for _, v in ipairs(FILLER_POOL) do table.insert(pool, v) end
+        for _, v in ipairs(TREASURE_POOL) do table.insert(pool, v) end
         for i = #pool, 2, -1 do
             local j = math.random(i)
             pool[i], pool[j] = pool[j], pool[i]
         end
-        local n_filler = 3 + math.random(0, 1)
-        for i = 1, math.min(n_filler, #pool) do
-            place_item_at(cx, cy, cz, pool[i][1], pool[i][2], pool[i][3])
+        local n_items = 7 + math.random(0, 3)
+        for i = 1, math.min(n_items, #pool) do
+            local px, py, pz = rand_pos()
+            place_item_at(px, py, pz, pool[i][1], pool[i][2], pool[i][3])
         end
-        -- Add 2 random cut gems (try primary material, fall back to secondary).
+        -- 3-4 gem types, each batch at a different random floor tile.
         local gem_pool = {}
         for _, v in ipairs(GEM_POOL) do table.insert(gem_pool, v) end
         for i = #gem_pool, 2, -1 do
             local j = math.random(i)
             gem_pool[i], gem_pool[j] = gem_pool[j], gem_pool[i]
         end
-        for i = 1, 2 do
+        local n_gems = 3 + math.random(0, 1)
+        for i = 1, math.min(n_gems, #gem_pool) do
             local gem = gem_pool[i]
-            if place_item_at(cx, cy, cz, "SMALLGEM", gem[1], 2) == 0 then
-                place_item_at(cx, cy, cz, "SMALLGEM", gem[2], 2)
+            local px, py, pz = rand_pos()
+            if place_item_at(px, py, pz, "SMALLGEM", gem[1], 3) == 0 then
+                local px2, py2, pz2 = rand_pos()
+                place_item_at(px2, py2, pz2, "SMALLGEM", gem[2], 3)
             end
         end
-        log.info("Treasure cave stocked with filler items and gems")
+        log.info("Treasure cave stocked with hoard scattered across floor")
     end
 end
 
@@ -179,16 +209,26 @@ local function place_karls_coffin(x, y, z)
         end
         if not item then return end
 
-        item.flags.artifact = true
+        local arts   = df.global.world.artifacts
+        local new_id = #arts.all
 
+        -- Register the artifact record first (mirrors spawn_artifact_door pattern).
         local ar = df.artifact_record:new()
-        ar.id       = #df.global.world.artifacts.all
-        ar.item     = item.id
-        ar.unit_id  = -1
+        ar.id      = new_id
+        ar.item    = item      -- item pointer, NOT item.id
+        ar.unit_id = -1
         pcall(function() ar.mystery = false end)
         ar.name.has_name   = true
         ar.name.first_name = "Karl"
-        df.global.world.artifacts.all:insert('#', ar)
+        arts.all:insert('#', ar)
+
+        -- Add back-reference from item to artifact so DF shows the artifact name.
+        local ref = df.general_ref_is_artifactst:new()
+        ref.artifact_id = new_id
+        item.general_refs:insert('#', ref)
+        item.flags.artifact = true
+        item.quality = df.item_quality.Artifact
+
         log.info("Karl's Coffin artifact registered (id=" .. ar.id .. ")")
     end)
 end
@@ -219,11 +259,11 @@ local function is_solid_wall(x, y, z)
 end
 
 -- Returns true if the area around (cx,cy,cz) is entirely solid walls.
--- Checks +/-5 in x/y (cave max-radius 4 + 1-tile border) and 0..4 in z
+-- Checks +/-9 in x/y (cave max-radius 8 + 1-tile border) and 0..4 in z
 -- (floor + up to 2 open tiles + 2-tile solid ceiling margin).
 local function site_ok(cx, cy, cz)
-    for dx = -5, 5 do
-        for dy = -5, 5 do
+    for dx = -9, 9 do
+        for dy = -9, 9 do
             for dz = 0, 4 do
                 if not is_solid_wall(cx + dx, cy + dy, cz + dz) then return false end
             end
@@ -248,14 +288,16 @@ local function set_tile(x, y, z, tt)
 end
 
 -- Hollow out an organic oval pocket centred on (cx,cy,cz).
--- Radii default to rx in [3,4] and ry in [2,3]; pass explicit values for a
+-- Radii default to rx in [5,8] and ry in [4,6]; pass explicit values for a
 -- fixed size (e.g. carve(x,y,z, 2,2) for a small spider-cave circle).
 -- Edge tiles (ellipse dist^2 0.7-1.1) are included with linearly-falling
 -- probability, giving a ragged, natural silhouette.
 -- Height: 3 z-levels (floor + 2 open) in the inner half, 2 z-levels at edges.
+-- Returns the list of {x,y} floor tile positions for use by stock_cave.
 local function carve(cx, cy, cz, rx_in, ry_in)
-    local rx = rx_in or math.random(3, 4)
-    local ry = ry_in or math.random(2, 3)
+    local rx = rx_in or math.random(5, 8)
+    local ry = ry_in or math.random(4, 6)
+    local floor_tiles = {}
     for dx = -(rx + 1), rx + 1 do
         for dy = -(ry + 1), ry + 1 do
             local dist2 = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry)
@@ -274,15 +316,31 @@ local function carve(cx, cy, cz, rx_in, ry_in)
                 if dist2 < 0.5 then
                     set_tile(cx + dx, cy + dy, cz + 2, TT_OPEN_SPACE)
                 end
+                table.insert(floor_tiles, {x = cx + dx, y = cy + dy})
             end
         end
     end
+    return floor_tiles
 end
 
+-- Anchor positions for each cave, spread across map quadrants so caves in
+-- different depth gaps never search the same starting region.
+-- Indices 1-6 are AP caves; 7-8 are the two secret world caves.
+local CAVE_ANCHORS = {
+    {x=0.20, y=0.20},  -- 1: NW
+    {x=0.75, y=0.75},  -- 2: SE
+    {x=0.75, y=0.20},  -- 3: NE
+    {x=0.20, y=0.75},  -- 4: SW
+    {x=0.48, y=0.30},  -- 5: N-center
+    {x=0.48, y=0.65},  -- 6: S-center
+    {x=0.30, y=0.48},  -- 7: W-center  (spider silk secret)
+    {x=0.65, y=0.48},  -- 8: E-center  (Karl's Coffin secret)
+}
+
 -- Find a suitable cave site in the z-range [z_lo, z_hi] (z_hi > z_lo = shallower).
--- `slot` (1-based within the gap) seeds the quadrant so the two per-gap caves
--- are spread across different parts of the map.
-local function find_site(z_hi, z_lo, slot)
+-- `cave_idx` is the global cave number (1-8) used to pick a unique map anchor so
+-- no two caves ever search the same x/y region regardless of which gap they occupy.
+local function find_site(z_hi, z_lo, cave_idx)
     local margin = 5
     local lo = z_lo + margin
     local hi = z_hi - margin
@@ -291,13 +349,14 @@ local function find_site(z_hi, z_lo, slot)
     local map_w = df.global.world.map.x_count
     local map_h = df.global.world.map.y_count
 
-    -- Spread: slot 1 -> NW quadrant, slot 2 -> SE quadrant.
-    local base_x = (slot % 2 == 1)
-        and math.floor(map_w * 0.20) or math.floor(map_w * 0.55)
-    local base_y = (slot <= 2)
-        and math.floor(map_h * 0.20) or math.floor(map_h * 0.55)
-
-    local z = math.floor((lo + hi) / 2) + ((slot * 3) % 5) - 2
+    local anchor = CAVE_ANCHORS[cave_idx] or CAVE_ANCHORS[1]
+    local base_x = math.floor(map_w * anchor.x)
+    local base_y = math.floor(map_h * anchor.y)
+    -- Spread caves proportionally through the gap rather than clustering at midpoint.
+    -- Even cave_idx (1-indexed) goes in the upper third, odd goes in the lower third.
+    local within_gap = (cave_idx - 1) % 2          -- 0 = first of pair, 1 = second
+    local z_frac     = 0.30 + within_gap * 0.40    -- 0.30 or 0.70
+    local z          = math.floor(lo + (hi - lo) * z_frac)
 
     for attempt = 0, 50 do
         local x = math.max(8, math.min(map_w - 9, base_x + (attempt * 7)  % 50))
@@ -338,13 +397,13 @@ function M.generate()
     local cave_idx   = 1
 
     for gap_i, gap in ipairs(gaps) do
-        for slot = 1, 2 do
+        for _ = 1, 2 do
             if cave_idx > NUM_CAVES then break end
-            local x, y, z = find_site(gap.hi, gap.lo, slot)
+            local x, y, z = find_site(gap.hi, gap.lo, cave_idx)
             local cave_type = cave_types[cave_idx]
             if x then
-                carve(x, y, z)
-                stock_cave(x, y, z, cave_type)
+                local floor_tiles = carve(x, y, z)
+                stock_cave(x, y, z, cave_type, floor_tiles)
                 dfhack.persistent.saveWorldDataString(cave_key(cave_idx, "x"),    tostring(x))
                 dfhack.persistent.saveWorldDataString(cave_key(cave_idx, "y"),    tostring(y))
                 dfhack.persistent.saveWorldDataString(cave_key(cave_idx, "z"),    tostring(z))
@@ -489,7 +548,7 @@ function M.generate_secret_caves()
 
     -- Secret 1: spider silk cave in the surface -> cavern 1 gap.
     if c1 then
-        local x, y, z = find_site(surface_z - 5, c1 + 5, 3)
+        local x, y, z = find_site(surface_z - 5, c1 + 5, 7)
         if x then
             carve(x, y, z, 2, 2)
             local n = 0
@@ -507,7 +566,7 @@ function M.generate_secret_caves()
 
     -- Secret 2: Karl's Coffin cave in the cavern 1 -> cavern 2 gap.
     if c1 and c2 then
-        local x, y, z = find_site(c1 - 5, c2 + 5, 4)
+        local x, y, z = find_site(c1 - 5, c2 + 5, 8)
         if x then
             carve(x, y, z)
             place_karls_coffin(x, y, z)

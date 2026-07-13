@@ -2420,11 +2420,71 @@ local TEST_LIST = {
                        print("[test] It enters at a map edge and walks to your depot; give it time. "
                              .. "A race not neighboring your embark may not actually arrive.")
                    end },
-    { "caves",      "Mark all 6 cave locations as discovered and reveal the full map",
+    { "caves",      "Mark all 6 cave locations as discovered, drill light shafts, and reveal the map",
                    function()
                        if dfhack.persistent.getWorldDataString("dwarfipelago/caves/generated") ~= "1" then
                            dfhack.printerr("[test] Caves not generated yet - start the mod and wait a moment.")
                            return
+                       end
+                       -- Read surface z from persistent storage; fall back to a living citizen's z.
+                       local surface_z = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/mining/surface_z"))
+                       if not surface_z then
+                           for _, u in ipairs(df.global.world.units.active) do
+                               if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then
+                                   surface_z = u.pos.z; break
+                               end
+                           end
+                       end
+                       -- Convert raw z to the elevation shown in the DF UI (matches masspit.lua formula).
+                       local region_z = df.global.world.map.region_z
+                       local function to_elev(z) return region_z + z - 100 end
+                       -- Channel a 1x1 shaft from just above the cave ceiling (z+3) up to
+                       -- one below the surface, then execute immediately with dig-now.
+                       -- The cave floor is at cz, with 2 open levels above it (cz+1, cz+2).
+
+                       -- Force outside=true on every non-wall tile in the cave footprint so DF
+                       -- renders them lit. Underground tiles default to outside=false (black) even
+                       -- after reveal; DF only propagates this flag on a game tick, so we set it
+                       -- directly for immediate visibility in tests.
+                       local function illuminate_cave(cx, cy, cz)
+                           for dx = -6, 6 do
+                               for dy = -6, 6 do
+                                   for dz = -1, 3 do
+                                       local x, y, z = cx + dx, cy + dy, cz + dz
+                                       local blk = dfhack.maps.getTileBlock(x, y, z)
+                                       if blk then
+                                           pcall(function()
+                                               local lx, ly = x % 16, y % 16
+                                               local shape = df.tiletype.attrs[blk.tiletype[lx][ly]].shape
+                                               if shape ~= df.tiletype_shape.WALL then
+                                                   blk.designation[lx][ly].outside = true
+                                               end
+                                           end)
+                                       end
+                                   end
+                               end
+                           end
+                       end
+
+                       local function drill_shaft(sx, sy, sz)
+                           if not surface_z then return false end
+                           -- Start at sz+4: sz+3 is solid ceiling above cave; channeling it
+                           -- would create a down-ramp at sz+2 (cave ceiling), overwriting OpenSpace.
+                           -- Set tiles directly to OpenSpace to avoid any Channel ramp side-effects.
+                           local z_bot = sz + 4
+                           local z_top = surface_z - 1
+                           if z_bot > z_top then return false end
+                           for z = z_bot, z_top do
+                               local blk = dfhack.maps.getTileBlock(sx, sy, z)
+                               if blk then
+                                   pcall(function()
+                                       local lx, ly = sx % 16, sy % 16
+                                       blk.tiletype[lx][ly]          = df.tiletype.OpenSpace
+                                       blk.designation[lx][ly].hidden = false
+                                   end)
+                               end
+                           end
+                           return true
                        end
                        -- AP caves
                        local found = 0
@@ -2435,7 +2495,10 @@ local TEST_LIST = {
                                dfhack.persistent.saveWorldDataString(key .. "discovered", "1")
                                local y = tonumber(dfhack.persistent.getWorldDataString(key .. "y"))
                                local z = tonumber(dfhack.persistent.getWorldDataString(key .. "z"))
-                               print(("[test] Cave #%d at (%d, %d, %d) - marked discovered"):format(i, x, y, z))
+                               local shafted = drill_shaft(x, y, z)
+                               illuminate_cave(x, y, z)
+                               print(("[test] Cave #%d at (%d, %d, elev %d) - marked discovered%s"):format(
+                                   i, x, y, to_elev(z), shafted and ", light shaft drilled" or ""))
                                found = found + 1
                            else
                                print(("[test] Cave #%d - no valid site, skipped"):format(i))
@@ -2447,12 +2510,15 @@ local TEST_LIST = {
                            if x and x > 0 then
                                local y = tonumber(dfhack.persistent.getWorldDataString(prefix .. "y"))
                                local z = tonumber(dfhack.persistent.getWorldDataString(prefix .. "z"))
-                               print(("[test] Secret cave #%d at (%d, %d, %d)"):format(idx, x, y, z))
+                               local shafted = drill_shaft(x, y, z)
+                               illuminate_cave(x, y, z)
+                               print(("[test] Secret cave #%d at (%d, %d, elev %d)%s"):format(
+                                   idx, x, y, to_elev(z), shafted and " - light shaft drilled" or ""))
                            else
                                print(("[test] Secret cave #%d - not yet generated"):format(idx))
                            end
                        end
-                       -- Reveal the whole map so all caves are visible at their z-levels
+                       -- Reveal the whole map so all shafts and caves are visible
                        dfhack.run_command("reveal")
                        print(("[test] %d AP cave(s) marked; run 'unreveal' when done testing."):format(found))
                    end },
