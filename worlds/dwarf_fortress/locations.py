@@ -22,11 +22,11 @@ ROOM_LOCATIONS: list[LocationData] = [
     LocationData("First Tomb",      BASE_ID + 2,  "Fortress"),
     LocationData("First Temple",    BASE_ID + 3,  "Fortress"),
     LocationData("First Guildhall", BASE_ID + 4,  "Fortress"),
-    LocationData("Adequate Room",   BASE_ID + 5,  "Fortress"),
+    LocationData("Decent Room",     BASE_ID + 5,  "Fortress"),
     LocationData("Fine Room",       BASE_ID + 6,  "Fortress"),
-    LocationData("Grand Room",      BASE_ID + 7,  "Fortress"),
-    LocationData("Royal Room",      BASE_ID + 8,  "Fortress"),
-    LocationData("Legendary Room",  BASE_ID + 9,  "Fortress"),
+    LocationData("Great Room",      BASE_ID + 7,  "Fortress"),
+    LocationData("Grand Room",      BASE_ID + 8,  "Fortress"),
+    LocationData("Royal Room",      BASE_ID + 9,  "Fortress"),
 ]
 
 # ── First Production Milestones ───────────────────────────────────────────────

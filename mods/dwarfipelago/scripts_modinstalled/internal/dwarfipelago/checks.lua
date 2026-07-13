@@ -16,18 +16,34 @@ end
 
 -- ── Room milestones ──────────────────────────────────────────────────────────
 
--- Quality rank for a zone (1=Meager .. 7=Legendary, 0=no description).
-local QUALITY_RANK = {
-    Meager=1, Modest=2, Adequate=3, Fine=4, Grand=5, Royal=6, Legendary=7
+-- Quality tier (0-7) from getRoomDescription's exact return string.
+-- Tiers map to DF room value thresholds: 0, 100, 250, 500, 1000, 1500, 2500, 10000.
+local ROOM_TIER = {
+    ["Meager Quarters"]       = 0, ["Modest Quarters"]       = 1,
+    ["Quarters"]              = 2, ["Decent Quarters"]       = 3,
+    ["Fine Quarters"]         = 4, ["Great Bedroom"]         = 5,
+    ["Grand Bedroom"]         = 6, ["Royal Bedroom"]         = 7,
+
+    ["Meager Office"]         = 0, ["Modest Office"]         = 1,
+    ["Office"]                = 2, ["Decent Office"]         = 3,
+    ["Splendid Office"]       = 4, ["Throne Room"]           = 5,
+    ["Opulent Throne Room"]   = 6, ["Royal Throne Room"]     = 7,
+
+    ["Meager Dining Room"]    = 0, ["Modest Dining Room"]    = 1,
+    ["Dining Room"]           = 2, ["Decent Dining Room"]    = 3,
+    ["Fine Dining Room"]      = 4, ["Great Dining Room"]     = 5,
+    ["Grand Dining Room"]     = 6, ["Royal Dining Room"]     = 7,
+
+    ["Grave"]                     = 0, ["Servant's Burial Chamber"] = 1,
+    ["Burial Chamber"]            = 2, ["Tomb"]                     = 3,
+    ["Fine Tomb"]                 = 4, ["Mausoleum"]                = 5,
+    ["Grand Mausoleum"]           = 6, ["Royal Mausoleum"]          = 7,
 }
 
 local function zone_quality_rank(zone)
     local desc = ""
     pcall(function() desc = dfhack.buildings.getRoomDescription(zone) or "" end)
-    for word, rank in pairs(QUALITY_RANK) do
-        if desc:find(word) then return rank end
-    end
-    return 0
+    return ROOM_TIER[desc] or -1
 end
 
 -- True if at least one Civzone of the given df.civzone_type exists.
@@ -47,16 +63,17 @@ local function has_zone_type(zone_type)
     return found
 end
 
--- Highest quality rank across all Bedroom/Office/Tomb civzones. 0 if none exist.
+-- Highest quality tier (0-7) across Bedroom/Office/DiningHall/Tomb zones. -1 if none.
 local function best_room_quality()
-    local best = 0
+    local best = -1
     pcall(function()
         local ct = df.civzone_type
         for _, z in ipairs(df.global.world.buildings.all) do
             local ok, t = pcall(function() return z:getType() end)
             if ok and t == df.building_type.Civzone then
                 local ok2, st = pcall(function() return z:getSubtype() end)
-                if ok2 and (st == ct.Bedroom or st == ct.Office or st == ct.Tomb) then
+                if ok2 and (st == ct.Bedroom or st == ct.Office
+                         or st == ct.DiningHall or st == ct.Tomb) then
                     local r = zone_quality_rank(z)
                     if r > best then best = r end
                 end
@@ -217,12 +234,13 @@ M.checks = {
     { id = 37370003, name = "First Temple",    fn = function() return has_location_type(function(b) return df.abstract_building_templest:is_instance(b)    end) end },
     { id = 37370004, name = "First Guildhall", fn = function() return has_location_type(function(b) return df.abstract_building_guildhallst:is_instance(b) end) end },
 
-    -- Room quality milestones - best quality across all Bedroom/Office/Tomb zones.
-    { id = 37370005, name = "Adequate Room",   fn = function() return best_room_quality() >= QUALITY_RANK.Adequate   end },
-    { id = 37370006, name = "Fine Room",       fn = function() return best_room_quality() >= QUALITY_RANK.Fine        end },
-    { id = 37370007, name = "Grand Room",      fn = function() return best_room_quality() >= QUALITY_RANK.Grand       end },
-    { id = 37370008, name = "Royal Room",      fn = function() return best_room_quality() >= QUALITY_RANK.Royal       end },
-    { id = 37370009, name = "Legendary Room",  fn = function() return best_room_quality() >= QUALITY_RANK.Legendary   end },
+    -- Room quality milestones - best tier across Bedroom/Office/DiningHall/Tomb.
+    -- Tiers 3-7 match DF value thresholds: 500 / 1000 / 1500 / 2500 / 10000.
+    { id = 37370005, name = "Decent Room", fn = function() return best_room_quality() >= 3 end },
+    { id = 37370006, name = "Fine Room",   fn = function() return best_room_quality() >= 4 end },
+    { id = 37370007, name = "Great Room",  fn = function() return best_room_quality() >= 5 end },
+    { id = 37370008, name = "Grand Room",  fn = function() return best_room_quality() >= 6 end },
+    { id = 37370009, name = "Royal Room",  fn = function() return best_room_quality() >= 7 end },
 
     -- First production milestones
     -- These are tracked via a persistent counter set by the eventful job hook in main.lua.
