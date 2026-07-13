@@ -29,12 +29,12 @@ class DynamicCraftingLocationRules:
             case "Bonecraft":
                 return self.process_resource(state, "bone") and self.craftdwarf_workshop(state)
             case "Cloth":
-                return self.process_resource(state, "cloth")
+                return self.cloth(state)
             case "Clothworks":
                 return self.process_resource(state, "cloth") and state.has("Clothier's Shop Blueprint", self.player)
             case "Clothcraft":
                 return (self.process_resource(state, "cloth") or self.silk(state)) \
-                and self.craftdwarf_workshop(state) #TODO doublecheck this in-game for cloth crafts
+                and self.craftdwarf_workshop(state)
             case "Silk":
                 return self.silk(state)
             case "Silkworks":
@@ -123,7 +123,7 @@ class DynamicCraftingLocationRules:
                 or self.magma_processing(state, "metal")
             else:
                 return ((self.can_fuel_workshops(state) and state.has("Smelter Blueprint", self.player)) \
-                or self.magma_processing(state, "metal")) and state.has("Metal Bars Permit", self.player)
+                or self.magma_processing(state, "metal")) and self.permit(state, "Metal Bars")
         elif resource == "adamantine_metal":
             return self.can_mine_adamantine(state) and self.process_resource(state, "metal") \
             and state.has("Craftsdwarf's Workshop Blueprint", self.player)
@@ -139,9 +139,9 @@ class DynamicCraftingLocationRules:
                 return True
             else:
                 if self.world.options.craftpermits != CraftingPermits.option_all:
-                    return self.thread(state) 
+                    return self.cloth_thread(state) 
                 else:
-                    return self.thread(state) and self.permit(state, "Cloth")
+                    return self.cloth_thread(state) and self.permit(state, "Cloth")
         elif resource == "silk":
             if self.world.options.craftpermits != CraftingPermits.option_all:
                 state.has("Loom Blueprint", self.player) 
@@ -213,10 +213,10 @@ class DynamicCraftingLocationRules:
             return self.process_resource(state, "metal")
         
     def adamantine_or_cloth(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) or self.adamantine_cloth(state)
+        return self.job_type(state, "Clothworks") or self.job_type(state, "Adamantinecloth")
 
     def adamantinecloth_or_leather(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) or self.leather_works(state) 
+        return self.job_type(state, "Adamantinecloth") or self.job_type(state, "Leatherworks") 
     
     def any_thread(self, state:CollectionState) -> bool:
         if self.world.options.trades_inlogic:
@@ -310,7 +310,7 @@ class DynamicCraftingLocationRules:
         return self.job_type(state, "Metal") or self.bowyer_workshop(state) 
     
     def woodcraft_or_bonecraft_or_metal(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") or self.craftdwarf_workshop(state) or self.bonecraft(state)
+        return self.job_type(state, "Metal") or self.craftdwarf_workshop(state) or self.job_type(state, "Bonecraft")
 
     def craftdwarf_or_metal(self, state:CollectionState) -> bool:
         return self.job_type(state, "Metal") or self.craftdwarf_workshop(state) 
@@ -319,71 +319,71 @@ class DynamicCraftingLocationRules:
         return self.craftdwarf_workshop(state) and self.butcher_workshop(state)
     
     def craftdwarf_or_metal_or_glass(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) or self.job_type(state, "Metal") or self.glass(state)
+        return self.craftdwarf_workshop(state) or self.job_type(state, "Metal") or self.job_type(state, "Glass")
     
     def craftdwarf_or_metal_or_glass_or_ceramic(self, state:CollectionState) -> bool:
-         return self.craftdwarf_workshop(state) or self.job_type(state, "Metal") or self.glass(state) or self.ceramic(state)
+         return self.craftdwarf_workshop(state) or self.job_type(state, "Metal") or self.job_type(state, "Glass") or self.job_type(state, "Ceramics")
     
     def wooden_traction_bench(self, state:CollectionState) -> bool:
-        return self.wood(state) and self.mechanic_workshop(state) and \
-        (self.job_type(state, "Metal") or self.clothier_workshop(state))
+        return self.job_type(state, "Woodworks") and self.mechanic_workshop(state) and \
+        (self.job_type(state, "Metal") or self.job_type(state, "Clothworks"))
     
     def stone_traction_bench(self, state:CollectionState) -> bool:
-        return self.stone(state) and self.mechanic_workshop(state) and \
-        (self.job_type(state, "Metal") or self.clothier_workshop(state))
+        return self.job_type(state, "Stone") and self.mechanic_workshop(state) and \
+        (self.job_type(state, "Metal") or self.job_type(state, "Clothworks"))
     
     def metal_traction_bench(self, state:CollectionState) -> bool:
         return self.job_type(state, "Metal") and self.mechanic_workshop(state)
     
     def glass_traction_bench(self, state:CollectionState) -> bool:
-        return self.glass(state) and self.mechanic_workshop(state) and \
-        (self.job_type(state, "Metal") or self.clothier_workshop(state))
+        return self.job_type(state, "Glass") and self.mechanic_workshop(state) and \
+        (self.job_type(state, "Metal") or self.job_type(state, "Clothworks"))
     
     def any_traction_bench(self, state:CollectionState) -> bool:
-        return (self.glass(state) or self.job_type(state, "Metal") or self.wood(state) or self.stone(state)) \
-        and self.mechanic_workshop(state) and (self.job_type(state, "Metal") or self.clothier_workshop(state))
+        return (self.job_type(state, "Glass") or self.job_type(state, "Metal") or self.job_type(state, "Woodworks") or self.job_type(state, "Stone")) \
+        and self.mechanic_workshop(state) and (self.job_type(state, "Metal") or self.job_type(state, "Clothworks"))
     
     def metal_or_glass_or_leather(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") or self.glass(state) or self.leather_works(state)
+        return self.job_type(state, "Metal") or self.job_type(state, "Glass") or self.job_type(state, "Leatherworks")
     
     def metal_or_glass(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") or self.glass(state)
+        return self.job_type(state, "Metal") or self.job_type(state, "Glass")
     
     def metal_or_leather(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") or self.leather_works(state)
+        return self.job_type(state, "Metal") or self.job_type(state, "Leatherworks")
     
     def metal_or_bone(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") or self.bonecraft(state)
+        return self.job_type(state, "Metal") or self.job_type(state, "Bonecraft")
     
     def metal_or_cloth(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") or self.clothier_workshop(state)
+        return self.job_type(state, "Metal") or self.job_type(state, "Clothworks")
 
     def metal_or_bone_or_leather(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") or self.leather_works(state) or self.bonecraft(state)
+        return self.job_type(state, "Metal") or self.job_type(state, "Leatherworks") or self.job_type(state, "Bonecraft")
     
     def metal_or_cloth_or_leather(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") or self.leather_works(state) or self.clothier_workshop(state)
+        return self.job_type(state, "Metal") or self.job_type(state, "Leatherworks") or self.job_type(state, "Clothworks")
     
     def make_paper(self, state:CollectionState) -> bool:
-        return self.famer_workshop(state) or self.screw_press(state) or self.leather(state)
+        return self.famer_workshop(state) or self.screw_press(state) or state.has("Tanner's Blueprint", self.player)
     
     def ashery_and_wood_furnace(self, state:CollectionState) -> bool:
         return self.ashery(state) and self.wood_furnace(state)
     
     def ashery_and_kiln(self, state:CollectionState) -> bool:
-        return self.ashery(state) and self.ceramic(state)
+        return self.ashery(state) and self.job_type(state, "Ceramics")
     
     def leather_or_cloth(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) or self.leather_works(state)
+        return self.job_type(state, "Clothworks") or self.job_type(state, "Leatherworks")
     
     def leather_or_cloth_or_adamantinecloth(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) or self.leather_works(state) or self.adamantine_cloth(state)
+        return self.job_type(state, "Clothworks") or self.job_type(state, "Leatherworks") or self.job_type(state, "Adamantinecloth")
     
     def dye(self, state:CollectionState) -> bool:
         if self.world.options.trades_inlogic:
             return state.has("Dyer's Workshop Blueprint", self.player)
         else:
-            return self.cloth(state) and state.has("Dyer's Workshop Blueprint", self.player)
+            return self.job_type(state, "Cloth") and state.has("Dyer's Workshop Blueprint", self.player)
         
     def soap(self, state:CollectionState) -> bool:
         return self.ashery(state) and self.wood_furnace(state) \
@@ -391,611 +391,607 @@ class DynamicCraftingLocationRules:
             and (self.kitchen(state) and self.butcher_workshop(state) or self.screw_press(state))
     
     def displaycase(self, state:CollectionState) -> bool:
-        return self.wood(state) and self.glass(state) \
+        return self.job_type(state, "Woodworks") and self.job_type(state, "Glass")
 
     def bed(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Beds Permit", self.player)
+            return self.job_type(state, "Woodworks") and self.permit(state, "Beds")
     
     def training_axe(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Training Axe Permit", self.player)
+            return self.job_type(state, "Woodworks") and self.permit(state, "Training Axe")
     def training_spear(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Training Spear Permit", self.player)
+            return self.job_type(state, "Woodworks") and self.permit(state, "Training Spear")
     def training_sword(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Training Sword Permit", self.player)
+            return self.job_type(state, "Woodworks") and self.permit(state, "Training Sword")
     
     def wood_corkscrew(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Corkscrew Permit", self.player)
+            return self.job_type(state, "Woodworks") and self.permit(state, "Corkscrew")
     def metal_corkscrew(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Corkscrew Permit", self.player)
+            return self.job_type(state, "Metal") and self.permit(state, "Corkscrew")
     def adamantine_corkscrew(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Corkscrew Permit", self.player)
+            return self.job_type(state, "Adamantinemetal") and self.permit(state, "Corkscrew")
     def glass_corkscrew(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Corkscrew Permit", self.player)
+            return self.job_type(state, "Glass") and self.permit(state, "Corkscrew")
     def wood_or_metal_or_glass_corkscrew(self, state:CollectionState) -> bool:
-            return self.wood_or_metal_or_glass(state) and state.has("Corkscrew Permit", self.player)
+            return self.wood_or_metal_or_glass(state) and self.permit(state, "Corkscrew")
 
     def wood_spike(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Menacing Spike Permit", self.player)
+            return self.job_type(state, "Woodworks") and self.permit(state, "Menacing Spike")
     def metal_spike(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Menacing Spike Permit", self.player)
+            return self.job_type(state, "Metal") and self.permit(state, "Menacing Spike")
     def adamantine_spike(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Menacing Spike Permit", self.player)
+            return self.job_type(state, "Adamantinemetal") and self.permit(state, "Menacing Spike")
     def wood_or_metal_spike(self, state:CollectionState) -> bool:
-            return self.wood_or_metal(state) and state.has("Menacing Spike Permit", self.player)
+            return self.wood_or_metal(state) and self.permit(state, "Menacing Spike")
 
     def wood_ball(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Spiked Ball Permit", self.player)
+            return self.job_type(state, "Woodworks") and self.permit(state, "Spiked Ball")
     def metal_ball(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Spiked Ball Permit", self.player)
+            return self.job_type(state, "Metal") and self.permit(state, "Spiked Ball")
     def adamantine_ball(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Spiked Ball Permit", self.player)
+            return self.job_type(state, "Adamantinemetal") and self.permit(state, "Spiked Ball")
     def glass_ball(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Spiked Ball Permit", self.player)
+            return self.job_type(state, "Glass") and self.permit(state, "Spiked Ball")
     def wood_or_metal_ball(self, state:CollectionState) -> bool:
-            return self.wood_or_metal(state) and state.has("Spiked Ball Permit", self.player)
+            return self.wood_or_metal(state) and self.permit(state, "Spiked Ball")
 
     def wood_animal_trap(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Animal Trap Permit", self.player)
+            return self.job_type(state, "Woodworks") and self.permit(state, "Animal Trap")
     def metal_animal_trap(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Animal Trap Permit", self.player)
+            return self.job_type(state, "Metal") and self.permit(state, "Animal Trap")
     def adamantine_animal_trap(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Animal Trap Permit", self.player)
+            return self.job_type(state, "Adamantinemetal") and self.permit(state, "Animal Trap")
     def wood_or_metal_animal_trap(self, state:CollectionState) -> bool:
-            return self.wood_or_metal(state) and state.has("Animal Trap Permit", self.player)
+            return self.wood_or_metal(state) and self.permit(state, "Animal Trap")
     
     def wood_barrel(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Barrel Permit", self.player)
+            return self.job_type(state, "Woodworks") and self.permit(state, "Barrel")
     def metal_barrel(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Barrel Permit", self.player)
+            return self.job_type(state, "Metal") and self.permit(state, "Barrel")
     def adamantine_barrel(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Barrel Permit", self.player)
+            return self.job_type(state, "Adamantinemetal") and self.permit(state, "Barrel")
     def wood_or_metal_barrel(self, state:CollectionState) -> bool:
-            return self.wood_or_metal(state) and state.has("Barrel Permit", self.player)
+            return self.wood_or_metal(state) and self.permit(state, "Barrel")
     
     def wood_bin(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Bin Permit", self.player)
+            return self.job_type(state, "Woodworks") and self.permit(state, "Bin")
     def metal_bin(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Bin Permit", self.player)
+            return self.job_type(state, "Metal") and self.permit(state, "Bin")
     def adamantine_bin(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Bin Permit", self.player)
+            return self.job_type(state, "Adamantinemetal") and self.permit(state, "Bin")
     def wood_or_metal_bin(self, state:CollectionState) -> bool:
-            return self.wood_or_metal(state) and state.has("Bin Permit", self.player)
+            return self.wood_or_metal(state) and self.permit(state, "Bin")
 
     def wood_bucket(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Bucket Permit", self.player)
+            return self.job_type(state, "Woodworks") and self.permit(state, "Bucket")
     def metal_bucket(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Bucket Permit", self.player)
+            return self.job_type(state, "Metal") and self.permit(state, "Bucket")
     def adamantine_bucket(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Bucket Permit", self.player)
+            return self.job_type(state, "Adamantinemetal") and self.permit(state, "Bucket")
     def wood_or_metal_bucket(self, state:CollectionState) -> bool:
-            return self.wood_or_metal(state) and state.has("Bucket Permit", self.player)
+            return self.wood_or_metal(state) and self.permit(state, "Bucket")
 
     def wood_crutch(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Crutch Permit", self.player)
+            return self.job_type(state, "Woodworks") and self.permit(state, "Crutch")
     def metal_crutch(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Crutch Permit", self.player)
+            return self.job_type(state, "Metal") and self.permit(state, "Crutch")
     def adamantine_crutch(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Crutch Permit", self.player)
+            return self.job_type(state, "Adamantinemetal") and self.permit(state, "Crutch")
     def wood_or_metal_crutch(self, state:CollectionState) -> bool:
-            return self.wood_or_metal(state) and state.has("Crutch Permit", self.player)
+            return self.wood_or_metal(state) and self.permit(state, "Crutch")
 
     def wood_minecart(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Minecart Permit", self.player)
+            return self.job_type(state, "Woodworks") and self.permit(state, "Minecart")
     def metal_minecart(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Minecart Permit", self.player)
+            return self.job_type(state, "Metal") and self.permit(state, "Minecart")
     def adamantine_minecart(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Minecart Permit", self.player)
+            return self.job_type(state, "Adamantinemetal") and self.permit(state, "Minecart")
     def wood_or_metal_minecart(self, state:CollectionState) -> bool:
-            return self.wood_or_metal(state) and state.has("Minecart Permit", self.player)
+            return self.wood_or_metal(state) and self.permit(state, "Minecart")
 
     def wood_splint(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Splint Permit", self.player)
+            return self.job_type(state, "Woodworks") and self.permit(state, "Splint")
     def metal_splint(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Splint Permit", self.player)
+            return self.job_type(state, "Metal") and self.permit(state, "Splint")
     def adamantine_splint(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Splint Permit", self.player)
+            return self.job_type(state, "Adamantinemetal") and self.permit(state, "Splint")
     def wood_or_metal_splint(self, state:CollectionState) -> bool:
-            return self.wood_or_metal(state) and state.has("Splint Permit", self.player)
+            return self.wood_or_metal(state) and self.permit(state, "Splint")
     
     def wood_stepladder(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Stepladder Permit", self.player)
+            return self.job_type(state, "Woodworks") and self.permit(state, "Stepladder")
     def metal_stepladder(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Stepladder Permit", self.player)
+            return self.job_type(state, "Metal") and self.permit(state, "Stepladder")
     def adamantine_stepladder(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Stepladder Permit", self.player)
+            return self.job_type(state, "Adamantinemetal") and self.permit(state, "Stepladder")
     def wood_or_metal_stepladder(self, state:CollectionState) -> bool:
-            return self.wood_or_metal(state) and state.has("Stepladder Permit", self.player)
+            return self.wood_or_metal(state) and self.permit(state, "Stepladder")
     
     def wood_wheelbarrow(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Wheelbarrow Permit", self.player)
+            return self.job_type(state, "Woodworks") and self.permit(state, "Wheelbarrow")
     def metal_wheelbarrow(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Wheelbarrow Permit", self.player)
+            return self.job_type(state, "Metal") and self.permit(state, "Wheelbarrow")
     def adamantine_wheelbarrow(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Wheelbarrow Permit", self.player)
+            return self.job_type(state, "Adamantinemetal") and self.permit(state, "Wheelbarrow")
     def wood_or_metal_wheelbarrow(self, state:CollectionState) -> bool:
-            return self.wood_or_metal(state) and state.has("Wheelbarrow Permit", self.player)
+            return self.wood_or_metal(state) and self.permit(state, "Wheelbarrow")
     
     def wood_blocks(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Blocks Permit", self.player)
+            return self.job_type(state, "Woodworks") and self.permit(state, "Blocks")
     def stone_blocks(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Blocks Permit", self.player)
+            return self.job_type(state, "Stone") and self.permit(state, "Blocks")
     def metal_blocks(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Blocks Permit", self.player)
+            return self.job_type(state, "Metal") and self.permit(state, "Blocks")
     def adamantine_blocks(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Blocks Permit", self.player)
+            return self.job_type(state, "Adamantinemetal") and self.permit(state, "Blocks")
     def glass_blocks(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Blocks Permit", self.player)
+            return self.job_type(state, "Glass") and self.permit(state, "Blocks")
     def ceramic_blocks(self, state:CollectionState) -> bool:
-            return self.ceramic(state) and state.has("Blocks Permit", self.player)
+            return self.job_type(state, "Ceramics") and self.permit(state, "Blocks")
     def wood_or_stone_or_metal_or_glass_or_ceramic_blocks(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass_or_ceramic(state) and state.has("Blocks Permit", self.player)
+            return self.wood_or_stone_or_metal_or_glass_or_ceramic(state) and self.permit(state, "Blocks")
     
     def wood_jug(self, state:CollectionState) -> bool:
-            return self.craftdwarf_workshop(state) and state.has("Jug Permit", self.player)
+        return self.job_type(state, "Woodcraft") and self.permit(state, "Jug")
     def stone_jug(self, state:CollectionState) -> bool:
-            return self.craftdwarf_workshop(state) and state.has("Jug Permit", self.player)
+        return self.job_type(state, "Stonecraft") and self.permit(state, "Jug")
     def metal_jug(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Jug Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Jug")
     def adamantine_jug(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Jug Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Jug")
     def glass_jug(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Jug Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Jug")
     def ceramic_jug(self, state:CollectionState) -> bool:
-            return self.ceramic(state) and state.has("Jug Permit", self.player)
+        return self.job_type(state, "Ceramics") and self.permit(state, "Jug")
     def wood_or_stone_or_metal_or_glass_or_ceramic_jug(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass_or_ceramic(state) and state.has("Jug Permit", self.player)
+        return self.wood_jug(state) or self.glass_jug(state) or self.metal_jug(state) \
+        or self.stone_jug(state) or self.ceramic_jug(state) or self.adamantine_jug(state)
     
     def wood_pot(self, state:CollectionState) -> bool:
-            return self.craftdwarf_workshop(state) and state.has("Large Pot Permit", self.player)
+        return self.job_type(state, "Woodcraft") and self.permit(state, "Large Pot")
     def stone_pot(self, state:CollectionState) -> bool:
-            return self.craftdwarf_workshop(state) and state.has("Large Pot Permit", self.player)
+        return self.job_type(state, "Stonecraft") and self.permit(state, "Large Pot")
     def metal_pot(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Large Pot Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Large Pot")
     def adamantine_pot(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Large Pot Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Large Pot")
     def glass_pot(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Large Pot Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Large Pot")
     def ceramic_pot(self, state:CollectionState) -> bool:
-            return self.ceramic(state) and state.has("Large Pot Permit", self.player)
+        return self.job_type(state, "Ceramics") and self.permit(state, "Large Pot")
     def wood_or_stone_or_metal_or_glass_or_ceramic_pot(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass_or_ceramic(state) and state.has("Large Pot Permit", self.player)
+        return self.wood_pot(state) or self.glass_pot(state) or self.metal_pot(state) \
+        or self.stone_pot(state) or self.ceramic_pot(state) or self.adamantine_pot(state)
     
     def wood_or_stone_hive(self, state:CollectionState) -> bool:
-            return self.craftdwarf_workshop(state) and state.has("Hive Permit", self.player)
+        return self.job_type(state, "Stonecraft") and self.permit(state, "Hive")
     def metal_hive(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Hive Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Hive")
     def adamantine_hive(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Hive Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Hive")
     def glass_hive(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Hive Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Hive")
     def ceramic_hive(self, state:CollectionState) -> bool:
-            return self.ceramic(state) and state.has("Hive Permit", self.player)
+        return self.job_type(state, "Ceramics") and self.permit(state, "Hive")
     def craftdwarf_or_metal_or_glass_or_ceramic_hive(self, state:CollectionState) -> bool:
-            return self.craftdwarf_or_metal_or_glass_or_ceramic(state) and state.has("Hive Permit", self.player)
+        return self.wood_or_stone_hive(state) or self.metal_hive(state) \
+        or self.adamantine_hive(state) or self.ceramic_hive(state) \
+        or self.glass_hive(state)
     
     def wood_altar(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Altar Permit", self.player)
+        return self.job_type(state, "Woodworks") and self.permit(state, "Altar")
     def stone_altar(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Altar Permit", self.player)
+        return self.job_type(state, "Stone") and self.permit(state, "Altar")
     def metal_altar(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Altar Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Altar")
     def adamantine_altar(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Altar Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Altar")
     def glass_altar(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Altar Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Altar")
     def wood_or_stone_or_metal_or_glass_altar(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Altar Permit", self.player)
+        return self.wood_or_stone_or_metal_or_glass(state) and self.permit(state, "Altar")
     
     def wood_armorstand(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Armor Stand Permit", self.player)
+        return self.job_type(state, "Woodworks") and self.permit(state, "Armor Stand")
     def stone_armorstand(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Armor Stand Permit", self.player)
+        return self.job_type(state, "Stone") and self.permit(state, "Armor Stand")
     def metal_armorstand(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Armor Stand Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Armor Stand")
     def adamantine_armorstand(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Armor Stand Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Armor Stand")
     def glass_armorstand(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Armor Stand Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Armor Stand")
     def wood_or_stone_or_metal_or_glass_armorstand(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Armor Stand Permit", self.player)
+        return self.wood_or_stone_or_metal_or_glass(state) and self.permit(state, "Armor Stand")
     
     def wood_bookcase(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Bookcase Permit", self.player)
+        return self.job_type(state, "Woodworks") and self.permit(state, "Bookcase")
     def stone_bookcase(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Bookcase Permit", self.player)
+        return self.job_type(state, "Stone") and self.permit(state, "Bookcase")
     def metal_bookcase(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Bookcase Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Bookcase")
     def adamantine_bookcase(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Bookcase Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Bookcase")
     def glass_bookcase(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Bookcase Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Bookcase")
     def wood_or_stone_or_metal_or_glass_bookcase(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Bookcase Permit", self.player)
+        return self.wood_or_stone_or_metal_or_glass(state) and self.permit(state, "Bookcase")
     
     def wood_cabinet(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Cabinet Permit", self.player)
+        return self.job_type(state, "Woodworks") and self.permit(state, "Cabinet")
     def stone_cabinet(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Cabinet Permit", self.player)
+        return self.job_type(state, "Stone") and self.permit(state, "Cabinet")
     def metal_cabinet(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Cabinet Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Cabinet")
     def adamantine_cabinet(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Cabinet Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Cabinet")
     def glass_cabinet(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Cabinet Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Cabinet")
     def wood_or_stone_or_metal_or_glass_cabinet(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Cabinet Permit", self.player)
+        return self.wood_or_stone_or_metal_or_glass(state) and self.permit(state, "Cabinet")
     
     def wood_burial(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Burial Container Permit", self.player)
+        return self.job_type(state, "Woodworks") and self.permit(state, "Burial Container")
     def stone_burial(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Burial Container Permit", self.player)
+        return self.job_type(state, "Stone") and self.permit(state, "Burial Container")
     def metal_burial(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Burial Container Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Burial Container")
     def adamantine_burial(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Burial Container Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Burial Container")
     def glass_burial(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Burial Container Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Burial Container")
     def wood_or_stone_or_metal_or_glass_burial(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Burial Container Permit", self.player)
+        return self.wood_or_stone_or_metal_or_glass(state) and self.permit(state, "Burial Container")
     
     def wood_chair(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Chair Permit", self.player)
+        return self.job_type(state, "Woodworks") and self.permit(state, "Chair")
     def stone_chair(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Chair Permit", self.player)
+        return self.job_type(state, "Stone") and self.permit(state, "Chair")
     def metal_chair(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Chair Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Chair")
     def adamantine_chair(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Chair Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Chair")
     def glass_chair(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Chair Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Chair")
     def wood_or_stone_or_metal_or_glass_chair(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Chair Permit", self.player)
+        return self.wood_or_stone_or_metal_or_glass(state) and self.permit(state, "Chair")
     
     def wood_container(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Container Permit", self.player)
+        return self.job_type(state, "Woodworks") and self.permit(state, "Container")
     def stone_container(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Container Permit", self.player)
+        return self.job_type(state, "Stone") and self.permit(state, "Container")
     def metal_container(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Container Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Container")
     def adamantine_container(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Container Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Container")
     def glass_container(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Container Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Container")
     def wood_or_stone_or_metal_or_glass_container(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Container Permit", self.player)
+        return self.wood_or_stone_or_metal_or_glass(state) and self.permit(state, "Container")
     
     def wood_door(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Door Permit", self.player)
+        return self.job_type(state, "Woodworks") and self.permit(state, "Door")
     def stone_door(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Door Permit", self.player)
+        return self.job_type(state, "Stone") and self.permit(state, "Door")
     def metal_door(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Door Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Door")
     def adamantine_door(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Door Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Door")
     def glass_door(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Door Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Door")
     def wood_or_stone_or_metal_or_glass_door(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Door Permit", self.player)
+        return self.wood_or_stone_or_metal_or_glass(state) and self.permit(state, "Door")
     
     def wood_floodgate(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Floodgate Permit", self.player)
+        return self.job_type(state, "Woodworks") and self.permit(state, "Floodgate")
     def stone_floodgate(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Floodgate Permit", self.player)
+        return self.job_type(state, "Stone") and self.permit(state, "Floodgate")
     def metal_floodgate(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Floodgate Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Floodgate")
     def adamantine_floodgate(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Floodgate Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Floodgate")
     def glass_floodgate(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Floodgate Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Floodgate")
     def wood_or_stone_or_metal_or_glass_floodgate(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Floodgate Permit", self.player)
+        return self.wood_or_stone_or_metal_or_glass(state) and self.permit(state, "Floodgate")
     
     def wood_grate(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Grate Permit", self.player)
+        return self.job_type(state, "Woodworks") and self.permit(state, "Grate")
     def stone_grate(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Grate Permit", self.player)
+        return self.job_type(state, "Stone") and self.permit(state, "Grate")
     def metal_grate(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Grate Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Grate")
     def adamantine_grate(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Grate Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Grate")
     def glass_grate(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Grate Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Grate")
     def wood_or_stone_or_metal_or_glass_grate(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Grate Permit", self.player)
+        return self.wood_or_stone_or_metal_or_glass(state) and self.permit(state, "Grate")
     
     def wood_hatchcover(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Hatch Cover Permit", self.player)
+        return self.job_type(state, "Woodworks") and self.permit(state, "Hatch Cover")
     def stone_hatchcover(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Hatch Cover Permit", self.player)
+        return self.job_type(state, "Stone") and self.permit(state, "Hatch Cover")
     def metal_hatchcover(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Hatch Cover Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Hatch Cover")
     def adamantine_hatchcover(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Hatch Cover Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Hatch Cover")
     def glass_hatchcover(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Hatch Cover Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Hatch Cover")
     def wood_or_stone_or_metal_or_glass_hatchcover(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Hatch Cover Permit", self.player)
+        return self.wood_or_stone_or_metal_or_glass(state) and self.permit(state, "Hatch Cover")
 
     def wood_pedestal(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Pedestal Permit", self.player)
+        return self.job_type(state, "Woodworks") and self.permit(state, "Pedestal")
     def stone_pedestal(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Pedestal Permit", self.player)
+        return self.job_type(state, "Stone") and self.permit(state, "Pedestal")
     def metal_pedestal(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Pedestal Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Pedestal")
     def adamantine_pedestal(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Pedestal Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Pedestal")
     def glass_pedestal(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Pedestal Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Pedestal")
     def wood_or_stone_or_metal_or_glass_pedestal(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Pedestal Permit", self.player)
+        return self.wood_or_stone_or_metal_or_glass(state) and self.permit(state, "Pedestal")
     
     def wood_table(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Table Permit", self.player)
+        return self.job_type(state, "Woodworks") and self.permit(state, "Table")
     def stone_table(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Table Permit", self.player)
+        return self.job_type(state, "Stone") and self.permit(state, "Table")
     def metal_table(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Table Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Table")
     def adamantine_table(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Table Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Table")
     def glass_table(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Table Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Table")
     def wood_or_stone_or_metal_or_glass_table(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Table Permit", self.player)
+        return self.wood_or_stone_or_metal_or_glass(state) and self.permit(state, "Table")
 
     def wood_weaponrack(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Weapon Rack Permit", self.player)
+        return self.job_type(state, "Woodworks") and self.permit(state, "Weapon Rack")
     def stone_weaponrack(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Weapon Rack Permit", self.player)
+        return self.job_type(state, "Stone") and self.permit(state, "Weapon Rack")
     def metal_weaponrack(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Weapon Rack Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Weapon Rack")
     def adamantine_weaponrack(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Weapon Rack Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Weapon Rack")
     def glass_weaponrack(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Weapon Rack Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Weapon Rack")
     def wood_or_stone_or_metal_or_glass_weaponrack(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Weapon Rack Permit", self.player)
+        return self.wood_or_stone_or_metal_or_glass(state) and self.permit(state, "Weapon Rack")
     
     def wood_statue(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Statue Permit", self.player)
+        return self.job_type(state, "Woodworks") and self.permit(state, "Statue")
     def stone_statue(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Statue Permit", self.player)
+        return self.job_type(state, "Stone") and self.permit(state, "Statue")
     def metal_statue(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Statue Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Statue")
     def adamantine_statue(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Statue Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Statue")
     def glass_statue(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Statue Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Statue")
     def ceramic_statue(self, state:CollectionState) -> bool:
-            return self.ceramic(state) and state.has("Statue Permit", self.player)
+        return self.job_type(state, "Ceramics") and self.permit(state, "Statue")
     def wood_or_stone_or_metal_or_glass_or_ceramic_statue(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass_or_ceramic(state) and state.has("Statue Permit", self.player)
+        return self.wood_or_stone_or_metal_or_glass_or_ceramic(state) and self.permit(state, "Statue")
     
     def wood_or_stone_bookbinding(self, state:CollectionState) -> bool:
-            return self.craftdwarf_workshop(state) and state.has("Book Binding Permit", self.player)
+        return self.job_type(state, "Stonecraft") and self.permit(state, "Book Binding")
     def metal_bookbinding(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Book Binding Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Book Binding")
     def adamantine_bookbinding(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Book Binding Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Book Binding")
     def glass_bookbinding(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Book Binding Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Book Binding")
     def craftdwarf_or_metal_or_glass_bookbinding(self, state:CollectionState) -> bool:
-            return self.craftdwarf_or_metal_or_glass(state) and state.has("Book Binding Permit", self.player)
+        return self.craftdwarf_or_metal_or_glass(state) and self.permit(state, "Book Binding")
     
     def wood_scrollroller(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Scroll Roller Permit", self.player)
+        return self.job_type(state, "Woodcraft") and self.permit(state, "Scroll Roller")
     def stone_scrollroller(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Scroll Roller Permit", self.player)
+        return self.job_type(state, "Stonecraft") and self.permit(state, "Scroll Roller")
     def metal_scrollroller(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Scroll Roller Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Scroll Roller")
     def adamantine_scrollroller(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Scroll Roller Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Scroll Roller")
     def glass_scrollroller(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Scroll Roller Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Scroll Roller")
     def wood_or_stone_or_metal_or_glass_scrollroller(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Scroll Roller Permit", self.player)
+        return self.wood_scrollroller(state) or self.stone_scrollroller(state) \
+        or self.metal_scrollroller(state) or self.adamantine_scrollroller(state) \
+        or self.glass_scrollroller(state)
     
     def wood_buckler(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Buckler Permit", self.player)
+        return self.job_type(state, "Woodworks") and self.permit(state, "Buckler")
     def metal_buckler(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Buckler Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Buckler")
     def adamantine_buckler(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Buckler Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Buckler")
     def leather_buckler(self, state:CollectionState) -> bool:
-            return self.leather_works(state) and state.has("Buckler Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Buckler")
     def wood_or_leather_or_metal_buckler(self, state:CollectionState) -> bool:
-            return self.wood_or_leather_or_metal(state) and state.has("Buckler Permit", self.player)
+        return self.wood_buckler(state) or self.metal_buckler(state) or self.leather_buckler(state) \
+        or self.adamantine_buckler(state)
     
     def wood_shield(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Shield Permit", self.player)
+        return self.job_type(state, "Woodworks") and self.permit(state, "Shield")
     def metal_shield(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Shield Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Shield")
     def adamantine_shield(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Shield Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Shield")
     def leather_shield(self, state:CollectionState) -> bool:
-            return self.leather_works(state) and state.has("Shield Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Shield")
     def wood_or_leather_or_metal_shield(self, state:CollectionState) -> bool:
-            return self.wood_or_leather_or_metal(state) and state.has("Shield Permit", self.player)
+        return self.wood_shield(state) or self.metal_shield(state) or self.leather_shield(state) \
+        or self.adamantine_shield(state)
     
     def wood_cage(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Cage Permit", self.player)
+        return self.job_type(state, "Woodworks") and self.permit(state, "Cage")
     def metal_cage(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Cage Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Cage")
     def adamantine_cage(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Cage Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Cage")
     def glass_cage(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Cage Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Cage")
     def wood_or_metal_or_glass_cage(self, state:CollectionState) -> bool:
-            return self.wood_or_metal_or_glass(state) and state.has("Cage Permit", self.player)
+        return self.wood_or_metal_or_glass(state) and self.permit(state, "Cage")
     
     def wood_pipesection(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Pipe Section Permit", self.player)
+        return self.job_type(state, "Woodworks") and self.permit(state, "Pipe Section")
     def metal_pipesection(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Pipe Section Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Pipe Section")
     def adamantine_pipesection(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Pipe Section Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Pipe Section")
     def glass_pipesection(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Pipe Section Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Pipe Section")
     def wood_or_metal_or_glass_pipesection(self, state:CollectionState) -> bool:
-            return self.wood_or_metal_or_glass(state) and state.has("Pipe Section Permit", self.player)
+        return self.wood_or_metal_or_glass(state) and self.permit(state, "Pipe Section")
     
     def wood_crossbow(self, state:CollectionState) -> bool:
-            return self.bowyer_workshop(state) and state.has("Crossbow Permit", self.player)
+        return self.bowyer_workshop(state) and self.permit(state, "Crossbow")
     def bone_crossbow(self, state:CollectionState) -> bool:
-            return self.bowyer_workshop(state) and self.bone(state) and state.has("Crossbow Permit", self.player)
+        return self.bowyer_workshop(state) and self.job_type(state, "Bone") and self.permit(state, "Crossbow")
     def metal_crossbow(self, state:CollectionState) -> bool:
-            return self.job_type(state, "Metal") and state.has("Crossbow Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Crossbow")
     def adamantine_crossbow(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Crossbow Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Crossbow")
     def bowyer_or_metal_crossbow(self, state:CollectionState) -> bool:
-        return self.bowyer_or_metal(state) and state.has("Crossbow Permit", self.player)
+        return self.bowyer_or_metal(state) and self.permit(state, "Crossbow")
     
     def wood_bolt(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and state.has("Bolt Permit", self.player)
+        return self.job_type(state, "Woodcraft") and self.permit(state, "Bolt")
     def bone_bolt(self, state:CollectionState) -> bool:
-        return self. bonecraft(state) and state.has("Bolt Permit", self.player)
+        return self.job_type(state, "Bonecraft") and self.permit(state, "Bolt")
     def metal_bolt(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Bolt Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Bolt")
     def adamantine_bolt(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Bolt Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Bolt")
     def woodcraft_or_bonecraft_or_metal_bolt(self, state:CollectionState) -> bool:
-        return self.woodcraft_or_bonecraft_or_metal(state) and state.has("Bolt Permit", self.player)
+        return self.woodcraft_or_bonecraft_or_metal(state) and self.permit(state, "Bolt")
     
     def stone_millstone(self, state:CollectionState) -> bool:
-        return self.stone(state) and state.has("Millstone Permit", self.player)
+        return self.job_type(state, "Stone") and self.permit(state, "Millstone")
     
     def stone_quern(self, state:CollectionState) -> bool:
-        return self.stone(state) and state.has("Quern Permit", self.player)
+        return self.job_type(state, "Stone") and self.permit(state, "Quern")
     
     def stone_slab(self, state:CollectionState) -> bool:
-        return self.stone(state) and state.has("Slab Permit", self.player)
+        return self.job_type(state, "Stone") and self.permit(state, "Slab")
     
     def stone_or_wood_crafts(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and state.has("Crafts Permit", self.player)
+        return self.job_type(state, "Stonecraft") and self.permit(state, "Crafts")
     def bone_crafts(self, state:CollectionState) -> bool:
-        return self.bonecraft(state) \
-        and state.has("Crafts Permit", self.player)
+        return self.job_type(state, "Bonecraft") and self.permit(state, "Crafts")
     def metal_crafts(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Crafts Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Crafts")
     def adamantine_crafts(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Crafts Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Crafts")
     def glass_crafts(self, state:CollectionState) -> bool:
-        return self.glass(state) and state.has("Crafts Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Crafts")
     def ceramic_crafts(self, state:CollectionState) -> bool:
-        return self.ceramic(state) and state.has("Crafts Permit", self.player)
+        return self.job_type(state, "Ceramics") and self.permit(state, "Crafts")
     def cloth_crafts(self, state:CollectionState) -> bool:
-        if self.world.options.craftpermits == CraftingPermits.option_all:
-            return self.make_cloth(state) and self.craftdwarf_workshop(state) \
-            and state.has("Crafts Permit", self.player)
-        else:
-            return self.cloth(state) and self.craftdwarf_workshop(state) \
-            and state.has("Crafts Permit", self.player)
+        return self.job_type(state, "Clothcraft")
     def leather_crafts(self, state:CollectionState) -> bool:
-            return self.leather(state) and self.craftdwarf_workshop(state) \
-            and state.has("Crafts Permit", self.player)
-    def clothcraftdwarf(self, state:CollectionState) -> bool:
-            if self.world.options.craftpermits == CraftingPermits.option_all:
-                return self.make_cloth(state) and self.craftdwarf_workshop(state)
-            else:
-                return self.cloth(state) and self.craftdwarf_workshop(state)
+        return self.job_type(state, "Leathercraft") and self.permit(state, "Crafts")
     def craftdwarf_or_metal_or_glass_crafts(self, state:CollectionState) -> bool:
-        return self.craftdwarf_or_metal_or_glass(state) and state.has("Crafts Permit", self.player)
+        return self.craftdwarf_or_metal_or_glass(state) and self.permit(state, "Crafts")
     
     def mechanic_mechanism(self, state:CollectionState) -> bool:
-        return self.mechanic_workshop(state) and state.has("Mechanism Permit", self.player)
+        return self.mechanic_workshop(state) and self.permit(state, "Mechanism")
     def adamantine_mechanism(self, state:CollectionState) -> bool:
-        return self.adamantine_mechanic_workshop(state) and state.has("Mechanism Permit", self.player)
+        return self.adamantine_mechanic_workshop(state) and self.permit(state, "Mechanism")
     def adamantine_mechanic_workshop(self, state:CollectionState) -> bool:
-        return self.mechanic_workshop(state) and self.adamantine_metal(state)
+        return self.mechanic_workshop(state) and self.job_type(state, "Adamantinemetal")
     
     def wood_crafting_tractionbench(self, state:CollectionState) -> bool:
         return self.wood_table(state) and self.metal_or_cloth_ropechain(state) \
-            and self.mechanic_mechanism(state) and state.has("Traction Bench Permit", self.player)
+            and self.mechanic_mechanism(state) and self.permit(state, "Traction Bench")
     def stone_crafting_tractionbench(self, state:CollectionState) -> bool:
         return self.stone_table(state) and self.metal_or_cloth_ropechain(state) \
-            and self.mechanic_mechanism(state) and state.has("Traction Bench Permit", self.player)
+            and self.mechanic_mechanism(state) and self.permit(state, "Traction Bench")
     def metal_crafting_tractionbench(self, state:CollectionState) -> bool:
         return self.metal_table(state) and self.metal_or_cloth_ropechain(state) \
-            and self.mechanic_mechanism(state) and state.has("Traction Bench Permit", self.player)
+            and self.mechanic_mechanism(state) and self.permit(state, "Traction Bench")
     def adamantine_crafting_tractionbench(self, state:CollectionState) -> bool:
         return self.adamantine_table(state) and self.metal_or_cloth_ropechain(state) \
-            and self.mechanic_mechanism(state) and state.has("Traction Bench Permit", self.player)
+            and self.mechanic_mechanism(state) and self.permit(state, "Traction Bench")
     def glass_crafting_tractionbench(self, state:CollectionState) -> bool:
         return self.glass_table(state) and self.metal_or_cloth_ropechain(state) \
-            and self.mechanic_mechanism(state) and state.has("Traction Bench Permit", self.player)
+            and self.mechanic_mechanism(state) and self.permit(state, "Traction Bench")
     def any_crafting_tractionbench(self, state:CollectionState) -> bool:
         return (self.wood_table(state) or self.stone_table(state) or self.metal_table(state) \
             or self.glass_table(state)) and self.metal_or_cloth_ropechain(state) \
-            and self.mechanic_mechanism(state) and state.has("Traction Bench Permit", self.player)
+            and self.mechanic_mechanism(state) and self.permit(state, "Traction Bench")
     
     def glass_liquidcontainer(self, state:CollectionState) -> bool:
-        return self.glass(state) and state.has("Liquid Container Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Liquid Container")
     def metal_liquidcontainer(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Liquid Container Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Liquid Container")
     def adamantine_liquidcontainer(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Liquid Container Permit", self.player)
+            return self.job_type(state, "Adamantinemetal") and self.permit(state, "Liquid Container")
     def leather_liquidcontainer(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Liquid Container Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Liquid Container")
     def metal_or_glass_or_leather_liquidcontainer(self, state:CollectionState) -> bool:
-        return self.metal_or_glass_or_leather(state) and state.has("Liquid Container Permit", self.player)
+        return self.metal_or_glass_or_leather(state) and self.permit(state, "Liquid Container")
     
-    def metal_or_glass_cup(self, state:CollectionState) -> bool:
-        return self.metal_or_glass(state) and state.has("Cup Permit", self.player)
     def metal_cup(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Cup Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Cup")
     def glass_cup(self, state:CollectionState) -> bool:
-        return self.glass(state) and state.has("Cup Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Cup")
     def adamantine_cup(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Cup Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Cup")
     def stone_cup(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and state.has("Cup Permit", self.player)
+        return self.job_type(state, "Stonecraft") and self.permit(state, "Cup")
     def wood_cup(self, state:CollectionState) -> bool:
-        return self.wood(state) and state.has("Cup Permit", self.player)
+        return self.job_type(state, "Woodcraft") and self.permit(state, "Cup")
+    def metal_or_glass_goblet(self, state:CollectionState) -> bool:
+        return self.metal_cup(state) or self.glass_cup(state)
     
     def wood_or_stone_toy(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and state.has("Toy Permit", self.player)
+        return self.job_type(state, "Stonecraft") and self.permit(state, "Toy")
     def metal_toy(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Toy Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Toy")
     def adamantine_toy(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Toy Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Toy")
     def glass_toy(self, state:CollectionState) -> bool:
-        return self.glass(state) and state.has("Toy Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Toy")
     def craftdwarf_or_metal_or_glass_toy(self, state:CollectionState) -> bool:
-        return self.craftdwarf_or_metal_or_glass(state) and state.has("Toy Permit", self.player)
+        return self.craftdwarf_or_metal_or_glass(state) and self.permit(state, "Toy")
     
     def craftdwarf_and_butchery_totem(self, state:CollectionState) -> bool:
-        return self.craftdwarf_and_butchery(state) and state.has("Totem Permit", self.player)
+        return self.job_type(state, "Bonecraft") and self.permit(state, "Totem")
     
     def bone_helm(self, state:CollectionState) -> bool:
-        return self.bonecraft(state) and state.has("Helm Permit", self.player)
+        return self.job_type(state, "Bonecraft") and self.permit(state, "Helm")
     def metal_helm(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Helm Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Helm")
     def adamantine_helm(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Helm Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Helm")
     def leather_helm(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Helm Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Helm")
     def metal_or_bone_or_leather_helm(self, state:CollectionState) -> bool:
-        return self.metal_or_bone_or_leather(state) and state.has("Helm Permit", self.player)
+        return self.metal_or_bone_or_leather(state) and self.permit(state, "Helm")
     
     def seige_ballistaparts(self, state:CollectionState) -> bool:
-        return self.seige_workshop(state) and state.has("Ballista Parts Permit", self.player)
+        return self.seige_workshop(state) and self.permit(state, "Ballista Parts")
     
     def seige_catapultparts(self, state:CollectionState) -> bool:
-        return self.seige_workshop(state) and state.has("Catapult Parts Permit", self.player)
+        return self.seige_workshop(state) and self.permit(state, "Catapult Parts")
     
     def seige_boltthrowerparts(self, state:CollectionState) -> bool:
-        return self.seige_workshop(state) and state.has("Bolt Thrower Parts Permit", self.player)
+        return self.seige_workshop(state) and self.permit(state, "Bolt Thrower Parts")
     
     def seige_arrows(self, state:CollectionState) -> bool:
-        return self.seige_workshop(state) and state.has("Ballista Arrows Permit", self.player)
+        return self.seige_workshop(state) and self.permit(state, "Ballista Arrows")
     def seige_metal_arrows(self, state:CollectionState) -> bool:
-        return self.seige_and_metal(state) and state.has("Ballista Arrows Permit", self.player)
+        return self.seige_and_metal(state) and self.permit(state, "Ballista Arrows")
     def seige_adamantine_arrows(self, state:CollectionState) -> bool:
-        return self.seige_workshop(state) and self.adamantine_metal(state) and state.has("Ballista Arrows Permit", self.player)
+        return self.seige_workshop(state) and self.job_type(state, "Adamantinemetal") and self.permit(state, "Ballista Arrows")
     
     def ash(self, state:CollectionState) -> bool:
-        return self.wood_furnace(state) and state.has("Ash Permit", self.player)
+        return self.wood_furnace(state) and self.permit(state, "Ash")
     def charcoal(self, state:CollectionState) -> bool:
-        return self.wood_furnace(state) and state.has("Charcoal Permit", self.player)
+        return self.wood_furnace(state) and self.permit(state, "Charcoal")
     
     def metal_bars(self, state:CollectionState) -> bool:
         return self.process_resource(state, "metal")
@@ -1003,495 +999,497 @@ class DynamicCraftingLocationRules:
         return self.process_resource(state, "coke")
     
     def pearlash(self, state:CollectionState) -> bool:
-        return self.ceramic(state) and state.has("Pearlash Permit", self.player)
+        return self.job_type(state, "Ceramics") and self.permit(state, "Pearlash")
     def plaster(self, state:CollectionState) -> bool:
-        return self.ceramic(state) and state.has("Gypsum Plaster Permit", self.player)
+        return self.job_type(state, "Ceramics") and self.permit(state, "Gypsum Plaster")
     def quicklime(self, state:CollectionState) -> bool:
-        return self.ceramic(state) and state.has("Quicklime Permit", self.player)
+        return self.job_type(state, "Ceramics") and self.permit(state, "Quicklime")
     
     def make_glass(self, state:CollectionState) -> bool:
-        return self.glass(state) and state.has("Glass Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Glass")
     def glass_window(self, state:CollectionState) -> bool:
-        return self.glass(state) and state.has("Window Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Window")
     
     def make_leather(self, state:CollectionState) -> bool:
-        return self.leather(state) and state.has("Leather Permit", self.player)
+        return state.has("Tanner's Blueprint", self.player) and self.permit(state, "Leather")
     
     def make_sheet(self, state:CollectionState) -> bool:
-        return self.make_paper(state) and state.has("Sheet Permit", self.player)
+        return self.make_paper(state) and self.permit(state, "Sheet")
     
-    def make_cloth(self, state:CollectionState) -> bool:
-        return self.cloth(state) and state.has("Cloth Permit", self.player)
-    
+    def cloth(self, state:CollectionState) -> bool:
+        if self.world.options.craftpermits != CraftingPermits.option_all:
+            return state.has("Loom Blueprint", self.player) and state.has("Farm Plot Blueprint", self.player)
+        else:
+            return state.has("Loom Blueprint", self.player) and state.has("Farm Plot Blueprint", self.player) \
+            and self.permit(state, "Cloth")
+
     def make_alcohol(self, state:CollectionState) -> bool:
-        return self.still(state) and state.has("Alcohol Permit", self.player)
+        return self.still(state) and self.permit(state, "Alcohol")
     
     def ashery_and_wood_furnace_lye(self, state:CollectionState) -> bool:
-        return self.ash(state) and state.has("Lye Permit", self.player)
+        return self.ash(state) and self.permit(state, "Lye")
     def ashery_and_wood_furnace_potash(self, state:CollectionState) -> bool:
-        return (self.ash(state) or self.ashery_and_wood_furnace_lye(state)) and state.has("Potash Permit", self.player)
+        return (self.ash(state) or self.ashery_and_wood_furnace_lye(state)) and self.permit(state, "Potash")
     def ashery_and_kiln_milklime(self, state:CollectionState) -> bool:
-        return self.ashery_and_kiln(state) and state.has("Milk of Lime Permit", self.player)
+        return self.ashery_and_kiln(state) and self.permit(state, "Milk of Lime")
     
     def make_meal(self, state:CollectionState) -> bool:
-        return self.kitchen(state) and state.has("Prepared Meal Permit", self.player)
+        return self.job_type(state, "Prepare Food") and self.permit(state, "Prepared Meal")
     
     def make_tallow(self, state:CollectionState) -> bool:
-        return self.kitchen_and_butchershop(state) and state.has("Tallow Permit", self.player)
+        return self.kitchen_and_butchershop(state) and self.permit(state, "Tallow")
     
     def make_oil(self, state:CollectionState) -> bool:
-        return self.screw_press(state) and state.has("Oil Permit", self.player)
+        return self.screw_press(state) and self.permit(state, "Oil")
     
     def make_honey(self, state:CollectionState) -> bool:
         if self.world.options.trades_inlogic == True:
-             return self.screw_press(state) and state.has("Honey Permit", self.player) 
+             return self.screw_press(state) and self.permit(state, "Honey") 
         else:
             return self.screw_press(state) and self.wood_or_stone_or_metal_or_glass_or_ceramic_jug(state) \
-            and state.has("Honey Permit", self.player) 
+            and self.permit(state, "Honey") 
     
     def metal_gauntlets(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Gauntlets Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Gauntlets")
     def adamantine_gauntlets(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Gauntlets Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Gauntlets")
     def bone_gauntlets(self, state:CollectionState) -> bool:
-        return self.bonecraft(state) and state.has("Gauntlets Permit", self.player)
+        return self.job_type(state, "Bonecraft") and self.permit(state, "Gauntlets")
     def metal_or_bone_gauntlets(self, state:CollectionState) -> bool:
-        return self.metal_or_bone(state) and state.has("Gauntlets Permit", self.player)
+        return self.metal_or_bone(state) and self.permit(state, "Gauntlets")
     
     def dye_dye(self, state:CollectionState) -> bool:
-        return self.dye(state) and state.has("Dye Permit", self.player) and self.wood_or_metal_bucket(state)
+        return self.dye(state) and self.permit(state, "Dye") and self.wood_or_metal_bucket(state)
     
     def cloth_bag(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) and state.has("Bag Permit", self.player)
-    def adamantine_bag(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) and state.has("Bag Permit", self.player)
+        return self.job_type(state, "Clothworks") and self.permit(state, "Bag")
     def leather_bag(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Bag Permit", self.player)
-    def leather_or_cloth_or_adamantine_bag(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and state.has("Bag Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Bag")
+    def leather_or_cloth_bag(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Bag")
     
     def metal_chain(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Rope/Chain Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Rope/Chain")
     def adamantine_chain(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Rope/Chain Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Rope/Chain")
     def make_rope(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) and state.has("Rope/Chain Permit", self.player)
+        return self.job_type(state, "Clothworks") and self.permit(state, "Rope/Chain")
     def metal_or_cloth_ropechain(self, state:CollectionState) -> bool:
-        return self.metal_or_cloth(state) and state.has("Rope/Chain Permit", self.player)
+        return self.metal_or_cloth(state) and self.permit(state, "Rope/Chain")
 
     def metal_battleaxe(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Battle Axe Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Battle Axe")
     def adamantine_battleaxe(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Battle Axe Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Battle Axe")
     
     def metal_mace(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Mace Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Mace")
     def adamantine_mace(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Mace Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Mace")
     
     def metal_pick(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Pick Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Pick")
     def adamantine_pick(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Pick Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Pick")
     
     def metal_sword(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Short Sword Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Short Sword")
     def adamantine_sword(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Short Sword Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Short Sword")
     
     def metal_spear(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Spear Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Spear")
     def adamantine_spear(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Spear Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Spear")
     
     def metal_warhammer(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("War Hammer Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "War Hammer")
     def adamantine_warhammer(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("War Hammer Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "War Hammer")
     
     def metal_anvil(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Anvil Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Anvil")
     def adamantine_anvil(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Anvil Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Anvil")
     
     def metal_coins(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Coins Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Coins")
     def adamantine_coins(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Coins Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Coins")
     
     def make_soap(self, state:CollectionState) -> bool:
         return self.ashery_and_wood_furnace_lye(state) and (self.make_tallow(state) or self.make_oil(state)) \
-        and state.has("Soap Permit", self.player) and (state.has("Soap Maker's Workshop Blueprint", self.player) \
+        and self.permit(state, "Soap") and (state.has("Soap Maker's Workshop Blueprint", self.player) \
         and self.wood_or_metal_bucket(state))
     
     def make_displaycase(self, state:CollectionState) -> bool:
-        return self.make_glass(state) and self.wood(state) and state.has("Display Case Permit", self.player) 
+        return self.job_type(state, "Glass") and self.job_type(state, "Woodworks") and self.permit(state, "Display Case") 
     
     def adamantine_backpack(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) and state.has("Backpack Permit", self.player) 
+        return self.job_type(state, "Adamantinecloth") and self.permit(state, "Backpack") 
     def leather_backpack(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Backpack Permit", self.player) 
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Backpack") 
     def adamantinecloth_or_leather_backpack(self, state:CollectionState) -> bool:
         return self.adamantine_backpack(state) or self.leather_backpack(state) 
     
     def adamantine_quiver(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) and state.has("Quiver Permit", self.player) 
+        return self.job_type(state, "Adamantinecloth") and self.permit(state, "Quiver") 
     def leather_quiver(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Quiver Permit", self.player) 
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Quiver") 
     def adamantinecloth_or_leather_quiver(self, state:CollectionState) -> bool:
         return self.adamantine_quiver(state) or self.leather_quiver(state)
     
     def craftdwarf_amulet(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and state.has("Amulet Permit", self.player)
+        return self.job_type(state, "Stonecraft") and self.permit(state, "Amulet")
     def bonecraftdwarf_amulet(self, state:CollectionState) -> bool:
-        return self.bonecraft(state) and state.has("Amulet Permit", self.player)
+        return self.job_type(state, "Bonecraft") and self.permit(state, "Amulet")
     def leather_amulet(self, state:CollectionState) -> bool:
-        return self.leathercraft(state) and state.has("Amulet Permit", self.player)
+        return self.job_type(state, "Leathercraft") and self.permit(state, "Amulet")
     def metal_amulet(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Amulet Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Amulet")
     def adamantine_amulet(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Amulet Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Amulet")
     def craftdwarf_or_metal_amulet(self, state:CollectionState) -> bool:
-        return self.craftdwarf_or_metal(state) and state.has("Amulet Permit", self.player)
+        return self.craftdwarf_or_metal(state) and self.permit(state, "Amulet")
     
     def craftdwarf_bracelet(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and state.has("Bracelet Permit", self.player)
+        return self.job_type(state, "Stonecraft") and self.permit(state, "Bracelet")
     def bonecraftdwarf_bracelet(self, state:CollectionState) -> bool:
-        return self.bonecraft(state) and state.has("Bracelet Permit", self.player)
+        return self.job_type(state, "Bonecraft") and self.permit(state, "Bracelet")
     def leather_bracelet(self, state:CollectionState) -> bool:
-        return self.leathercraft(state) and state.has("Bracelet Permit", self.player)
+        return self.job_type(state, "Leathercraft") and self.permit(state, "Bracelet")
     def metal_bracelet(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Bracelet Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Bracelet")
     def adamantine_bracelet(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Bracelet Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Bracelet")
     def craftdwarf_or_metal_bracelet(self, state:CollectionState) -> bool:
-        return self.craftdwarf_or_metal(state) and state.has("Bracelet Permit", self.player)
+        return self.craftdwarf_or_metal(state) and self.permit(state, "Bracelet")
     
     def craftdwarf_earring(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and state.has("Earring Permit", self.player)
+        return self.job_type(state, "Stonecraft") and self.permit(state, "Earring")
     def bonecraftdwarf_earring(self, state:CollectionState) -> bool:
-        return self.bonecraft(state) and state.has("Earring Permit", self.player)
+        return self.job_type(state, "Bonecraft") and self.permit(state, "Earring")
     def clothcraftdwarf_earring(self, state:CollectionState) -> bool:
-        return self.clothcraftdwarf(state) and state.has("Earring Permit", self.player)
+        return self.job_type(state, "Clothcraft") and self.permit(state, "Earring")
     def leather_earring(self, state:CollectionState) -> bool:
-        return self.leathercraft(state) and state.has("Earring Permit", self.player)
+        return self.job_type(state, "Leathercraft") and self.permit(state, "Earring")
     def metal_earring(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Earring Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Earring")
     def adamantine_earring(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Earring Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Earring")
     def craftdwarf_or_metal_earring(self, state:CollectionState) -> bool:
-        return self.craftdwarf_or_metal(state) and state.has("Earring Permit", self.player)
+        return self.craftdwarf_or_metal(state) and self.permit(state, "Earring")
     
     def craftdwarf_crown(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and state.has("Crown Permit", self.player)
+        return self.job_type(state, "Stonecraft") and self.permit(state, "Crown")
     def bonecraftdwarf_crown(self, state:CollectionState) -> bool:
-        return self.bonecraft(state) and state.has("Crown Permit", self.player)
+        return self.job_type(state, "Bonecraft") and self.permit(state, "Crown")
     def metal_crown(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Crown Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Crown")
     def adamantine_crown(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Crown Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Crown")
     def craftdwarf_or_metal_crown(self, state:CollectionState) -> bool:
-        return self.craftdwarf_or_metal(state) and state.has("Crown Permit", self.player)
+        return self.craftdwarf_or_metal(state) and self.permit(state, "Crown")
     
     def craftdwarf_die(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and state.has("Die Permit", self.player)
+        return self.job_type(state, "Stonecraft") and self.permit(state, "Die")
     def bonecraftdwarf_die(self, state:CollectionState) -> bool:
-        return self.bonecraft(state) and state.has("Die Permit", self.player)
+        return self.job_type(state, "Bonecraft") and self.permit(state, "Die")
     def metal_die(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Die Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Die")
     def adamantine_die(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Die Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Die")
     def glass_die(self, state:CollectionState) -> bool:
-        return self.glass(state) and state.has("Die Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Die")
     def craftdwarf_or_metal_or_glass_die(self, state:CollectionState) -> bool:
-        return (self.craftdwarf_or_metal(state) or self.glass(state)) and state.has("Die Permit", self.player)
+        return (self.craftdwarf_or_metal(state) or self.job_type(state, "Glass")) and self.permit(state, "Die")
 
 
     def craftdwarf_figurine(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and state.has("Figurine Permit", self.player)
+        return self.job_type(state, "Stonecraft") and self.permit(state, "Figurine")
     def bonecraftdwarf_figurine(self, state:CollectionState) -> bool:
-        return self.bonecraft(state) and state.has("Figurine Permit", self.player)
+        return self.job_type(state, "Bonecraft") and self.permit(state, "Figurine")
     def metal_figurine(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Figurine Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Figurine")
     def adamantine_figurine(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Figurine Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Figurine")
     def craftdwarf_or_metal_figurine(self, state:CollectionState) -> bool:
-        return self.craftdwarf_or_metal(state) and state.has("Figurine Permit", self.player)
+        return self.craftdwarf_or_metal(state) and self.permit(state, "Figurine")
     
     def craftdwarf_nestbox(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and state.has("Nest Box Permit", self.player)
+        return self.job_type(state, "Stonecraft") and self.permit(state, "Nest Box")
     def bonecraftdwarf_nestbox(self, state:CollectionState) -> bool:
-        return self.bonecraft(state) and state.has("Nest Box Permit", self.player)
+        return self.job_type(state, "Bonecraft") and self.permit(state, "Nest Box")
     def metal_nestbox(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Nest Box Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Nest Box")
     def adamantine_nestbox(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Nest Box Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Nest Box")
     def glass_nestbox(self, state:CollectionState) -> bool:
-        return self.glass(state) and state.has("Nest Box Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Nest Box")
     def craftdwarf_or_metal_or_glass_nestbox(self, state:CollectionState) -> bool:
-        return (self.craftdwarf_or_metal(state) or self.glass(state)) and state.has("Nest Box Permit", self.player)
+        return (self.craftdwarf_or_metal(state) or self.job_type(state, "Glass")) and self.permit(state, "Nest Box")
     
     def craftdwarf_ring(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and state.has("Ring Permit", self.player)
+        return self.job_type(state, "Stonecraft") and self.permit(state, "Ring")
     def bonecraftdwarf_ring(self, state:CollectionState) -> bool:
-        return self.bonecraft(state) and state.has("Ring Permit", self.player)
+        return self.job_type(state, "Bonecraft") and self.permit(state, "Ring")
     def metal_ring(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Ring Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Ring")
     def adamantine_ring(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Ring Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Ring")
     def craftdwarf_or_metal_ring(self, state:CollectionState) -> bool:
-        return self.craftdwarf_or_metal(state) and state.has("Ring Permit", self.player)
+        return self.craftdwarf_or_metal(state) and self.permit(state, "Ring")
     
     def craftdwarf_scepter(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and state.has("Scepter Permit", self.player)
+        return self.job_type(state, "Stonecraft") and self.permit(state, "Scepter")
     def bonecraftdwarf_scepter(self, state:CollectionState) -> bool:
-        return self.bonecraft(state) and state.has("Scepter Permit", self.player)
+        return self.job_type(state, "Bonecraft") and self.permit(state, "Scepter")
     def metal_scepter(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Scepter Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Scepter")
     def adamantine_scepter(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Scepter Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Scepter")
     def craftdwarf_or_metal_scepter(self, state:CollectionState) -> bool:
-        return self.craftdwarf_or_metal(state) and state.has("Scepter Permit", self.player)
+        return self.craftdwarf_or_metal(state) and self.permit(state, "Scepter")
     
     def make_quire(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and state.has("Quire Permit", self.player) \
+        return self.job_type(state, "Stonecraft") and self.permit(state, "Quire") \
         and self.make_sheet(state)
     def quire(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and self.make_paper(state)
+        return self.job_type(state, "Stonecraft") and self.make_paper(state)
     
     def make_scroll(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and state.has("Quire Permit", self.player) \
+        return self.job_type(state, "Stonecraft") and self.permit(state, "Quire") \
         and self.make_sheet(state) and self.wood_or_stone_or_metal_or_glass_scrollroller(state)
     def scroll(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and self.make_paper(state)
+        return self.job_type(state, "Stonecraft") and self.make_paper(state)
     
     def metal_mailshirt(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Mail Shirt Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Mail Shirt")
     def adamantine_mailshirt(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Mail Shirt Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Mail Shirt")
     
     def metal_breastplate(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Breastplate Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Breastplate")
     def adamantine_breastplate(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Breastplate Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Breastplate")
     
     def cloth_gloves(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) and state.has("Gloves Permit", self.player)
+        return self.job_type(state, "Clothworks") and self.permit(state, "Gloves")
     def adamantine_gloves(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) and state.has("Gloves Permit", self.player)
+        return self.job_type(state, "Adamantinecloth") and self.permit(state, "Gloves")
     def leather_gloves(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Gloves Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Gloves")
     def leather_or_cloth_or_adamantine_gloves(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and state.has("Gloves Permit", self.player)
+        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Gloves")
     
     def cloth_mittens(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) and state.has("Mittens Permit", self.player)
+        return self.job_type(state, "Clothworks") and self.permit(state, "Mittens")
     def adamantine_mittens(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) and state.has("Mittens Permit", self.player)
+        return self.job_type(state, "Adamantinecloth") and self.permit(state, "Mittens")
     def leather_mittens(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Mittens Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Mittens")
     def leather_or_cloth_or_adamantine_mittens(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and state.has("Mittens Permit", self.player)
+        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Mittens")
     
     def cloth_loincloth(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) and state.has("Loincloth Permit", self.player)
+        return self.job_type(state, "Clothworks") and self.permit(state, "Loincloth")
     def adamantine_loincloth(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) and state.has("Loincloth Permit", self.player)
+        return self.job_type(state, "Adamantinecloth") and self.permit(state, "Loincloth")
     def leather_loincloth(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Loincloth Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Loincloth")
     def leather_or_cloth_or_adamantine_loincloth(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and state.has("Loincloth Permit", self.player)
+        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Loincloth")
     
     def cloth_trousers(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) and state.has("Trousers Permit", self.player)
+        return self.job_type(state, "Clothworks") and self.permit(state, "Trousers")
     def adamantine_trousers(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) and state.has("Trousers Permit", self.player)
+        return self.job_type(state, "Adamantinecloth") and self.permit(state, "Trousers")
     def leather_trousers(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Trousers Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Trousers")
     def leather_or_cloth_or_adamantine_trousers(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and state.has("Trousers Permit", self.player)
+        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Trousers")
     
     def bone_leggings(self, state:CollectionState) -> bool:
-        return self.bonecraft(state) and state.has("Leggings Permit", self.player)
+        return self.job_type(state, "Bonecraft") and self.permit(state, "Leggings")
     def metal_leggings(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Leggings Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Leggings")
     def adamantine_leggings(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Leggings Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Leggings")
     def leather_leggings(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Leggings Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Leggings")
     def metal_or_bone_or_leather_leggings(self, state:CollectionState) -> bool:
-        return self.metal_or_bone_or_leather(state) and state.has("Leggings Permit", self.player)
+        return self.metal_or_bone_or_leather(state) and self.permit(state, "Leggings")
     
     def metal_greaves(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Greaves Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Greaves")
     def adamantine_greaves(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Greaves Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Greaves")
     def bone_greaves(self, state:CollectionState) -> bool:
-        return self.bonecraft(state) and state.has("Greaves Permit", self.player)
+        return self.job_type(state, "Bonecraft") and self.permit(state, "Greaves")
     def metal_or_bone_greaves(self, state:CollectionState) -> bool:
-        return self.metal_or_bone(state) and state.has("Greaves Permit", self.player)
+        return self.metal_or_bone(state) and self.permit(state, "Greaves")
     
     def cloth_socks(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) and state.has("Socks Permit", self.player)
+        return self.job_type(state, "Clothworks") and self.permit(state, "Socks")
     def adamantine_socks(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) and state.has("Socks Permit", self.player)
+        return self.job_type(state, "Adamantinecloth") and self.permit(state, "Socks")
     def cloth_or_adamantine_socks(self, state:CollectionState) -> bool:
         return self.cloth_socks(state) or self.adamantine_socks(state)
 
     def cloth_shoes(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) and state.has("Shoes Permit", self.player)
+        return self.job_type(state, "Clothworks") and self.permit(state, "Shoes")
     def adamantine_shoes(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) and state.has("Shoes Permit", self.player)
+        return self.job_type(state, "Adamantinecloth") and self.permit(state, "Shoes")
     def leather_shoes(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Shoes Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Shoes")
     def leather_or_cloth_or_adamantine_shoes(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and state.has("Shoes Permit", self.player)
+        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Shoes")
 
     def metal_lboots(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Low Boots Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Low Boots")
     def adamantine_lboots(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Low Boots Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Low Boots")
     def leather_lboots(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Low Boots Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Low Boots")
     def metal_or_leather_lboots(self, state:CollectionState) -> bool:
-        return self.metal_or_leather(state) and state.has("Low Boots Permit", self.player)
+        return self.metal_or_leather(state) and self.permit(state, "Low Boots")
     
     def metal_hboots(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("High Boots Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "High Boots")
     def adamantine_hboots(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("High Boots Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "High Boots")
     def leather_hboots(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("High Boots Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "High Boots")
     def metal_or_leather_hboots(self, state:CollectionState) -> bool:
-        return self.metal_or_bone_or_leather(state) and state.has("High Boots Permit", self.player)
+        return self.metal_or_bone_or_leather(state) and self.permit(state, "High Boots")
     
     def make_codex(self, state:CollectionState) -> bool:
-        return self.make_quire(state) and state.has("Codex Permit", self.player) \
+        return self.make_quire(state) and self.permit(state, "Codex") \
         and self.craftdwarf_or_metal_or_glass_bookbinding(state)
     def codex(self, state:CollectionState) -> bool:
         return self.quire(state) and self.craftdwarf_or_metal_or_glass(state)
     
     def metal_axeblade(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Giant Axe Blade Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Giant Axe Blade")
     def adamantine_axeblade(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Giant Axe Blade Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Giant Axe Blade")
     def glass_axeblade(self, state:CollectionState) -> bool:
-        return self.glass(state) and state.has("Giant Axe Blade Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Giant Axe Blade")
     def metal_or_glass_axeblade(self, state:CollectionState) -> bool:
-        return self.metal_or_glass(state) and state.has("Giant Axe Blade Permit", self.player)
+        return self.metal_or_glass(state) and self.permit(state, "Giant Axe Blade")
 
     def metal_disc(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Serrated Disc Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Serrated Disc")
     def adamantine_disc(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Serrated Disc Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Serrated Disc")
     def glass_disc(self, state:CollectionState) -> bool:
-        return self.glass(state) and state.has("Serrated Disc Permit", self.player)
+        return self.job_type(state, "Glass") and self.permit(state, "Serrated Disc")
     def metal_or_glass_disc(self, state:CollectionState) -> bool:
-        return self.metal_or_glass(state) and state.has("Serrated Disc Permit", self.player)
+        return self.metal_or_glass(state) and self.permit(state, "Serrated Disc")
     
     def cloth_cap(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) and state.has("Cap Permit", self.player)
+        return self.job_type(state, "Clothworks") and self.permit(state, "Cap")
     def leather_cap(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Cap Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Cap")
     def metal_cap(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and state.has("Cap Permit", self.player)
+        return self.job_type(state, "Metal") and self.permit(state, "Cap")
     def adamantine_cap(self, state:CollectionState) -> bool:
-        return self.adamantine_metal(state) and state.has("Cap Permit", self.player)
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Cap")
     def metal_or_cloth_or_leather_cap(self, state:CollectionState) -> bool:
-        return self.metal_or_cloth_or_leather(state) and state.has("Cap Permit", self.player)
+        return self.metal_or_cloth_or_leather(state) and self.permit(state, "Cap")
     
     def cloth_hood(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) and state.has("Hood Permit", self.player)
+        return self.job_type(state, "Clothworks") and self.permit(state, "Hood")
     def adamantine_hood(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) and state.has("Hood Permit", self.player)
+        return self.job_type(state, "Adamantinecloth") and self.permit(state, "Hood")
     def leather_hood(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Hood Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Hood")
     def leather_or_cloth_or_adamantine_hood(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and state.has("Hood Permit", self.player)
+        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Hood")
     
     def cloth_shirt(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) and state.has("Shirt Permit", self.player)
+        return self.job_type(state, "Clothworks") and self.permit(state, "Shirt")
     def adamantine_shirt(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) and state.has("Shirt Permit", self.player)
+        return self.job_type(state, "Adamantinecloth") and self.permit(state, "Shirt")
     def leather_shirt(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Shirt Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Shirt")
     def leather_or_cloth_or_adamantine_shirt(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and state.has("Shirt Permit", self.player)
+        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Shirt")
     
     def cloth_vest(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) and state.has("Vest Permit", self.player)
+        return self.job_type(state, "Clothworks") and self.permit(state, "Vest")
     def adamantine_vest(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) and state.has("Vest Permit", self.player)
+        return self.job_type(state, "Adamantinecloth") and self.permit(state, "Vest")
     def leather_vest(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Vest Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Vest")
     def leather_or_cloth_or_adamantine_vest(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and state.has("Vest Permit", self.player)
+        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Vest")
     
     def cloth_coat(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) and state.has("Coat Permit", self.player)
+        return self.job_type(state, "Clothworks") and self.permit(state, "Coat")
     def adamantine_coat(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) and state.has("Coat Permit", self.player)
+        return self.job_type(state, "Adamantinecloth") and self.permit(state, "Coat")
     def leather_coat(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Coat Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Coat")
     def leather_or_cloth_or_adamantine_coat(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and state.has("Coat Permit", self.player)
+        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Coat")
     
     def cloth_cloak(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) and state.has("Cloak Permit", self.player)
+        return self.job_type(state, "Clothworks") and self.permit(state, "Cloak")
     def adamantine_cloak(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) and state.has("Cloak Permit", self.player)
+        return self.job_type(state, "Adamantinecloth") and self.permit(state, "Cloak")
     def leather_cloak(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Cloak Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Cloak")
     def leather_or_cloth_or_adamantine_cloak(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and state.has("Cloak Permit", self.player)
+        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Cloak")
     
     def leather_leatherarmor(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Leather Armor Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Leather Armor")
     
     def cloth_tunic(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) and state.has("Tunic Permit", self.player)
+        return self.job_type(state, "Clothworks") and self.permit(state, "Tunic")
     def adamantine_tunic(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) and state.has("Tunic Permit", self.player)
+        return self.job_type(state, "Adamantinecloth") and self.permit(state, "Tunic")
     def leather_tunic(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Tunic Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Tunic")
     def leather_or_cloth_or_adamantine_tunic(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and state.has("Tunic Permit", self.player)
+        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Tunic")
     
     def cloth_dress(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) and state.has("Dress Permit", self.player)
+        return self.job_type(state, "Clothworks") and self.permit(state, "Dress")
     def adamantine_dress(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) and state.has("Dress Permit", self.player)
+        return self.job_type(state, "Adamantinecloth") and self.permit(state, "Dress")
     def leather_dress(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Dress Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Dress")
     def leather_or_cloth_or_adamantine_dress(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and state.has("Dress Permit", self.player)
+        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Dress")
     
     def cloth_toga(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) and state.has("Toga Permit", self.player)
+        return self.job_type(state, "Clothworks") and self.permit(state, "Toga")
     def adamantine_toga(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) and state.has("Toga Permit", self.player)
+        return self.job_type(state, "Adamantinecloth") and self.permit(state, "Toga")
     def leather_toga(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Toga Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Toga")
     def leather_or_cloth_or_adamantine_toga(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and state.has("Toga Permit", self.player)
+        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Toga")
     
     def cloth_robe(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) and state.has("Robe Permit", self.player)
+        return self.job_type(state, "Clothworks") and self.permit(state, "Robe")
     def adamantine_robe(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) and state.has("Robe Permit", self.player)
+        return self.job_type(state, "Adamantinecloth") and self.permit(state, "Robe")
     def leather_robe(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Robe Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Robe")
     def leather_or_cloth_or_adamantine_robe(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and state.has("Robe Permit", self.player)
+        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Robe")
     
     def cloth_braies(self, state:CollectionState) -> bool:
-        return self.clothier_workshop(state) and state.has("Braies Permit", self.player)
+        return self.job_type(state, "Clothworks") and self.permit(state, "Braies")
     def adamantine_braies(self, state:CollectionState) -> bool:
-        return self.adamantine_cloth(state) and state.has("Braies Permit", self.player)
+        return self.job_type(state, "Adamantinecloth") and self.permit(state, "Braies")
     def leather_braies(self, state:CollectionState) -> bool:
-        return self.leather_works(state) and state.has("Braies Permit", self.player)
+        return self.job_type(state, "Leatherworks") and self.permit(state, "Braies")
     def leather_or_cloth_or_adamantine_braies(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and state.has("Braies Permit", self.player)
+        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Braies")
     
     def leather_products(self, state:CollectionState) -> bool:
         return self.leather_cap(state) or self.leather_hood(state) \
@@ -2813,7 +2811,7 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.adamantine_metal)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                            set_rule(loc, self.metal_or_glass_cup)
+                            set_rule(loc, self.metal_or_glass_goblet)
                     else:
                         set_rule(loc, self.metal_or_glass)
             case "Mug":
@@ -2970,10 +2968,7 @@ class DynamicCraftingLocationRules:
                 else:
                     set_rule(loc, self.make_paper)
             case "Cloth":
-                if self.world.options.craftpermits == CraftingPermits.option_all:
-                    set_rule(loc, self.make_cloth)
-                else:
-                    set_rule(loc, self.cloth)
+                set_rule(loc, self.cloth)
             case "Alcohol":
                 if self.world.options.craftpermits == CraftingPermits.option_all:
                     set_rule(loc, self.make_alcohol)
@@ -3046,11 +3041,6 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.cloth_bag)
                     else:   
                         set_rule(loc, self.clothier_workshop)
-                elif material_type == "Adamantine":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.adamantine_bag)
-                    else:
-                        set_rule(loc, self.adamantine_cloth)
                 elif material_type == "Leather":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.leather_bag)
@@ -3058,9 +3048,9 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_or_adamantine_bag)
+                        set_rule(loc, self.leather_or_cloth_bag)
                     else:
-                        set_rule(loc, self.leather_or_cloth_or_adamantinecloth)
+                        set_rule(loc, self.leather_or_cloth)
             case "Rope/Chain":
                 if material_type == "Cloth":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
