@@ -751,6 +751,43 @@ M.fortress_wealth  = fortress_wealth
 M.treasury_wealth  = treasury_wealth
 M.exported_wealth  = exported_wealth
 
+-- Room accessors for the panel.
+M.has_zone_type        = has_zone_type
+M.best_room_quality    = best_room_quality
+M.best_temple_value    = best_temple_value
+M.best_guildhall_value = best_guildhall_value
+
+function M.has_temple_zone()
+    return has_location_type(function(b) return df.abstract_building_templest:is_instance(b) end)
+end
+
+function M.has_guildhall_zone()
+    return has_location_type(function(b) return df.abstract_building_guildhallst:is_instance(b) end)
+end
+
+-- Returns the description string of the best-quality room (e.g. "Grand Bedroom"), or "".
+function M.best_room_description()
+    local best_rank = -1
+    local best_desc = ""
+    pcall(function()
+        local ct = df.civzone_type
+        for _, z in ipairs(df.global.world.buildings.all) do
+            local ok, t = pcall(function() return z:getType() end)
+            if ok and t == df.building_type.Civzone then
+                local ok2, st = pcall(function() return z:getSubtype() end)
+                if ok2 and (st == ct.Bedroom or st == ct.Office
+                         or st == ct.DiningHall or st == ct.Tomb) then
+                    local desc = ""
+                    pcall(function() desc = dfhack.buildings.getRoomDescription(z) or "" end)
+                    local r = ROOM_TIER[desc] or -1
+                    if r > best_rank then best_rank = r; best_desc = desc end
+                end
+            end
+        end
+    end)
+    return best_desc
+end
+
 -- ── Job type → craft count flag mapping ──────────────────────────────────────
 -- Separate from JOB_TO_FLAG: maps jobs to the specific AP option names used in
 -- craftable_items and craftable_materials (lowercase, underscored).

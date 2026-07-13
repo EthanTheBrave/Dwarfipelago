@@ -251,7 +251,10 @@ end
 local TILES_THRESHOLDS  = {100, 500, 2000, 5000, 10000}
 local DEPTH_TIER_LABELS = { "Cavern 1 ceiling", "Cavern 2 ceiling", "Cavern 3 ceiling", "Magma Sea" }
 local CROPS_THRESHOLDS  = {50, 100, 250, 500, 1000}
-local WEALTH_THRESHOLDS = {1000, 10000, 50000, 100000, 500000}
+
+-- {threshold, name_at_or_above_threshold}; first entry is the base (value >= 0) name.
+local TEMPLE_TIERS    = {{0, "Shrine"}, {2000, "Temple"}, {10000, "Temple Complex"}}
+local GUILDHALL_TIERS = {{0, "Meeting Place"}, {2000, "Guildhall"}, {10000, "Grand Guildhall"}}
 
 local PROD_FLAGS = {
     {"Crafted item",   "crafted_item",  "Weapon forged",  "weapon"},
@@ -287,13 +290,53 @@ local function build_progress_lines()
     row(("  Crops harvested: %s%s"):format(
         fmt_num(crops), nc and ("  (next: %s)"):format(fmt_num(nc)) or "  (all done!)"))
 
-    -- Treasury
+    -- Rooms
     blank()
-    hdr("Treasury  (coins + cut gems)")
-    local wealth = checks.treasury_wealth()
-    local nw = next_thresh(wealth, WEALTH_THRESHOLDS)
-    row(("  Current: %s%s"):format(
-        fmt_num(wealth), nw and ("  (next: %s)"):format(fmt_num(nw)) or "  (all done!)"))
+    hdr("Rooms")
+    local has_bed  = checks.has_zone_type(df.civzone_type.Bedroom)
+    local has_off  = checks.has_zone_type(df.civzone_type.Office)
+    local has_tomb = checks.has_zone_type(df.civzone_type.Tomb)
+    row(("  Bedroom: %-3s  Office: %-3s  Tomb: %-3s"):format(
+        has_bed  and "YES" or "no",
+        has_off  and "YES" or "no",
+        has_tomb and "YES" or "no"),
+        (has_bed or has_off or has_tomb) and COLOR_WHITE or COLOR_DARKGRAY)
+
+    local best_desc = checks.best_room_description()
+    row(("  Best quality: %s"):format(best_desc ~= "" and best_desc or "none"),
+        best_desc ~= "" and COLOR_WHITE or COLOR_DARKGRAY)
+
+    local function location_row(label, value, has_zone, tiers)
+        if not has_zone then
+            row(("  %s: none"):format(label), COLOR_DARKGRAY)
+            return
+        end
+        local tier_name = tiers[1][2]
+        local next_val, next_name
+        for _, t in ipairs(tiers) do
+            if value >= t[1] then
+                tier_name = t[2]
+            else
+                next_val  = t[1]
+                next_name = t[2]
+                break
+            end
+        end
+        if next_val then
+            row(("  %s: %s (%s / %s for %s)"):format(
+                label, tier_name, fmt_num(value), fmt_num(next_val), next_name))
+        else
+            row(("  %s: %s (%s)"):format(label, tier_name, fmt_num(value)), COLOR_GREEN)
+        end
+    end
+
+    local tv = checks.best_temple_value()
+    local has_t = checks.has_temple_zone()
+    location_row("Temple",   tv, has_t,   TEMPLE_TIERS)
+
+    local gv = checks.best_guildhall_value()
+    local has_g = checks.has_guildhall_zone()
+    location_row("Guildhall", gv, has_g, GUILDHALL_TIERS)
 
     -- Production
     blank()
