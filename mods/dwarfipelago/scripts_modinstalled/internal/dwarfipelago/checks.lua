@@ -14,7 +14,198 @@ local function has_noble_role(code)
     return ok and units ~= nil and #units > 0
 end
 
--- ── Wealth milestones ─────────────────────────────────────────────────────────
+-- ── Room milestones ──────────────────────────────────────────────────────────
+
+-- Quality tier (0-7) from getRoomDescription's exact return string.
+-- Tiers map to DF room value thresholds: 0, 100, 250, 500, 1000, 1500, 2500, 10000.
+local ROOM_TIER = {
+    ["Meager Quarters"]       = 0, ["Modest Quarters"]       = 1,
+    ["Quarters"]              = 2, ["Decent Quarters"]       = 3,
+    ["Fine Quarters"]         = 4, ["Great Bedroom"]         = 5,
+    ["Grand Bedroom"]         = 6, ["Royal Bedroom"]         = 7,
+
+    ["Meager Office"]         = 0, ["Modest Office"]         = 1,
+    ["Office"]                = 2, ["Decent Office"]         = 3,
+    ["Splendid Office"]       = 4, ["Throne Room"]           = 5,
+    ["Opulent Throne Room"]   = 6, ["Royal Throne Room"]     = 7,
+
+    ["Meager Dining Room"]    = 0, ["Modest Dining Room"]    = 1,
+    ["Dining Room"]           = 2, ["Decent Dining Room"]    = 3,
+    ["Fine Dining Room"]      = 4, ["Great Dining Room"]     = 5,
+    ["Grand Dining Room"]     = 6, ["Royal Dining Room"]     = 7,
+
+    ["Grave"]                     = 0, ["Servant's Burial Chamber"] = 1,
+    ["Burial Chamber"]            = 2, ["Tomb"]                     = 3,
+    ["Fine Tomb"]                 = 4, ["Mausoleum"]                = 5,
+    ["Grand Mausoleum"]           = 6, ["Royal Mausoleum"]          = 7,
+}
+
+local function zone_quality_rank(zone)
+    local desc = ""
+    pcall(function() desc = dfhack.buildings.getRoomDescription(zone) or "" end)
+    return ROOM_TIER[desc] or -1
+end
+
+-- True if at least one Civzone of the given df.civzone_type exists.
+local function has_zone_type(zone_type)
+    local found = false
+    pcall(function()
+        for _, z in ipairs(df.global.world.buildings.all) do
+            if not found then
+                local ok, t = pcall(function() return z:getType() end)
+                if ok and t == df.building_type.Civzone then
+                    local ok2, st = pcall(function() return z:getSubtype() end)
+                    if ok2 and st == zone_type then found = true end
+                end
+            end
+        end
+    end)
+    return found
+end
+
+-- Highest quality tier (0-7) across Bedroom/Office/DiningHall/Tomb zones. -1 if none.
+local function best_room_quality()
+    local best = -1
+    pcall(function()
+        local ct = df.civzone_type
+        for _, z in ipairs(df.global.world.buildings.all) do
+            local ok, t = pcall(function() return z:getType() end)
+            if ok and t == df.building_type.Civzone then
+                local ok2, st = pcall(function() return z:getSubtype() end)
+                if ok2 and (st == ct.Bedroom or st == ct.Office
+                         or st == ct.DiningHall or st == ct.Tomb) then
+                    local r = zone_quality_rank(z)
+                    if r > best then best = r end
+                end
+            end
+        end
+    end)
+    return best
+end
+
+-- True if any Civzone is assigned to a location whose abstract building passes
+-- the given is_instance check (e.g. df.abstract_building_templest:is_instance).
+local function has_location_type(check_fn)
+    local found = false
+    pcall(function()
+        local site = dfhack.world.getCurrentSite()
+        if not site then return end
+        for _, z in ipairs(df.global.world.buildings.all) do
+            if found then return end
+            local ok, t = pcall(function() return z:getType() end)
+            if ok and t == df.building_type.Civzone then
+                local loc_id = -1
+                pcall(function() loc_id = z.location_id end)
+                if loc_id and loc_id >= 0 then
+                    pcall(function()
+                        for _, bld in ipairs(site.buildings) do
+                            if bld.id == loc_id and check_fn(bld) then
+                                found = true; break
+                            end
+                        end
+                    end)
+                end
+            end
+        end
+    end)
+    return found
+end
+
+-- Returns the highest total item value found inside any temple zone.
+-- DF names: shrine (<2000), temple (>=2000), temple complex (>=10000).
+local function best_temple_value()
+    local best = 0
+    pcall(function()
+        local site = dfhack.world.getCurrentSite()
+        if not site then return end
+        for _, z in ipairs(df.global.world.buildings.all) do
+            local ok, t = pcall(function() return z:getType() end)
+            if ok and t == df.building_type.Civzone then
+                local loc_id = -1
+                pcall(function() loc_id = z.location_id end)
+                if loc_id and loc_id >= 0 then
+                    local is_temple = false
+                    pcall(function()
+                        for _, bld in ipairs(site.buildings) do
+                            if bld.id == loc_id and df.abstract_building_templest:is_instance(bld) then
+                                is_temple = true; break
+                            end
+                        end
+                    end)
+                    if is_temple then
+                        local x1 = math.min(z.x1, z.x2)
+                        local x2 = math.max(z.x1, z.x2)
+                        local y1 = math.min(z.y1, z.y2)
+                        local y2 = math.max(z.y1, z.y2)
+                        local zz = z.z
+                        local total = 0
+                        for _, it in ipairs(df.global.world.items.all) do
+                            local p = it.pos
+                            if p and p.z == zz
+                                    and p.x >= x1 and p.x <= x2
+                                    and p.y >= y1 and p.y <= y2 then
+                                local v = 0
+                                pcall(function() v = dfhack.items.getValue(it) end)
+                                total = total + v
+                            end
+                        end
+                        if total > best then best = total end
+                    end
+                end
+            end
+        end
+    end)
+    return best
+end
+
+-- Mirrors best_temple_value() for guildhall zones.
+-- DF names: meeting place (<2000), guildhall (>=2000), grand guildhall (>=10000).
+local function best_guildhall_value()
+    local best = 0
+    pcall(function()
+        local site = dfhack.world.getCurrentSite()
+        if not site then return end
+        for _, z in ipairs(df.global.world.buildings.all) do
+            local ok, t = pcall(function() return z:getType() end)
+            if ok and t == df.building_type.Civzone then
+                local loc_id = -1
+                pcall(function() loc_id = z.location_id end)
+                if loc_id and loc_id >= 0 then
+                    local is_guildhall = false
+                    pcall(function()
+                        for _, bld in ipairs(site.buildings) do
+                            if bld.id == loc_id and df.abstract_building_guildhallst:is_instance(bld) then
+                                is_guildhall = true; break
+                            end
+                        end
+                    end)
+                    if is_guildhall then
+                        local x1 = math.min(z.x1, z.x2)
+                        local x2 = math.max(z.x1, z.x2)
+                        local y1 = math.min(z.y1, z.y2)
+                        local y2 = math.max(z.y1, z.y2)
+                        local zz = z.z
+                        local total = 0
+                        for _, it in ipairs(df.global.world.items.all) do
+                            local p = it.pos
+                            if p and p.z == zz
+                                    and p.x >= x1 and p.x <= x2
+                                    and p.y >= y1 and p.y <= y2 then
+                                local v = 0
+                                pcall(function() v = dfhack.items.getValue(it) end)
+                                total = total + v
+                            end
+                        end
+                        if total > best then best = total end
+                    end
+                end
+            end
+        end
+    end)
+    return best
+end
+
+-- ── Wealth helpers (kept for the legendary_wealth goal and panel display) ────
 
 -- Returns current total fortress wealth (items + buildings + stocks).
 -- DF 50+ (Steam / 2022+) renamed df.global.ui → df.global.plotinfo.
@@ -130,13 +321,27 @@ local function has_fortress_title(pop_req, created_req, exported_req, waves_req)
 end
 
 M.checks = {
-    -- Wealth milestones - based on combined coin + cut-gem value in fortress stocks.
-    -- Each tier requires the matching Merchant's Coffer count to have been received.
-    { id = 37370000, name = "Humble Beginnings (1,000)",    fn = function() return unlock_count("wealth_coffers") >= 1 and treasury_wealth() >= 1000    end },
-    { id = 37370001, name = "Growing Stronghold (10,000)",  fn = function() return unlock_count("wealth_coffers") >= 2 and treasury_wealth() >= 10000   end },
-    { id = 37370002, name = "Prosperous Fortress (50,000)", fn = function() return unlock_count("wealth_coffers") >= 3 and treasury_wealth() >= 50000   end },
-    { id = 37370003, name = "Rich Citadel (100,000)",       fn = function() return unlock_count("wealth_coffers") >= 4 and treasury_wealth() >= 100000  end },
-    { id = 37370004, name = "Legendary Vault (500,000)",    fn = function() return unlock_count("wealth_coffers") >= 5 and treasury_wealth() >= 500000  end },
+    -- Room type milestones - first time each zone type is designated.
+    { id = 37370000, name = "First Bedroom",     fn = function() return has_zone_type(df.civzone_type.Bedroom)   end },
+    { id = 37370001, name = "First Office",      fn = function() return has_zone_type(df.civzone_type.Office)    end },
+    { id = 37370002, name = "First Tomb",        fn = function() return has_zone_type(df.civzone_type.Tomb)      end },
+    { id = 37370004, name = "First Dining Hall", fn = function() return has_zone_type(df.civzone_type.DiningHall) end },
+    -- Temple tiers: shrine (<2000), temple (>=2000), temple complex (>=10000).
+    { id = 37370003, name = "First Shrine",    fn = function() return has_location_type(function(b) return df.abstract_building_templest:is_instance(b)    end) end },
+    { id = 37370010, name = "First Temple",    fn = function() return best_temple_value()   >= 2000  end },
+    { id = 37370011, name = "Temple Complex",  fn = function() return best_temple_value()   >= 10000 end },
+
+    -- Guildhall tiers: guildhall (>=2000), grand guildhall (>=10000).
+    { id = 37370012, name = "First Guildhall", fn = function() return best_guildhall_value() >= 2000  end },
+    { id = 37370013, name = "Grand Guildhall", fn = function() return best_guildhall_value() >= 10000 end },
+
+    -- Room quality milestones - best tier across Bedroom/Office/DiningHall/Tomb.
+    -- Tiers 3-7 match DF value thresholds: 500 / 1000 / 1500 / 2500 / 10000.
+    { id = 37370005, name = "Decent Room", fn = function() return best_room_quality() >= 3 end },
+    { id = 37370006, name = "Fine Room",   fn = function() return best_room_quality() >= 4 end },
+    { id = 37370007, name = "Great Room",  fn = function() return best_room_quality() >= 5 end },
+    { id = 37370008, name = "Grand Room",  fn = function() return best_room_quality() >= 6 end },
+    { id = 37370009, name = "Royal Room",  fn = function() return best_room_quality() >= 7 end },
 
     -- First production milestones
     -- These are tracked via a persistent counter set by the eventful job hook in main.lua.
@@ -546,6 +751,43 @@ end
 M.fortress_wealth  = fortress_wealth
 M.treasury_wealth  = treasury_wealth
 M.exported_wealth  = exported_wealth
+
+-- Room accessors for the panel.
+M.has_zone_type        = has_zone_type
+M.best_room_quality    = best_room_quality
+M.best_temple_value    = best_temple_value
+M.best_guildhall_value = best_guildhall_value
+
+function M.has_temple_zone()
+    return has_location_type(function(b) return df.abstract_building_templest:is_instance(b) end)
+end
+
+function M.has_guildhall_zone()
+    return has_location_type(function(b) return df.abstract_building_guildhallst:is_instance(b) end)
+end
+
+-- Returns the description string of the best-quality room (e.g. "Grand Bedroom"), or "".
+function M.best_room_description()
+    local best_rank = -1
+    local best_desc = ""
+    pcall(function()
+        local ct = df.civzone_type
+        for _, z in ipairs(df.global.world.buildings.all) do
+            local ok, t = pcall(function() return z:getType() end)
+            if ok and t == df.building_type.Civzone then
+                local ok2, st = pcall(function() return z:getSubtype() end)
+                if ok2 and (st == ct.Bedroom or st == ct.Office
+                         or st == ct.DiningHall or st == ct.Tomb) then
+                    local desc = ""
+                    pcall(function() desc = dfhack.buildings.getRoomDescription(z) or "" end)
+                    local r = ROOM_TIER[desc] or -1
+                    if r > best_rank then best_rank = r; best_desc = desc end
+                end
+            end
+        end
+    end)
+    return best_desc
+end
 
 -- ── Job type → craft count flag mapping ──────────────────────────────────────
 -- Separate from JOB_TO_FLAG: maps jobs to the specific AP option names used in

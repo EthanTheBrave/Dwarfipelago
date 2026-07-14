@@ -6,15 +6,6 @@ from .options import DwarfFortressGoal, CraftingPermits
 from .locations import SHOP_SLOTS
 
 
-# Wealth tier → how many Merchant's Coffers needed to unlock it.
-WEALTH_COFFER_RULES: list[tuple[str, int]] = [
-    ("Humble Beginnings (1,000)",    1),
-    ("Growing Stronghold (10,000)",  2),
-    ("Prosperous Fortress (50,000)", 3),
-    ("Rich Citadel (100,000)",       4),
-    ("Legendary Vault (500,000)",    5),
-]
-
 # Population/title tier → how many Immigration Waves needed to unlock it.
 TITLE_WAVE_RULES: list[tuple[str, int]] = [
     ("Hamlet Established",     1),
@@ -276,28 +267,6 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         loc.access_rule = lambda state: dynamic_rules.wood_or_metal_or_glass_cage(state) \
             and dynamic_rules.mechanic_mechanism(state)
 
-
-    # ── Progressive Coffer gates (wealth tier locations) ──────────────────────
-    # Fortress wealth (treasury_wealth in Lua) is the value of minted coins plus
-    # cut gems, so a tier is only logically reachable once the player can produce
-    # one of those. Minting needs metal smelting (plus a Coins Permit when permits
-    # are on); cutting gems needs the Jeweler's Workshop. Either source alone can
-    # reach any threshold, so the capability gate is coins OR gems.
-    if options.goal == DwarfFortressGoal.option_legendary_wealth:
-        if options.craftpermits == CraftingPermits.option_off:
-            can_mint_coins = dynamic_rules.metal
-        else:
-            can_mint_coins = dynamic_rules.make_coins
-
-        def can_produce_wealth(state):
-            return can_mint_coins(state) or state.has("Jeweler's Workshop Blueprint", player)
-
-        for loc_name, coffers_needed in WEALTH_COFFER_RULES:
-            loc = multiworld.get_location(loc_name, player)
-            loc.access_rule = lambda state, n=coffers_needed: (
-                state.count("Merchant's Coffer", player) >= n
-                and can_produce_wealth(state)
-            )
 
     # ── Merchant's Shop gates ─────────────────────────────────────────────────
     # Shop slots require:

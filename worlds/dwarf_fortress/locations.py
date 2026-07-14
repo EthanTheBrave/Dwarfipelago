@@ -15,13 +15,26 @@ class LocationData:
     threshold: int = 0
 
 
-# ── Wealth Milestones ─────────────────────────────────────────────────────────
-WEALTH_LOCATIONS: list[LocationData] = [
-    LocationData("Humble Beginnings (1,000)",    BASE_ID + 0,  "Fortress"),
-    LocationData("Growing Stronghold (10,000)",  BASE_ID + 1,  "Fortress"),
-    LocationData("Prosperous Fortress (50,000)", BASE_ID + 2,  "Fortress"),
-    LocationData("Rich Citadel (100,000)",       BASE_ID + 3,  "Fortress"),
-    LocationData("Legendary Vault (500,000)",    BASE_ID + 4,  "Fortress"),
+# ── Room Milestones ───────────────────────────────────────────────────────────
+ROOM_LOCATIONS: list[LocationData] = [
+    # First room of each type
+    LocationData("First Bedroom",       BASE_ID + 0,  "Fortress"),
+    LocationData("First Office",        BASE_ID + 1,  "Fortress"),
+    LocationData("First Tomb",          BASE_ID + 2,  "Fortress"),
+    LocationData("First Dining Hall",   BASE_ID + 4,  "Fortress"),
+    # Temple tiers: shrine / temple (2000+) / temple complex (10000+)
+    LocationData("First Shrine",        BASE_ID + 3,  "Fortress"),
+    LocationData("First Temple",        BASE_ID + 10, "Fortress"),
+    LocationData("Temple Complex",      BASE_ID + 11, "Fortress"),
+    # Guildhall tiers: guildhall (2000+) / grand guildhall (10000+)
+    LocationData("First Guildhall",     BASE_ID + 12, "Fortress"),
+    LocationData("Grand Guildhall",     BASE_ID + 13, "Fortress"),
+    # Room quality tiers (best across Bedroom/Office/DiningHall/Tomb)
+    LocationData("Decent Room",         BASE_ID + 5,  "Fortress"),
+    LocationData("Fine Room",           BASE_ID + 6,  "Fortress"),
+    LocationData("Great Room",          BASE_ID + 7,  "Fortress"),
+    LocationData("Grand Room",          BASE_ID + 8,  "Fortress"),
+    LocationData("Royal Room",          BASE_ID + 9,  "Fortress"),
 ]
 
 # ── First Production Milestones ───────────────────────────────────────────────
@@ -1573,7 +1586,7 @@ CAVE_LOCATIONS: list[LocationData] = [
 # location_name_to_id in __init__.py (see _FULL_LOCATION_TABLE). Keeping them out
 # of this module avoids a circular import (craftsanity imports from locations).
 ALL_LOCATIONS: list[LocationData] = (
-    WEALTH_LOCATIONS + PRODUCTION_LOCATIONS + TRADE_LOCATIONS
+    ROOM_LOCATIONS + PRODUCTION_LOCATIONS + TRADE_LOCATIONS
     + STATUS_LOCATIONS + TITLE_LOCATIONS + MINING_LOCATIONS
     + FARMING_LOCATIONS + INFRASTRUCTURE_LOCATIONS
     + BIOLOGY_LOCATIONS + ENDGAME_LOCATIONS + SIEGE_LOCATIONS

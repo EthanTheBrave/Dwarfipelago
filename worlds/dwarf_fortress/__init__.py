@@ -145,26 +145,16 @@ class DwarfFortressWorld(World):
         # Active set = the static non-craft locations (LOCATION_TABLE) plus the
         # craft subset this slot generated. Goal-based filtering then drops
         # locations that don't apply to the chosen goal:
-        #   - wealth tiers are coffer progression locks (legendary_wealth only)
         #   - the noble ladder is charter progression locks (mountainhome only)
         # rules.py only references these for their matching goal, so dropping them
         # leaves no dangling rule lookups. (Mirrors the item removal in create_items.)
         active = set(LOCATION_TABLE.keys()) | set(self.dynamic_locations_names)
-        WEALTH_TIER_LOCATIONS = {
-            "Humble Beginnings (1,000)",
-            "Growing Stronghold (10,000)",
-            "Prosperous Fortress (50,000)",
-            "Rich Citadel (100,000)",
-            "Legendary Vault (500,000)",
-        }
         NOBLE_LADDER_LOCATIONS = {
             "Baron Appointed",
             "Count Appointed",
             "Duke Appointed",
             "Monarch Takes Residence",
         }
-        if self.options.goal != DwarfFortressGoal.option_legendary_wealth:
-            active -= WEALTH_TIER_LOCATIONS
         if self.options.goal != DwarfFortressGoal.option_mountainhome:
             active -= NOBLE_LADDER_LOCATIONS
         SIEGE_LOCATION_NAMES = {"Barracks Established", "Training Completed"}

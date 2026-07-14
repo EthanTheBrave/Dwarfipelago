@@ -251,7 +251,10 @@ end
 local TILES_THRESHOLDS  = {100, 500, 2000, 5000, 10000}
 local DEPTH_TIER_LABELS = { "Cavern 1 ceiling", "Cavern 2 ceiling", "Cavern 3 ceiling", "Magma Sea" }
 local CROPS_THRESHOLDS  = {50, 100, 250, 500, 1000}
-local WEALTH_THRESHOLDS = {1000, 10000, 50000, 100000, 500000}
+
+-- {threshold, name_at_or_above_threshold}; first entry is the base (value >= 0) name.
+local TEMPLE_TIERS    = {{0, "Shrine"}, {2000, "Temple"}, {10000, "Temple Complex"}}
+local GUILDHALL_TIERS = {{2000, "Guildhall"}, {10000, "Grand Guildhall"}}
 
 local PROD_FLAGS = {
     {"Crafted item",   "crafted_item",  "Weapon forged",  "weapon"},
@@ -287,13 +290,48 @@ local function build_progress_lines()
     row(("  Crops harvested: %s%s"):format(
         fmt_num(crops), nc and ("  (next: %s)"):format(fmt_num(nc)) or "  (all done!)"))
 
-    -- Treasury
+    -- Rooms
     blank()
-    hdr("Treasury  (coins + cut gems)")
-    local wealth = checks.treasury_wealth()
-    local nw = next_thresh(wealth, WEALTH_THRESHOLDS)
-    row(("  Current: %s%s"):format(
-        fmt_num(wealth), nw and ("  (next: %s)"):format(fmt_num(nw)) or "  (all done!)"))
+    hdr("Rooms")
+    local has_bed   = checks.has_zone_type(df.civzone_type.Bedroom)
+    local has_off   = checks.has_zone_type(df.civzone_type.Office)
+    local has_tomb  = checks.has_zone_type(df.civzone_type.Tomb)
+    local has_dine  = checks.has_zone_type(df.civzone_type.DiningHall)
+    row(("  Bedroom: %-3s  Office: %-3s  Tomb: %-3s  Dining Hall: %-3s"):format(
+        has_bed  and "YES" or "no",
+        has_off  and "YES" or "no",
+        has_tomb and "YES" or "no",
+        has_dine and "YES" or "no"),
+        (has_bed or has_off or has_tomb or has_dine) and COLOR_WHITE or COLOR_DARKGRAY)
+
+    local best_desc = checks.best_room_description()
+    row(("  Best quality: %s"):format(best_desc ~= "" and best_desc or "none"),
+        best_desc ~= "" and COLOR_WHITE or COLOR_DARKGRAY)
+
+    local function location_row(label, value, has_zone, tiers)
+        local tier_name, next_val, next_name
+        for _, t in ipairs(tiers) do
+            if value >= t[1] then
+                tier_name = t[2]
+            else
+                next_val  = t[1]
+                next_name = t[2]
+                break
+            end
+        end
+        if not tier_name then
+            -- zone exists (or not) but hasn't reached the first threshold
+            row(("  %s: none"):format(label), COLOR_DARKGRAY)
+        elseif next_val then
+            row(("  %s: %s (%s / %s for %s)"):format(
+                label, tier_name, fmt_num(value), fmt_num(next_val), next_name))
+        else
+            row(("  %s: %s (%s)"):format(label, tier_name, fmt_num(value)), COLOR_GREEN)
+        end
+    end
+
+    location_row("Temple",    checks.best_temple_value(),    nil, TEMPLE_TIERS)
+    location_row("Guildhall", checks.best_guildhall_value(), nil, GUILDHALL_TIERS)
 
     -- Production
     blank()
@@ -702,7 +740,7 @@ function DwarfipelagoPanel:init()
         and ("  (%d%% of population)"):format(dl_thresh)
         or  ("  (every %d deaths)"):format(dl_thresh)) or ""
 
-    local W, H = 62, 48
+    local W, H = 76, 48
 
     -- Tab 1 Status -----------------------
     function StatusTab()
@@ -1017,13 +1055,13 @@ function DwarfipelagoPanel:init()
                 elseif not unlocked then
                     state, pen = "shrine needed", COLOR_DARKGRAY
                 elseif coffers < (e.tier or 1) then
-                    state, pen = ("LOCKED (%d coffers)"):format(e.tier or 1), COLOR_RED
+                    state, pen = ("need %d coffers"):format(e.tier or 1), COLOR_RED
                 elseif coins < price then
                     state, pen = "need coins", COLOR_YELLOW
                 else
                     state, pen, buyable = "BUY", COLOR_GREEN, true
                 end
-                local text = ("%-20.20s -> %-12.12s %8s* [%s]"):format(
+                local text = ("%-30.30s -> %-12.12s %8s* [%s]"):format(
                     tostring(e.item or "?"), tostring(e.player or "?"), fmt_num(price), state)
                 table.insert(choices, {text = text, pen = pen, slot = sn, buyable = buyable})
             end
