@@ -131,7 +131,7 @@ class DynamicCraftingLocationRules:
                         return ((state.has("Wood Furnace Blueprint", self.player) and state.has("Charcoal Permit", self.player) \
                             and state.has("Forge Blueprint", self.player)) or self.magma_processing(state, "forge")) \
                             and state.has("Craftsdwarf's Workshop Blueprint", self.player) and state.has("Loom Blueprint", self.player) \
-                            and state.has("Cloth Permit", self.player) and state.has("Progressive Mining Depth", self.player, 4)
+                            and state.has("Progressive Mining Depth", self.player, 4)
                 else: # no depth item
                     if self.world.options.trades_inlogic: # obtain fuel
                         return (state.has("Forge Blueprint", self.player) or self.magma_processing(state, "forge")) \
@@ -673,17 +673,17 @@ class DynamicCraftingLocationRules:
             return self.wood_or_stone_or_metal_or_glass(state) and state.has("Cabinet Permit", self.player)
     
     def wood_burial(self, state:CollectionState) -> bool:
-            return self.wood(state) and state.has("Burial Container Permit", self.player)
+        return self.wood(state) and state.has("Burial Container Permit", self.player)
     def stone_burial(self, state:CollectionState) -> bool:
-            return self.stone(state) and state.has("Burial Container Permit", self.player)
+        return self.stone(state) and state.has("Burial Container Permit", self.player)
     def metal_burial(self, state:CollectionState) -> bool:
-            return self.metal(state) and state.has("Burial Container Permit", self.player)
+        return self.metal(state) and state.has("Burial Container Permit", self.player)
     def adamantine_burial(self, state:CollectionState) -> bool:
-            return self.adamantine_metal(state) and state.has("Burial Container Permit", self.player)
+        return self.adamantine_metal(state) and state.has("Burial Container Permit", self.player)
     def glass_burial(self, state:CollectionState) -> bool:
-            return self.glass(state) and state.has("Burial Container Permit", self.player)
+        return self.glass(state) and state.has("Burial Container Permit", self.player)
     def wood_or_stone_or_metal_or_glass_burial(self, state:CollectionState) -> bool:
-            return self.wood_or_stone_or_metal_or_glass(state) and state.has("Burial Container Permit", self.player)
+        return self.wood_or_stone_or_metal_or_glass(state) and state.has("Burial Container Permit", self.player)
     
     def wood_chair(self, state:CollectionState) -> bool:
             return self.wood(state) and state.has("Chair Permit", self.player)
@@ -1738,7 +1738,7 @@ class DynamicCraftingLocationRules:
                     else:
                         set_rule(loc, self.metal)
                 elif material_type == "Adamantine":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                    if self.world.options.craftpermits == CraftingPermits.option_all:
                         set_rule(loc, self.adamantine_barrel)
                     else:
                         set_rule(loc, self.adamantine_metal)
@@ -2159,32 +2159,32 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.wood_or_stone_or_metal_or_glass)
             case "Burial Container":
                 if material_type == "Wood":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                    if self.world.options.craftpermits == CraftingPermits.option_all:
                         set_rule(loc, self.wood_burial)
                     else:
                         set_rule(loc, self.wood)
                 elif material_type == "Stone":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                    if self.world.options.craftpermits == CraftingPermits.option_all:
                         set_rule(loc, self.stone_burial)
                     else:
                         set_rule(loc, self.stone)
                 elif material_type == "Metal":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                    if self.world.options.craftpermits == CraftingPermits.option_all:
                         set_rule(loc, self.metal_burial)
                     else:
                         set_rule(loc, self.metal)
                 elif material_type == "Adamantine":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                    if self.world.options.craftpermits == CraftingPermits.option_all:
                         set_rule(loc, self.adamantine_burial)
                     else:
                         set_rule(loc, self.adamantine_metal)
                 elif material_type == "Glass":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                    if self.world.options.craftpermits == CraftingPermits.option_all:
                         set_rule(loc, self.glass_burial)
                     else:
                         set_rule(loc, self.glass)
                 else:
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                    if self.world.options.craftpermits == CraftingPermits.option_all:
                         set_rule(loc, self.wood_or_stone_or_metal_or_glass_burial)
                     else:
                         set_rule(loc, self.wood_or_stone_or_metal_or_glass)
