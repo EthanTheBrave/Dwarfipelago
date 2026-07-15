@@ -123,7 +123,7 @@ class DwarfFortressWorld(World):
         elif self.options.craftpermits == CraftingPermits.option_on:
             # Start with a basic permit set; don't also place those in the pool.
             self.starting_inventory = ["Beds Permit", "Charcoal Permit", "Leather Permit",
-                "Cloth Permit", "Alcohol Permit", "Prepared Meal Permit", "Barrel Permit"]
+                "Cloth Permit", "Alcohol Permit", "Prepared Meal Permit", "Barrel Permit", "Burial Container Permit"]
             self.ap_item_pool = [d for d in self.ap_item_pool
                                  if d.name not in self.starting_inventory]
         

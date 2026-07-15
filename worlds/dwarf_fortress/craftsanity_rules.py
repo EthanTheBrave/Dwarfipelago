@@ -62,9 +62,17 @@ class DynamicCraftingLocationRules:
             case "Prepare Food":
                 return (state.has("Fishery Blueprint", self.player) or state.has("Farm Plot Blueprint", self.player) \
                 or state.has("Butcher's Shop Blueprint", self.player)) and state.has("Kitchen Blueprint", self.player)
-
         "need_material type missing: "+material
         return False
+    
+    def wood(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Wood")
+    
+    def stone(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Stone")
+    
+    def glass(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Glass")
             
     def metal(self, state:CollectionState) -> bool:
         return self.process_resource(state, "metal") and ((self.can_fuel_workshops(state) \
@@ -93,6 +101,13 @@ class DynamicCraftingLocationRules:
             return True
         else:
             return state.has("Loom Blueprint", self.player) #silk can be obtained in a AP created cave between the surface and cavern1.
+    
+    def leather(self, state:CollectionState) -> bool:
+        if self.world.options.craftpermits != CraftingPermits.option_all:
+            return state.has("Tanner's Blueprint", self.player) and self.butcher_workshop(state)
+        else:
+            return state.has("Tanner's Blueprint", self.player) and self.butcher_workshop(state) \
+            and self.permit(state, "Leather")
     
     def permit(self, state:CollectionState, permit:str) -> bool:
         return state.has(permit + " Permit", self.player)
@@ -1691,7 +1706,7 @@ class DynamicCraftingLocationRules:
                     else:
                         set_rule(loc, self.metal)
                 elif material_type == "Adamantine":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                    if self.world.options.craftpermits == CraftingPermits.option_all:
                         set_rule(loc, self.adamantine_barrel)
                     else:
                         set_rule(loc, self.adamantine_metal)
@@ -2112,32 +2127,32 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.wood_or_stone_or_metal_or_glass)
             case "Burial Container":
                 if material_type == "Wood":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                    if self.world.options.craftpermits == CraftingPermits.option_all:
                         set_rule(loc, self.wood_burial)
                     else:
                         set_rule(loc, self.wood)
                 elif material_type == "Stone":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                    if self.world.options.craftpermits == CraftingPermits.option_all:
                         set_rule(loc, self.stone_burial)
                     else:
                         set_rule(loc, self.stone)
                 elif material_type == "Metal":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                    if self.world.options.craftpermits == CraftingPermits.option_all:
                         set_rule(loc, self.metal_burial)
                     else:
                         set_rule(loc, self.metal)
                 elif material_type == "Adamantine":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                    if self.world.options.craftpermits == CraftingPermits.option_all:
                         set_rule(loc, self.adamantine_burial)
                     else:
                         set_rule(loc, self.adamantine_metal)
                 elif material_type == "Glass":
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                    if self.world.options.craftpermits == CraftingPermits.option_all:
                         set_rule(loc, self.glass_burial)
                     else:
                         set_rule(loc, self.glass)
                 else:
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                    if self.world.options.craftpermits == CraftingPermits.option_all:
                         set_rule(loc, self.wood_or_stone_or_metal_or_glass_burial)
                     else:
                         set_rule(loc, self.wood_or_stone_or_metal_or_glass)

@@ -123,7 +123,7 @@ class CraftingPermits(Choice):
     """
     If Crafting Permits is enabled, you cannot craft certian items until you got the appropriate permit.
     When set to "on", you start with the following permits:
-    Beds, Charcoal, Leather, Cloth, Alcohol, Prepared Meal, Barrels
+    Beds, Charcoal, Leather, Cloth, Alcohol, Prepared Meal, Barrels, Burial Containers
     When set to "all", all permits are required
     Craftsanity must be enabled to use this feature as it adds 97 additional items.
     """
