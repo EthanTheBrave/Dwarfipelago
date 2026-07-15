@@ -12,7 +12,7 @@
 local overlay = require('plugins.overlay')
 local to_pen  = dfhack.pen.parse
 
--- ── Shared keyword matching ───────────────────────────────────────────────────
+-- -- Shared keyword matching ---------------------------------------------------
 
 -- Flatten a {value -> {keywords}} map into {keyword, value} pairs, longest keyword
 -- first so a phrase ("training spear") is matched before a single word it contains
@@ -63,7 +63,7 @@ local COMPLETED_NOTE_PEN = to_pen{ fg = COLOR_GREEN, bg = COLOR_BLACK }
 local RESCAN_FRAMES   = 2    -- frames between screen re-reads; lower = snappier, costs
                              -- a full-screen scan more often (only on menu screens)
 
--- ── Crafting-permit overlay ───────────────────────────────────────────────────
+-- -- Crafting-permit overlay ---------------------------------------------------
 -- With Crafting Permits on, the workshop task list (and the work-orders job list)
 -- still shows crafts you lack the permit for as if they were makeable (the mod just
 -- cancels the job if you queue one). This marks those rows as locked in DF's own
@@ -230,7 +230,7 @@ function PermitOverlay:onRenderBody(dc)
     end
 end
 
--- ── Build-menu blueprint overlay ──────────────────────────────────────────────
+-- -- Build-menu blueprint overlay ----------------------------------------------
 -- On the Build menu (b -> Workshops / Furnaces / ...), recolor workshop & furnace
 -- entries whose blueprint you haven't received in red, so it's clear at a glance
 -- what you can actually build. The menu list isn't exposed as data

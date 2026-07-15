@@ -25,7 +25,7 @@ local CRAFT_FLAGS = {
     "cloth", "stone", "leather", "ceramic", "metal", "bone", "wood", "glass",
 }
 
--- ── Internal helpers ──────────────────────────────────────────────────────────
+-- -- Internal helpers ----------------------------------------------------------
 
 local function read_table(key)
     local raw = dfhack.persistent.getWorldDataString(key)
@@ -39,9 +39,9 @@ local function write_table(key, tbl)
     dfhack.persistent.saveWorldDataString(key, json.encode(tbl))
 end
 
--- ── Checked locations ─────────────────────────────────────────────────────────
+-- -- Checked locations ---------------------------------------------------------
 
--- Returns a set (table with location_id → true) of already-checked locations.
+-- Returns a set (table with location_id -> true) of already-checked locations.
 function M.get_checked_locations()
     return read_table(KEY_CHECKED)
 end
@@ -62,7 +62,7 @@ function M.is_location_checked(location_id)
     return checked[tostring(location_id)] == true
 end
 
--- ── Received items ────────────────────────────────────────────────────────────
+-- -- Received items ------------------------------------------------------------
 
 -- Returns the index of the last item that has been applied in-game.
 -- AP sends items with a monotonically increasing index; we track where we are.
@@ -77,7 +77,7 @@ function M.set_received_item_index(index)
     write_table(KEY_RECEIVED, data)
 end
 
--- ── Enable/disable flag ───────────────────────────────────────────────────────
+-- -- Enable/disable flag -------------------------------------------------------
 
 function M.is_enabled()
     local data = read_table(KEY_ENABLED)
@@ -88,7 +88,7 @@ function M.set_enabled(value)
     write_table(KEY_ENABLED, { enabled = value })
 end
 
--- ── DeathLink: death counting ─────────────────────────────────────────────────
+-- -- DeathLink: death counting -------------------------------------------------
 
 -- Increment the citizen death counter and return the new total.
 function M.increment_death_count()
@@ -101,7 +101,7 @@ function M.get_death_count()
     return tonumber(dfhack.persistent.getWorldDataString(KEY_DEATH_COUNT)) or 0
 end
 
--- ── DeathLink: outgoing (sent to AP) ─────────────────────────────────────────
+-- -- DeathLink: outgoing (sent to AP) -----------------------------------------
 
 function M.get_deathlinks_sent()
     return tonumber(dfhack.persistent.getWorldDataString(KEY_DL_SENT)) or 0
@@ -111,7 +111,7 @@ function M.set_deathlinks_sent(n)
     dfhack.persistent.saveWorldDataString(KEY_DL_SENT, tostring(n))
 end
 
--- ── DeathLink: incoming (received from AP, kills to apply) ───────────────────
+-- -- DeathLink: incoming (received from AP, kills to apply) -------------------
 
 function M.get_pending_recv()
     return tonumber(dfhack.persistent.getWorldDataString(KEY_DL_RECV)) or 0
@@ -126,7 +126,7 @@ function M.clear_pending_recv()
     dfhack.persistent.saveWorldDataString(KEY_DL_RECV, "0")
 end
 
--- ── Goal completion ───────────────────────────────────────────────────────────
+-- -- Goal completion -----------------------------------------------------------
 
 function M.is_goal_complete()
     return dfhack.persistent.getWorldDataString(KEY_GOAL_COMPLETE) == "1"
@@ -140,7 +140,7 @@ function M.mark_goal_complete()
     return true
 end
 
--- ── Debug helpers ─────────────────────────────────────────────────────────────
+-- -- Debug helpers -------------------------------------------------------------
 
 function M.dump()
     print("[Dwarfipelago] Checked locations:", json.encode(M.get_checked_locations()))
@@ -168,7 +168,7 @@ function M.dump()
         end
     end
 
-    -- ── Mining ──────────────────────────────────────────────────────────────
+    -- -- Mining --------------------------------------------------------------
     local function num(key) return tonumber(dfhack.persistent.getWorldDataString(key)) end
     local dug      = num("dwarfipelago/mining/dig_count") or 0
     local surface  = num("dwarfipelago/mining/surface_z")
@@ -183,10 +183,10 @@ function M.dump()
         "| Magma sea:",
         dfhack.persistent.getWorldDataString("dwarfipelago/mining/magma") == "1")
 
-    -- ── Farming ─────────────────────────────────────────────────────────────
+    -- -- Farming -------------------------------------------------------------
     print("[Dwarfipelago] Crops harvested:", num("dwarfipelago/farming/crop_count") or 0)
 
-    -- ── Blueprints received ─────────────────────────────────────────────────
+    -- -- Blueprints received -------------------------------------------------
     local items = reqscript("internal/dwarfipelago/items")
     local names = items.BLUEPRINT_NAMES or {}
     local have = {}
@@ -234,6 +234,8 @@ function M.reset()
         dfhack.persistent.saveWorldDataString("dwarfipelago/blueprint/" .. name, "")
     end
     dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/spawned", "")
+    dfhack.persistent.saveWorldDataString("dwarfipelago/deity_id", "")
+    dfhack.persistent.saveWorldDataString("dwarfipelago/religion_id", "")
     print("[Dwarfipelago] State reset.")
 end
 

@@ -5,7 +5,7 @@
 
 local M = {}
 
--- ── Noble position helper ─────────────────────────────────────────────────────
+-- -- Noble position helper -----------------------------------------------------
 -- Uses dfhack.units.getUnitsByNobleRole(code) which is available in DFHack 0.47+
 -- and all DF50 builds. Returns true if at least one living unit holds the role.
 
@@ -14,7 +14,7 @@ local function has_noble_role(code)
     return ok and units ~= nil and #units > 0
 end
 
--- ── Room milestones ──────────────────────────────────────────────────────────
+-- -- Room milestones ----------------------------------------------------------
 
 -- Quality tier (0-7) from getRoomDescription's exact return string.
 -- Tiers map to DF room value thresholds: 0, 100, 250, 500, 1000, 1500, 2500, 10000.
@@ -205,10 +205,10 @@ local function best_guildhall_value()
     return best
 end
 
--- ── Wealth helpers (kept for the legendary_wealth goal and panel display) ────
+-- -- Wealth helpers (kept for the legendary_wealth goal and panel display) ----
 
 -- Returns current total fortress wealth (items + buildings + stocks).
--- DF 50+ (Steam / 2022+) renamed df.global.ui → df.global.plotinfo.
+-- DF 50+ (Steam / 2022+) renamed df.global.ui -> df.global.plotinfo.
 -- We try plotinfo first so both versions are supported.
 -- DF50 stores fortress wealth as a STRUCT (plotinfo.tasks.wealth) whose .total is
 -- the created-wealth figure shown in the fort status; older builds exposed it as a
@@ -243,8 +243,8 @@ end
 
 -- Returns the combined value of all minted coins (COIN) and cut gems (SMALLGEM)
 -- currently in fortress stocks - not carried by any unit, not belonging to traders.
--- A coin stack is worth 10 × material_value for a full 500 stack, i.e. each coin
--- is material_value × 10 / 500; a cut gem is worth its material_value.
+-- A coin stack is worth 10 x material_value for a full 500 stack, i.e. each coin
+-- is material_value x 10 / 500; a cut gem is worth its material_value.
 -- Both item types require AP-gated blueprints (Screw Press and Jeweler's Workshop)
 -- and their material values vary widely, keeping embark-site luck meaningful.
 local function treasury_wealth()
@@ -270,7 +270,7 @@ local function treasury_wealth()
     return math.floor(total)
 end
 
--- ── Progression lock helpers ──────────────────────────────────────────────────
+-- -- Progression lock helpers --------------------------------------------------
 -- Read how many copies of a progressive unlock item have been received, or
 -- whether a single-copy unlock has arrived.  Keys written by items.lua handlers.
 
@@ -282,7 +282,7 @@ local function unlock_flag(key)
     return dfhack.persistent.getWorldDataString("dwarfipelago/unlock/" .. key) == "1"
 end
 
--- ── Fortress title helpers ────────────────────────────────────────────────────
+-- -- Fortress title helpers ----------------------------------------------------
 -- Titles require population AND (created wealth OR exported wealth).
 -- https://dwarffortresswiki.org/index.php/Fortress
 -- Defined before M.checks because has_fortress_title() is called immediately
@@ -453,7 +453,7 @@ M.checks = {
                           and M.training_completed() end },
 }
 
--- ── Production flag helpers ───────────────────────────────────────────────────
+-- -- Production flag helpers ---------------------------------------------------
 -- Flags are set by the eventful job hook in main.lua and stored in world data.
 -- Key format: "dwarfipelago/prod/<flag_name>"
 
@@ -506,7 +506,7 @@ function M.detect_mission_checks()
     end
 end
 
--- ── Mining helpers ────────────────────────────────────────────────────────────
+-- -- Mining helpers ------------------------------------------------------------
 -- Mining state is written by the eventful job hook in dwarfipelago.lua:
 --   dwarfipelago/mining/surface_z  - z-level of the embark surface (captured once)
 --   dwarfipelago/mining/deepest_z  - lowest z any mining job has reached
@@ -532,7 +532,7 @@ function M.mining_flag(name)
     return dfhack.persistent.getWorldDataString("dwarfipelago/mining/" .. name) == "1"
 end
 
--- ── Cavern approach progress ──────────────────────────────────────────────────
+-- -- Cavern approach progress --------------------------------------------------
 -- Ceilings cached by compute_cavern_ceilings() in dwarfipelago.lua. Higher z =
 -- closer to the surface.
 local CAVERN_CEIL_KEYS = { [1] = "cavern1", [2] = "cavern2", [3] = "cavern3" }
@@ -597,7 +597,7 @@ function M.cavern_approach()
     return nil  -- all three caverns breached
 end
 
--- ── Progressive mining-depth lock (read-only view for the panel) ──────────────
+-- -- Progressive mining-depth lock (read-only view for the panel) --------------
 -- Enforced in dwarfipelago.lua; this mirrors its tier mapping for display.
 local MINING_FLOOR_KEYS = { [0] = "cavern1", [1] = "cavern2", [2] = "cavern3", [3] = "magma" }
 local MINING_TIER_NAMES = {
@@ -633,7 +633,7 @@ function M.crops_harvested()
     return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/farming/crop_count")) or 0
 end
 
--- ── Job type → production flag mapping ───────────────────────────────────────
+-- -- Job type -> production flag mapping ---------------------------------------
 -- Called by main.lua's eventful job hook to classify completed jobs.
 --
 -- Job type enum names can vary between DF versions (Steam vs Classic, DF 47 vs
@@ -789,7 +789,7 @@ function M.best_room_description()
     return best_desc
 end
 
--- ── Job type → craft count flag mapping ──────────────────────────────────────
+-- -- Job type -> craft count flag mapping --------------------------------------
 -- Separate from JOB_TO_FLAG: maps jobs to the specific AP option names used in
 -- craftable_items and craftable_materials (lowercase, underscored).
 -- The AP client writes these same strings into the dwarfipelago/craft_checks
@@ -1275,7 +1275,7 @@ function M.item_craft_flag(base_flag, item)
     return base_flag
 end
 
--- ── Craft count helpers ───────────────────────────────────────────────────────
+-- -- Craft count helpers -------------------------------------------------------
 -- Cumulative counts of completed production jobs per flag, persisted in world
 -- data under "dwarfipelago/craft_count/<flag_name>".
 -- Incremented by the eventful job hook in dwarfipelago.lua.
@@ -1334,7 +1334,7 @@ function M.clear_craft_counts()
     dfhack.persistent.saveWorldDataString(CRAFT_INDEX_KEY, "")
 end
 
--- ── Energy Link helpers ───────────────────────────────────────────────────────
+-- -- Energy Link helpers -------------------------------------------------------
 
 -- Count DRINK items in fortress stocks (not carried by traders).
 -- Does NOT filter on in_inventory: items inside barrels/containers in DF have
@@ -1386,8 +1386,8 @@ function M.find_fortress_food()
 end
 
 -- Return all accessible minted coins in fortress stocks with their energy values.
--- A coin stack is worth 10 × material_value per 500 coins, so each coin item
--- contributes (stack_size × material_value × 10 / 500 × 1000) joules.
+-- A coin stack is worth 10 x material_value per 500 coins, so each coin item
+-- contributes (stack_size x material_value x 10 / 500 x 1000) joules.
 -- Returns (list_of_{item,j}, total_j).
 function M.find_fortress_coins_energy()
     local found   = {}
@@ -1416,7 +1416,7 @@ function M.find_fortress_coins_energy()
     return found, total_j
 end
 
--- ── Skill level helpers ───────────────────────────────────────────────────────
+-- -- Skill level helpers -------------------------------------------------------
 -- Highest trained level of each tracked job skill among living citizens,
 -- persisted in world data under "dwarfipelago/skill/<flag_name>".
 -- Refreshed each poll tick by M.update_skill_levels (below). The AP client polls
@@ -1612,7 +1612,7 @@ function M.update_skill_levels()
     end
 end
 
--- ── Military / siege milestones (Slay Megabeast goal) ─────────────────────────
+-- -- Military / siege milestones (Slay Megabeast goal) -------------------------
 -- Feeds both the AP location checks above and the War Readiness gate in
 -- dwarfipelago.lua (barracks -> readiness 5-6, 4 soldiers at skill 10 -> 7-9).
 
@@ -1675,6 +1675,219 @@ function M.barracks_is_set_up()
         return false
     end)
     return ok and result == true
+end
+
+-- -- Merchant deity: Dwarfipelagius -------------------------------------------
+
+local KEY_DEITY_ID = "dwarfipelago/deity_id"
+
+local function find_dwarf_race()
+    for i, raw in ipairs(df.global.world.raws.creatures.all) do
+        if raw.creature_id == "DWARF" then return i end
+    end
+    return 0
+end
+
+-- Create the Dwarfipelagius historical figure. Returns the new HF id.
+-- Checks history first so calling this twice never creates a duplicate.
+local function create_merchant_deity()
+    for _, fig in ipairs(df.global.world.history.figures) do
+        if fig.name.first_name == "Dwarfipelagius" and fig.flags.deity then
+            return fig.id
+        end
+    end
+
+    local hf = df.historical_figure:new()
+    hf.race            = find_dwarf_race()
+    hf.caste           = 0
+    hf.sex             = -1
+    hf.appeared_year   = -1
+    hf.born_year       = -1
+    hf.born_seconds    = -1
+    hf.curse_year      = -1
+    hf.curse_seconds   = -1
+    hf.old_year        = -1
+    hf.old_seconds     = -1
+    hf.died_year       = -1
+    hf.died_seconds    = -1
+    hf.breed_id        = -1
+
+    hf.name.has_name   = true
+    hf.name.first_name = "Dwarfipelagius"
+
+    hf.flags.deity        = true
+    hf.flags.brag_on_kill = true
+    hf.flags.kill_quest   = true
+    hf.flags.chatworthy   = true
+    hf.flags.flashes      = true
+    hf.flags.never_cull   = true
+
+    hf.info = df.historical_figure_info:new()
+    hf.info.metaphysical = {new=true}
+    hf.info.known_info   = {new=true}
+    for _, sphere in ipairs({df.sphere_type.TRADE, df.sphere_type.WEALTH, df.sphere_type.JEWELS}) do
+        hf.info.metaphysical.spheres:insert('#', sphere)
+    end
+
+    hf.pool_id = -1
+    hf.id      = df.global.hist_figure_next_id
+    df.global.hist_figure_next_id = df.global.hist_figure_next_id + 1
+    df.global.world.history.figures:insert('#', hf)
+    return hf.id
+end
+
+-- Ensure Dwarfipelagius exists; return deity HF id (or nil on failure).
+function M.ensure_merchant_deity()
+    local stored = tonumber(dfhack.persistent.getWorldDataString(KEY_DEITY_ID))
+    if stored and stored >= 0 then return stored end
+    local id
+    pcall(function() id = create_merchant_deity() end)
+    if id then
+        dfhack.persistent.saveWorldDataString(KEY_DEITY_ID, tostring(id))
+    end
+    return id
+end
+
+-- Add a histfig_hf_link_deityst from each citizen's historical figure to deity_id.
+-- DF's temple selection is populated from these links, so citizens need to
+-- worship the deity for it to appear in the "create temple" list.
+function M.register_deity_with_citizens(deity_id)
+    if not deity_id or deity_id < 0 then return end
+    pcall(function()
+        for _, unit in ipairs(df.global.world.units.active) do
+            if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit)
+                    and unit.hist_figure_id >= 0 then
+                local hf = df.historical_figure.find(unit.hist_figure_id)
+                if hf then
+                    local already = false
+                    for _, lnk in ipairs(hf.histfig_links) do
+                        if df.histfig_hf_link_deityst:is_instance(lnk)
+                                and lnk.target_hf == deity_id then
+                            already = true; break
+                        end
+                    end
+                    if not already then
+                        local lnk = df.histfig_hf_link_deityst:new()
+                        lnk.target_hf    = deity_id
+                        lnk.link_strength = 50
+                        hf.histfig_links:insert('#', lnk)
+                    end
+                    return  -- only the first citizen needs the link
+                end
+            end
+        end
+    end)
+end
+
+-- Assign deity_id to any temple zone not already dedicated to a deity.
+function M.assign_deity_to_temples(deity_id)
+    if not deity_id or deity_id < 0 then return end
+    pcall(function()
+        local site = dfhack.world.getCurrentSite()
+        if not site then return end
+        for _, z in ipairs(df.global.world.buildings.all) do
+            local ok, t = pcall(function() return z:getType() end)
+            if ok and t == df.building_type.Civzone then
+                local loc_id = -1
+                pcall(function() loc_id = z.location_id end)
+                if loc_id and loc_id >= 0 then
+                    for _, bld in ipairs(site.buildings) do
+                        if bld.id == loc_id and df.abstract_building_templest:is_instance(bld) then
+                            pcall(function()
+                                if bld.deity_data.Deity < 0 then
+                                    bld.deity_type = df.religious_practice_type.WORSHIP_HFID
+                                    bld.deity_data.Deity = deity_id
+                                end
+                            end)
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- -- Merchant religion entity --------------------------------------------------
+-- Creates a Religion-type historical_entity for Dwarfipelagius so it appears
+-- as a gold RELIGION_ENID entry in the temple dedication selection screen.
+
+local KEY_RELIGION_ID = "dwarfipelago/religion_id"
+
+local function create_merchant_religion(deity_id)
+    -- Resume from save: find existing entity by name
+    for _, ent in ipairs(df.global.world.entities.all) do
+        if ent.type == df.historical_entity_type.Religion
+                and ent.name.first_name == "Dwarfipelagius" then
+            dfhack.persistent.saveWorldDataString(KEY_RELIGION_ID, tostring(ent.id))
+            return ent.id
+        end
+    end
+
+    local civ = df.historical_entity.find(df.global.plotinfo.civ_id)
+    if not civ then return nil end
+
+    -- Next entity ID: max existing + 1
+    local next_id = 0
+    for _, ent in ipairs(df.global.world.entities.all) do
+        if ent.id >= next_id then next_id = ent.id + 1 end
+    end
+
+    local ent = df.historical_entity:new()
+    ent.id   = next_id
+    ent.type = df.historical_entity_type.Religion
+    ent.race = find_dwarf_race()
+
+    ent.name.has_name   = true
+    ent.name.first_name = "Dwarfipelagius"
+
+    -- relations is a pointer field, initialize it before use
+    ent.relations = {new=true}
+    ent.relations.deities:insert('#', deity_id)
+
+    df.global.world.entities.all:insert('#', ent)
+
+    -- PARENT link from the new religion entity -> player civ
+    local ok1, e1 = pcall(function()
+        ent.entity_links:insert('#', {
+            new    = df.entity_entity_link,
+            type   = df.entity_entity_link_type.PARENT,
+            target = civ.id,
+        })
+    end)
+    if not ok1 then
+        print("[Dwarfipelago] religion PARENT link failed: " .. tostring(e1))
+    end
+
+    -- CHILD link from player civ -> new religion entity
+    local ok2, e2 = pcall(function()
+        civ.entity_links:insert('#', {
+            new    = df.entity_entity_link,
+            type   = df.entity_entity_link_type.CHILD,
+            target = next_id,
+        })
+    end)
+    if not ok2 then
+        print("[Dwarfipelago] civ CHILD link failed: " .. tostring(e2))
+    end
+
+    dfhack.persistent.saveWorldDataString(KEY_RELIGION_ID, tostring(next_id))
+    return next_id
+end
+
+function M.ensure_merchant_religion(deity_id)
+    if not deity_id then return nil end
+    local stored = tonumber(dfhack.persistent.getWorldDataString(KEY_RELIGION_ID))
+    if stored and stored >= 0 then return stored end
+    local id
+    local ok, err = pcall(function() id = create_merchant_religion(deity_id) end)
+    if not ok then
+        print("[Dwarfipelago] Religion entity creation failed: " .. tostring(err))
+    end
+    if id then
+        dfhack.persistent.saveWorldDataString(KEY_RELIGION_ID, tostring(id))
+    end
+    return id
 end
 
 -- reqscript returns the script's _ENV, not the explicit return value.

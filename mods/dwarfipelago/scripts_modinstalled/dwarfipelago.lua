@@ -105,7 +105,7 @@ local WEALTH_LOCK_TIERS = {
     { id = 37370004, threshold = 500000, coffers = 5, name = "Legendary Vault (500,000)"    },
 }
 
--- ── Goal settings helpers ─────────────────────────────────────────────────────
+-- -- Goal settings helpers -----------------------------------------------------
 -- The Python client writes these to persistent storage after connecting.
 -- goal: 0 = slay_megabeast, 1 = legendary_wealth, 2 = population_boom, 3 = mountainhome
 
@@ -113,7 +113,7 @@ local function goal_setting(key, default)
     return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/" .. key)) or default
 end
 
--- ── Progressive mining-depth lock ─────────────────────────────────────────────
+-- -- Progressive mining-depth lock ---------------------------------------------
 -- Gates digging behind the "Progressive Mining Depth" item: each copy received
 -- (unlock/mining_depth) lowers the floor one tier (cavern 1 -> 2 -> 3 -> magma
 -- sea -> unlimited). Cavern ceilings come from the same map-feature data the
@@ -226,7 +226,7 @@ end
 -- auto-activate when a deeper tier unlocks. Polling the map every tick to clear
 -- them proactively is not worth the cost.
 
--- ── Goal completion: poll-based checks (wealth & population) ─────────────────
+-- -- Goal completion: poll-based checks (wealth & population) -----------------
 
 local function check_goal_by_poll()
     if state.is_goal_complete() then return end
@@ -331,7 +331,7 @@ local function check_goal_by_poll()
     end
 end
 
--- ── Goal completion: eventful hook (megabeast death) ─────────────────────────
+-- -- Goal completion: eventful hook (megabeast death) -------------------------
 
 -- isCitizen() returns false for dead units because DFHack explicitly checks
 -- flags1.dead before any other condition. was_citizen() replicates the same
@@ -358,7 +358,7 @@ local function on_unit_death(uid)
     local unit = df.unit.find(uid)
     if not unit then return end
 
-    -- ── Goal: megabeast kill ──────────────────────────────────────────────────
+    -- -- Goal: megabeast kill --------------------------------------------------
     if not state.is_goal_complete() and goal_setting("goal", -1) == 0 then
         local ok, is_mega = pcall(dfhack.units.isMegabeast, unit)
         if ok and is_mega
@@ -394,7 +394,7 @@ local function on_unit_death(uid)
         end
     end
 
-    -- ── DeathLink: count citizen deaths ──────────────────────────────────────
+    -- -- DeathLink: count citizen deaths --------------------------------------
     -- Skip deaths we inflicted ourselves when applying a received DeathLink,
     -- so those don't feed back into our outgoing threshold.
     if applying_recv_deathlink then return end
@@ -405,7 +405,7 @@ local function on_unit_death(uid)
     end
 end
 
--- ── DeathLink: apply received kills ──────────────────────────────────────────
+-- -- DeathLink: apply received kills ------------------------------------------
 -- Called from the poll loop. Reads pending_recv, kills threshold-many random
 -- citizens per pending DeathLink, then clears the counter.
 
@@ -475,7 +475,7 @@ local function apply_pending_recv_deathlinks()
     print(("[Dwarfipelago] DeathLink applied: %d/%d dwarves killed"):format(killed, to_kill))
 end
 
--- ── Caravan & trade detection ────────────────────────────────────────────────
+-- -- Caravan & trade detection ------------------------------------------------
 -- Defined before poll_checks because poll_checks calls them directly (they are
 -- locals, so forward references would resolve to nil at call time).
 
@@ -567,7 +567,7 @@ local function spawnCaravan()
     return true
 end
 
--- ── AP Caravan: call / dismiss / anchor ───────────────────────────────────────
+-- -- AP Caravan: call / dismiss / anchor ---------------------------------------
 -- Caravan call costs energy from the AP pool; cost varies by season.
 -- Spring = 300 MJ, Summer = 150 MJ, Fall = 50 MJ, Winter = 500 MJ.
 -- Python authorises the deduction and sets spawn_caravan_approved=1.
@@ -651,7 +651,7 @@ local function _check_spawn_caravan_approved()
     print("[Dwarfipelago] AP caravan spawned.")
 end
 
--- ── Energy deposits: ale, food, coins ─────────────────────────────────────────
+-- -- Energy deposits: ale, food, coins -----------------------------------------
 -- Players remove resources from the fortress to add energy to the AP pool.
 -- Conversion rates:  ale = 1 MJ/unit,  food = 500 kJ/item,  coins = 1 kJ/* value.
 
@@ -767,7 +767,7 @@ local function deposit_coins(target_val)
     _add_energy(deposited_val * 1000, ("%d * in coins"):format(deposited_val))
 end
 
--- ── Merchant's Shop ───────────────────────────────────────────────────────────
+-- -- Merchant's Shop -----------------------------------------------------------
 -- Remove minted coins worth up to target_val of face value (1 val = 1 kJ worth),
 -- returning the value actually removed. Same partial-stack logic as deposit_coins.
 local function _remove_coin_value(target_val)
@@ -947,8 +947,9 @@ local function detect_shrine()
     if best.ok then
         if dfhack.persistent.getWorldDataString("dwarfipelago/shop_unlocked_announced") ~= "1" then
             dfhack.persistent.saveWorldDataString("dwarfipelago/shop_unlocked_announced", "1")
-            dfhack.gui.showAnnouncement(
-                "[AP] The merchant god accepts your shrine -- the shop is open!", COLOR_GREEN, true)
+            pcall(function()
+                reqscript('dwarfipelago-shrine').first_summon()
+            end)
         end
     else
         dfhack.persistent.saveWorldDataString("dwarfipelago/shop_unlocked_announced", "0")
@@ -956,7 +957,7 @@ local function detect_shrine()
 end
 
 
--- ── Megabeast goal: remove natural megabeasts ────────────────────────────────
+-- -- Megabeast goal: remove natural megabeasts --------------------------------
 -- For the slay_megabeast goal, all naturally-spawned megabeasts are silently
 -- removed when the fortress loads. The AP-controlled target is summoned via
 -- Military Training items instead, keeping the encounter on the multiworld's
@@ -999,7 +1000,7 @@ local function cleanup_natural_megabeasts()
     end
 end
 
--- ── Locked milestone notifications ───────────────────────────────────────────
+-- -- Locked milestone notifications -------------------------------------------
 -- When a wealth tier threshold is met in-game but the matching Merchant's Coffer
 -- hasn't arrived yet, announce it once so the player knows to look for it.
 -- Fires at most once per tier per session; skips tiers already checked.
@@ -1023,7 +1024,7 @@ local function check_locked_notifications()
     end
 end
 
--- ── Manager work-order tracking ───────────────────────────────────────────────
+-- -- Manager work-order tracking -----------------------------------------------
 -- eventful.onJobCompleted does NOT fire for jobs generated by Manager work
 -- orders, so those crafts never reach on_job_completed. Instead we watch each
 -- order's amount_left and count the difference when it drops, resolving the
@@ -1059,7 +1060,7 @@ local function poll_manager_orders()
             if prev and left < prev.left then
                 local delta = prev.left - left
                 -- Subtract any reduction in the order's requested total so that
-                -- resizing an order down (e.g. x50 → x25) doesn't count as
+                -- resizing an order down (e.g. x50 -> x25) doesn't count as
                 -- completed crafts; only actual job completions should count.
                 if prev.total and total and total < prev.total then
                     delta = delta - (prev.total - total)
@@ -1091,7 +1092,7 @@ local function poll_manager_orders()
     end
 end
 
--- ── Screw pump activity ───────────────────────────────────────────────────────
+-- -- Screw pump activity -------------------------------------------------------
 -- Fires pump_water or pump_magma the first time a powered screw pump is found
 -- adjacent to the appropriate liquid.  Runs every poll tick; bails as soon as
 -- both flags are set.
@@ -1143,7 +1144,7 @@ local function detect_pump_activity()
     end)
 end
 
--- ── Egg hatch detection ───────────────────────────────────────────────────────
+-- -- Egg hatch detection -------------------------------------------------------
 -- DISABLED for now: no reliable hatch signal on DF v50 (no born_from_egg flag,
 -- and the tame-baby-egg-layer scan didn't fire in testing). Re-enable together
 -- with the "First Eggs Hatched" location/rule/check in the .py and checks.lua.
@@ -1171,7 +1172,7 @@ local function detect_egg_hatch()
 end
 --]]
 
--- ── Cave adaptation suppression ──────────────────────────────────────────────
+-- -- Cave adaptation suppression ----------------------------------------------
 local function suppress_cave_adaptation()
     if dfhack.persistent.getWorldDataString("dwarfipelago/unlock/sunlight_tonic") ~= "1" then return end
     for _, unit in ipairs(df.global.world.units.active) do
@@ -1185,7 +1186,7 @@ local function suppress_cave_adaptation()
     end
 end
 
--- ── Caged hostile beast detection ────────────────────────────────────────────
+-- -- Caged hostile beast detection --------------------------------------------
 local function detect_caged_hostile_beast()
     if checks.production_flag("caged_hostile_beast") then return end
     pcall(function()
@@ -1204,7 +1205,7 @@ local function detect_caged_hostile_beast()
     end)
 end
 
--- ── Artifact departure detection ──────────────────────────────────────────────
+-- -- Artifact departure detection ----------------------------------------------
 -- Fires sold_artifact only when an artifact from THIS fortress is TRADED away to
 -- a caravan. We track each artifact (per id, in world data) through two states:
 --   "here"    = its item is in our fort and belongs to us
@@ -1281,7 +1282,7 @@ end
 -- defined later in the file (after the item event helpers).
 local ensure_trade_depot
 
--- ── Megabeast siege: wave scheduler ───────────────────────────────────────────
+-- -- Megabeast siege: wave scheduler -------------------------------------------
 -- For the Slay Megabeast goal, once War Readiness >= 1 roaming warbands attack on
 -- a campaign clock: a random 2-4 in-game months apart, each preceded by a
 -- ~1-day-out warning. Difficulty = current readiness level (see
@@ -1386,7 +1387,7 @@ local function sync_permit_overlay()
     end
 end
 
--- ── Poll loop: wealth, trade, and goal milestones ─────────────────────────────
+-- -- Poll loop: wealth, trade, and goal milestones -----------------------------
 -- Runs every POLL_TICKS game ticks. Production checks are handled by eventful.
 
 local function poll_checks()
@@ -1463,7 +1464,7 @@ local function poll_checks()
                     end
                 end
                 local msg = spawned
-                    and "[AP] Trap Cave! Hostile creatures lurk within — you've been warned!"
+                    and "[AP] Trap Cave! Hostile creatures lurk within - you've been warned!"
                     or  "[AP] Trap Cave! Something feels deeply wrong about this place..."
                 dfhack.gui.showAnnouncement(msg, COLOR_RED, true)
             else
@@ -1495,7 +1496,7 @@ local function poll_checks()
     end
 end
 
--- ── eventful hook: job completion → production flags ─────────────────────────
+-- -- eventful hook: job completion -> production flags -------------------------
 
 local function on_job_completed(job)
     if not state.is_enabled() then return end
@@ -1610,7 +1611,7 @@ local function on_job_completed(job)
     end
 end
 
--- ── Treasury job gating (MintCoins / CutGems) ────────────────────────────────
+-- -- Treasury job gating (MintCoins / CutGems) --------------------------------
 -- Blocks coin minting and gem cutting when the current treasury wealth has reached
 -- the cap for the player's current Merchant's Coffer tier. Uses the same
 -- WEALTH_LOCK_TIERS table as the locked-notification system for consistency.
@@ -1662,7 +1663,7 @@ local function check_treasury_job_gate(job)
     end
 end
 
--- ── Crafting item gate ────────────────────────────────────────────────────────
+-- -- Crafting item gate --------------------------------------------------------
 -- When craftitems mode is 1 (on) or 2 (all), every craft job is checked against
 -- the craftlock flags written by the "Crafting X" AP item handlers in items.lua.
 -- Jobs for locked items are removed one tick after initiation (same pattern as the
@@ -1700,12 +1701,12 @@ local function check_craftitem_gate(job)
     end
 end
 
--- ── Workshop / furnace / building blueprint enforcement ─────────────────────
+-- -- Workshop / furnace / building blueprint enforcement ---------------------
 -- When a dwarf tries to build a locked structure, the job is cancelled.
 -- Unlocked blueprints are tracked in persistent storage by the AP client:
 --   key "dwarfipelago/blueprint/<name>" = "1" when received.
 
--- Workshops (df.workshop_type → blueprint name)
+-- Workshops (df.workshop_type -> blueprint name)
 -- Built with a helper so nil enum values (names that changed between DF
 -- versions) are silently skipped rather than causing "table index is nil".
 local WORKSHOP_BLUEPRINTS = {}
@@ -1745,7 +1746,7 @@ local CUSTOM_WORKSHOP_BLUEPRINTS = {
     ["SOAP_MAKER"]  = "Soap Maker's Workshop Blueprint",
 }
 
--- Furnaces (df.furnace_type → blueprint name)
+-- Furnaces (df.furnace_type -> blueprint name)
 local FURNACE_BLUEPRINTS = {}
 local function fmap(name, bp)
     local v = df.furnace_type[name]
@@ -1815,7 +1816,7 @@ local function on_job_initiated(job)
     end
 end
 
--- ── Item event helpers ────────────────────────────────────────────────────────
+-- -- Item event helpers --------------------------------------------------------
 
 local ITEM_EVENT_CAP = 500  -- prevent runaway growth if Python client is slow
 
@@ -1860,7 +1861,7 @@ local function queue_item_event(key, entry)
     dfhack.persistent.saveWorldDataString(key, json.encode(queue))
 end
 
--- ── onItemCreated hook ────────────────────────────────────────────────────────
+-- -- onItemCreated hook --------------------------------------------------------
 -- Fires whenever DF creates a new item (crafted output, dropped loot, etc.).
 -- Pushes item info to "dwarfipelago/pending_item_created" for the Python client.
 
@@ -1916,7 +1917,7 @@ local function on_item_created(item_id)
     end
 end
 
--- ── Starting trade depot ──────────────────────────────────────────────────────
+-- -- Starting trade depot ------------------------------------------------------
 -- On the first start of a new world, build a Trade Depot near the starting
 -- wagon so AP-delivered items land in a predictable, accessible location.
 -- Runs once per world; the result is stored in persistent data.
@@ -1981,11 +1982,11 @@ ensure_trade_depot = function()
         return
     end
 
-    -- Helper: clear a 5×5 area and attempt to place the depot there.
+    -- Helper: clear a 5x5 area and attempt to place the depot there.
     -- Returns the constructed building on success, nil on failure.
     local map = df.global.world.map
 
-    -- Count liquid (water/magma) tiles in the clamped 5×5 footprint at (tx,ty).
+    -- Count liquid (water/magma) tiles in the clamped 5x5 footprint at (tx,ty).
     -- A tile's liquid is in designation.flow_size (0 = dry, 1-7 = liquid depth),
     -- independent of its shape - a shallow-water tile is still a "floor" shape,
     -- which is why a shape-only check let the depot spawn on water. We use this
@@ -2008,7 +2009,7 @@ ensure_trade_depot = function()
         return count
     end
 
-    -- Prepare the 5×5 footprint: drain any liquid AND convert every tile to a
+    -- Prepare the 5x5 footprint: drain any liquid AND convert every tile to a
     -- solid floor, so the depot never sits on water (or a wall/ramp/tree).
     local function prepare_footprint(tx, ty)
         for dy = 0, 4 do
@@ -2041,7 +2042,7 @@ ensure_trade_depot = function()
     end
 
     local function try_place(tx, ty)
-        -- Clamp so the full 5×5 footprint stays inside the map.
+        -- Clamp so the full 5x5 footprint stays inside the map.
         tx = math.max(1, math.min(tx, map.x_count - 6))
         ty = math.max(1, math.min(ty, map.y_count - 6))
         local x2, y2 = tx + 4, ty + 4
@@ -2074,7 +2075,7 @@ ensure_trade_depot = function()
             return nil
         end
 
-        -- Construction succeeded — now clear any debris from the footprint.
+        -- Construction succeeded - now clear any debris from the footprint.
         local items_to_remove = {}
         for _, item in ipairs(df.global.world.items.all) do
             if item.pos.z == sz and
@@ -2156,7 +2157,7 @@ ensure_trade_depot = function()
     print(("[Dwarfipelago] Trade depot placed at %d,%d,%d"):format(tx, ty, sz))
 end
 
--- ── World validation ──────────────────────────────────────────────────────────
+-- -- World validation ----------------------------------------------------------
 
 local function check_civilization_diversity()
     local has_human, has_elf = false, false
@@ -2184,7 +2185,7 @@ local function check_civilization_diversity()
     end
 end
 
--- ── Start / stop ──────────────────────────────────────────────────────────────
+-- -- Start / stop --------------------------------------------------------------
 
 local function start()
     state.set_enabled(true)
@@ -2215,6 +2216,22 @@ local function start()
 
     check_civilization_diversity()
 
+    -- Create Dwarfipelagius, religion entity, citizen link, and temple assignment.
+    pcall(function()
+        local deity_id = checks.ensure_merchant_deity()
+        if deity_id then
+            checks.ensure_merchant_religion(deity_id)
+            checks.register_deity_with_citizens(deity_id)
+            checks.assign_deity_to_temples(deity_id)
+        end
+    end)
+
+    -- DF50 Itch does not load OBJECT:BUILDING from mod objects/ folders.
+    -- Inject the shrine def at world load so it is always in raws.buildings.all.
+    pcall(function()
+        reqscript('dwarfipelago-shrine').inject_shrine_def()
+    end)
+
     print("[Dwarfipelago] Started. Listening for fortress milestones.")
     print("[Dwarfipelago] Make sure DwarfFortressClient.py is running.")
 end
@@ -2239,7 +2256,7 @@ local function stop()
     print("[Dwarfipelago] Stopped.")
 end
 
--- ── CLI dispatch ──────────────────────────────────────────────────────────────
+-- -- CLI dispatch --------------------------------------------------------------
 
 local args = { ... }
 local cmd  = args[1] or "start"

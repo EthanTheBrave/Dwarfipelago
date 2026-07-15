@@ -1,0 +1,18 @@
+building_dwarfipelago
+
+[OBJECT:BUILDING]
+
+[BUILDING_WORKSHOP:DWARFIPELAGO_SHRINE]
+	[NAME:Shrine of Dwarfipelagius]
+	[NAME_COLOR:6:0:1]
+	[DIM:1:1]
+	[WORK_LOCATION:1:1]
+	[BUILD_LABOR:MASON]
+	[BUILD_KEY:NONE]
+	[BLOCK:1:0]
+	[TILE:0:1:240]
+	[COLOR:0:1:6:0:0]
+	[TILE:1:1:240]
+	[COLOR:1:1:6:0:1]
+	[BUILD_ITEM:1:BAR:NONE:INORGANIC:GOLD]
+	[TOOLTIP:A sacred shrine to Dwarfipelagius, placed by the merchant afterlife.]

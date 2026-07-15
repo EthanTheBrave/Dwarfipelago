@@ -18,7 +18,7 @@ local log      = reqscript("internal/dwarfipelago/log")
 
 local to_pen = dfhack.pen.parse
 
--- ── Archipelago panel frame style ─────────────────────────────────────────────
+-- -- Archipelago panel frame style ---------------------------------------------
 -- Builds a custom frame table each render (stored as a function so paint_frame
 -- calls it with the current resizable state, keeping texpos values fresh across
 -- graphics resets).
@@ -28,7 +28,7 @@ local to_pen = dfhack.pen.parse
 --   local ap_handles = dfhack.textures.loadTileset(
 --       dfhack.getModRootPath('dwarfipelago') .. '/art/ap-border.png', 8, 12, true)
 --   local function tp(offset) return dfhack.textures.getTexposByHandle(ap_handles[offset]) end
--- The PNG must be a 22×1 tile sheet (8×12 px per tile) matching DFHack's
+-- The PNG must be a 22x1 tile sheet (8x12 px per tile) matching DFHack's
 -- border tile index layout (indices 1-21 used by make_frame).
 local function make_ap_frame(_resizable)
     local tp = textures.tp_border_window
@@ -67,7 +67,7 @@ local function make_ap_frame(_resizable)
     }
 end
 
--- ── Helpers ───────────────────────────────────────────────────────────────────
+-- -- Helpers -------------------------------------------------------------------
 
 local function ps(key, default)
     return dfhack.persistent.getWorldDataString("dwarfipelago/" .. key) or default
@@ -134,7 +134,7 @@ local function make_list(lines)
     }
 end
 
--- ── Unlocks list ──────────────────────────────────────────────────────────────
+-- -- Unlocks list --------------------------------------------------------------
 
 local function build_unlocks_lines()
     local lines = {}
@@ -246,7 +246,7 @@ local function build_unlocks_lines()
     return lines
 end
 
--- ── Progress list ─────────────────────────────────────────────────────────────
+-- -- Progress list -------------------------------------------------------------
 
 local TILES_THRESHOLDS  = {100, 500, 2000, 5000, 10000}
 local DEPTH_TIER_LABELS = { "Cavern 1 ceiling", "Cavern 2 ceiling", "Cavern 3 ceiling", "Magma Sea" }
@@ -400,7 +400,7 @@ local function build_progress_lines()
     return lines
 end
 
--- ── Craftsanity list ──────────────────────────────────────────────────────────
+-- -- Craftsanity list ----------------------------------------------------------
 
 local function build_caves_lines()
     local lines = {}
@@ -536,7 +536,7 @@ local function build_crafts_lines()
             is_done = done_n >= checks_per_item,
         })
     end
-    -- Sort: in-progress (count desc) → not-started (alpha) → done (alpha)
+    -- Sort: in-progress (count desc) -> not-started (alpha) -> done (alpha)
     table.sort(list, function(a, b)
         if a.is_done ~= b.is_done then return not a.is_done end
         if (a.count > 0) ~= (b.count > 0) then return a.count > b.count end
@@ -571,7 +571,7 @@ local function build_crafts_lines()
     return lines
 end
 
--- ── Permit list ──────────────────────────────────────────────────────────
+-- -- Permit list ----------------------------------------------------------
 
 local function build_permit_lines()
     local lines = {}
@@ -630,7 +630,7 @@ local function build_permit_lines()
 end
 
 
--- ── Skill list ──────────────────────────────────────────────────────────
+-- -- Skill list ----------------------------------------------------------
 
 local function build_skill_lines()
     local lines = {}
@@ -652,7 +652,7 @@ local function build_skill_lines()
             level  = skill_level,
         })
     end
-    -- -- Sort: done (alpha) → not done (alpha) 
+    -- -- Sort: done (alpha) -> not done (alpha) 
     table.sort(list, function(a, b)
         return a.level > b.level
     end)
@@ -677,7 +677,7 @@ local function build_skill_lines()
     return lines
 end
 
--- ── Status / control popup ────────────────────────────────────────────────────
+-- -- Status / control popup ----------------------------------------------------
 
 local _panel_instance = nil
 
@@ -802,7 +802,7 @@ function DwarfipelagoPanel:init()
         }
     end
 
-    -- ── Tab 2: Unlocks ────────────────────────────────────────────────
+    -- -- Tab 2: Unlocks ------------------------------------------------
     local function UnlocksTab()
         table.insert(tab_list, "Unlocks")
         return widgets.Panel{
@@ -810,7 +810,7 @@ function DwarfipelagoPanel:init()
         }
     end
 
-    -- ── Tab 3: Progress ───────────────────────────────────────────────
+    -- -- Tab 3: Progress -----------------------------------------------
     local function ProgressTab()
         table.insert(tab_list, "Progress")
         return widgets.Panel{
@@ -825,7 +825,7 @@ function DwarfipelagoPanel:init()
         }
     end
 
-    -- ── Tab 4: Crafts ─────────────────────────────────────────────────
+    -- -- Tab 4: Crafts -------------------------------------------------
     local function CraftsanityTab()
         table.insert(tab_list, "Crafts")
         return widgets.Panel{
@@ -833,7 +833,7 @@ function DwarfipelagoPanel:init()
         }
     end
 
-    -- ── Tab 5: Controls ──────────────────────────────────────────────
+    -- -- Tab 5: Controls ----------------------------------------------
 
     local function ControlsTab()
         table.insert(tab_list, "Controls")
@@ -876,7 +876,7 @@ function DwarfipelagoPanel:init()
         }
     end
 
-    -- ── Tab 6: Energy ─────────────────────────────────────────────────
+    -- -- Tab 6: Energy -------------------------------------------------
     function EnergyTab()
         local pool    = tonumber(ps("energy_link", "0")) or 0
         local caravan = ps("ap_caravan_active", "0") == "1"
@@ -895,7 +895,7 @@ function DwarfipelagoPanel:init()
         pcall(function() food_count = #checks.find_fortress_food() end)
         local _, coins_j = 0, 0
         pcall(function() _, coins_j = checks.find_fortress_coins_energy() end)
-        local coins_val = math.floor(coins_j / 1000)  -- ☼ face value
+        local coins_val = math.floor(coins_j / 1000)  --  face value
 
         local status_tag = caravan and "  [Caravan docked]"
                     or (pending and "  [Request pending]" or "")
@@ -1002,7 +1002,7 @@ function DwarfipelagoPanel:init()
         }}
     end
 
-    -- ── Tab 7: Permits ─────────────────────────────────────────────────
+    -- -- Tab 7: Permits -------------------------------------------------
     function PermitsTab()
         table.insert(tab_list, "Permits")
         return widgets.Panel{
@@ -1010,7 +1010,7 @@ function DwarfipelagoPanel:init()
         }
     end
 
-    -- ── Tab 8: Skills ─────────────────────────────────────────────────
+    -- -- Tab 8: Skills -------------------------------------------------
     function SkillsTab()
         table.insert(tab_list, "Skills")
         return widgets.Panel{
@@ -1018,18 +1018,24 @@ function DwarfipelagoPanel:init()
         }
     end
 
-    -- ── Tab 9: Shop ───────────────────────────────────────────────────
+    -- -- Tab 9: Shop ---------------------------------------------------
     -- Coffer-gated merchant shop. Select a slot and press Enter to spend minted
     -- coins on its item. Slot data is written by the AP client (dwarfipelago/shop).
     function ShopTab()
         table.insert(tab_list, "Shop")
         local sjson = require('json')
 
+        -- Ensure Dwarfipelagius deity + religion entity exist, wire citizen link and temple.
+        pcall(function()
+            local did = checks.ensure_merchant_deity()
+            if did then
+                checks.ensure_merchant_religion(did)
+                checks.register_deity_with_citizens(did)
+                checks.assign_deity_to_temples(did)
+            end
+        end)
+
         local function read_state()
-            local sraw = ps("shop", "")
-            local shop = (sraw ~= "" and sjson.decode(sraw)) or {}
-            local praw = ps("shop_pending", "")
-            local pending = (praw ~= "" and sjson.decode(praw)) or {}
             local coffers = tonumber(ps("unlock/wealth_coffers", "0")) or 0
             local _, total_j = nil, 0
             pcall(function() _, total_j = checks.find_fortress_coins_energy() end)
@@ -1037,43 +1043,11 @@ function DwarfipelagoPanel:init()
             local unlocked = ps("shop_unlocked", "0") == "1"
             local prograw = ps("shrine_progress", "")
             local prog = (prograw ~= "" and sjson.decode(prograw)) or {}
-            return shop, pending, coffers, coins, unlocked, prog
-        end
-
-        local function build_choices(shop, pending, coffers, coins, unlocked)
-            local choices, slots = {}, {}
-            for k in pairs(shop) do table.insert(slots, tonumber(k)) end
-            table.sort(slots)
-            for _, sn in ipairs(slots) do
-                local e = shop[tostring(sn)]
-                local price = tonumber(e.price) or 0
-                local state, pen, buyable
-                if e.bought == 1 then
-                    state, pen = "SOLD", COLOR_DARKGRAY
-                elseif pending[tostring(sn)] then
-                    state, pen = "PENDING", COLOR_LIGHTBLUE
-                elseif not unlocked then
-                    state, pen = "shrine needed", COLOR_DARKGRAY
-                elseif coffers < (e.tier or 1) then
-                    state, pen = ("need %d coffers"):format(e.tier or 1), COLOR_RED
-                elseif coins < price then
-                    state, pen = "need coins", COLOR_YELLOW
-                else
-                    state, pen, buyable = "BUY", COLOR_GREEN, true
-                end
-                local text = ("%-30.30s -> %-12.12s %8s* [%s]"):format(
-                    tostring(e.item or "?"), tostring(e.player or "?"), fmt_num(price), state)
-                table.insert(choices, {text = text, pen = pen, slot = sn, buyable = buyable})
-            end
-            if #choices == 0 then
-                table.insert(choices, {text = "(waiting for the AP client -- shop items load shortly)",
-                                       pen = COLOR_DARKGRAY})
-            end
-            return choices
+            return coffers, coins, unlocked, prog
         end
 
         local chk = function(b) return b and {text="yes", pen=COLOR_GREEN} or {text="no", pen=COLOR_RED} end
-        local shrine_head, req_label, bar_sel, coin_label, shop_list
+        local shrine_head, req_label, bar_sel, coin_label, invoke_btn
 
         -- Bar type options: value stored to persistent state so the AP client can read it
         local BAR_REQ = {gold=5, coke=20, silver=10}
@@ -1084,10 +1058,11 @@ function DwarfipelagoPanel:init()
         }
 
         local function head_text(unlocked)
+            local deity = {text="Dwarfipelagius", pen=COLOR_YELLOW}
             if unlocked then
-                return {{text="Shrine: DETECTED", pen=COLOR_GREEN}, "  (shop is open)"}
+                return {"Shrine of ", deity, {text=": DETECTED", pen=COLOR_GREEN}, "  (shop is open)"}
             end
-            return {{text="Shrine: NOT DETECTED", pen=COLOR_RED},
+            return {"Shrine of ", deity, {text=": NOT DETECTED", pen=COLOR_RED},
                     "  - build/repair the temple to open the shop"}
         end
 
@@ -1105,26 +1080,21 @@ function DwarfipelagoPanel:init()
 
         local function coin_text(coffers, coins)
             return {
-                "  Coins: ", {text=fmt_num(coins).."*",      pen=COLOR_YELLOW},
-                "   Coffers: ",       {text=tostring(coffers).."/5",  pen=COLOR_CYAN},
-                "   (Enter to buy)",
+                "  Coins: ", {text=fmt_num(coins).."*",     pen=COLOR_YELLOW},
+                "   Coffers: ",      {text=tostring(coffers).."/5", pen=COLOR_CYAN},
             }
         end
 
         local function refresh()
-            local shop, pending, coffers, coins, unlocked, prog = read_state()
+            local coffers, coins, unlocked, prog = read_state()
             local btype = bar_sel and bar_sel:getOptionValue() or
                           dfhack.persistent.getWorldDataString("dwarfipelago/shrine_bar_type") or "gold"
             if shrine_head then shrine_head:setText(head_text(unlocked)) end
             if req_label   then req_label:setText(req_text(prog, btype)) end
             if coin_label  then coin_label:setText(coin_text(coffers, coins)) end
-            if shop_list   then
-                shop_list:setChoices(build_choices(shop, pending, coffers, coins, unlocked),
-                                     shop_list:getSelected())
-            end
         end
 
-        local shop0, pending0, coffers0, coins0, unlocked0, prog0 = read_state()
+        local coffers0, coins0, unlocked0, prog0 = read_state()
         local init_bar = dfhack.persistent.getWorldDataString("dwarfipelago/shrine_bar_type") or "gold"
 
         shrine_head = widgets.Label{frame={t=0, l=0}, text=head_text(unlocked0)}
@@ -1141,23 +1111,19 @@ function DwarfipelagoPanel:init()
             end,
         }
         coin_label = widgets.Label{frame={t=3, l=0}, text=coin_text(coffers0, coins0)}
-        shop_list = widgets.List{
-            frame      = {t=5, b=0},
-            text_pen   = COLOR_WHITE,
-            cursor_pen = COLOR_CYAN,
-            choices    = build_choices(shop0, pending0, coffers0, coins0, unlocked0),
-            on_submit  = function(_, choice)
-                if choice and choice.buyable and choice.slot then
-                    dfhack.run_command("dwarfipelago", "buy-shop", tostring(choice.slot))
-                    refresh()
-                end
+        invoke_btn = widgets.HotkeyLabel{
+            frame       = {t=5, l=0},
+            key         = 'CUSTOM_I',
+            label       = 'Invoke Dwarfipelagius',
+            on_activate = function()
+                reqscript('dwarfipelago-shrine').open_shrine()
             end,
         }
         self._shop_refresh = refresh   -- onRenderFrame calls this to live-update
-        return widgets.Panel{subviews={shrine_head, req_label, bar_sel, coin_label, shop_list}}
+        return widgets.Panel{subviews={shrine_head, req_label, bar_sel, coin_label, invoke_btn}}
     end
 
-    -- ── Tab: War Effort (Slay Megabeast goal only) ────────────────────────────
+    -- -- Tab: War Effort (Slay Megabeast goal only) ----------------------------
     -- War status plus the player-initiated "summon the beast" button: the beast is
     -- never forced - the player chooses when to face it once the war effort
     -- (10 Military Training + Artifact Weapon + 2 Immigration Waves) is complete.
@@ -1262,7 +1228,7 @@ function DwarfipelagoPanel:init()
     }
 end
 
--- ── Archipelago logo tileset ──────────────────────────────────────────────────
+-- -- Archipelago logo tileset --------------------------------------------------
 
 local _ap_logo_handles = nil
 local function load_ap_logo()
@@ -1276,7 +1242,7 @@ local function load_ap_logo()
     end
 end
 
--- ── Corner hotspot widget ─────────────────────────────────────────────────────
+-- -- Corner hotspot widget -----------------------------------------------------
 
 local _ap_hotspot_positioned = false
 
@@ -1339,7 +1305,7 @@ function DwarfipelagoHotspot:onInput(keys)
     return DwarfipelagoHotspot.super.onInput(self, keys)
 end
 
--- ── Module exports ────────────────────────────────────────────────────────────
+-- -- Module exports ------------------------------------------------------------
 
 function open_panel()
     if _panel_instance then

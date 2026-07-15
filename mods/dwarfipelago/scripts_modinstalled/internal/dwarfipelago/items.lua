@@ -2522,6 +2522,89 @@ local TEST_LIST = {
                        dfhack.run_command("reveal")
                        print(("[test] %d AP cave(s) marked; run 'unreveal' when done testing."):format(found))
                    end },
+    { "shrine-deity", "Ensure Dwarfipelagius deity exists and print its info (no UI)",
+                   function()
+                       local checks = reqscript('internal/dwarfipelago/checks')
+                       local did
+                       pcall(function()
+                           did = checks.ensure_merchant_deity()
+                           if did then
+                               checks.ensure_merchant_religion(did)
+                               checks.register_deity_with_citizens(did)
+                               checks.assign_deity_to_temples(did)
+                           end
+                       end)
+                       if not did then
+                           dfhack.printerr("[test] Could not create/find Dwarfipelagius.")
+                           return
+                       end
+                       print("[test] Deity ID: " .. did)
+                       local hf = df.historical_figure.find(did)
+                       if hf then
+                           print("[test]   name:  " .. hf.name.first_name)
+                           print("[test]   deity: " .. tostring(hf.flags.deity))
+                           local spheres = {}
+                           pcall(function()
+                               for _, s in ipairs(hf.info.metaphysical.spheres) do
+                                   table.insert(spheres, tostring(df.sphere_type[s]))
+                               end
+                           end)
+                           print("[test]   spheres: " .. table.concat(spheres, ", "))
+                       end
+                       local rid = dfhack.persistent.getWorldDataString("dwarfipelago/religion_id") or ""
+                       print("[test] Religion entity ID: " .. rid)
+                       print("[test] Shop unlocked: " .. (dfhack.persistent.getWorldDataString("dwarfipelago/shop_unlocked") or "0"))
+                   end },
+    { "shrine-first", "Simulate the first-time shrine detection: fires the in-world summon (mist + zoom + announcements)",
+                   function()
+                       local checks = reqscript('internal/dwarfipelago/checks')
+                       local shrine = reqscript('dwarfipelago-shrine')
+                       pcall(function()
+                           local did = checks.ensure_merchant_deity()
+                           if did then
+                               checks.ensure_merchant_religion(did)
+                               checks.register_deity_with_citizens(did)
+                           end
+                       end)
+                       dfhack.persistent.saveWorldDataString("dwarfipelago/shop_unlocked", "1")
+                       dfhack.persistent.saveWorldDataString("dwarfipelago/shop_unlocked_announced", "0")
+                       shrine.first_summon()
+                       dfhack.persistent.saveWorldDataString("dwarfipelago/shop_unlocked_announced", "1")
+                       print("[test] first_summon fired - watch for mist at the shrine tile.")
+                   end },
+    { "shrine-open", "Force-unlock the shrine, inject test shop items, open the Merchant Afterlife screen",
+                   function()
+                       local checks = reqscript('internal/dwarfipelago/checks')
+                       local shrine = reqscript('dwarfipelago-shrine')
+                       local sjson  = require('json')
+                       pcall(function()
+                           local did = checks.ensure_merchant_deity()
+                           if did then
+                               checks.ensure_merchant_religion(did)
+                               checks.register_deity_with_citizens(did)
+                               checks.assign_deity_to_temples(did)
+                           end
+                       end)
+                       dfhack.persistent.saveWorldDataString("dwarfipelago/shop_unlocked", "1")
+                       local coffers = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/unlock/wealth_coffers")) or 0
+                       if coffers < 2 then
+                           dfhack.persistent.saveWorldDataString("dwarfipelago/unlock/wealth_coffers", "2")
+                           print("[test] Bumped coffers to 2 for tier-2 visibility.")
+                       end
+                       local sraw = dfhack.persistent.getWorldDataString("dwarfipelago/shop") or ""
+                       if sraw == "" then
+                           dfhack.persistent.saveWorldDataString("dwarfipelago/shop", sjson.encode({
+                               ["1"] = {item="Steel Bar",              player="TestPlayer",  price=30,  tier=1},
+                               ["2"] = {item="Cut Sapphire",           player="GemTrader",   price=150, tier=1},
+                               ["3"] = {item="Masterwork Goblin Helm", player="BattlesCo",   price=400, tier=2},
+                               ["4"] = {item="Ancient Scroll of Fire", player="LoreKeeper",  price=999, tier=3},
+                           }))
+                           print("[test] Injected 4 test shop items.")
+                       else
+                           print("[test] Shop already has items - leaving untouched.")
+                       end
+                       shrine.open_shrine()
+                   end },
 }
 
 -- Dispatch a named test. `rest` is an array of any extra args after the name.

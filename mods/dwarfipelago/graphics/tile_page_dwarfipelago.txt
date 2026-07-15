@@ -1,0 +1,18 @@
+tile_page_dwarfipelago
+
+[OBJECT:TILE_PAGE]
+
+[TILE_PAGE:DWARFIPELAGO_DEITY]
+	[FILE:images/shrine_tile.png]
+	[TILE_DIM:32:32]
+	[PAGE_DIM:1:2]
+
+[TILE_PAGE:DWARFIPELAGO_PORTRAIT]
+	[FILE:images/dwarfipelagius_2x.png]
+	[TILE_DIM:32:32]
+	[PAGE_DIM:2:2]
+
+[TILE_PAGE:DWARFIPELAGO_ICON]
+	[FILE:images/dwarfipelagius.png]
+	[TILE_DIM:32:32]
+	[PAGE_DIM:1:1]
