@@ -68,6 +68,30 @@ local function feature_for_global(gf)
     return feat
 end
 
+-- True if the block at (x, y, z) belongs to a global feature whose _type
+-- matches `pattern`.
+local function block_has_feature(x, y, z, pattern)
+    local ok, blk = pcall(dfhack.maps.getTileBlock, x, y, z)
+    if not ok or not blk then return false end
+    local gf = blk.global_feature
+    if not gf or gf < 0 then return false end
+    local feat = feature_for_global(gf)
+    return feat ~= nil and tostring(feat._type):find(pattern) ~= nil
+end
+
+-- Cavern ceilings bleed their global_feature tag onto the solid block directly
+-- above the open ceiling (see mining_floor_z's "+2"), but the magma sea's tag
+-- doesn't bleed the same way onto the wall tile a dig job breaches - the tag
+-- can sit a level or more below the dug tile. Scan straight down from the dig
+-- instead of trusting that single tile's own block.
+local MAGMA_BREACH_SCAN_DEPTH = 3
+local function magma_breached_near(x, y, z)
+    for dz = 0, MAGMA_BREACH_SCAN_DEPTH do
+        if block_has_feature(x, y, z - dz, "magma_core") then return true end
+    end
+    return false
+end
+
 -- Set a mining milestone flag once, announcing the first time it's reached.
 local function set_mining_milestone(key, msg)
     local k = "dwarfipelago/mining/" .. key
@@ -1577,13 +1601,14 @@ local function on_job_completed(job)
                         elseif sd == 2 then
                             set_mining_milestone("cavern3", "You have breached the third cavern!")
                         end
-                    elseif t:find("magma_core") then
-                        set_mining_milestone("magma", "You have reached the Magma Sea!")
                     elseif t:find("underworld") then
                         set_mining_milestone("circus", "Welcome to the Circus - the end is nigh!")
                     end
                 end
             end
+        end
+        if magma_breached_near(job.pos.x, job.pos.y, job.pos.z) then
+            set_mining_milestone("magma", "You have reached the Magma Sea!")
         end
     end
 
