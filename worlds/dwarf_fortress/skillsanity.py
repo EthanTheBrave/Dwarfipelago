@@ -405,7 +405,7 @@ class Skillsanity:
             return True
         else:
             dynamic_rules = DynamicCraftingLocationRules(self.world)
-            return dynamic_rules.craftdwarf_workshop(state) or dynamic_rules.thread(state)
+            return dynamic_rules.craftdwarf_workshop(state) or dynamic_rules.any_thread(state)
 
             
     def skill_wounddresser(self, state:CollectionState) -> bool:
@@ -604,7 +604,7 @@ class Skillsanity:
             or dynamic_rules.metal_cabinet(state) or dynamic_rules.metal_cage(state) or dynamic_rules.metal_chair(state) \
             or dynamic_rules.metal_crutch(state) or dynamic_rules.metal_door(state) or dynamic_rules.metal_floodgate(state) \
             or dynamic_rules.metal_grate(state) or dynamic_rules.metal_hatchcover(state) or dynamic_rules.metal_weaponrack(state) \
-            or dynamic_rules.make_anvil(state) or dynamic_rules.metal_bucket(state) or dynamic_rules.metal_pot(state) \
+            or dynamic_rules.metal_anvil(state) or dynamic_rules.metal_bucket(state) or dynamic_rules.metal_pot(state) \
             or dynamic_rules.adamantine_pedestal(state) or dynamic_rules.adamantine_altar(state) \
             or dynamic_rules.adamantine_armorstand(state) \
             or dynamic_rules.adamantine_bin(state) or dynamic_rules.adamantine_blocks(state) or dynamic_rules.adamantine_bookcase(state) \
@@ -612,7 +612,7 @@ class Skillsanity:
             or dynamic_rules.adamantine_cabinet(state) or dynamic_rules.adamantine_cage(state) or dynamic_rules.adamantine_chair(state) \
             or dynamic_rules.adamantine_crutch(state) or dynamic_rules.adamantine_door(state) or dynamic_rules.adamantine_floodgate(state) \
             or dynamic_rules.adamantine_grate(state) or dynamic_rules.adamantine_hatchcover(state) or dynamic_rules.adamantine_weaponrack(state) \
-            or dynamic_rules.make_anvil(state) or dynamic_rules.adamantine_bucket(state) or dynamic_rules.adamantine_pot(state)
+            or dynamic_rules.adamantine_anvil(state) or dynamic_rules.adamantine_bucket(state) or dynamic_rules.adamantine_pot(state)
         elif self.world.options.craftpermits == CraftingPermits.option_all:
             return dynamic_rules.metal_pedestal(state) or dynamic_rules.metal_altar(state) \
             or dynamic_rules.metal_armorstand(state) \
@@ -645,7 +645,7 @@ class Skillsanity:
         elif self.world.options.craftpermits == CraftingPermits.option_on:
             return (dynamic_rules.make_sheet(state) and dynamic_rules.wood_or_stone_or_metal_or_glass_scrollroller(state)) \
             or (dynamic_rules.make_sheet(state) and dynamic_rules.craftdwarf_or_metal_or_glass_bookbinding(state) \
-            and dynamic_rules.thread(state))
+            and dynamic_rules.any_thread(state))
         else:
             return (dynamic_rules.make_sheet(state) and dynamic_rules.wood_or_stone_or_metal_or_glass_scrollroller(state)) \
             or (dynamic_rules.make_sheet(state) and dynamic_rules.craftdwarf_or_metal_or_glass_bookbinding(state) \
@@ -672,9 +672,9 @@ class Skillsanity:
     def skill_glazer(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
         if self.world.options.craftpermits == CraftingPermits.option_off:
-            return dynamic_rules.ceramic(state)
+            return dynamic_rules.job_type(state, "Ceramics")
         else:
-            return dynamic_rules.ceramic(state) and (dynamic_rules.stone_container(state) \
+            return dynamic_rules.job_type(state, "Ceramics") and (dynamic_rules.stone_container(state) \
             or dynamic_rules.stone_statue(state) or dynamic_rules.stone_or_wood_crafts(state) \
             or dynamic_rules.stone_jug(state) or dynamic_rules.ceramic_jug(state) \
             or dynamic_rules.stone_pot(state) or dynamic_rules.ceramic_pot(state))
@@ -788,28 +788,28 @@ class Skillsanity:
         if self.world.options.craftpermits == CraftingPermits.option_off:
             return dynamic_rules.metal(state)
         else:
-            return dynamic_rules.make_warhammer(state)
+            return dynamic_rules.metal_warhammer(state)
 
     def skill_macer(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
         if self.world.options.craftpermits == CraftingPermits.option_off:
             return dynamic_rules.metal(state)
         else:
-            return dynamic_rules.make_mace(state)
+            return dynamic_rules.metal_mace(state)
 
     def skill_speardwarf(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
         if self.world.options.craftpermits == CraftingPermits.option_off:
             return dynamic_rules.metal(state)
         else:
-            return dynamic_rules.make_spear(state)
+            return dynamic_rules.metal_spear(state)
         
     def skill_sworddwarf(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
         if self.world.options.craftpermits == CraftingPermits.option_off:
             return dynamic_rules.metal(state)
         else:
-            return dynamic_rules.make_sword(state)
+            return dynamic_rules.metal_sword(state)
         
     def skill_armordwarf(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
