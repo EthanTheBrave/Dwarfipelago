@@ -573,7 +573,7 @@ function M.generate_secret_caves()
             carve(x, y, z, 2, 2)
             local n = 0
             for _ = 1, 3 do
-                if M.spawn_unit("CAVE_SPIDER", x, y, z, false) then n = n + 1 end
+                if M.spawn_unit("SPIDER_CAVE", x, y, z, false) then n = n + 1 end
             end
             dfhack.persistent.saveWorldDataString(KEY_SECRET1 .. "x", tostring(x))
             dfhack.persistent.saveWorldDataString(KEY_SECRET1 .. "y", tostring(y))
