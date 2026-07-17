@@ -330,8 +330,8 @@ local function build_progress_lines()
         end
     end
 
-    location_row("Temple",    checks.best_temple_value(),    nil, TEMPLE_TIERS)
-    location_row("Guildhall", checks.best_guildhall_value(), nil, GUILDHALL_TIERS)
+    location_row("Temple",    checks.best_location_value(function(b) return df.abstract_building_templest:is_instance(b)    end), nil, TEMPLE_TIERS)
+    location_row("Guildhall", checks.best_location_value(function(b) return df.abstract_building_guildhallst:is_instance(b) end), nil, GUILDHALL_TIERS)
 
     -- Production
     blank()

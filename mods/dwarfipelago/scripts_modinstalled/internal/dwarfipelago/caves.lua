@@ -495,6 +495,12 @@ function M.get_hint(idx)
     local z  = tonumber(dfhack.persistent.getWorldDataString(cave_key(idx, "z")))
     local ct = dfhack.persistent.getWorldDataString(cave_key(idx, "type")) or "treasure"
 
+    -- Depth below the surface, not the raw z-level: DF's z increases upward, so
+    -- a cave's absolute z is meaningless to a player without the surface as a
+    -- reference point (same convention as the mining-depth tracking elsewhere).
+    local surface_z = read_int("dwarfipelago/mining/surface_z")
+    local depth = (surface_z and z) and math.max(surface_z - z, 0) or z
+
     if ct == "trap" then
         local map_w = df.global.world.map.x_count
         local map_h = df.global.world.map.y_count
@@ -503,9 +509,9 @@ function M.get_hint(idx)
         local dir = (math.abs(rx) >= math.abs(ry))
             and (rx >= 0 and "east" or "west")
             or  (ry >= 0 and "south" or "north")
-        return ("Danger lurks to the %s, deep underground (z=%d). Tread carefully!"):format(dir, z)
+        return ("Danger lurks to the %s, %d levels underground. Tread carefully!"):format(dir, depth)
     else
-        return ("Riches await at approximately (%d, %d), %d levels underground."):format(x, y, z)
+        return ("Riches await at approximately (%d, %d), %d levels underground."):format(x, y, depth)
     end
 end
 

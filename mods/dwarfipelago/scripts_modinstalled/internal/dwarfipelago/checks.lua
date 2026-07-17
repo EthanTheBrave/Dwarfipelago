@@ -111,94 +111,41 @@ local function has_location_type(check_fn)
     return found
 end
 
--- Returns the highest total item value found inside any temple zone.
--- DF names: shrine (<2000), temple (>=2000), temple complex (>=10000).
-local function best_temple_value()
-    local best = 0
+-- Highest location_tier DF itself has already computed for any location
+-- matching check_fn (e.g. abstract_building_templest/guildhallst instances).
+-- Reads the game's own tracked tier/value (abstract_building_contents.location_tier
+-- / .location_value, confirmed live via dfhack-run) instead of re-deriving it
+-- from our own item scan - that previously drifted from what the in-game UI
+-- shows, confusing players about when "First Temple"/"Temple Complex" should
+-- fire. DF tiers: 0 = base (shrine / meeting place), 1 = mid (temple /
+-- guildhall), 2 = top (temple complex / grand guildhall).
+local function best_location_tier(check_fn)
+    local best = -1
     pcall(function()
         local site = dfhack.world.getCurrentSite()
         if not site then return end
-        for _, z in ipairs(df.global.world.buildings.all) do
-            local ok, t = pcall(function() return z:getType() end)
-            if ok and t == df.building_type.Civzone then
-                local loc_id = -1
-                pcall(function() loc_id = z.location_id end)
-                if loc_id and loc_id >= 0 then
-                    local is_temple = false
-                    pcall(function()
-                        for _, bld in ipairs(site.buildings) do
-                            if bld.id == loc_id and df.abstract_building_templest:is_instance(bld) then
-                                is_temple = true; break
-                            end
-                        end
-                    end)
-                    if is_temple then
-                        local x1 = math.min(z.x1, z.x2)
-                        local x2 = math.max(z.x1, z.x2)
-                        local y1 = math.min(z.y1, z.y2)
-                        local y2 = math.max(z.y1, z.y2)
-                        local zz = z.z
-                        local total = 0
-                        for _, it in ipairs(df.global.world.items.all) do
-                            local p = it.pos
-                            if p and p.z == zz
-                                    and p.x >= x1 and p.x <= x2
-                                    and p.y >= y1 and p.y <= y2 then
-                                local v = 0
-                                pcall(function() v = dfhack.items.getValue(it) end)
-                                total = total + v
-                            end
-                        end
-                        if total > best then best = total end
-                    end
-                end
+        for _, bld in ipairs(site.buildings) do
+            if check_fn(bld) then
+                local ok, tier = pcall(function() return bld.contents.location_tier end)
+                if ok and tier and tier > best then best = tier end
             end
         end
     end)
     return best
 end
 
--- Mirrors best_temple_value() for guildhall zones.
--- DF names: meeting place (<2000), guildhall (>=2000), grand guildhall (>=10000).
-local function best_guildhall_value()
+-- Highest location_value DF has computed for any location matching check_fn -
+-- the same number the in-game UI shows. Used for the panel's progress display
+-- (best_location_tier above drives the actual AP check firing).
+local function best_location_value(check_fn)
     local best = 0
     pcall(function()
         local site = dfhack.world.getCurrentSite()
         if not site then return end
-        for _, z in ipairs(df.global.world.buildings.all) do
-            local ok, t = pcall(function() return z:getType() end)
-            if ok and t == df.building_type.Civzone then
-                local loc_id = -1
-                pcall(function() loc_id = z.location_id end)
-                if loc_id and loc_id >= 0 then
-                    local is_guildhall = false
-                    pcall(function()
-                        for _, bld in ipairs(site.buildings) do
-                            if bld.id == loc_id and df.abstract_building_guildhallst:is_instance(bld) then
-                                is_guildhall = true; break
-                            end
-                        end
-                    end)
-                    if is_guildhall then
-                        local x1 = math.min(z.x1, z.x2)
-                        local x2 = math.max(z.x1, z.x2)
-                        local y1 = math.min(z.y1, z.y2)
-                        local y2 = math.max(z.y1, z.y2)
-                        local zz = z.z
-                        local total = 0
-                        for _, it in ipairs(df.global.world.items.all) do
-                            local p = it.pos
-                            if p and p.z == zz
-                                    and p.x >= x1 and p.x <= x2
-                                    and p.y >= y1 and p.y <= y2 then
-                                local v = 0
-                                pcall(function() v = dfhack.items.getValue(it) end)
-                                total = total + v
-                            end
-                        end
-                        if total > best then best = total end
-                    end
-                end
+        for _, bld in ipairs(site.buildings) do
+            if check_fn(bld) then
+                local ok, value = pcall(function() return bld.contents.location_value end)
+                if ok and value and value > best then best = value end
             end
         end
     end)
@@ -358,14 +305,14 @@ M.checks = {
     { id = 37370001, name = "First Office",      fn = function() return has_zone_type(df.civzone_type.Office)    end },
     { id = 37370002, name = "First Tomb",        fn = function() return has_zone_type(df.civzone_type.Tomb)      end },
     { id = 37370004, name = "First Dining Hall", fn = function() return has_zone_type(df.civzone_type.DiningHall) end },
-    -- Temple tiers: shrine (<2000), temple (>=2000), temple complex (>=10000).
-    { id = 37370003, name = "First Shrine",    fn = function() return has_location_type(function(b) return df.abstract_building_templest:is_instance(b)    end) end },
-    { id = 37370010, name = "First Temple",    fn = function() return best_temple_value()   >= 2000  end },
-    { id = 37370011, name = "Temple Complex",  fn = function() return best_temple_value()   >= 10000 end },
+    -- Temple tiers: DF's own location_tier - 0 = shrine, 1 = temple, 2 = temple complex.
+    { id = 37370003, name = "First Shrine",    fn = function() return has_location_type(function(b) return df.abstract_building_templest:is_instance(b) end) end },
+    { id = 37370010, name = "First Temple",    fn = function() return best_location_tier(function(b) return df.abstract_building_templest:is_instance(b) end) >= 1 end },
+    { id = 37370011, name = "Temple Complex",  fn = function() return best_location_tier(function(b) return df.abstract_building_templest:is_instance(b) end) >= 2 end },
 
-    -- Guildhall tiers: guildhall (>=2000), grand guildhall (>=10000).
-    { id = 37370012, name = "First Guildhall", fn = function() return best_guildhall_value() >= 2000  end },
-    { id = 37370013, name = "Grand Guildhall", fn = function() return best_guildhall_value() >= 10000 end },
+    -- Guildhall tiers: 0 = meeting place, 1 = guildhall, 2 = grand guildhall.
+    { id = 37370012, name = "First Guildhall", fn = function() return best_location_tier(function(b) return df.abstract_building_guildhallst:is_instance(b) end) >= 1 end },
+    { id = 37370013, name = "Grand Guildhall", fn = function() return best_location_tier(function(b) return df.abstract_building_guildhallst:is_instance(b) end) >= 2 end },
 
     -- Room quality milestones - best tier across Bedroom/Office/DiningHall/Tomb.
     -- Tiers 3-7 match DF value thresholds: 500 / 1000 / 1500 / 2500 / 10000.
@@ -787,8 +734,8 @@ M.exported_wealth  = exported_wealth
 -- Room accessors for the panel.
 M.has_zone_type        = has_zone_type
 M.best_room_quality    = best_room_quality
-M.best_temple_value    = best_temple_value
-M.best_guildhall_value = best_guildhall_value
+M.best_location_tier   = best_location_tier
+M.best_location_value  = best_location_value
 
 function M.has_temple_zone()
     return has_location_type(function(b) return df.abstract_building_templest:is_instance(b) end)
