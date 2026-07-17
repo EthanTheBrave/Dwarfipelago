@@ -206,6 +206,26 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         loc = multiworld.get_location("Mined Adamantine", player)
         loc.access_rule = lambda state: state.has("Progressive Mining Depth", player, 4)
 
+    # ── Custom Cave gates ──────────────────────────────────────────────────────
+    # Caves are carved in gaps between cavern layers:
+    #   Caves 1-2: surface → cavern 1 (no extra gate; always diggable)
+    #   Caves 3-4: cavern 1 → cavern 2 (must breach cavern 1 first)
+    #   Caves 5-6: cavern 2 → cavern 3 (must breach cavern 2 first)
+    if options.mining_depth:
+        for cave_n in (3, 4):
+            loc = multiworld.get_location(f"Custom Cave {cave_n}", player)
+            loc.access_rule = lambda state: state.has("Progressive Mining Depth", player, 1)
+        for cave_n in (5, 6):
+            loc = multiworld.get_location(f"Custom Cave {cave_n}", player)
+            loc.access_rule = lambda state: state.has("Progressive Mining Depth", player, 2)
+    else:
+        for cave_n in (3, 4):
+            loc = multiworld.get_location(f"Custom Cave {cave_n}", player)
+            loc.access_rule = lambda state: state.can_reach_location("First Cavern Breached", player)
+        for cave_n in (5, 6):
+            loc = multiworld.get_location(f"Custom Cave {cave_n}", player)
+            loc.access_rule = lambda state: state.can_reach_location("Second Cavern Breached", player)
+
     # -- Infrastructure ---------------------------------------------------------
     loc = multiworld.get_location("Built a Well", player)
     if options.craftpermits == CraftingPermits.option_off:

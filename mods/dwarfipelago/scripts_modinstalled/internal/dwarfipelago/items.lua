@@ -1793,7 +1793,7 @@ local function recv_immigration_wave()
     -- Directly add citizen dwarves (reliable). 'force Migrants' was unreliable -
     -- it reports success but often brings nobody when the parent civ has no
     -- migrants available.
-    local wave = math.random(5, 8)
+    local wave = math.random(2, 5)
     local made = spawn_citizen_dwarves(wave)
     if made == 0 then
         -- Last resort: ask the game for a wave the normal way.
