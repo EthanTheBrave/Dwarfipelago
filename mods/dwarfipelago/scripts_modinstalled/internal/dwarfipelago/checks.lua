@@ -241,11 +241,27 @@ local function held_by_unit(item)
     return false
 end
 
+-- Value of one coin/gem item, shared by the live treasury scan below and the
+-- created-wealth counter in dwarfipelago.lua. A coin stack is worth 10 ×
+-- material_value for a full 500 stack, i.e. each coin is material_value × 10 /
+-- 500; a cut gem's base value is 20 × material_value (DF's cut-gem base value
+-- of 20, per https://dwarffortresswiki.org/index.php/Value).
+local function item_wealth_value(item, itype)
+    local ok, mat = pcall(dfhack.matinfo.decode, item.mat_type, item.mat_index)
+    local mat_value = 1
+    if ok and mat and mat.material then
+        mat_value = mat.material.material_value or 1
+    end
+    local stack = item.stack_size or 1
+    if itype == df.item_type.COIN then
+        return stack * mat_value * 10 / 500
+    else
+        return stack * mat_value * 20
+    end
+end
+
 -- Returns the combined value of all minted coins (COIN) and cut gems (SMALLGEM)
 -- currently in fortress stocks - not carried by any unit, not belonging to traders.
--- A coin stack is worth 10 × material_value for a full 500 stack, i.e. each coin
--- is material_value × 10 / 500; a cut gem's base value is 20 × material_value
--- (DF's cut-gem base value of 20, per https://dwarffortresswiki.org/index.php/Value).
 -- Both item types require AP-gated blueprints (Screw Press and Jeweler's Workshop)
 -- and their material values vary widely, keeping embark-site luck meaningful.
 local function treasury_wealth()
@@ -255,20 +271,35 @@ local function treasury_wealth()
         if (itype == df.item_type.COIN or itype == df.item_type.SMALLGEM)
                 and not item.flags.trader
                 and not held_by_unit(item) then
-            local ok, mat = pcall(dfhack.matinfo.decode, item.mat_type, item.mat_index)
-            local mat_value = 1
-            if ok and mat and mat.material then
-                mat_value = mat.material.material_value or 1
-            end
-            local stack = item.stack_size or 1
-            if itype == df.item_type.COIN then
-                total = total + stack * mat_value * 10 / 500
-            else
-                total = total + stack * mat_value * 20
-            end
+            total = total + item_wealth_value(item, itype)
         end
     end
     return math.floor(total)
+end
+
+local KEY_TREASURY_CREATED = "dwarfipelago/treasury/created_value"
+
+-- Total coin/gem value ever minted/cut, independent of what's since been spent
+-- at the shop, traded away, or exported - monotonic, only ever increases.
+-- Used for the Legendary Wealth goal and the wealth-tier milestones instead of
+-- the live treasury_wealth() scan above, so spending at the shop no longer
+-- undoes wealth progress.
+function M.treasury_created_wealth()
+    return tonumber(dfhack.persistent.getWorldDataString(KEY_TREASURY_CREATED)) or 0
+end
+
+-- Add a newly-created coin/gem item's value to the created-wealth counter.
+-- If `cap` is given, the counter is clamped to it - used to pace progress
+-- behind the player's current Merchant's Coffer tier without blocking minting
+-- or gem cutting themselves (those keep working freely for shop currency).
+-- Returns the counter's new value.
+function M.add_treasury_created_wealth(item, itype, cap)
+    local delta = item_wealth_value(item, itype)
+    if delta <= 0 then return M.treasury_created_wealth() end
+    local total = M.treasury_created_wealth() + delta
+    if cap then total = math.min(total, cap) end
+    dfhack.persistent.saveWorldDataString(KEY_TREASURY_CREATED, tostring(total))
+    return total
 end
 
 -- ── Progression lock helpers ──────────────────────────────────────────────────

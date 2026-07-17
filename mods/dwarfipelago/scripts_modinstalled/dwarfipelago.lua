@@ -110,11 +110,12 @@ local _notified_locked = {}
 -- Reset each script load so a fresh cleanup runs on every fortress load.
 local _megabeast_cleanup_done = false
 
--- Per-tier announcement tracking for treasury job blocking.
--- Prevents spam when standing orders keep retrying a blocked MintCoins/CutGems job.
+-- Per-tier announcement tracking for the created-wealth cap (see
+-- treasury_created_cap). Fires once per tier so the player knows why wealth
+-- progress has paused, without spamming on every coin/gem created afterward.
 -- Keyed by coffer count (0 = no coffers yet, 1-4 = tier cap reached).
 -- Resets on each script load so the player gets a reminder after every reload.
-local _treasury_block_notified = {}
+local _treasury_cap_notified = {}
 
 -- Per-flag announcement tracking for crafting item locks. Prevents an announcement
 -- flood when a workshop or work order queues many instances of a locked job type.
@@ -135,6 +136,21 @@ local WEALTH_LOCK_TIERS = {
 
 local function goal_setting(key, default)
     return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/" .. key)) or default
+end
+
+-- The created-wealth counter's cap for the player's current Merchant's Coffer
+-- tier, or nil if uncapped. Paces Legendary Wealth progress behind coffers
+-- without blocking minting/cutting itself - the player can always keep making
+-- coins/gems for the shop; the excess just doesn't count toward wealth
+-- progress until the next coffer raises the ceiling. Returns nil (uncapped)
+-- for every other goal, and once all 5 coffers are in.
+local function treasury_created_cap()
+    if goal_setting("goal", -1) ~= 1 then return nil end  -- legendary_wealth only
+    local coffers = goal_setting("unlock/wealth_coffers", 0)
+    if coffers >= 5 then return nil end
+    if coffers <= 0 then return 0 end  -- no coffer yet - no wealth credit until the first arrives
+    local tier = WEALTH_LOCK_TIERS[coffers]
+    return tier and tier.threshold or nil
 end
 
 -- ── Progressive mining-depth lock ─────────────────────────────────────────────
@@ -262,7 +278,7 @@ local function check_goal_by_poll()
 
     if goal == 1 then  -- legendary_wealth
         local target = goal_setting("wealth_goal", 100000)
-        if checks.treasury_wealth() >= target
+        if checks.treasury_created_wealth() >= target
                 and goal_setting("unlock/wealth_coffers", 0) >= 5
                 and goal_setting("unlock/immigration_waves", 0) >= 3
                 and goal_setting("unlock/master_builders_codex", 0) == 1 then
@@ -1026,14 +1042,16 @@ end
 -- ── Locked milestone notifications ───────────────────────────────────────────
 -- When a wealth tier threshold is met in-game but the matching Merchant's Coffer
 -- hasn't arrived yet, announce it once so the player knows to look for it.
--- Fires at most once per tier per session; skips tiers already checked.
+-- Fires at most once per tier per session (_notified_locked dedupe below).
+-- These tiers aren't real AP location checks - WEALTH_LOCK_TIERS.id is purely a
+-- local dedupe key, not a location id - so there's no state.is_location_checked
+-- to consult here.
 
 local function check_locked_notifications()
     local coffers = goal_setting("unlock/wealth_coffers", 0)
-    local wealth  = checks.treasury_wealth()
+    local wealth  = checks.treasury_created_wealth()
     for _, tier in ipairs(WEALTH_LOCK_TIERS) do
-        if not state.is_location_checked(tier.id)
-                and not _notified_locked[tier.id]
+        if not _notified_locked[tier.id]
                 and wealth >= tier.threshold
                 and coffers < tier.coffers then
             _notified_locked[tier.id] = true
@@ -1635,58 +1653,6 @@ local function on_job_completed(job)
     end
 end
 
--- ── Treasury job gating (MintCoins / CutGems) ────────────────────────────────
--- Blocks coin minting and gem cutting when the current treasury wealth has reached
--- the cap for the player's current Merchant's Coffer tier. Uses the same
--- WEALTH_LOCK_TIERS table as the locked-notification system for consistency.
-
-local TREASURY_JOB_TYPES = {}
-local function tjmap(name)
-    local v = df.job_type[name]
-    if v ~= nil then TREASURY_JOB_TYPES[v] = true end
-end
-tjmap("MintCoins")
-tjmap("CutGems")
-
-local function check_treasury_job_gate(job)
-    if not TREASURY_JOB_TYPES[job.job_type] then return end
-
-    -- Coffers only cap coin minting / gem cutting for the Legendary Wealth goal.
-    -- Under any other goal the wealth-tier checks don't exist, so minting and
-    -- cutting must never be blocked. (goal 1 = legendary_wealth)
-    if goal_setting("goal", -1) ~= 1 then return end
-
-    local coffers = goal_setting("unlock/wealth_coffers", 0)
-
-    -- No coffers yet - block all minting and cutting.
-    if coffers == 0 then
-        dfhack.job.removeJob(job)
-        if not _treasury_block_notified[0] then
-            _treasury_block_notified[0] = true
-            dfhack.gui.showAnnouncement(
-                "[AP] Cannot mint coins or cut gems - awaiting first Merchant's Coffer!",
-                COLOR_YELLOW, true)
-        end
-        return
-    end
-
-    -- All five coffers received - no cap, allow freely.
-    if coffers >= 5 then return end
-
-    -- Check whether current treasury has already reached this tier's ceiling.
-    local tier = WEALTH_LOCK_TIERS[coffers]
-    if checks.treasury_wealth() >= tier.threshold then
-        dfhack.job.removeJob(job)
-        if not _treasury_block_notified[coffers] then
-            _treasury_block_notified[coffers] = true
-            dfhack.gui.showAnnouncement(
-                ("[AP] %s reached - minting and gem cutting paused. Awaiting Merchant's Coffer (%d/5)."):format(
-                    tier.name, coffers),
-                COLOR_YELLOW, true)
-        end
-    end
-end
-
 -- ── Crafting item gate ────────────────────────────────────────────────────────
 -- When craftitems mode is 1 (on) or 2 (all), every craft job is checked against
 -- the craftlock flags written by the "Crafting X" AP item handlers in items.lua.
@@ -1801,7 +1767,6 @@ end
 local function on_job_initiated(job)
     if not state.is_enabled() then return end
 
-    check_treasury_job_gate(job)
     check_craftitem_gate(job)
     check_mining_depth_gate(job)
 
@@ -1917,6 +1882,28 @@ local function on_item_created(item_id)
         if t == "TRACTION_BENCH" then
             local flag = checks.item_craft_flag("traction_bench", item)
             if flag then checks.increment_craft_count(flag) end
+        end
+
+        -- Treasury created-wealth: credit coin/gem value the moment it's minted or
+        -- cut, rather than scanning current holdings (see treasury_created_cap).
+        -- Capped, not blocked - minting/cutting itself always keeps working so the
+        -- shop never runs dry, but value past the current coffer tier's ceiling
+        -- doesn't count toward wealth progress until the next coffer raises it.
+        if t == "COIN" or t == "SMALLGEM" then
+            local ok_type, itype = pcall(function() return item:getType() end)
+            if ok_type then
+                local cap     = treasury_created_cap()
+                local after   = checks.add_treasury_created_wealth(item, itype, cap)
+                local coffers = goal_setting("unlock/wealth_coffers", 0)
+                if cap and after >= cap and not _treasury_cap_notified[coffers] then
+                    _treasury_cap_notified[coffers] = true
+                    local tier = WEALTH_LOCK_TIERS[coffers]
+                    dfhack.gui.showAnnouncement(
+                        ("[AP] %s reached - minting and gem cutting still work for the shop, but wealth progress is capped until the next Merchant's Coffer (%d/5)."):format(
+                            tier and tier.name or "wealth tier", coffers),
+                        COLOR_YELLOW, true)
+                end
+            end
         end
 
         -- Adamantine detection: fires the first time any adamantine item is created
