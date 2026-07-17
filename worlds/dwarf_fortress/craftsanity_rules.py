@@ -1543,7 +1543,7 @@ class DynamicCraftingLocationRules:
         or self.leather_shirt(state) or self.leather_vest(state) \
         or self.leather_coat(state) or self.leather_leatherarmor(state) \
         or self.leather_cloak(state) or self.leather_bag(state) \
-        or self.make_leather_backpack(state) or self.make_leather_quiver(state) \
+        or self.leather_backpack(state) or self.leather_quiver(state) \
         or self.leather_gloves(state) or self.leather_mittens(state) \
         or self.leather_loincloth(state) or self.leather_trousers(state) \
         or self.leather_leggings(state) or self.leather_shoes(state) \
