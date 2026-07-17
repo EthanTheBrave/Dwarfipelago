@@ -13,7 +13,7 @@ from .items import (
 )
 from .locations import (
     LocationData, LOCATION_TABLE, ALL_LOCATIONS, SHOP_LOCATIONS, SHOP_SLOTS,
-    SHOP_PRICE_MIN, SHOP_PRICE_MAX,
+    SHOP_PRICE_MIN, SHOP_PRICE_MAX, CAVE_LOCATIONS,
 )
 from .craftsanity import (
     generate_location_data,

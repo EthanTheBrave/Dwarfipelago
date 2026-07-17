@@ -166,6 +166,7 @@ Completing these milestones sends items to other players:
 - **Infrastructure** - Built a Well, Pumped Water, Pumped Magma
 - **Biology** - First Eggs Hatched, Caged a Hostile Beast
 - **Deep / Endgame** - Mined Adamantine, Sold an Artifact
+- **Custom Caves** - 6 hidden pre-carved pockets between cavern layers, discovered when a dwarf first enters one (see Custom Caves section below)
 - **Craftsanity** - optional crafting milestone checks (see below)
 
 </details>
@@ -306,10 +307,10 @@ Caves are shaped as organic ovals (roughly 15–35 tiles of floor depending on r
 
 | Type | Physical contents | Discovery effect |
 |------|------------------|-----------------|
-| **Treasure cave** | Random filler items (boulders, bars, cloth, leather, plump helmet wine) plus 2 varieties of cut gems | None required - flavor loot only |
-| **Trap cave** | Iron and copper ore boulders — designed to look like a promising mine find, but discovery spawns a wave of hostile underground creatures | Spawns enemies |
+| **Treasure cave** | Random filler items (boulders, bars, cloth, leather, plump helmet wine) plus 2 varieties of cut gems | Sends an AP location check |
+| **Trap cave** | Iron and copper ore boulders — designed to look like a promising mine find, but discovery spawns a wave of hostile underground creatures | Sends an AP location check and spawns enemies |
 
-Caves alternate treasure/trap so each pair of caves in a gap has one of each type. They are not AP location checks - finding them is optional flavor, not required for seed completion.
+Caves alternate treasure/trap so each pair of caves in a gap has one of each type.
 
 ### Cave Map Fragments
 
@@ -318,7 +319,7 @@ Caves alternate treasure/trap so each pair of caves in a gap has one of each typ
 - **Treasure cave** — `Riches await at approximately (x, y), N levels underground.`
 - **Trap cave** — `Danger lurks to the [east/west/north/south], deep underground (z=N). Tread carefully!`
 
-Hints are revealed one per fragment received in index order. Since cave discovery isn't gated behind fragments, you can stumble onto every cave yourself before all fragments arrive - once that happens, any further fragment is just a stack of old paper with nothing left to reveal. If you've received all 6 fragments' worth of hints but haven't found every cave, extra fragments are acknowledged but produce no additional text.
+Hints are revealed one per fragment received in index order. If you have already discovered all caves before receiving all fragments, extra fragments are acknowledged but produce no additional text.
 
 </details>
 
