@@ -509,8 +509,28 @@ function M.get_hint(idx)
     end
 end
 
+-- True once every generated cave has already been discovered (walked into by
+-- a citizen), regardless of how many Cave Map Fragments have been received.
+function M.all_discovered()
+    for i = 1, NUM_CAVES do
+        if dfhack.persistent.getWorldDataString(cave_key(i, "discovered")) ~= "1" then
+            return false
+        end
+    end
+    return true
+end
+
 -- Reveal the next unrevealed cave hint when a Cave Map Fragment is received.
+-- Cave discovery isn't gated behind receiving fragments, so a player can find
+-- every cave on their own before all fragments arrive - at that point a
+-- fragment has nothing left to reveal and is just flavor.
 function M.reveal_next()
+    if M.all_discovered() then
+        dfhack.gui.showAnnouncement(
+            "[AP] Cave Map Fragment: just a stack of old paper - every cave has already been found.",
+            COLOR_YELLOW, false)
+        return
+    end
     local next_idx = (tonumber(dfhack.persistent.getWorldDataString(KEY_FRAG_IDX)) or 0) + 1
     if next_idx > NUM_CAVES then
         dfhack.gui.showAnnouncement(
@@ -553,7 +573,7 @@ function M.generate_secret_caves()
             carve(x, y, z, 2, 2)
             local n = 0
             for _ = 1, 3 do
-                if M.spawn_unit("CAVE_SPIDER", x, y, z, false) then n = n + 1 end
+                if M.spawn_unit("SPIDER_CAVE", x, y, z, false) then n = n + 1 end
             end
             dfhack.persistent.saveWorldDataString(KEY_SECRET1 .. "x", tostring(x))
             dfhack.persistent.saveWorldDataString(KEY_SECRET1 .. "y", tostring(y))

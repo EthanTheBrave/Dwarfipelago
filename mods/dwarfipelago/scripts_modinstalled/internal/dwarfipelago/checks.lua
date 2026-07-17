@@ -244,7 +244,8 @@ end
 -- Returns the combined value of all minted coins (COIN) and cut gems (SMALLGEM)
 -- currently in fortress stocks - not carried by any unit, not belonging to traders.
 -- A coin stack is worth 10 × material_value for a full 500 stack, i.e. each coin
--- is material_value × 10 / 500; a cut gem is worth its material_value.
+-- is material_value × 10 / 500; a cut gem's base value is 20 × material_value
+-- (DF's cut-gem base value of 20, per https://dwarffortresswiki.org/index.php/Value).
 -- Both item types require AP-gated blueprints (Screw Press and Jeweler's Workshop)
 -- and their material values vary widely, keeping embark-site luck meaningful.
 local function treasury_wealth()
@@ -263,7 +264,7 @@ local function treasury_wealth()
             if itype == df.item_type.COIN then
                 total = total + stack * mat_value * 10 / 500
             else
-                total = total + stack * mat_value
+                total = total + stack * mat_value * 20
             end
         end
     end
