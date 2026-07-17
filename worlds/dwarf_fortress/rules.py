@@ -372,7 +372,7 @@ def set_rules(world: "DwarfFortressWorld") -> None:
             required_item_list.append(items.name)
         for items in CRAFT_ITEMS:
             if items.name in {"Beds Permit", "Charcoal Permit", "Leather Permit", "Cloth Permit",
-                "Alcohol Permit", "Prepared Meal Permit", "Barrel Permit"} and options.craftpermits == CraftingPermits.option_on:
+                "Alcohol Permit", "Prepared Meal Permit", "Barrel Permit", "Burial Container Permit"} and options.craftpermits == CraftingPermits.option_on:
                 continue
             required_item_list.append(items.name)
         goal_location.access_rule = lambda state: state.has_all(required_item_list, player)
