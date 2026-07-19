@@ -357,11 +357,30 @@ class ProgressiveMiningDepth(DefaultOnToggle):
     """
     display_name = "Progressive Mining Depths"
 
-# The Merchant's Shop is always enabled and has no options: spend minted coins to
-# buy AP items. It opens 10 slots per Merchant's Coffer received (up to 50 with all
-# 5), so the coffers are always in the item pool regardless of goal. Each slot
-# holds one multiworld item at a random coin-VALUE price (range hardcoded in
-# locations.SHOP_PRICE_MIN/MAX) and is bought once.
+# ── Merchant's Shop ──────────────────────────────────────────────────────────
+# The Merchant's Shop lets you spend minted coins to buy AP items. It opens 10
+# slots per Merchant's Coffer received (up to 50 with all 5). Each slot holds one
+# multiworld item at a random coin-VALUE price, banded by coffer tier from the
+# range in locations.SHOP_PRICE_MIN/MAX, and is bought once.
+
+class MerchantShop(DefaultOnToggle):
+    """
+    Enable the Merchant's Shop: spend minted coins to buy multiworld items from
+    50 shop slots (10 unlocked per Merchant's Coffer received).
+    When disabled, no shop slots are created and the shop tab stays empty.
+    """
+    display_name = "Merchant's Shop"
+
+class ShopPriceMultiplier(Range):
+    """
+    Scales every shop slot's coin price, as a percentage of the default range.
+    100 = default prices, 50 = half price, 200 = double, etc. Has no effect when
+    the Merchant's Shop is disabled.
+    """
+    display_name = "Shop Price Multiplier"
+    range_start = 10
+    range_end = 1000
+    default = 100
 
 
 @dataclass
@@ -376,6 +395,8 @@ class DwarfFortressOptions(PerGameCommonOptions):
     remains_great_king: RemainsoftheGreatKing
     trades_inlogic: TradesInLogic
     mining_depth: ProgressiveMiningDepth
+    merchant_shop: MerchantShop
+    shop_price_multiplier: ShopPriceMultiplier
     craftsanity: EnableCraftsanity
     craftpermits: CraftingPermits
     craftsanity_difficulty : CraftsanityDifficulty
@@ -431,6 +452,10 @@ dwarf_fortress_option_groups = [
         SkillsanityCombatSkills,
         SkillsanityMaxLevel,
         SkillsanityLevelMechanic
+    ], start_collapsed=True),
+    OptionGroup("Merchant's Shop", [
+        MerchantShop,
+        ShopPriceMultiplier,
     ], start_collapsed=True),
     OptionGroup("Item & Location Options", [
         StartingDefaultDFInventory,

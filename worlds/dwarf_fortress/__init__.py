@@ -162,8 +162,10 @@ class DwarfFortressWorld(World):
             active -= SIEGE_LOCATION_NAMES
         for skill_names in self.remove_skill_locations_names:
              active.remove(skill_names)
-        # The shop is always on, so its 50 slots are always active (coffer-gated
-        # in rules.py).
+        # The shop's 50 slots are active (and coffer-gated in rules.py) only when
+        # the Merchant's Shop option is enabled; drop them entirely when it's off.
+        if not self.options.merchant_shop:
+            active -= {loc.name for loc in SHOP_LOCATIONS}
         # Keep the registry's deterministic order for reproducible fill.
         self.active_location_names = [n for n in _FULL_LOCATION_TABLE if n in active]
 
@@ -247,12 +249,19 @@ class DwarfFortressWorld(World):
             elif self.options.goal == DwarfFortressGoal.option_king_remains and item_data.name == "Remains of the Great King":
                 item_data.quantity = self.options.remains_great_king.value
 
-        # The always-on shop is gated by Merchant's Coffer count, so the coffers
-        # must always be in the pool -- even for goals whose loop above stripped
-        # them. Re-add the (x5) coffer item if needed.
+        # The shop is gated by Merchant's Coffer count, so the coffers must be in
+        # the pool whenever the shop is on -- even for goals whose loop above
+        # stripped them. The legendary_wealth goal also needs coffers for its win
+        # condition regardless of the shop. When neither applies, drop them so a
+        # shop-off seed isn't padded with useless coffers.
         coffer = next((d for d in self.ap_item_pool if d.name == "Merchant's Coffer"), None)
-        if coffer is not None and coffer not in required:
-            required.append(coffer)
+        if coffer is not None:
+            needs_coffer = bool(self.options.merchant_shop) \
+                or self.options.goal == DwarfFortressGoal.option_legendary_wealth
+            if needs_coffer and coffer not in required:
+                required.append(coffer)
+            elif not needs_coffer and coffer in required:
+                required.remove(coffer)
 
         item_pool: list[DwarfFortressItem] = []
 
@@ -316,17 +325,21 @@ class DwarfFortressWorld(World):
         # item/recipient and writes them, with the price, for the in-game shop tab.
         # Price is banded by tier so higher-coffer slots always cost more than
         # lower-coffer ones: tier N draws from the Nth fifth of [PRICE_MIN, PRICE_MAX].
+        # Shop is off -> emit no slots (the client treats an empty dict as "no shop").
+        # Otherwise scale each slot's price by the multiplier (percent of default).
         shop_data = {}
-        tier_step = (SHOP_PRICE_MAX - SHOP_PRICE_MIN) // 5
-        for slot, loc in enumerate(SHOP_LOCATIONS, start=1):
-            tier = (slot - 1) // 10 + 1
-            tier_lo = SHOP_PRICE_MIN + (tier - 1) * tier_step
-            tier_hi = SHOP_PRICE_MIN + tier * tier_step if tier < 5 else SHOP_PRICE_MAX
-            shop_data[str(loc.ap_id)] = {
-                "slot": slot,
-                "tier": tier,
-                "price": self.random.randint(tier_lo, tier_hi),
-            }
+        if self.options.merchant_shop:
+            mult = self.options.shop_price_multiplier.value / 100
+            tier_step = (SHOP_PRICE_MAX - SHOP_PRICE_MIN) // 5
+            for slot, loc in enumerate(SHOP_LOCATIONS, start=1):
+                tier = (slot - 1) // 10 + 1
+                tier_lo = SHOP_PRICE_MIN + (tier - 1) * tier_step
+                tier_hi = SHOP_PRICE_MIN + tier * tier_step if tier < 5 else SHOP_PRICE_MAX
+                shop_data[str(loc.ap_id)] = {
+                    "slot": slot,
+                    "tier": tier,
+                    "price": max(1, round(self.random.randint(tier_lo, tier_hi) * mult)),
+                }
         return {
             "goal": self.options.goal.value,
             "wealth_goal_amount": self.options.wealth_goal_amount.value,
@@ -349,6 +362,7 @@ class DwarfFortressWorld(World):
             "deathlink_percentage": self.options.deathlink_percentage.value,
             "energy_link": self.options.energy_link.value,
             "mining_depth": self.options.mining_depth.value,
+            "shop_enabled": self.options.merchant_shop.value,
             "shop": shop_data,
             "version": f"{self.world_version.as_simple_string()}",
         }
