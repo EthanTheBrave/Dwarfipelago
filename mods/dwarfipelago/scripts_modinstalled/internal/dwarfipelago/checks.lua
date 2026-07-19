@@ -63,24 +63,35 @@ local function has_zone_type(zone_type)
     return found
 end
 
--- Highest quality tier (0-7) across Bedroom/Office/DiningHall/Tomb zones. -1 if none.
-local function best_room_quality()
-    local best = -1
+-- Best quality tier (0-7) reached by EACH quality-rated room type, as a table
+-- keyed by df.civzone_type (Bedroom/Office/DiningHall/Tomb). -1 = no room of
+-- that type yet. Computed in a single buildings.all pass and memoized per frame,
+-- so the 20 per-room-tier checks that read it share one scan instead of 20.
+local _room_q_cache, _room_q_frame = nil, -1
+local function room_qualities()
+    local frame = df.global.world.frame_counter or 0
+    if _room_q_cache and _room_q_frame == frame then return _room_q_cache end
+    local ct = df.civzone_type
+    local q = { [ct.Bedroom] = -1, [ct.Office] = -1, [ct.DiningHall] = -1, [ct.Tomb] = -1 }
     pcall(function()
-        local ct = df.civzone_type
         for _, z in ipairs(df.global.world.buildings.all) do
             local ok, t = pcall(function() return z:getType() end)
             if ok and t == df.building_type.Civzone then
                 local ok2, st = pcall(function() return z:getSubtype() end)
-                if ok2 and (st == ct.Bedroom or st == ct.Office
-                         or st == ct.DiningHall or st == ct.Tomb) then
+                if ok2 and q[st] ~= nil then
                     local r = zone_quality_rank(z)
-                    if r > best then best = r end
+                    if r > q[st] then q[st] = r end
                 end
             end
         end
     end)
-    return best
+    _room_q_cache, _room_q_frame = q, frame
+    return q
+end
+
+-- Best quality tier reached by a single room type (-1 if none of that type).
+local function room_quality(zone_type)
+    return room_qualities()[zone_type] or -1
 end
 
 -- True if any Civzone is assigned to a location whose abstract building passes
@@ -314,13 +325,32 @@ M.checks = {
     { id = 37370012, name = "First Guildhall", fn = function() return best_location_tier(function(b) return df.abstract_building_guildhallst:is_instance(b) end) >= 1 end },
     { id = 37370013, name = "Grand Guildhall", fn = function() return best_location_tier(function(b) return df.abstract_building_guildhallst:is_instance(b) end) >= 2 end },
 
-    -- Room quality milestones - best tier across Bedroom/Office/DiningHall/Tomb.
-    -- Tiers 3-7 match DF value thresholds: 500 / 1000 / 1500 / 2500 / 10000.
-    { id = 37370005, name = "Decent Room", fn = function() return best_room_quality() >= 3 end },
-    { id = 37370006, name = "Fine Room",   fn = function() return best_room_quality() >= 4 end },
-    { id = 37370007, name = "Great Room",  fn = function() return best_room_quality() >= 5 end },
-    { id = 37370008, name = "Grand Room",  fn = function() return best_room_quality() >= 6 end },
-    { id = 37370009, name = "Royal Room",  fn = function() return best_room_quality() >= 7 end },
+    -- Per-room-type quality milestones - each room type reaching tiers 3-7 (DF
+    -- value thresholds 500 / 1000 / 1500 / 2500 / 10000). Names are DF's own room
+    -- descriptions per tier. Ids 14-33 (the old single-best 5-9 are retired).
+    { id = 37370014, name = "Decent Quarters",     fn = function() return room_quality(df.civzone_type.Bedroom)    >= 3 end },
+    { id = 37370015, name = "Fine Quarters",       fn = function() return room_quality(df.civzone_type.Bedroom)    >= 4 end },
+    { id = 37370016, name = "Great Bedroom",       fn = function() return room_quality(df.civzone_type.Bedroom)    >= 5 end },
+    { id = 37370017, name = "Grand Bedroom",       fn = function() return room_quality(df.civzone_type.Bedroom)    >= 6 end },
+    { id = 37370018, name = "Royal Bedroom",       fn = function() return room_quality(df.civzone_type.Bedroom)    >= 7 end },
+
+    { id = 37370019, name = "Decent Office",       fn = function() return room_quality(df.civzone_type.Office)     >= 3 end },
+    { id = 37370020, name = "Splendid Office",     fn = function() return room_quality(df.civzone_type.Office)     >= 4 end },
+    { id = 37370021, name = "Throne Room",         fn = function() return room_quality(df.civzone_type.Office)     >= 5 end },
+    { id = 37370022, name = "Opulent Throne Room", fn = function() return room_quality(df.civzone_type.Office)     >= 6 end },
+    { id = 37370023, name = "Royal Throne Room",   fn = function() return room_quality(df.civzone_type.Office)     >= 7 end },
+
+    { id = 37370024, name = "Decent Dining Room",  fn = function() return room_quality(df.civzone_type.DiningHall) >= 3 end },
+    { id = 37370025, name = "Fine Dining Room",    fn = function() return room_quality(df.civzone_type.DiningHall) >= 4 end },
+    { id = 37370026, name = "Great Dining Room",   fn = function() return room_quality(df.civzone_type.DiningHall) >= 5 end },
+    { id = 37370027, name = "Grand Dining Room",   fn = function() return room_quality(df.civzone_type.DiningHall) >= 6 end },
+    { id = 37370028, name = "Royal Dining Room",   fn = function() return room_quality(df.civzone_type.DiningHall) >= 7 end },
+
+    { id = 37370029, name = "Tomb",                fn = function() return room_quality(df.civzone_type.Tomb)       >= 3 end },
+    { id = 37370030, name = "Fine Tomb",           fn = function() return room_quality(df.civzone_type.Tomb)       >= 4 end },
+    { id = 37370031, name = "Mausoleum",           fn = function() return room_quality(df.civzone_type.Tomb)       >= 5 end },
+    { id = 37370032, name = "Grand Mausoleum",     fn = function() return room_quality(df.civzone_type.Tomb)       >= 6 end },
+    { id = 37370033, name = "Royal Mausoleum",     fn = function() return room_quality(df.civzone_type.Tomb)       >= 7 end },
 
     -- First production milestones
     -- These are tracked via a persistent counter set by the eventful job hook in main.lua.
@@ -733,7 +763,7 @@ M.exported_wealth  = exported_wealth
 
 -- Room accessors for the panel.
 M.has_zone_type        = has_zone_type
-M.best_room_quality    = best_room_quality
+M.room_quality         = room_quality
 M.best_location_tier   = best_location_tier
 M.best_location_value  = best_location_value
 
