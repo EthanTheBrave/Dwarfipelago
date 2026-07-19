@@ -1507,6 +1507,8 @@ local function poll_checks()
     caves.generate_secret_caves()
     -- AP custom caves: conditional on the custom_caves option, no-op if disabled.
     caves.generate()
+    -- Secret cave 1: passive raw cave silk drop (self-rate-limited to ~2 months).
+    pcall(caves.poll_cave_silk)
 
     -- Count Manager work-order completions (their jobs don't fire onJobCompleted).
     -- Done before the depot gate so craft counts accumulate like manual jobs do.

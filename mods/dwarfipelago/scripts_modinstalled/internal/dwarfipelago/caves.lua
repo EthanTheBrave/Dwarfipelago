@@ -15,7 +15,16 @@ local KEY_PREFIX       = "dwarfipelago/cave/"
 local KEY_SECRETS_DONE = "dwarfipelago/caves/secrets_done"
 local KEY_SECRET1      = "dwarfipelago/cave/secret/1/"
 local KEY_SECRET2      = "dwarfipelago/cave/secret/2/"
+local KEY_SILK_LAST    = "dwarfipelago/cave/secret/1/silk_last_tick"
 local NUM_CAVES        = 6  -- 2 per inter-cavern gap x 3 potential gaps
+
+-- Raw cave silk appears passively in secret cave 1 every SILK_INTERVAL ticks
+-- (replaces the old wandering cave-spider vermin). DF time: 1 month = 33,600
+-- ticks (28 days x 1200), a year = 403,200.
+local TICKS_PER_MONTH = 33600
+local TICKS_PER_YEAR  = 403200
+local SILK_INTERVAL   = 2 * TICKS_PER_MONTH   -- every 2 in-game months
+local SILK_PER_SPAWN  = 20                     -- skeins of raw cave silk per drop
 
 -- Tiletype IDs resolved at load time by scanning the enum, so we never depend on
 -- a hardcoded number or a name that may differ between DF/DFHack versions.
@@ -552,13 +561,56 @@ function M.reveal_next()
     print(("[Dwarfipelago] Map fragment #%d: %s"):format(next_idx, hint))
 end
 
+-- Absolute game tick, matching dwarfipelago.lua's abs_tick convention.
+local function abs_tick()
+    return df.global.cur_year * TICKS_PER_YEAR + df.global.cur_year_tick
+end
+
+-- Drop raw cave spider silk thread in secret cave 1 (the Spider Silk Cave),
+-- rate-limited to once every SILK_INTERVAL ticks (~2 in-game months). Called
+-- each poll from dwarfipelago.lua; no-ops until the secret cave exists, and the
+-- first eligible poll after generation seeds the cave immediately (last == nil).
+function M.poll_cave_silk()
+    local x = read_int(KEY_SECRET1 .. "x")
+    if not x or x < 0 then return end
+    local now  = abs_tick()
+    local last = read_int(KEY_SILK_LAST)
+    if last and (now - last) < SILK_INTERVAL then return end
+    local y = read_int(KEY_SECRET1 .. "y")
+    local z = read_int(KEY_SECRET1 .. "z")
+
+    -- Collect the cave's open floor tiles (carved with radius 2) so the silk is
+    -- spread across the cave rather than piled on the centre tile.
+    local tiles = {}
+    for dx = -3, 3 do
+        for dy = -3, 3 do
+            local tt = dfhack.maps.getTileType(x + dx, y + dy, z)
+            local attrs = tt and df.tiletype.attrs[tt]
+            if attrs and attrs.shape == df.tiletype_shape.FLOOR then
+                tiles[#tiles + 1] = { x = x + dx, y = y + dy }
+            end
+        end
+    end
+    if #tiles == 0 then tiles = { { x = x, y = y } } end  -- fallback: centre only
+
+    -- Round-robin one skein at a time across the floor tiles.
+    local made = 0
+    for i = 1, SILK_PER_SPAWN do
+        local t = tiles[((i - 1) % #tiles) + 1]
+        made = made + place_item_at(t.x, t.y, z, "THREAD", "CREATURE_MAT:SPIDER_CAVE:SILK", 1)
+    end
+    dfhack.persistent.saveWorldDataString(KEY_SILK_LAST, tostring(now))
+    log.info(("Secret cave 1: spread %d raw cave silk across %d tiles at (%d,%d,%d)"):format(
+        made, #tiles, x, y, z))
+end
+
 -- Generate the two secret world-flavour caves.  Always generated alongside the
 -- AP caves.  No-ops if already done or ceilings not measured yet.
 --
 --   Secret 1 - Spider Silk Cave (surface -> cavern 1 gap, slot 3 / SW quadrant):
---     Small oval (rx=2, ry=2).  3 wild cave spiders spawn at generation time;
---     they spin silk webs as they roam, giving dwarves a silk thread source before
---     the first cavern is breached.
+--     Small oval (rx=2, ry=2).  Raw cave silk thread appears here passively over
+--     time (see M.poll_cave_silk), giving dwarves a silk source before the first
+--     cavern is breached - no live cave-spider vermin.
 --
 --   Secret 2 - Karl's Coffin Cave (cavern 1 -> cavern 2 gap, slot 4 / NE quadrant):
 --     Standard organic oval.  Contains a gold coffin registered as the artifact
@@ -572,21 +624,18 @@ function M.generate_secret_caves()
     local c1 = cavern_ceil("cavern1")
     local c2 = cavern_ceil("cavern2")
 
-    -- Secret 1: spider silk cave in the surface -> cavern 1 gap.
+    -- Secret 1: spider silk cave in the surface -> cavern 1 gap. Raw cave silk
+    -- is dropped here passively over time by M.poll_cave_silk (no live spiders).
     if c1 then
         local x, y, z = find_site(surface_z - 5, c1 + 5, 7)
         if x then
             carve(x, y, z, 2, 2)
-            local n = 0
-            for _ = 1, 3 do
-                if M.spawn_unit("SPIDER_CAVE", x, y, z, false) then n = n + 1 end
-            end
             dfhack.persistent.saveWorldDataString(KEY_SECRET1 .. "x", tostring(x))
             dfhack.persistent.saveWorldDataString(KEY_SECRET1 .. "y", tostring(y))
             dfhack.persistent.saveWorldDataString(KEY_SECRET1 .. "z", tostring(z))
-            log.info(("Secret cave 1 (spider silk) at (%d,%d,%d), %d spiders"):format(x, y, z, n))
+            log.info(("Secret cave 1 (cave silk) at (%d,%d,%d)"):format(x, y, z))
         else
-            log.warn("Secret cave 1 (spider silk): no suitable site found in surface->C1 gap")
+            log.warn("Secret cave 1 (cave silk): no suitable site found in surface->C1 gap")
         end
     end
 
