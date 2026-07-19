@@ -373,7 +373,7 @@ M.checks = {
     { id = 37370115, name = "First Chest Made",        fn = function() return M.production_flag("chest")          end },
     { id = 37370116, name = "First Table Made",        fn = function() return M.production_flag("table")          end },
     { id = 37370117, name = "First Bed Made",          fn = function() return M.production_flag("bed")            end },
-    { id = 37370118, name = "First Anvil Forged",      fn = function() return M.production_flag("anvil")          end },
+    { id = 37370118, name = "First Anvil Made",        fn = function() return M.production_flag("anvil")          end },
     { id = 37370119, name = "First Millstone Made",    fn = function() return M.production_flag("millstone")      end },
     { id = 37370120, name = "First Minecart Made",     fn = function() return M.production_flag("minecart")       end },
 
