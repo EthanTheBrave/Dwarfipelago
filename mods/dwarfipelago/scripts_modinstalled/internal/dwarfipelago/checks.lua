@@ -1002,6 +1002,22 @@ reaction_subtype("MAKE_CLAY_HIVE",                  "hive")
 reaction_subtype("MAKE_CLAY_STATUE",                "statue")
 reaction_subtype("MAKE_CLAY_CRAFTS",                "crafts")
 
+-- Forced material for clay reactions. A completed manual job carries the clay
+-- reagent in job.items (so classify_mat resolves "ceramic"), but a MANAGER WORK
+-- ORDER has no .items and leaves mat_type/mat_index unset - so mat_craft_flag
+-- returned nil and the material suffix was dropped, storing the count under
+-- e.g. "statue" instead of "statue_ceramic". The AP client reads the suffixed
+-- key, so ceramic statues/blocks made via work orders never counted. These
+-- reactions always fire clay into a CERAMIC_* product, so the material is known.
+local REACTION_FORCE_MATERIAL = {
+    MAKE_CLAY_BRICKS   = "ceramic",
+    MAKE_CLAY_JUG      = "ceramic",
+    MAKE_LARGE_CLAY_POT = "ceramic",
+    MAKE_CLAY_HIVE     = "ceramic",
+    MAKE_CLAY_STATUE   = "ceramic",
+    MAKE_CLAY_CRAFTS   = "ceramic",
+}
+
 
 local UARMOR_SUBTYPE_FLAG = {}
 local function uarmor_subtype(subtype_id, flag)
@@ -1129,6 +1145,15 @@ local function classify_mat(mat_type, mat_index)
 end
 
 local function mat_craft_flag(job)
+    -- 0. Reactions whose material is fixed by the recipe (e.g. clay -> ceramic).
+    --    Checked first because manager work orders carry neither .items nor a
+    --    usable mat_type, so the steps below can't recover the material for them.
+    local rname
+    pcall(function() rname = job.reaction_name end)
+    if rname and REACTION_FORCE_MATERIAL[rname] then
+        return REACTION_FORCE_MATERIAL[rname]
+    end
+
     -- 1. Material set directly on the job/order (mat_type/mat_index).
     local flag = classify_mat(job.mat_type, job.mat_index)
     if flag then return flag end

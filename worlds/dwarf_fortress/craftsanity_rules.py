@@ -2827,7 +2827,7 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.adamantine_metal)
                 elif material_type == "Glass":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                            set_rule(loc, self.metal_liquidcontainer)
+                            set_rule(loc, self.glass_liquidcontainer)
                     else:
                         set_rule(loc, self.glass)
                 elif material_type == "Leather":
