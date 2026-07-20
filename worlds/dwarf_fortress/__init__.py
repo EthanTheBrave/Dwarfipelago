@@ -211,11 +211,18 @@ class DwarfFortressWorld(World):
             if d.classification == ItemClassification.progression
         ]
         received_trap_names = {d.name for d in RECEIVED_TRAPS}
+        # Traps that don't make sense for the chosen options. With craftpermits=all,
+        # brewing is gated behind the Alcohol permit, so an ale-draining thirst trap
+        # could leave a fort with no way to make more - exclude it in that mode.
+        excluded_trap_names: set[str] = set()
+        if self.options.craftpermits == CraftingPermits.option_all:
+            excluded_trap_names.add("Unquenchable Thirst")
         optional: list[ItemData] = [
             d for d in self.ap_item_pool
             for _ in range(d.quantity)
             if d.classification != ItemClassification.progression
             and (trap_weight > 0 or d.name not in received_trap_names)
+            and d.name not in excluded_trap_names
         ]
 
         for item_data in self.ap_item_pool:
