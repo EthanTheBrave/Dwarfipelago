@@ -2732,11 +2732,16 @@ class DynamicCraftingLocationRules:
                 else:
                     set_rule(loc, self.stone)
             case "Crafts":
-                if material_type in {"Wood", "Stone", "Bone"} :
+                if material_type in {"Wood", "Stone"} :
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.stone_or_wood_crafts)
                     else:
                         set_rule(loc, self.craftdwarf_workshop)
+                elif material_type == "Bone":  
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.bone_crafts)
+                    else:
+                        set_rule(loc, self.glass)
                 elif material_type == "Glass":  
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.glass_crafts)
