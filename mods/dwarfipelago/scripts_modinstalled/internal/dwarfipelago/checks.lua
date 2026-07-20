@@ -127,7 +127,7 @@ end
 -- Reads the game's own tracked tier/value (abstract_building_contents.location_tier
 -- / .location_value, confirmed live via dfhack-run) instead of re-deriving it
 -- from our own item scan - that previously drifted from what the in-game UI
--- shows, confusing players about when "First Temple"/"Temple Complex" should
+-- shows, confusing players about when "Temple"/"Temple Complex" should
 -- fire. DF tiers: 0 = base (shrine / meeting place), 1 = mid (temple /
 -- guildhall), 2 = top (temple complex / grand guildhall).
 local function best_location_tier(check_fn)
@@ -311,18 +311,18 @@ local function has_fortress_title(pop_req, created_req, exported_req, waves_req)
 end
 
 M.checks = {
-    -- Room type milestones - first time each zone type is designated.
-    { id = 37370000, name = "First Bedroom",     fn = function() return has_zone_type(df.civzone_type.Bedroom)   end },
-    { id = 37370001, name = "First Office",      fn = function() return has_zone_type(df.civzone_type.Office)    end },
-    { id = 37370002, name = "First Tomb",        fn = function() return has_zone_type(df.civzone_type.Tomb)      end },
-    { id = 37370004, name = "First Dining Hall", fn = function() return has_zone_type(df.civzone_type.DiningHall) end },
+    -- Room type milestones - each zone type is designated.
+    { id = 37370000, name = "Bedroom",              fn = function() return has_zone_type(df.civzone_type.Bedroom)   end },
+    { id = 37370001, name = "Office",               fn = function() return has_zone_type(df.civzone_type.Office)    end },
+    { id = 37370002, name = "Tomb Zone Established", fn = function() return has_zone_type(df.civzone_type.Tomb)      end },
+    { id = 37370004, name = "Dining Hall",          fn = function() return has_zone_type(df.civzone_type.DiningHall) end },
     -- Temple tiers: DF's own location_tier - 0 = shrine, 1 = temple, 2 = temple complex.
-    { id = 37370003, name = "First Shrine",    fn = function() return has_location_type(function(b) return df.abstract_building_templest:is_instance(b) end) end },
-    { id = 37370010, name = "First Temple",    fn = function() return best_location_tier(function(b) return df.abstract_building_templest:is_instance(b) end) >= 1 end },
-    { id = 37370011, name = "Temple Complex",  fn = function() return best_location_tier(function(b) return df.abstract_building_templest:is_instance(b) end) >= 2 end },
+    { id = 37370003, name = "Shrine",         fn = function() return has_location_type(function(b) return df.abstract_building_templest:is_instance(b) end) end },
+    { id = 37370010, name = "Temple",         fn = function() return best_location_tier(function(b) return df.abstract_building_templest:is_instance(b) end) >= 1 end },
+    { id = 37370011, name = "Temple Complex", fn = function() return best_location_tier(function(b) return df.abstract_building_templest:is_instance(b) end) >= 2 end },
 
     -- Guildhall tiers: 0 = meeting place, 1 = guildhall, 2 = grand guildhall.
-    { id = 37370012, name = "First Guildhall", fn = function() return best_location_tier(function(b) return df.abstract_building_guildhallst:is_instance(b) end) >= 1 end },
+    { id = 37370012, name = "Guildhall",       fn = function() return best_location_tier(function(b) return df.abstract_building_guildhallst:is_instance(b) end) >= 1 end },
     { id = 37370013, name = "Grand Guildhall", fn = function() return best_location_tier(function(b) return df.abstract_building_guildhallst:is_instance(b) end) >= 2 end },
 
     -- Per-room-type quality milestones - each room type reaching tiers 3-7 (DF

@@ -17,18 +17,18 @@ class LocationData:
 
 # ── Room Milestones ───────────────────────────────────────────────────────────
 ROOM_LOCATIONS: list[LocationData] = [
-    # First room of each type
-    LocationData("First Bedroom",       BASE_ID + 0,  "Fortress"),
-    LocationData("First Office",        BASE_ID + 1,  "Fortress"),
-    LocationData("First Tomb",          BASE_ID + 2,  "Fortress"),
-    LocationData("First Dining Hall",   BASE_ID + 4,  "Fortress"),
+    # Each room type designated
+    LocationData("Bedroom",              BASE_ID + 0,  "Fortress"),
+    LocationData("Office",               BASE_ID + 1,  "Fortress"),
+    LocationData("Tomb Zone Established", BASE_ID + 2,  "Fortress"),
+    LocationData("Dining Hall",          BASE_ID + 4,  "Fortress"),
     # Temple tiers: shrine / temple (2000+) / temple complex (10000+)
-    LocationData("First Shrine",        BASE_ID + 3,  "Fortress"),
-    LocationData("First Temple",        BASE_ID + 10, "Fortress"),
-    LocationData("Temple Complex",      BASE_ID + 11, "Fortress"),
+    LocationData("Shrine",               BASE_ID + 3,  "Fortress"),
+    LocationData("Temple",               BASE_ID + 10, "Fortress"),
+    LocationData("Temple Complex",       BASE_ID + 11, "Fortress"),
     # Guildhall tiers: guildhall (2000+) / grand guildhall (10000+)
-    LocationData("First Guildhall",     BASE_ID + 12, "Fortress"),
-    LocationData("Grand Guildhall",     BASE_ID + 13, "Fortress"),
+    LocationData("Guildhall",            BASE_ID + 12, "Fortress"),
+    LocationData("Grand Guildhall",      BASE_ID + 13, "Fortress"),
     # Per-room-type quality tiers (each room type reaching DF value tiers 3-7).
     # Names are DF's own per-tier room descriptions. Ids 14-33; the old single
     # "best across all rooms" tiers (5-9) are retired.
