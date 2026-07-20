@@ -677,10 +677,52 @@ local function recv_dwarf_bones()
     announce_at_depot("A grim package of dwarf bones has arrived. An ill omen...")
 end
 
-local function recv_goblin_trophy()
-    -- A goblin-bone totem - the classic war trophy.
-    spawn_item("TOTEM", "CREATURE_MAT:GOBLIN:BONE")
-    announce_at_depot("A goblin trophy has been delivered. Someone out there is mocking you.")
+-- Goblin Saboteurs trap: a band of goblins slips in and wrecks up to
+-- SABOTAGE_COUNT of the player's workshops/furnaces, goblin-style. Buildings are
+-- deconstructed (their materials drop as rubble to re-haul and rebuild). Fizzles
+-- with a near-miss message if the player has no eligible buildings.
+local SABOTAGE_COUNT = 5
+
+local function recv_goblin_saboteurs()
+    -- Collect the player's workshops and furnaces as sabotage targets.
+    local targets = {}
+    for _, b in ipairs(df.global.world.buildings.all) do
+        if df.building_workshopst:is_instance(b) or df.building_furnacest:is_instance(b) then
+            targets[#targets + 1] = b
+        end
+    end
+    if #targets == 0 then
+        announce("Trap: Goblin saboteurs crept in - but found no workshops to wreck. This time.")
+        return
+    end
+
+    -- Fisher-Yates shuffle so a random subset is hit when there are more than N.
+    for i = #targets, 2, -1 do
+        local j = math.random(i)
+        targets[i], targets[j] = targets[j], targets[i]
+    end
+
+    local demolished, last_pos = 0, nil
+    for i = 1, math.min(SABOTAGE_COUNT, #targets) do
+        local b = targets[i]
+        local pos = { x = b.x1, y = b.y1, z = b.z }   -- capture before deconstruct frees it
+        -- Instant, uncancellable smash: deconstruct() on a fully-built building
+        -- only QUEUES a DestroyBuilding job a dwarf performs (and the player can
+        -- cancel). Reverting the build stage to 0 first makes it "unconstructed",
+        -- so deconstruct() removes it immediately this tick - mirror of the
+        -- instant-BUILD setBuildStage(MAX) trick used for the trade depot. The
+        -- workshop's materials still drop as rubble to re-haul and rebuild.
+        local ok = pcall(function()
+            pcall(function() b:setBuildStage(0) end)
+            dfhack.buildings.deconstruct(b)
+        end)
+        if ok then
+            demolished = demolished + 1
+            last_pos = pos
+        end
+    end
+    announce(("Trap: Goblin saboteurs have wrecked %d of your workshops!"):format(demolished),
+        last_pos)
 end
 
 -- Search for a walkable surface tile (outside == true) near a map edge.
@@ -2080,7 +2122,7 @@ M.handlers = {
     -- Junk trap items (filler traps sent back to DF)
     ["Cave Fisher Silk"]       = recv_cave_fisher_silk, --currently disabled in Client
     ["Dwarf Bones"]            = recv_dwarf_bones,
-    ["Goblin Trophy"]          = recv_goblin_trophy,
+    ["Goblin Saboteurs"]       = recv_goblin_saboteurs,
 
     ["Cut Sapphire"]         = recv_cut_sapphire,
     ["Cut Ruby"]             = recv_cut_ruby,
@@ -2286,6 +2328,7 @@ local TEST_LIST = {
     { "cavebear",  "Cave Bear Incursion trap",                        function() recv_cave_bear() end },
     { "catsplosion", "Catsplosion trap (10-20 fortress cats)",        function() recv_catsplosion() end },
     { "vermin",    "Vermin Infestation trap (rodents)",               function() recv_vermin_infestation() end },
+    { "saboteurs", "Goblin Saboteurs trap (wreck up to 5 workshops)", function() recv_goblin_saboteurs() end },
     { "spider",    "Precursor threat (giant cave spider, underground)", function() spawn_precursor_threat() end },
     { "megabeast", "Force the goal megabeast (once per world)",        function() spawn_target_megabeast() end },
     { "wave",      "Spawn a roaming warband for a readiness level (arg: 1-9, default 1)",
