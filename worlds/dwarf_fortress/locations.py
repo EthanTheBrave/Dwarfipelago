@@ -29,12 +29,29 @@ ROOM_LOCATIONS: list[LocationData] = [
     # Guildhall tiers: guildhall (2000+) / grand guildhall (10000+)
     LocationData("First Guildhall",     BASE_ID + 12, "Fortress"),
     LocationData("Grand Guildhall",     BASE_ID + 13, "Fortress"),
-    # Room quality tiers (best across Bedroom/Office/DiningHall/Tomb)
-    LocationData("Decent Room",         BASE_ID + 5,  "Fortress"),
-    LocationData("Fine Room",           BASE_ID + 6,  "Fortress"),
-    LocationData("Great Room",          BASE_ID + 7,  "Fortress"),
-    LocationData("Grand Room",          BASE_ID + 8,  "Fortress"),
-    LocationData("Royal Room",          BASE_ID + 9,  "Fortress"),
+    # Per-room-type quality tiers (each room type reaching DF value tiers 3-7).
+    # Names are DF's own per-tier room descriptions. Ids 14-33; the old single
+    # "best across all rooms" tiers (5-9) are retired.
+    LocationData("Decent Quarters",     BASE_ID + 14, "Fortress"),
+    LocationData("Fine Quarters",       BASE_ID + 15, "Fortress"),
+    LocationData("Great Bedroom",       BASE_ID + 16, "Fortress"),
+    LocationData("Grand Bedroom",       BASE_ID + 17, "Fortress"),
+    LocationData("Royal Bedroom",       BASE_ID + 18, "Fortress"),
+    LocationData("Decent Office",       BASE_ID + 19, "Fortress"),
+    LocationData("Splendid Office",     BASE_ID + 20, "Fortress"),
+    LocationData("Throne Room",         BASE_ID + 21, "Fortress"),
+    LocationData("Opulent Throne Room", BASE_ID + 22, "Fortress"),
+    LocationData("Royal Throne Room",   BASE_ID + 23, "Fortress"),
+    LocationData("Decent Dining Room",  BASE_ID + 24, "Fortress"),
+    LocationData("Fine Dining Room",    BASE_ID + 25, "Fortress"),
+    LocationData("Great Dining Room",   BASE_ID + 26, "Fortress"),
+    LocationData("Grand Dining Room",   BASE_ID + 27, "Fortress"),
+    LocationData("Royal Dining Room",   BASE_ID + 28, "Fortress"),
+    LocationData("Tomb",                BASE_ID + 29, "Fortress"),
+    LocationData("Fine Tomb",           BASE_ID + 30, "Fortress"),
+    LocationData("Mausoleum",           BASE_ID + 31, "Fortress"),
+    LocationData("Grand Mausoleum",     BASE_ID + 32, "Fortress"),
+    LocationData("Royal Mausoleum",     BASE_ID + 33, "Fortress"),
 ]
 
 # ── First Production Milestones ───────────────────────────────────────────────

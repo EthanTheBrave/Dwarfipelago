@@ -909,70 +909,123 @@ end
 -- Merchant shrine detector: opens the shop when the player has a temple zone (a
 -- Civzone assigned to a location) holding a built altar (OfferingPlace), a
 -- container, the chosen bar type/count, and total item/furniture value >= threshold.
--- Bar type (gold/coke/silver) is read from dwarfipelago/shrine_bar_type each poll.
--- Runs every poll, so the shrine must STAY intact for the shop to remain open.
+-- Bar type (gold/coke/silver) is read from dwarfipelago/shrine_bar_type.
+-- Re-runs so the shrine must STAY intact for the shop to remain open.
 -- Writes dwarfipelago/shop_unlocked + dwarfipelago/shrine_progress (for the panel).
+--
+-- Performance: this scans every item in the fort. It used to run that scan once
+-- PER location zone (temple/tavern/library/...) EVERY poll, i.e. O(zones × items)
+-- every 100 ticks - the single biggest per-poll cost on a large fort. It now:
+--   * no-ops entirely when the Merchant's Shop option is off,
+--   * makes ONE items.all pass, attributing each item to its zone (the expensive
+--     value/type/material lookups run once per item, not once per item per zone),
+--   * runs only every SHRINE_POLL_INTERVAL polls (the shop opening a few seconds
+--     later is imperceptible, the cost saving is not).
 local SHRINE_VALUE_REQ = 5000
 local SHRINE_BAR_REQS  = {gold=5, coke=20, silver=10}
 local SHRINE_BAR_TOKS  = {gold="GOLD", coke="COKE", silver="SILVER"}
+local SHRINE_POLL_INTERVAL = 5   -- run once every 5 polls (~every 500 ticks)
+local _shrine_poll_counter = 0
 
 local function detect_shrine()
+    -- Shop disabled for this seed => never scan (shop_enabled written by the AP
+    -- client). Absent/blank means an older seed with no flag: treat as enabled.
+    if dfhack.persistent.getWorldDataString("dwarfipelago/shop_enabled") == "0" then return end
+
+    -- Throttle: only actually scan on every Nth poll.
+    _shrine_poll_counter = _shrine_poll_counter + 1
+    if _shrine_poll_counter % SHRINE_POLL_INTERVAL ~= 0 then return end
+
     local bar_type = dfhack.persistent.getWorldDataString("dwarfipelago/shrine_bar_type") or "gold"
     local bar_req  = SHRINE_BAR_REQS[bar_type] or 5
     local bar_tok  = SHRINE_BAR_TOKS[bar_type] or "GOLD"
 
     local best = {value=0, bars=0, altar=false, bin=false, ok=false, score=-1}
     pcall(function()
+        -- The shrine must be a TEMPLE, not just any location. Build the set of
+        -- temple location ids first; a tavern/guildhall/library assigned to a zone
+        -- must never be picked as the shrine (on re-embark a tavern was being
+        -- treated as the temple). Empty set => no temple => nothing to detect.
+        local temple_locs = {}
+        local site = dfhack.world.getCurrentSite()
+        if site then
+            for _, bld in ipairs(site.buildings) do
+                if df.abstract_building_templest:is_instance(bld) then
+                    temple_locs[bld.id] = true
+                end
+            end
+        end
+
+        -- 1. Collect the Civzones assigned to a temple location.
+        local zones = {}
         for _, z in ipairs(df.global.world.buildings.all) do
             local okt, t = pcall(function() return z:getType() end)
             if okt and t == df.building_type.Civzone then
                 local loc = -1
                 pcall(function() loc = z.location_id end)
-                if loc and loc >= 0 then   -- assigned to a location (temple/tavern/...)
-                    local x1, x2 = math.min(z.x1, z.x2), math.max(z.x1, z.x2)
-                    local y1, y2 = math.min(z.y1, z.y2), math.max(z.y1, z.y2)
-                    local zz = z.z
+                if loc and loc >= 0 and temple_locs[loc] then
+                    zones[#zones + 1] = {
+                        x1 = math.min(z.x1, z.x2), x2 = math.max(z.x1, z.x2),
+                        y1 = math.min(z.y1, z.y2), y2 = math.max(z.y1, z.y2),
+                        z = z.z, value = 0, bars = 0, bin = false, altar = false,
+                    }
+                end
+            end
+        end
+        if #zones == 0 then return end
 
-                    -- altar = an OfferingPlace building overlapping the zone
-                    local altar = false
-                    for _, b in ipairs(df.global.world.buildings.all) do
-                        if b ~= z and b.z == zz and b.x1 <= x2 and b.x2 >= x1
-                                and b.y1 <= y2 and b.y2 >= y1 then
-                            local okb, bt = pcall(function() return b:getType() end)
-                            if okb and bt == df.building_type.OfferingPlace then altar = true; break end
-                        end
-                    end
-
-                    -- items in the zone: total value, matching bar count, container present
-                    local value, bars, bin = 0, 0, false
-                    for _, it in ipairs(df.global.world.items.all) do
-                        local p = it.pos
-                        if p and p.z == zz and p.x >= x1 and p.x <= x2 and p.y >= y1 and p.y <= y2 then
-                            local v = 0; pcall(function() v = dfhack.items.getValue(it) end)
-                            value = value + v
-                            local ity = it:getType()
-                            if ity == df.item_type.BIN or ity == df.item_type.BOX then bin = true end
-                            if ity == df.item_type.BAR then
-                                local tok = ""
-                                pcall(function()
-                                    local m = dfhack.matinfo.decode(it.mat_type, it.mat_index)
-                                    tok = (m and m:getToken()) or ""
-                                end)
-                                if tok:find(bar_tok) then bars = bars + (it.stack_size or 1) end
-                            end
-                        end
-                    end
-
-                    local score = (altar and 1 or 0) + (bin and 1 or 0)
-                        + math.min(bars, bar_req) / bar_req
-                        + math.min(value, SHRINE_VALUE_REQ) / SHRINE_VALUE_REQ
-                    if score > best.score then
-                        best = {
-                            value=value, bars=bars, altar=altar, bin=bin, score=score,
-                            ok = altar and bin and bars >= bar_req and value >= SHRINE_VALUE_REQ,
-                        }
+        -- 2. Altar detection: one buildings pass (buildings are few), flagging any
+        --    zone an OfferingPlace overlaps.
+        for _, b in ipairs(df.global.world.buildings.all) do
+            local okb, bt = pcall(function() return b:getType() end)
+            if okb and bt == df.building_type.OfferingPlace then
+                for _, zn in ipairs(zones) do
+                    if b.z == zn.z and b.x1 <= zn.x2 and b.x2 >= zn.x1
+                            and b.y1 <= zn.y2 and b.y2 >= zn.y1 then
+                        zn.altar = true
                     end
                 end
+            end
+        end
+
+        -- 3. ONE items.all pass. The cheap pos/bbox test runs per item per zone,
+        --    but the expensive value/type/material lookups run only for an item
+        --    that actually lands in a zone (and then only once).
+        for _, it in ipairs(df.global.world.items.all) do
+            local p = it.pos
+            if p then
+                local px, py, pz = p.x, p.y, p.z
+                for _, zn in ipairs(zones) do
+                    if pz == zn.z and px >= zn.x1 and px <= zn.x2
+                            and py >= zn.y1 and py <= zn.y2 then
+                        local v = 0; pcall(function() v = dfhack.items.getValue(it) end)
+                        zn.value = zn.value + v
+                        local ity = it:getType()
+                        if ity == df.item_type.BIN or ity == df.item_type.BOX then zn.bin = true end
+                        if ity == df.item_type.BAR then
+                            local tok = ""
+                            pcall(function()
+                                local m = dfhack.matinfo.decode(it.mat_type, it.mat_index)
+                                tok = (m and m:getToken()) or ""
+                            end)
+                            if tok:find(bar_tok) then zn.bars = zn.bars + (it.stack_size or 1) end
+                        end
+                        break  -- an item belongs to at most one zone
+                    end
+                end
+            end
+        end
+
+        -- 4. Pick the best-scoring zone.
+        for _, zn in ipairs(zones) do
+            local score = (zn.altar and 1 or 0) + (zn.bin and 1 or 0)
+                + math.min(zn.bars, bar_req) / bar_req
+                + math.min(zn.value, SHRINE_VALUE_REQ) / SHRINE_VALUE_REQ
+            if score > best.score then
+                best = {
+                    value = zn.value, bars = zn.bars, altar = zn.altar, bin = zn.bin, score = score,
+                    ok = zn.altar and zn.bin and zn.bars >= bar_req and zn.value >= SHRINE_VALUE_REQ,
+                }
             end
         end
     end)
@@ -1454,6 +1507,8 @@ local function poll_checks()
     caves.generate_secret_caves()
     -- AP custom caves: conditional on the custom_caves option, no-op if disabled.
     caves.generate()
+    -- Secret cave 1: passive raw cave silk drop (self-rate-limited to ~2 months).
+    pcall(caves.poll_cave_silk)
 
     -- Count Manager work-order completions (their jobs don't fire onJobCompleted).
     -- Done before the depot gate so craft counts accumulate like manual jobs do.

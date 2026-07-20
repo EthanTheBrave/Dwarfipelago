@@ -253,19 +253,21 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     #   1. Enough Merchant's Coffers for the tier (10 slots per coffer).
     #   2. The ability to mint coins - needs metal smelting; with craft permits
     #      also requires a Coins Permit so the player can actually produce currency.
-    for slot in range(1, SHOP_SLOTS + 1):
-        tier = (slot - 1) // 10 + 1
-        loc = multiworld.get_location(f"Shop Slot {slot}", player)
-        if options.craftpermits == CraftingPermits.option_off:
-            loc.access_rule = lambda state, n=tier: (
-                state.count("Merchant's Coffer", player) >= n
-                and dynamic_rules.metal(state)
-            )
-        else:
-            loc.access_rule = lambda state, n=tier: (
-                state.count("Merchant's Coffer", player) >= n
-                and dynamic_rules.metal_coins(state)
-            )
+    # Only set when the shop is enabled; otherwise these locations don't exist.
+    if options.merchant_shop:
+        for slot in range(1, SHOP_SLOTS + 1):
+            tier = (slot - 1) // 10 + 1
+            loc = multiworld.get_location(f"Shop Slot {slot}", player)
+            if options.craftpermits == CraftingPermits.option_off:
+                loc.access_rule = lambda state, n=tier: (
+                    state.count("Merchant's Coffer", player) >= n
+                    and dynamic_rules.metal(state)
+                )
+            else:
+                loc.access_rule = lambda state, n=tier: (
+                    state.count("Merchant's Coffer", player) >= n
+                    and dynamic_rules.metal_coins(state)
+                )
 
     # ── Sold an Artifact (endgame) ────────────────────────────────────────────
     # You can only sell an artifact you first obtained. Two in-logic paths:

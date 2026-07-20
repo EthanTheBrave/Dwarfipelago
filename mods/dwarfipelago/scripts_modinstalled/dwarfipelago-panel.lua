@@ -117,6 +117,23 @@ local function bp_label(name)
     return name:gsub(" Blueprint$", "")
 end
 
+-- Live status of a milestone by its AP location id, by calling the real check
+-- fn from checks.checks. Panel rows use this instead of re-reading raw flags, so
+-- the panel can never drift from the actual checks (a check added to checks.lua
+-- shows up here as soon as its id is listed). Returns true/false, or nil if the
+-- id isn't a known check.
+local _check_fn_by_id
+local function check_status(id)
+    if not _check_fn_by_id then
+        _check_fn_by_id = {}
+        for _, c in ipairs(checks.checks) do _check_fn_by_id[c.id] = c.fn end
+    end
+    local fn = _check_fn_by_id[id]
+    if not fn then return nil end
+    local ok, r = pcall(fn)
+    return ok and r or false
+end
+
 local function make_list(lines)
     local choices = {}
     for _, line in ipairs(lines) do
@@ -308,6 +325,17 @@ local function build_progress_lines()
     row(("  Best quality: %s"):format(best_desc ~= "" and best_desc or "none"),
         best_desc ~= "" and COLOR_WHITE or COLOR_DARKGRAY)
 
+    -- Per-room quality tier reached (checks fire at Decent=3 .. Royal=7 per type).
+    local GENERIC_TIER = { [3]="Decent", [4]="Fine", [5]="Great", [6]="Grand", [7]="Royal" }
+    local function qlabel(zt)
+        local r = checks.room_quality(zt)
+        if r < 3 then return r >= 0 and "basic" or "—" end
+        return GENERIC_TIER[r] or "—"
+    end
+    row(("  Quality:  Bedroom: %-6s Office: %-6s Dining: %-6s Tomb: %-6s"):format(
+        qlabel(df.civzone_type.Bedroom), qlabel(df.civzone_type.Office),
+        qlabel(df.civzone_type.DiningHall), qlabel(df.civzone_type.Tomb)))
+
     local function location_row(label, value, has_zone, tiers)
         local tier_name, next_val, next_name
         for _, t in ipairs(tiers) do
@@ -330,8 +358,8 @@ local function build_progress_lines()
         end
     end
 
-    location_row("Temple",    checks.best_temple_value(),    nil, TEMPLE_TIERS)
-    location_row("Guildhall", checks.best_guildhall_value(), nil, GUILDHALL_TIERS)
+    location_row("Temple",    checks.best_location_value(function(b) return df.abstract_building_templest:is_instance(b)    end), nil, TEMPLE_TIERS)
+    location_row("Guildhall", checks.best_location_value(function(b) return df.abstract_building_guildhallst:is_instance(b) end), nil, GUILDHALL_TIERS)
 
     -- Production
     blank()
@@ -396,6 +424,52 @@ local function build_progress_lines()
     local fw = checks.fortress_wealth()
     row(("  Population:      %d citizens"):format(pop))
     row(("  Fortress wealth: %s"):format(fmt_num(fw)))
+
+    -- Fortress title milestones (id 400-404).
+    local TITLES = {
+        {400, "Hamlet"}, {401, "Village"}, {402, "Town"},
+        {403, "City"}, {404, "Metropolis"},
+    }
+    local title_cells = {}
+    local any_title = false
+    for _, t in ipairs(TITLES) do
+        local got = check_status(37370000 + t[1])
+        if got then any_title = true end
+        table.insert(title_cells, ("%s: %s"):format(t[2], got and "YES" or "no"))
+    end
+    row("  " .. table.concat(title_cells, "  "), any_title and COLOR_WHITE or COLOR_DARKGRAY)
+
+    -- Infrastructure (id 740-742): well + screw pumps.
+    blank()
+    hdr("Infrastructure")
+    local well  = check_status(37370740)
+    local pumpw = check_status(37370741)
+    local pumpm = check_status(37370742)
+    row(("  Built a Well: %-4s  Pumped Water: %-4s  Pumped Magma: %-4s"):format(
+        well and "YES" or "no", pumpw and "YES" or "no", pumpm and "YES" or "no"),
+        (well or pumpw or pumpm) and COLOR_WHITE or COLOR_DARKGRAY)
+
+    -- Biology (id 751) + Endgame (id 760-761).
+    blank()
+    hdr("Biology & Endgame")
+    local caged = check_status(37370751)
+    local adam  = check_status(37370760)
+    local sold  = check_status(37370761)
+    row(("  Caged a Hostile Beast: %-4s"):format(caged and "YES" or "no"),
+        caged and COLOR_WHITE or COLOR_DARKGRAY)
+    row(("  Mined Adamantine: %-4s   Sold an Artifact: %-4s"):format(
+        adam and "YES" or "no", sold and "YES" or "no"),
+        (adam or sold) and COLOR_WHITE or COLOR_DARKGRAY)
+
+    -- Military / Siege (id 770-771): only meaningful for the slay_megabeast goal,
+    -- but shown always so the milestones are visible.
+    blank()
+    hdr("Military")
+    local barracks = check_status(37370770)
+    local training = check_status(37370771)
+    row(("  Barracks Established: %-4s  Training Completed: %-4s"):format(
+        barracks and "YES" or "no", training and "YES" or "no"),
+        (barracks or training) and COLOR_WHITE or COLOR_DARKGRAY)
 
     return lines
 end
