@@ -665,10 +665,26 @@ end
 -- These items land back in the DF player's inventory as padding. They have no
 -- meaningful in-game effect - just a flavour announcement.
 
-local function recv_cave_fisher_silk()
-    -- Silk cloth woven from cave fisher silk. CLOTH item, creature silk material.
-    spawn_item("CLOTH", "CREATURE_MAT:CAVE_FISHER:SILK", 2)
-    announce_at_depot("A bundle of cave fisher silk has been deposited at your trade depot.")
+-- Ensnaring Webs trap: every living citizen is caught in cave-spider webbing and
+-- frozen in place, struggling to break free. counters.webbed is the exact field
+-- DF sets when a giant cave spider webs prey - the unit can't move while it's > 0
+-- and slowly tears free (faster the stronger the dwarf). A high value = a real
+-- fortress-wide work stoppage.
+local WEB_TICKS = 4000
+
+local function recv_ensnaring_webs()
+    local n = 0
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then
+            pcall(function() u.counters.webbed = WEB_TICKS end)
+            n = n + 1
+        end
+    end
+    if n == 0 then
+        announce("Trap: Ensnaring webs burst forth - but there are no dwarves to catch.")
+        return
+    end
+    announce(("Trap: Ensnaring Webs! %d dwarves are caught fast in cave-spider silk, struggling to break free!"):format(n))
 end
 
 local function recv_dwarf_bones()
@@ -2120,7 +2136,7 @@ M.handlers = {
     ["Remains of the Great King"] = recv_king_remains,
 
     -- Junk trap items (filler traps sent back to DF)
-    ["Cave Fisher Silk"]       = recv_cave_fisher_silk, --currently disabled in Client
+    ["Ensnaring Webs"]         = recv_ensnaring_webs,
     ["Dwarf Bones"]            = recv_dwarf_bones,
     ["Goblin Saboteurs"]       = recv_goblin_saboteurs,
 
@@ -2329,6 +2345,7 @@ local TEST_LIST = {
     { "catsplosion", "Catsplosion trap (10-20 fortress cats)",        function() recv_catsplosion() end },
     { "vermin",    "Vermin Infestation trap (rodents)",               function() recv_vermin_infestation() end },
     { "saboteurs", "Goblin Saboteurs trap (wreck up to 5 workshops)", function() recv_goblin_saboteurs() end },
+    { "webs",      "Ensnaring Webs trap (freeze all citizens in webs)", function() recv_ensnaring_webs() end },
     { "spider",    "Precursor threat (giant cave spider, underground)", function() spawn_precursor_threat() end },
     { "megabeast", "Force the goal megabeast (once per world)",        function() spawn_target_megabeast() end },
     { "wave",      "Spawn a roaming warband for a readiness level (arg: 1-9, default 1)",

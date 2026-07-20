@@ -124,7 +124,7 @@ FILLER_ITEMS: list[ItemData] = [
 ]
 
 TRAP_ITEMS: list[ItemData] = [
-    ItemData("Cave Fisher Silk",       BASE_ID + 530, ItemClassification.trap),
+    ItemData("Ensnaring Webs",         BASE_ID + 530, ItemClassification.trap),
     ItemData("Dwarf Bones",            BASE_ID + 531, ItemClassification.trap),
     ItemData("Goblin Saboteurs",       BASE_ID + 532, ItemClassification.trap),
 ]
