@@ -687,10 +687,24 @@ local function recv_ensnaring_webs()
     announce(("Trap: Ensnaring Webs! %d dwarves are caught fast in cave-spider silk, struggling to break free!"):format(n))
 end
 
-local function recv_dwarf_bones()
-    -- A grim totem carved from dwarf bone. TOTEM item, creature bone material.
-    spawn_item("TOTEM", "CREATURE_MAT:DWARF:BONE")
-    announce_at_depot("A grim package of dwarf bones has arrived. An ill omen...")
+-- Order Sabotage trap: saboteurs shred the manager's ledger, wiping every current
+-- manager work order. Uses DFHack's workorder erase+delete pattern (erase from the
+-- back so indices don't shift, then free each order). Safe for the mod's craft
+-- tracking: poll_manager_orders drops tracking for vanished orders on its next
+-- pass, and only counts completions on orders still present - never on removals.
+local function recv_order_sabotage()
+    local orders = df.global.world.manager_orders.all
+    local n = #orders
+    if n == 0 then
+        announce("Trap: Saboteurs ransack the manager's records - but the work-order queue was empty.")
+        return
+    end
+    for i = n - 1, 0, -1 do
+        local o = orders[i]
+        orders:erase(i)
+        pcall(function() o:delete() end)
+    end
+    announce(("Trap: Order Sabotage! All %d of your manager work orders have been shredded!"):format(n))
 end
 
 -- Goblin Saboteurs trap: a band of goblins slips in and wrecks up to
@@ -1039,34 +1053,27 @@ local function recv_vermin_infestation()
     end
 end
 
-local function recv_tantrum_trigger()
-    -- Push the most-stressed living citizen past the tantrum threshold.
-    -- The tantrum threshold in DF is ~200,000 stress; 500,000 is well past it.
-    local target = nil
-    local highest_stress = -math.huge
+-- Unquenchable Thirst trap: every living citizen is struck by a sudden, powerful
+-- thirst and drops what they're doing to rush for a drink, draining the ale
+-- supply fort-wide. counters2.thirst_timer is DF's "time since last drink"; a
+-- value well past the drink-seeking threshold makes them very thirsty, while
+-- staying below dehydration harm - and it resets to ~0 the moment they drink, so
+-- this is a one-shot spike (safe, self-limiting), not sustained dehydration.
+local THIRST_TIMER = 48000
+
+local function recv_unquenchable_thirst()
+    local n = 0
     for _, unit in ipairs(df.global.world.units.active) do
-        if dfhack.units.isCitizen(unit)
-            and dfhack.units.isAlive(unit)
-            and unit.status.current_soul
-        then
-            local stress = unit.status.current_soul.personality.stress
-            if stress > highest_stress then
-                highest_stress = stress
-                target = unit
-            end
+        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+            pcall(function() unit.counters2.thirst_timer = THIRST_TIMER end)
+            n = n + 1
         end
     end
-    if target and target.status.current_soul then
-        target.status.current_soul.personality.stress = 500000
-        local name = unit_display_name(target)
-        local tpos = {x=target.pos.x, y=target.pos.y, z=target.pos.z}
-        announce("Trap: " .. (name ~= "" and name or "A dwarf") .. " has had enough!",
-            tpos, df.announcement_type.CITIZEN_TANTRUM)
-    else
-        -- No eligible dwarf found (e.g. very early embark with no stress data).
-        announce("Trap: Something sinister stirs in the fortress...")
-        log.error("tantrum_trigger: no eligible citizen found")
+    if n == 0 then
+        announce("Trap: A parching thirst sweeps the halls - but no dwarves are here to feel it.")
+        return
     end
+    announce(("Trap: Unquenchable Thirst! %d dwarves drop everything, desperate for a drink!"):format(n))
 end
 
 local function recv_lost_caravan()
@@ -2137,7 +2144,7 @@ M.handlers = {
 
     -- Junk trap items (filler traps sent back to DF)
     ["Ensnaring Webs"]         = recv_ensnaring_webs,
-    ["Dwarf Bones"]            = recv_dwarf_bones,
+    ["Order Sabotage"]         = recv_order_sabotage,
     ["Goblin Saboteurs"]       = recv_goblin_saboteurs,
 
     ["Cut Sapphire"]         = recv_cut_sapphire,
@@ -2156,7 +2163,7 @@ M.handlers = {
     ["Goblin Ambush"]        = recv_goblin_ambush,
     ["Cave Bear Incursion"]  = recv_cave_bear,
     ["Vermin Infestation"]   = recv_vermin_infestation,
-    ["Tantrum Trigger"]      = recv_tantrum_trigger,
+    ["Unquenchable Thirst"]  = recv_unquenchable_thirst,
     ["Lost Caravan"]         = recv_lost_caravan,
     ["Catsplosion"]          = recv_catsplosion,
 
@@ -2346,6 +2353,8 @@ local TEST_LIST = {
     { "vermin",    "Vermin Infestation trap (rodents)",               function() recv_vermin_infestation() end },
     { "saboteurs", "Goblin Saboteurs trap (wreck up to 5 workshops)", function() recv_goblin_saboteurs() end },
     { "webs",      "Ensnaring Webs trap (freeze all citizens in webs)", function() recv_ensnaring_webs() end },
+    { "thirst",    "Unquenchable Thirst trap (all citizens rush to drink)", function() recv_unquenchable_thirst() end },
+    { "ordersab",  "Order Sabotage trap (wipe all manager work orders)", function() recv_order_sabotage() end },
     { "spider",    "Precursor threat (giant cave spider, underground)", function() spawn_precursor_threat() end },
     { "megabeast", "Force the goal megabeast (once per world)",        function() spawn_target_megabeast() end },
     { "wave",      "Spawn a roaming warband for a readiness level (arg: 1-9, default 1)",
