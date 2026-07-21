@@ -415,7 +415,7 @@ class Skillsanity:
         elif self.world.options.craftpermits == CraftingPermits.option_on:
             return dynamic_rules.make_soap(state) and dynamic_rules.cloth(state)
         else:
-            return dynamic_rules.make_soap(state) and dynamic_rules.make_cloth(state)
+            return dynamic_rules.make_soap(state) and dynamic_rules.process_resource(state, "cloth")
             
     def skill_beekeeper(self, state:CollectionState) -> bool:
         if self.world.options.trades_inlogic == True:
@@ -732,9 +732,11 @@ class Skillsanity:
     def skill_weaver(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
         if self.world.options.craftpermits != CraftingPermits.option_all:
-            return dynamic_rules.cloth(state)
+            return state.has("Loom Blueprint", self.player) and (state.has("Farm Plot Blueprint", self.player) \
+            or state.has("Farmer's Workshop Blueprint", self.player))
         else:
-            return dynamic_rules.make_cloth(state)
+            return (state.has("Loom Blueprint", self.player) and (state.has("Farm Plot Blueprint", self.player) \
+            or state.has("Farmer's Workshop Blueprint", self.player))) and dynamic_rules.permit(state, "Cloth")
         
     def skill_woodcrafter(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
