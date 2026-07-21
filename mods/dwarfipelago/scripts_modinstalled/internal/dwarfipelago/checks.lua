@@ -317,7 +317,15 @@ M.checks = {
     { id = 37370002, name = "Tomb Zone Established", fn = function() return has_zone_type(df.civzone_type.Tomb)      end },
     { id = 37370004, name = "Dining Hall",          fn = function() return has_zone_type(df.civzone_type.DiningHall) end },
     -- Temple tiers: DF's own location_tier - 0 = shrine, 1 = temple, 2 = temple complex.
-    { id = 37370003, name = "Shrine",         fn = function() return has_location_type(function(b) return df.abstract_building_templest:is_instance(b) end) end },
+    -- Shrine also fires when any temple location exists at ANY tier (location_tier >= 0),
+    -- not just via the Civzone->location link. Temple/Complex read location_tier while
+    -- the plain shrine reads has_location_type; without this a temple dedicated straight
+    -- to Temple/Complex would fire those but skip the lower Shrine milestone. Keeping the
+    -- base tier monotonic with the ones above lets the normal poll fire every lower tier.
+    { id = 37370003, name = "Shrine", fn = function()
+        local is_templest = function(b) return df.abstract_building_templest:is_instance(b) end
+        return has_location_type(is_templest) or best_location_tier(is_templest) >= 0
+    end },
     { id = 37370010, name = "Temple",         fn = function() return best_location_tier(function(b) return df.abstract_building_templest:is_instance(b) end) >= 1 end },
     { id = 37370011, name = "Temple Complex", fn = function() return best_location_tier(function(b) return df.abstract_building_templest:is_instance(b) end) >= 2 end },
 
