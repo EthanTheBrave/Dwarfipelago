@@ -649,7 +649,7 @@ class Skillsanity:
         else:
             return (dynamic_rules.make_sheet(state) and dynamic_rules.wood_or_stone_or_metal_or_glass_scrollroller(state)) \
             or (dynamic_rules.make_sheet(state) and dynamic_rules.craftdwarf_or_metal_or_glass_bookbinding(state) \
-            and dynamic_rules.thread(state))
+            and dynamic_rules.any_thread(state))
         
     def skill_bonecarver(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
