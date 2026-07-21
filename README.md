@@ -335,7 +335,7 @@ Hints are revealed one per fragment received in index order. Since cave discover
 | Trade goods | Cut gems, gold/silver/steel bars, masterwork crafts |
 | Resources | Food bundles, wood bundles, iron ore, coal |
 | Industry materials | Flux stone, pig iron, charcoal, cloth bolts, tanned leather, **bags of sand** (glassmaking), raw clay (kaolinite for porcelain), plus rare low-grade copper tools (pick/axe/sword) |
-| Traps | Goblin ambush, cave bear incursion, vermin infestation, tantrum trigger, lost caravan |
+| Traps | Goblin ambush, cave bear incursion, vermin infestation, unquenchable thirst, lost caravan, catsplosion, goblin saboteurs, ensnaring webs |
 | Crafting Permits | When `craftpermits` is enabled, each permit item unlocks the ability to craft one item type (e.g. you can't make a table until the Table permit arrives). See the Crafting Permits section. |
 | Cave Map Fragment | Reveals a hint about the next undiscovered custom cave — coordinate hint for treasure caves, directional warning for trap caves. Up to 6 per slot; extra fragments beyond 6 are acknowledged but produce no new hint. |
 | Remains of the Great King | Treasure-hunt goal item - collect all of them (`king_remains` goal) to win. |
@@ -470,7 +470,7 @@ A running list of ideas, planned features, and things that still need doing. No 
 ### To Do
 
 - [x] Implement DFHack protobuf wire encoding for `RunCommand` to deliver items in-game
-- [x] Implement trap item spawning in `items.lua` (goblin ambush, cave bear, vermin, tantrum)
+- [x] Implement trap item spawning in `items.lua` (goblin ambush, cave bear, vermin, unquenchable thirst)
 - [x] Add `fill_slot_data` population goal amount to client sync so Lua reads the correct target
 - [x] Goal completion detection and AP victory signaling (`ClientStatus.CLIENT_GOAL`)
 - [x] Fortress status checks - noble appointments and civilisation recognition milestones

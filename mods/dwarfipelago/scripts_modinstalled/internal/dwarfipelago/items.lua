@@ -665,22 +665,94 @@ end
 -- These items land back in the DF player's inventory as padding. They have no
 -- meaningful in-game effect - just a flavour announcement.
 
-local function recv_cave_fisher_silk()
-    -- Silk cloth woven from cave fisher silk. CLOTH item, creature silk material.
-    spawn_item("CLOTH", "CREATURE_MAT:CAVE_FISHER:SILK", 2)
-    announce_at_depot("A bundle of cave fisher silk has been deposited at your trade depot.")
+-- Ensnaring Webs trap: every living citizen is caught in cave-spider webbing and
+-- frozen in place, struggling to break free. counters.webbed is the exact field
+-- DF sets when a giant cave spider webs prey - the unit can't move while it's > 0
+-- and slowly tears free (faster the stronger the dwarf). A high value = a real
+-- fortress-wide work stoppage.
+local WEB_TICKS = 4000
+
+local function recv_ensnaring_webs()
+    local n = 0
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then
+            pcall(function() u.counters.webbed = WEB_TICKS end)
+            n = n + 1
+        end
+    end
+    if n == 0 then
+        announce("Trap: Ensnaring webs burst forth - but there are no dwarves to catch.")
+        return
+    end
+    announce(("Trap: Ensnaring Webs! %d dwarves are caught fast in cave-spider silk, struggling to break free!"):format(n))
 end
 
-local function recv_dwarf_bones()
-    -- A grim totem carved from dwarf bone. TOTEM item, creature bone material.
-    spawn_item("TOTEM", "CREATURE_MAT:DWARF:BONE")
-    announce_at_depot("A grim package of dwarf bones has arrived. An ill omen...")
+-- Order Sabotage trap: saboteurs shred the manager's ledger, wiping every current
+-- manager work order. Uses DFHack's workorder erase+delete pattern (erase from the
+-- back so indices don't shift, then free each order). Safe for the mod's craft
+-- tracking: poll_manager_orders drops tracking for vanished orders on its next
+-- pass, and only counts completions on orders still present - never on removals.
+local function recv_order_sabotage()
+    local orders = df.global.world.manager_orders.all
+    local n = #orders
+    if n == 0 then
+        announce("Trap: Saboteurs ransack the manager's records - but the work-order queue was empty.")
+        return
+    end
+    for i = n - 1, 0, -1 do
+        local o = orders[i]
+        orders:erase(i)
+        pcall(function() o:delete() end)
+    end
+    announce(("Trap: Order Sabotage! All %d of your manager work orders have been shredded!"):format(n))
 end
 
-local function recv_goblin_trophy()
-    -- A goblin-bone totem - the classic war trophy.
-    spawn_item("TOTEM", "CREATURE_MAT:GOBLIN:BONE")
-    announce_at_depot("A goblin trophy has been delivered. Someone out there is mocking you.")
+-- Goblin Saboteurs trap: a band of goblins slips in and wrecks up to
+-- SABOTAGE_COUNT of the player's workshops/furnaces, goblin-style. Buildings are
+-- deconstructed (their materials drop as rubble to re-haul and rebuild). Fizzles
+-- with a near-miss message if the player has no eligible buildings.
+local SABOTAGE_COUNT = 5
+
+local function recv_goblin_saboteurs()
+    -- Collect the player's workshops and furnaces as sabotage targets.
+    local targets = {}
+    for _, b in ipairs(df.global.world.buildings.all) do
+        if df.building_workshopst:is_instance(b) or df.building_furnacest:is_instance(b) then
+            targets[#targets + 1] = b
+        end
+    end
+    if #targets == 0 then
+        announce("Trap: Goblin saboteurs crept in - but found no workshops to wreck. This time.")
+        return
+    end
+
+    -- Fisher-Yates shuffle so a random subset is hit when there are more than N.
+    for i = #targets, 2, -1 do
+        local j = math.random(i)
+        targets[i], targets[j] = targets[j], targets[i]
+    end
+
+    local demolished, last_pos = 0, nil
+    for i = 1, math.min(SABOTAGE_COUNT, #targets) do
+        local b = targets[i]
+        local pos = { x = b.x1, y = b.y1, z = b.z }   -- capture before deconstruct frees it
+        -- Instant, uncancellable smash: deconstruct() on a fully-built building
+        -- only QUEUES a DestroyBuilding job a dwarf performs (and the player can
+        -- cancel). Reverting the build stage to 0 first makes it "unconstructed",
+        -- so deconstruct() removes it immediately this tick - mirror of the
+        -- instant-BUILD setBuildStage(MAX) trick used for the trade depot. The
+        -- workshop's materials still drop as rubble to re-haul and rebuild.
+        local ok = pcall(function()
+            pcall(function() b:setBuildStage(0) end)
+            dfhack.buildings.deconstruct(b)
+        end)
+        if ok then
+            demolished = demolished + 1
+            last_pos = pos
+        end
+    end
+    announce(("Trap: Goblin saboteurs have wrecked %d of your workshops!"):format(demolished),
+        last_pos)
 end
 
 -- Search for a walkable surface tile (outside == true) near a map edge.
@@ -981,34 +1053,27 @@ local function recv_vermin_infestation()
     end
 end
 
-local function recv_tantrum_trigger()
-    -- Push the most-stressed living citizen past the tantrum threshold.
-    -- The tantrum threshold in DF is ~200,000 stress; 500,000 is well past it.
-    local target = nil
-    local highest_stress = -math.huge
+-- Unquenchable Thirst trap: every living citizen is struck by a sudden, powerful
+-- thirst and drops what they're doing to rush for a drink, draining the ale
+-- supply fort-wide. counters2.thirst_timer is DF's "time since last drink"; a
+-- value well past the drink-seeking threshold makes them very thirsty, while
+-- staying below dehydration harm - and it resets to ~0 the moment they drink, so
+-- this is a one-shot spike (safe, self-limiting), not sustained dehydration.
+local THIRST_TIMER = 48000
+
+local function recv_unquenchable_thirst()
+    local n = 0
     for _, unit in ipairs(df.global.world.units.active) do
-        if dfhack.units.isCitizen(unit)
-            and dfhack.units.isAlive(unit)
-            and unit.status.current_soul
-        then
-            local stress = unit.status.current_soul.personality.stress
-            if stress > highest_stress then
-                highest_stress = stress
-                target = unit
-            end
+        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+            pcall(function() unit.counters2.thirst_timer = THIRST_TIMER end)
+            n = n + 1
         end
     end
-    if target and target.status.current_soul then
-        target.status.current_soul.personality.stress = 500000
-        local name = unit_display_name(target)
-        local tpos = {x=target.pos.x, y=target.pos.y, z=target.pos.z}
-        announce("Trap: " .. (name ~= "" and name or "A dwarf") .. " has had enough!",
-            tpos, df.announcement_type.CITIZEN_TANTRUM)
-    else
-        -- No eligible dwarf found (e.g. very early embark with no stress data).
-        announce("Trap: Something sinister stirs in the fortress...")
-        log.error("tantrum_trigger: no eligible citizen found")
+    if n == 0 then
+        announce("Trap: A parching thirst sweeps the halls - but no dwarves are here to feel it.")
+        return
     end
+    announce(("Trap: Unquenchable Thirst! %d dwarves drop everything, desperate for a drink!"):format(n))
 end
 
 local function recv_lost_caravan()
@@ -2078,9 +2143,9 @@ M.handlers = {
     ["Remains of the Great King"] = recv_king_remains,
 
     -- Junk trap items (filler traps sent back to DF)
-    ["Cave Fisher Silk"]       = recv_cave_fisher_silk, --currently disabled in Client
-    ["Dwarf Bones"]            = recv_dwarf_bones,
-    ["Goblin Trophy"]          = recv_goblin_trophy,
+    ["Ensnaring Webs"]         = recv_ensnaring_webs,
+    ["Order Sabotage"]         = recv_order_sabotage,
+    ["Goblin Saboteurs"]       = recv_goblin_saboteurs,
 
     ["Cut Sapphire"]         = recv_cut_sapphire,
     ["Cut Ruby"]             = recv_cut_ruby,
@@ -2098,7 +2163,7 @@ M.handlers = {
     ["Goblin Ambush"]        = recv_goblin_ambush,
     ["Cave Bear Incursion"]  = recv_cave_bear,
     ["Vermin Infestation"]   = recv_vermin_infestation,
-    ["Tantrum Trigger"]      = recv_tantrum_trigger,
+    ["Unquenchable Thirst"]  = recv_unquenchable_thirst,
     ["Lost Caravan"]         = recv_lost_caravan,
     ["Catsplosion"]          = recv_catsplosion,
 
@@ -2286,6 +2351,10 @@ local TEST_LIST = {
     { "cavebear",  "Cave Bear Incursion trap",                        function() recv_cave_bear() end },
     { "catsplosion", "Catsplosion trap (10-20 fortress cats)",        function() recv_catsplosion() end },
     { "vermin",    "Vermin Infestation trap (rodents)",               function() recv_vermin_infestation() end },
+    { "saboteurs", "Goblin Saboteurs trap (wreck up to 5 workshops)", function() recv_goblin_saboteurs() end },
+    { "webs",      "Ensnaring Webs trap (freeze all citizens in webs)", function() recv_ensnaring_webs() end },
+    { "thirst",    "Unquenchable Thirst trap (all citizens rush to drink)", function() recv_unquenchable_thirst() end },
+    { "ordersab",  "Order Sabotage trap (wipe all manager work orders)", function() recv_order_sabotage() end },
     { "spider",    "Precursor threat (giant cave spider, underground)", function() spawn_precursor_threat() end },
     { "megabeast", "Force the goal megabeast (once per world)",        function() spawn_target_megabeast() end },
     { "wave",      "Spawn a roaming warband for a readiness level (arg: 1-9, default 1)",

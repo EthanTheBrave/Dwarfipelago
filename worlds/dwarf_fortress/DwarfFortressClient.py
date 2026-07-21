@@ -892,14 +892,6 @@ class DwarfFortressContext(CommonContext):
         for i in range(self._received_index, len(self.items_received)):
             network_item = self.items_received[i]
 
-            if network_item.item == 37370530: # Cave Fisher Silk - always skip (junk filler)
-                self._received_index = i + 1
-                self.dfhack.run_command(
-                    "lua",
-                    f'dfhack.persistent.saveWorldDataString("dwarfipelago/received_index", "{i + 1}")',
-                )
-                continue
-
             # During re-embark, skip all trap-classified items so a recovering fortress
             # isn't immediately hit with goblin ambushes and vermin infestations.
             if self._is_reembark and (network_item.flags & self._TRAP_FLAG):

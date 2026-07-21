@@ -124,9 +124,9 @@ FILLER_ITEMS: list[ItemData] = [
 ]
 
 TRAP_ITEMS: list[ItemData] = [
-    ItemData("Cave Fisher Silk",       BASE_ID + 530, ItemClassification.trap),
-    ItemData("Dwarf Bones",            BASE_ID + 531, ItemClassification.trap),
-    ItemData("Goblin Trophy",          BASE_ID + 532, ItemClassification.trap),
+    ItemData("Ensnaring Webs",         BASE_ID + 530, ItemClassification.trap),
+    ItemData("Order Sabotage",         BASE_ID + 531, ItemClassification.trap),
+    ItemData("Goblin Saboteurs",       BASE_ID + 532, ItemClassification.trap),
 ]
 
 CRAFT_ITEMS: list[ItemData] = [ #commented items people should get when getting the blueprints
@@ -290,7 +290,7 @@ RECEIVED_TRAPS: list[ItemData] = [
     ItemData("Goblin Ambush",          BASE_ID + 620, ItemClassification.trap),
     ItemData("Cave Bear Incursion",    BASE_ID + 621, ItemClassification.trap),
     ItemData("Vermin Infestation",     BASE_ID + 622, ItemClassification.trap),
-    ItemData("Tantrum Trigger",        BASE_ID + 623, ItemClassification.trap),
+    ItemData("Unquenchable Thirst",    BASE_ID + 623, ItemClassification.trap),
     ItemData("Lost Caravan",           BASE_ID + 624, ItemClassification.trap),
     ItemData("Catsplosion",            BASE_ID + 625, ItemClassification.trap),
 ]
