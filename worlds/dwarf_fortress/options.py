@@ -73,7 +73,7 @@ class RemainsoftheGreatKing(Range):
     They have traded them outside of our realm and we need our friends to help find them.
     We need to find all X remains to bring our great king back into our halls."
     Craftsanity or Skillsanity may be required depending on how many remains are shuffled.
-    When goal is 'King Remains'.
+    When goal is 'King Remains'. (This works similar to Triforce Hunt in AP)
     """
     display_name = "Remains of the Great King"
     range_start = 5
