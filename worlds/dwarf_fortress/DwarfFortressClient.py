@@ -329,7 +329,8 @@ class DFHackConnection:
 
     Implements only what Dwarfipelago needs:
     - run_command: execute a DFHack console command (including inline Lua)
-    - pop_pending_checks: atomically read and clear the check queue
+    - peek_pending_checks / clear_sent_checks: read the check queue and clear
+      only what's been confirmed sent
     - deliver_item: call the Lua item handler for a received AP item
     """
 
@@ -537,21 +538,22 @@ class DFHackConnection:
                 self.disconnect()
                 return None
 
-    def pop_pending_checks(self) -> list[int]:
+    def peek_pending_checks(self) -> list[int]:
         """
-        Atomically read and clear the pending-checks queue written by the Lua mod.
+        Read (without clearing) the pending-checks queue written by the Lua mod.
         The mod stores the queue as a JSON array in world data under
         "dwarfipelago/pending_checks". Returns a list of AP location IDs.
+
+        Deliberately non-destructive: call clear_sent_checks once the AP server
+        has actually acknowledged the send. Popping (read + clear) before the
+        send is confirmed would silently and permanently lose a check if
+        send_msgs raises or the connection drops mid-send, since the Lua-side
+        queue would already be empty with nothing left to retry.
         """
-        lua = (
-            "(function()"
-            " local q = dfhack.persistent.getWorldDataString"
-            '("dwarfipelago/pending_checks") or "[]";'
-            ' dfhack.persistent.saveWorldDataString("dwarfipelago/pending_checks", "[]");'
-            " print(q)"
-            " end)()"
+        output = self.run_command(
+            "lua",
+            'print(dfhack.persistent.getWorldDataString("dwarfipelago/pending_checks") or "[]")',
         )
-        output = self.run_command("lua", lua)
         if not output:
             return []
         try:
@@ -560,6 +562,32 @@ class DFHackConnection:
         except (json.JSONDecodeError, ValueError) as e:
             logger.warning(f"Failed to parse pending checks - {e!r} - raw: {output!r}")
             return []
+
+    def clear_sent_checks(self, sent_ids: list[int]) -> None:
+        """
+        Remove exactly the given ids from the pending-checks queue, wherever
+        they currently sit - safe even if the Lua mod appended new entries
+        (from a different check firing) since the matching peek_pending_checks
+        call.
+        """
+        if not sent_ids:
+            return
+        # Lua table constructor, not JSON - this string is spliced into Lua
+        # source, not decoded as data (json.dumps would emit "[...]", which
+        # ipairs() can't iterate).
+        lua_ids = "{" + ",".join(str(int(i)) for i in sent_ids) + "}"
+        lua = (
+            "(function()"
+            " local json = require('json');"
+            " local sent = {}; for _, v in ipairs(%s) do sent[v] = true end;"
+            ' local raw = dfhack.persistent.getWorldDataString("dwarfipelago/pending_checks") or "[]";'
+            " local q = json.decode(raw) or {};"
+            " local kept = {};"
+            " for _, v in ipairs(q) do if not sent[v] then table.insert(kept, v) end end;"
+            ' dfhack.persistent.saveWorldDataString("dwarfipelago/pending_checks", json.encode(kept))'
+            " end)()"
+        ) % lua_ids
+        self.run_command("lua", lua)
 
     def deliver_item(self, item_name: str):
         """Deliver a received AP item to the fortress by calling the Lua item handler."""
@@ -670,7 +698,6 @@ class DwarfFortressContext(CommonContext):
         self._shop_scout_sent = False    # sent LocationScouts for shop slots this AP session
         self._shop_last_sig = None       # last shop table written to Lua (skip redundant writes)
         self._is_reembark = False        # True during re-embark item re-delivery
-        self._discovered_caves: set[int] = set()  # cave indices already sent as location checks
 
     def debug(self, msg: str):
         """Log only when debug mode is enabled (toggle with /dfdebug)."""
@@ -739,11 +766,10 @@ class DwarfFortressContext(CommonContext):
                 # ── Fortress operations (map guaranteed loaded) ───────────────
                 await self._sync_slot_data()
                 if self._slot_data_synced:
-                    # DeathLink, goal, and cave checks are safe to run at any time.
+                    # DeathLink and goal checks are safe to run at any time.
                     await self._apply_received_deathlinks()
                     await self._check_deathlink_send()
                     await self._check_goal_complete()
-                    await self._check_cave_discoveries()
 
                     # Location checks and item delivery are held until the trade
                     # depot is established - either auto-placed by the mod or
@@ -783,16 +809,26 @@ class DwarfFortressContext(CommonContext):
             await asyncio.sleep(self._poll_interval)
 
     async def _process_new_checks(self):
-        """Read new location checks from the Lua mod and report them to AP."""
+        """
+        Read new location checks from the Lua mod and report them to AP.
+        Only clears the Lua-side queue after send_msgs has actually completed
+        (see peek_pending_checks) - if send_msgs raises or the connection
+        drops before that, the checks stay queued and get retried next poll
+        instead of silently vanishing.
+        """
         location_ids = await asyncio.get_event_loop().run_in_executor(
-            None, self.dfhack.pop_pending_checks
+            None, self.dfhack.peek_pending_checks
         )
-        if location_ids:
-            self.debug(f"New checks: {location_ids}")
-            await self.send_msgs([{
-                "cmd": "LocationChecks",
-                "locations": location_ids,
-            }])
+        if not location_ids:
+            return
+        self.debug(f"New checks: {location_ids}")
+        await self.send_msgs([{
+            "cmd": "LocationChecks",
+            "locations": location_ids,
+        }])
+        await asyncio.get_event_loop().run_in_executor(
+            None, self.dfhack.clear_sent_checks, location_ids
+        )
 
     _IMMIGRATION_WAVE_ID = 37370631  # BASE_ID + 631
     _TRAP_FLAG           = 0b100     # ItemClassification.trap bit
@@ -855,14 +891,6 @@ class DwarfFortressContext(CommonContext):
         skipped_traps = 0
         for i in range(self._received_index, len(self.items_received)):
             network_item = self.items_received[i]
-
-            if network_item.item == 37370530: # Cave Fisher Silk - always skip (junk filler)
-                self._received_index = i + 1
-                self.dfhack.run_command(
-                    "lua",
-                    f'dfhack.persistent.saveWorldDataString("dwarfipelago/received_index", "{i + 1}")',
-                )
-                continue
 
             # During re-embark, skip all trap-classified items so a recovering fortress
             # isn't immediately hit with goblin ambushes and vermin infestations.
@@ -981,6 +1009,9 @@ class DwarfFortressContext(CommonContext):
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/energy_enabled", "{1 if self.energy_link_enabled else 0}")')
                 # Mining Depth flag - Lua reads this to know the feature is on.
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/mining_depth", "{1 if mining_depth else 0}")')
+                # Merchant's Shop flag - Lua reads this to know whether the shop is enabled.
+                shop_enabled = slot_data.get("shop_enabled", 1)
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/shop_enabled", "{1 if shop_enabled else 0}")')
                 # Always re-sync these flags so Lua uses the correct key format
                 # even on reconnects or if the initial write was interrupted.
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_enabled", "{craftsanity_enabled}")')
@@ -1132,34 +1163,6 @@ class DwarfFortressContext(CommonContext):
             self._goal_complete = True
             await self.send_msgs([{"cmd": "StatusUpdate", "status": ClientStatus.CLIENT_GOAL}])
             logger.info("Goal complete - sent ClientStatus.CLIENT_GOAL to AP server")
-
-    async def _check_cave_discoveries(self):
-        """
-        Poll the Lua-side cave discovery flags and send AP location checks for
-        each cave a dwarf has entered. Custom Cave N maps to BASE_ID + 2300 + (N-1).
-        """
-        CAVE_BASE_ID = 37372300  # BASE_ID + 2300
-
-        def read_discoveries():
-            raw = self.dfhack.run_command(
-                "lua",
-                'local r={} for i=1,6 do'
-                ' r[i]=dfhack.persistent.getWorldDataString("dwarfipelago/cave/"..i.."/discovered") or "0"'
-                ' end print(table.concat(r,","))',
-            )
-            if not raw or not raw.strip():
-                return {}
-            results = {}
-            for idx, val in enumerate(raw.strip().split(","), start=1):
-                if val.strip() == "1" and idx not in self._discovered_caves:
-                    results[idx] = CAVE_BASE_ID + (idx - 1)
-            return results
-
-        newly = await asyncio.get_event_loop().run_in_executor(None, read_discoveries)
-        for cave_idx, loc_id in newly.items():
-            await self.send_msgs([{"cmd": "LocationChecks", "locations": [loc_id]}])
-            self._discovered_caves.add(cave_idx)
-            logger.info(f"Custom cave {cave_idx} discovered — sent location check {loc_id}")
 
     def init_crafting_locations(self):
         last_item = ""

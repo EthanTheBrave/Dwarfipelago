@@ -68,6 +68,30 @@ local function feature_for_global(gf)
     return feat
 end
 
+-- True if the block at (x, y, z) belongs to a global feature whose _type
+-- matches `pattern`.
+local function block_has_feature(x, y, z, pattern)
+    local ok, blk = pcall(dfhack.maps.getTileBlock, x, y, z)
+    if not ok or not blk then return false end
+    local gf = blk.global_feature
+    if not gf or gf < 0 then return false end
+    local feat = feature_for_global(gf)
+    return feat ~= nil and tostring(feat._type):find(pattern) ~= nil
+end
+
+-- Cavern ceilings bleed their global_feature tag onto the solid block directly
+-- above the open ceiling (see mining_floor_z's "+2"), but the magma sea's tag
+-- doesn't bleed the same way onto the wall tile a dig job breaches - the tag
+-- can sit a level or more below the dug tile. Scan straight down from the dig
+-- instead of trusting that single tile's own block.
+local MAGMA_BREACH_SCAN_DEPTH = 3
+local function magma_breached_near(x, y, z)
+    for dz = 0, MAGMA_BREACH_SCAN_DEPTH do
+        if block_has_feature(x, y, z - dz, "magma_core") then return true end
+    end
+    return false
+end
+
 -- Set a mining milestone flag once, announcing the first time it's reached.
 local function set_mining_milestone(key, msg)
     local k = "dwarfipelago/mining/" .. key
@@ -86,11 +110,12 @@ local _notified_locked = {}
 -- Reset each script load so a fresh cleanup runs on every fortress load.
 local _megabeast_cleanup_done = false
 
--- Per-tier announcement tracking for treasury job blocking.
--- Prevents spam when standing orders keep retrying a blocked MintCoins/CutGems job.
+-- Per-tier announcement tracking for the created-wealth cap (see
+-- treasury_created_cap). Fires once per tier so the player knows why wealth
+-- progress has paused, without spamming on every coin/gem created afterward.
 -- Keyed by coffer count (0 = no coffers yet, 1-4 = tier cap reached).
 -- Resets on each script load so the player gets a reminder after every reload.
-local _treasury_block_notified = {}
+local _treasury_cap_notified = {}
 
 -- Per-flag announcement tracking for crafting item locks. Prevents an announcement
 -- flood when a workshop or work order queues many instances of a locked job type.
@@ -111,6 +136,21 @@ local WEALTH_LOCK_TIERS = {
 
 local function goal_setting(key, default)
     return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/" .. key)) or default
+end
+
+-- The created-wealth counter's cap for the player's current Merchant's Coffer
+-- tier, or nil if uncapped. Paces Legendary Wealth progress behind coffers
+-- without blocking minting/cutting itself - the player can always keep making
+-- coins/gems for the shop; the excess just doesn't count toward wealth
+-- progress until the next coffer raises the ceiling. Returns nil (uncapped)
+-- for every other goal, and once all 5 coffers are in.
+local function treasury_created_cap()
+    if goal_setting("goal", -1) ~= 1 then return nil end  -- legendary_wealth only
+    local coffers = goal_setting("unlock/wealth_coffers", 0)
+    if coffers >= 5 then return nil end
+    if coffers <= 0 then return 0 end  -- no coffer yet - no wealth credit until the first arrives
+    local tier = WEALTH_LOCK_TIERS[coffers]
+    return tier and tier.threshold or nil
 end
 
 -- ── Progressive mining-depth lock ─────────────────────────────────────────────
@@ -238,7 +278,7 @@ local function check_goal_by_poll()
 
     if goal == 1 then  -- legendary_wealth
         local target = goal_setting("wealth_goal", 100000)
-        if checks.treasury_wealth() >= target
+        if checks.treasury_created_wealth() >= target
                 and goal_setting("unlock/wealth_coffers", 0) >= 5
                 and goal_setting("unlock/immigration_waves", 0) >= 3
                 and goal_setting("unlock/master_builders_codex", 0) == 1 then
@@ -869,70 +909,123 @@ end
 -- Merchant shrine detector: opens the shop when the player has a temple zone (a
 -- Civzone assigned to a location) holding a built altar (OfferingPlace), a
 -- container, the chosen bar type/count, and total item/furniture value >= threshold.
--- Bar type (gold/coke/silver) is read from dwarfipelago/shrine_bar_type each poll.
--- Runs every poll, so the shrine must STAY intact for the shop to remain open.
+-- Bar type (gold/coke/silver) is read from dwarfipelago/shrine_bar_type.
+-- Re-runs so the shrine must STAY intact for the shop to remain open.
 -- Writes dwarfipelago/shop_unlocked + dwarfipelago/shrine_progress (for the panel).
+--
+-- Performance: this scans every item in the fort. It used to run that scan once
+-- PER location zone (temple/tavern/library/...) EVERY poll, i.e. O(zones × items)
+-- every 100 ticks - the single biggest per-poll cost on a large fort. It now:
+--   * no-ops entirely when the Merchant's Shop option is off,
+--   * makes ONE items.all pass, attributing each item to its zone (the expensive
+--     value/type/material lookups run once per item, not once per item per zone),
+--   * runs only every SHRINE_POLL_INTERVAL polls (the shop opening a few seconds
+--     later is imperceptible, the cost saving is not).
 local SHRINE_VALUE_REQ = 5000
 local SHRINE_BAR_REQS  = {gold=5, coke=20, silver=10}
 local SHRINE_BAR_TOKS  = {gold="GOLD", coke="COKE", silver="SILVER"}
+local SHRINE_POLL_INTERVAL = 5   -- run once every 5 polls (~every 500 ticks)
+local _shrine_poll_counter = 0
 
 local function detect_shrine()
+    -- Shop disabled for this seed => never scan (shop_enabled written by the AP
+    -- client). Absent/blank means an older seed with no flag: treat as enabled.
+    if dfhack.persistent.getWorldDataString("dwarfipelago/shop_enabled") == "0" then return end
+
+    -- Throttle: only actually scan on every Nth poll.
+    _shrine_poll_counter = _shrine_poll_counter + 1
+    if _shrine_poll_counter % SHRINE_POLL_INTERVAL ~= 0 then return end
+
     local bar_type = dfhack.persistent.getWorldDataString("dwarfipelago/shrine_bar_type") or "gold"
     local bar_req  = SHRINE_BAR_REQS[bar_type] or 5
     local bar_tok  = SHRINE_BAR_TOKS[bar_type] or "GOLD"
 
     local best = {value=0, bars=0, altar=false, bin=false, ok=false, score=-1}
     pcall(function()
+        -- The shrine must be a TEMPLE, not just any location. Build the set of
+        -- temple location ids first; a tavern/guildhall/library assigned to a zone
+        -- must never be picked as the shrine (on re-embark a tavern was being
+        -- treated as the temple). Empty set => no temple => nothing to detect.
+        local temple_locs = {}
+        local site = dfhack.world.getCurrentSite()
+        if site then
+            for _, bld in ipairs(site.buildings) do
+                if df.abstract_building_templest:is_instance(bld) then
+                    temple_locs[bld.id] = true
+                end
+            end
+        end
+
+        -- 1. Collect the Civzones assigned to a temple location.
+        local zones = {}
         for _, z in ipairs(df.global.world.buildings.all) do
             local okt, t = pcall(function() return z:getType() end)
             if okt and t == df.building_type.Civzone then
                 local loc = -1
                 pcall(function() loc = z.location_id end)
-                if loc and loc >= 0 then   -- assigned to a location (temple/tavern/...)
-                    local x1, x2 = math.min(z.x1, z.x2), math.max(z.x1, z.x2)
-                    local y1, y2 = math.min(z.y1, z.y2), math.max(z.y1, z.y2)
-                    local zz = z.z
+                if loc and loc >= 0 and temple_locs[loc] then
+                    zones[#zones + 1] = {
+                        x1 = math.min(z.x1, z.x2), x2 = math.max(z.x1, z.x2),
+                        y1 = math.min(z.y1, z.y2), y2 = math.max(z.y1, z.y2),
+                        z = z.z, value = 0, bars = 0, bin = false, altar = false,
+                    }
+                end
+            end
+        end
+        if #zones == 0 then return end
 
-                    -- altar = an OfferingPlace building overlapping the zone
-                    local altar = false
-                    for _, b in ipairs(df.global.world.buildings.all) do
-                        if b ~= z and b.z == zz and b.x1 <= x2 and b.x2 >= x1
-                                and b.y1 <= y2 and b.y2 >= y1 then
-                            local okb, bt = pcall(function() return b:getType() end)
-                            if okb and bt == df.building_type.OfferingPlace then altar = true; break end
-                        end
-                    end
-
-                    -- items in the zone: total value, matching bar count, container present
-                    local value, bars, bin = 0, 0, false
-                    for _, it in ipairs(df.global.world.items.all) do
-                        local p = it.pos
-                        if p and p.z == zz and p.x >= x1 and p.x <= x2 and p.y >= y1 and p.y <= y2 then
-                            local v = 0; pcall(function() v = dfhack.items.getValue(it) end)
-                            value = value + v
-                            local ity = it:getType()
-                            if ity == df.item_type.BIN or ity == df.item_type.BOX then bin = true end
-                            if ity == df.item_type.BAR then
-                                local tok = ""
-                                pcall(function()
-                                    local m = dfhack.matinfo.decode(it.mat_type, it.mat_index)
-                                    tok = (m and m:getToken()) or ""
-                                end)
-                                if tok:find(bar_tok) then bars = bars + (it.stack_size or 1) end
-                            end
-                        end
-                    end
-
-                    local score = (altar and 1 or 0) + (bin and 1 or 0)
-                        + math.min(bars, bar_req) / bar_req
-                        + math.min(value, SHRINE_VALUE_REQ) / SHRINE_VALUE_REQ
-                    if score > best.score then
-                        best = {
-                            value=value, bars=bars, altar=altar, bin=bin, score=score,
-                            ok = altar and bin and bars >= bar_req and value >= SHRINE_VALUE_REQ,
-                        }
+        -- 2. Altar detection: one buildings pass (buildings are few), flagging any
+        --    zone an OfferingPlace overlaps.
+        for _, b in ipairs(df.global.world.buildings.all) do
+            local okb, bt = pcall(function() return b:getType() end)
+            if okb and bt == df.building_type.OfferingPlace then
+                for _, zn in ipairs(zones) do
+                    if b.z == zn.z and b.x1 <= zn.x2 and b.x2 >= zn.x1
+                            and b.y1 <= zn.y2 and b.y2 >= zn.y1 then
+                        zn.altar = true
                     end
                 end
+            end
+        end
+
+        -- 3. ONE items.all pass. The cheap pos/bbox test runs per item per zone,
+        --    but the expensive value/type/material lookups run only for an item
+        --    that actually lands in a zone (and then only once).
+        for _, it in ipairs(df.global.world.items.all) do
+            local p = it.pos
+            if p then
+                local px, py, pz = p.x, p.y, p.z
+                for _, zn in ipairs(zones) do
+                    if pz == zn.z and px >= zn.x1 and px <= zn.x2
+                            and py >= zn.y1 and py <= zn.y2 then
+                        local v = 0; pcall(function() v = dfhack.items.getValue(it) end)
+                        zn.value = zn.value + v
+                        local ity = it:getType()
+                        if ity == df.item_type.BIN or ity == df.item_type.BOX then zn.bin = true end
+                        if ity == df.item_type.BAR then
+                            local tok = ""
+                            pcall(function()
+                                local m = dfhack.matinfo.decode(it.mat_type, it.mat_index)
+                                tok = (m and m:getToken()) or ""
+                            end)
+                            if tok:find(bar_tok) then zn.bars = zn.bars + (it.stack_size or 1) end
+                        end
+                        break  -- an item belongs to at most one zone
+                    end
+                end
+            end
+        end
+
+        -- 4. Pick the best-scoring zone.
+        for _, zn in ipairs(zones) do
+            local score = (zn.altar and 1 or 0) + (zn.bin and 1 or 0)
+                + math.min(zn.bars, bar_req) / bar_req
+                + math.min(zn.value, SHRINE_VALUE_REQ) / SHRINE_VALUE_REQ
+            if score > best.score then
+                best = {
+                    value = zn.value, bars = zn.bars, altar = zn.altar, bin = zn.bin, score = score,
+                    ok = zn.altar and zn.bin and zn.bars >= bar_req and zn.value >= SHRINE_VALUE_REQ,
+                }
             end
         end
     end)
@@ -1002,14 +1095,16 @@ end
 -- ── Locked milestone notifications ───────────────────────────────────────────
 -- When a wealth tier threshold is met in-game but the matching Merchant's Coffer
 -- hasn't arrived yet, announce it once so the player knows to look for it.
--- Fires at most once per tier per session; skips tiers already checked.
+-- Fires at most once per tier per session (_notified_locked dedupe below).
+-- These tiers aren't real AP location checks - WEALTH_LOCK_TIERS.id is purely a
+-- local dedupe key, not a location id - so there's no state.is_location_checked
+-- to consult here.
 
 local function check_locked_notifications()
     local coffers = goal_setting("unlock/wealth_coffers", 0)
-    local wealth  = checks.treasury_wealth()
+    local wealth  = checks.treasury_created_wealth()
     for _, tier in ipairs(WEALTH_LOCK_TIERS) do
-        if not state.is_location_checked(tier.id)
-                and not _notified_locked[tier.id]
+        if not _notified_locked[tier.id]
                 and wealth >= tier.threshold
                 and coffers < tier.coffers then
             _notified_locked[tier.id] = true
@@ -1412,6 +1507,8 @@ local function poll_checks()
     caves.generate_secret_caves()
     -- AP custom caves: conditional on the custom_caves option, no-op if disabled.
     caves.generate()
+    -- Secret cave 1: passive raw cave silk drop (self-rate-limited to ~2 months).
+    pcall(caves.poll_cave_silk)
 
     -- Count Manager work-order completions (their jobs don't fire onJobCompleted).
     -- Done before the depot gate so craft counts accumulate like manual jobs do.
@@ -1577,13 +1674,14 @@ local function on_job_completed(job)
                         elseif sd == 2 then
                             set_mining_milestone("cavern3", "You have breached the third cavern!")
                         end
-                    elseif t:find("magma_core") then
-                        set_mining_milestone("magma", "You have reached the Magma Sea!")
                     elseif t:find("underworld") then
                         set_mining_milestone("circus", "Welcome to the Circus - the end is nigh!")
                     end
                 end
             end
+        end
+        if magma_breached_near(job.pos.x, job.pos.y, job.pos.z) then
+            set_mining_milestone("magma", "You have reached the Magma Sea!")
         end
     end
 
@@ -1606,58 +1704,6 @@ local function on_job_completed(job)
                 end
                 queue_item_event("dwarfipelago/pending_item_stockpiled", info)
             end
-        end
-    end
-end
-
--- ── Treasury job gating (MintCoins / CutGems) ────────────────────────────────
--- Blocks coin minting and gem cutting when the current treasury wealth has reached
--- the cap for the player's current Merchant's Coffer tier. Uses the same
--- WEALTH_LOCK_TIERS table as the locked-notification system for consistency.
-
-local TREASURY_JOB_TYPES = {}
-local function tjmap(name)
-    local v = df.job_type[name]
-    if v ~= nil then TREASURY_JOB_TYPES[v] = true end
-end
-tjmap("MintCoins")
-tjmap("CutGems")
-
-local function check_treasury_job_gate(job)
-    if not TREASURY_JOB_TYPES[job.job_type] then return end
-
-    -- Coffers only cap coin minting / gem cutting for the Legendary Wealth goal.
-    -- Under any other goal the wealth-tier checks don't exist, so minting and
-    -- cutting must never be blocked. (goal 1 = legendary_wealth)
-    if goal_setting("goal", -1) ~= 1 then return end
-
-    local coffers = goal_setting("unlock/wealth_coffers", 0)
-
-    -- No coffers yet - block all minting and cutting.
-    if coffers == 0 then
-        dfhack.job.removeJob(job)
-        if not _treasury_block_notified[0] then
-            _treasury_block_notified[0] = true
-            dfhack.gui.showAnnouncement(
-                "[AP] Cannot mint coins or cut gems - awaiting first Merchant's Coffer!",
-                COLOR_YELLOW, true)
-        end
-        return
-    end
-
-    -- All five coffers received - no cap, allow freely.
-    if coffers >= 5 then return end
-
-    -- Check whether current treasury has already reached this tier's ceiling.
-    local tier = WEALTH_LOCK_TIERS[coffers]
-    if checks.treasury_wealth() >= tier.threshold then
-        dfhack.job.removeJob(job)
-        if not _treasury_block_notified[coffers] then
-            _treasury_block_notified[coffers] = true
-            dfhack.gui.showAnnouncement(
-                ("[AP] %s reached - minting and gem cutting paused. Awaiting Merchant's Coffer (%d/5)."):format(
-                    tier.name, coffers),
-                COLOR_YELLOW, true)
         end
     end
 end
@@ -1776,7 +1822,6 @@ end
 local function on_job_initiated(job)
     if not state.is_enabled() then return end
 
-    check_treasury_job_gate(job)
     check_craftitem_gate(job)
     check_mining_depth_gate(job)
 
@@ -1892,6 +1937,28 @@ local function on_item_created(item_id)
         if t == "TRACTION_BENCH" then
             local flag = checks.item_craft_flag("traction_bench", item)
             if flag then checks.increment_craft_count(flag) end
+        end
+
+        -- Treasury created-wealth: credit coin/gem value the moment it's minted or
+        -- cut, rather than scanning current holdings (see treasury_created_cap).
+        -- Capped, not blocked - minting/cutting itself always keeps working so the
+        -- shop never runs dry, but value past the current coffer tier's ceiling
+        -- doesn't count toward wealth progress until the next coffer raises it.
+        if t == "COIN" or t == "SMALLGEM" then
+            local ok_type, itype = pcall(function() return item:getType() end)
+            if ok_type then
+                local cap     = treasury_created_cap()
+                local after   = checks.add_treasury_created_wealth(item, itype, cap)
+                local coffers = goal_setting("unlock/wealth_coffers", 0)
+                if cap and after >= cap and not _treasury_cap_notified[coffers] then
+                    _treasury_cap_notified[coffers] = true
+                    local tier = WEALTH_LOCK_TIERS[coffers]
+                    dfhack.gui.showAnnouncement(
+                        ("[AP] %s reached - minting and gem cutting still work for the shop, but wealth progress is capped until the next Merchant's Coffer (%d/5)."):format(
+                            tier and tier.name or "wealth tier", coffers),
+                        COLOR_YELLOW, true)
+                end
+            end
         end
 
         -- Adamantine detection: fires the first time any adamantine item is created

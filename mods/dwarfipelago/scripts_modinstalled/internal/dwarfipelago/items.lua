@@ -8,10 +8,10 @@ local M = {}
 local log      = reqscript("internal/dwarfipelago/log")
 local bestiary = reqscript("internal/dwarfipelago/bestiary")
 
--- ── Helpers ───────────────────────────────────────────────────────────────────
+-- -- Helpers -------------------------------------------------------------------
 
 -- Return the center tile of the first trade depot in the fortress, or nil.
--- The depot is 5×5; (x1+2, y1+2) is its center tile.
+-- The depot is 5x5; (x1+2, y1+2) is its center tile.
 local function find_trade_depot_center()
     for _, bld in ipairs(df.global.world.buildings.all) do
         if df.building_tradedepotst:is_instance(bld) then
@@ -178,11 +178,11 @@ local function find_civ_id(token)
     return fallback
 end
 
--- ── Item handlers: trade goods ────────────────────────────────────────────────
+-- -- Item handlers: trade goods ------------------------------------------------
 -- createitem syntax: <item-token> <material>
---   Cut gems  → SMALLGEM INORGANIC:<gem>   (SMALLGEM = cut gem; ROUGH = uncut)
---   Metal bars → BAR INORGANIC:<metal>
---   Figurines  → FIGURINE INORGANIC:<stone>
+--   Cut gems  -> SMALLGEM INORGANIC:<gem>   (SMALLGEM = cut gem; ROUGH = uncut)
+--   Metal bars -> BAR INORGANIC:<metal>
+--   Figurines  -> FIGURINE INORGANIC:<stone>
 
 local function recv_cut_sapphire()
     spawn_item("SMALLGEM", "INORGANIC:SAPPHIRE")
@@ -239,12 +239,12 @@ local function recv_masterwork_craft()
     announce_at_depot("Received: Masterwork Craft!")
 end
 
--- ── Item handlers: resources ──────────────────────────────────────────────────
+-- -- Item handlers: resources --------------------------------------------------
 -- createitem syntax:
---   Food (edible growths) → PLANT_GROWTH PLANT:<plant>:<growth>
---   Wood logs             → WOOD PLANT_MAT:<tree>:WOOD
---   Iron ore boulders     → BOULDER INORGANIC:<ore>
---   Fuel bars             → BAR COAL:COKE  (or COAL:CHARCOAL)
+--   Food (edible growths) -> PLANT_GROWTH PLANT:<plant>:<growth>
+--   Wood logs             -> WOOD PLANT_MAT:<tree>:WOOD
+--   Iron ore boulders     -> BOULDER INORGANIC:<ore>
+--   Fuel bars             -> BAR COAL:COKE  (or COAL:CHARCOAL)
 
 local function recv_food_bundle()
     for _ = 1, 5 do
@@ -274,7 +274,7 @@ local function recv_coal_bundle()
     announce_at_depot("Received: Coal Bundle!")
 end
 
--- ── Item handlers: filler items ──────────────────────────────────────────────
+-- -- Item handlers: filler items ----------------------------------------------
 -- These are items the DF world contributes to the multiworld pool. The DF
 -- player may receive them back if the AP server places them at DF locations.
 
@@ -425,7 +425,7 @@ local function recv_copper_short_sword()
     announce("Received: a Copper Short Sword.")
 end
 
--- ── Item handlers: useful items ───────────────────────────────────────────────
+-- -- Item handlers: useful items -----------------------------------------------
 
 local function recv_masterwork_crafts()
     spawn_item("FIGURINE", "INORGANIC:OBSIDIAN")
@@ -452,7 +452,7 @@ local function recv_raw_adamantine()
     announce_at_depot("Received: Raw Adamantine!")
 end
 
--- ── Item handlers: livestock ──────────────────────────────────────────────────
+-- -- Item handlers: livestock --------------------------------------------------
 -- Spawns a small group of tame, fortress-owned animals. Always guarantees at
 -- least one male (caste 0) and one female (caste 1) so the pair can breed.
 -- Total count is 2-5; extras are random sex.
@@ -543,7 +543,7 @@ local function recv_sunlight_tonic()
     announce_at_depot("Sunlight Tonic received! Your dwarves may now walk freely in sunlight.")
 end
 
--- ── Item handlers: progression gate items ────────────────────────────────────
+-- -- Item handlers: progression gate items ------------------------------------
 -- These items are purely flag-based - receiving them writes a persistent key
 -- that the goal-completion checks in dwarfipelago.lua read back.
 
@@ -661,26 +661,98 @@ local function recv_king_remains()
     print("[Dwarfipelago] Progression item received: Remains of the Great King")
 end
 
--- ── Item handlers: junk traps (AP filler trap items sent back to DF) ─────────
+-- -- Item handlers: junk traps (AP filler trap items sent back to DF) ---------
 -- These items land back in the DF player's inventory as padding. They have no
 -- meaningful in-game effect - just a flavour announcement.
 
-local function recv_cave_fisher_silk()
-    -- Silk cloth woven from cave fisher silk. CLOTH item, creature silk material.
-    spawn_item("CLOTH", "CREATURE_MAT:CAVE_FISHER:SILK", 2)
-    announce_at_depot("A bundle of cave fisher silk has been deposited at your trade depot.")
+-- Ensnaring Webs trap: every living citizen is caught in cave-spider webbing and
+-- frozen in place, struggling to break free. counters.webbed is the exact field
+-- DF sets when a giant cave spider webs prey - the unit can't move while it's > 0
+-- and slowly tears free (faster the stronger the dwarf). A high value = a real
+-- fortress-wide work stoppage.
+local WEB_TICKS = 4000
+
+local function recv_ensnaring_webs()
+    local n = 0
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then
+            pcall(function() u.counters.webbed = WEB_TICKS end)
+            n = n + 1
+        end
+    end
+    if n == 0 then
+        announce("Trap: Ensnaring webs burst forth - but there are no dwarves to catch.")
+        return
+    end
+    announce(("Trap: Ensnaring Webs! %d dwarves are caught fast in cave-spider silk, struggling to break free!"):format(n))
 end
 
-local function recv_dwarf_bones()
-    -- A grim totem carved from dwarf bone. TOTEM item, creature bone material.
-    spawn_item("TOTEM", "CREATURE_MAT:DWARF:BONE")
-    announce_at_depot("A grim package of dwarf bones has arrived. An ill omen...")
+-- Order Sabotage trap: saboteurs shred the manager's ledger, wiping every current
+-- manager work order. Uses DFHack's workorder erase+delete pattern (erase from the
+-- back so indices don't shift, then free each order). Safe for the mod's craft
+-- tracking: poll_manager_orders drops tracking for vanished orders on its next
+-- pass, and only counts completions on orders still present - never on removals.
+local function recv_order_sabotage()
+    local orders = df.global.world.manager_orders.all
+    local n = #orders
+    if n == 0 then
+        announce("Trap: Saboteurs ransack the manager's records - but the work-order queue was empty.")
+        return
+    end
+    for i = n - 1, 0, -1 do
+        local o = orders[i]
+        orders:erase(i)
+        pcall(function() o:delete() end)
+    end
+    announce(("Trap: Order Sabotage! All %d of your manager work orders have been shredded!"):format(n))
 end
 
-local function recv_goblin_trophy()
-    -- A goblin-bone totem - the classic war trophy.
-    spawn_item("TOTEM", "CREATURE_MAT:GOBLIN:BONE")
-    announce_at_depot("A goblin trophy has been delivered. Someone out there is mocking you.")
+-- Goblin Saboteurs trap: a band of goblins slips in and wrecks up to
+-- SABOTAGE_COUNT of the player's workshops/furnaces, goblin-style. Buildings are
+-- deconstructed (their materials drop as rubble to re-haul and rebuild). Fizzles
+-- with a near-miss message if the player has no eligible buildings.
+local SABOTAGE_COUNT = 5
+
+local function recv_goblin_saboteurs()
+    -- Collect the player's workshops and furnaces as sabotage targets.
+    local targets = {}
+    for _, b in ipairs(df.global.world.buildings.all) do
+        if df.building_workshopst:is_instance(b) or df.building_furnacest:is_instance(b) then
+            targets[#targets + 1] = b
+        end
+    end
+    if #targets == 0 then
+        announce("Trap: Goblin saboteurs crept in - but found no workshops to wreck. This time.")
+        return
+    end
+
+    -- Fisher-Yates shuffle so a random subset is hit when there are more than N.
+    for i = #targets, 2, -1 do
+        local j = math.random(i)
+        targets[i], targets[j] = targets[j], targets[i]
+    end
+
+    local demolished, last_pos = 0, nil
+    for i = 1, math.min(SABOTAGE_COUNT, #targets) do
+        local b = targets[i]
+        local pos = { x = b.x1, y = b.y1, z = b.z }   -- capture before deconstruct frees it
+        -- Instant, uncancellable smash: deconstruct() on a fully-built building
+        -- only QUEUES a DestroyBuilding job a dwarf performs (and the player can
+        -- cancel). Reverting the build stage to 0 first makes it "unconstructed",
+        -- so deconstruct() removes it immediately this tick - mirror of the
+        -- instant-BUILD setBuildStage(MAX) trick used for the trade depot. The
+        -- workshop's materials still drop as rubble to re-haul and rebuild.
+        local ok = pcall(function()
+            pcall(function() b:setBuildStage(0) end)
+            dfhack.buildings.deconstruct(b)
+        end)
+        if ok then
+            demolished = demolished + 1
+            last_pos = pos
+        end
+    end
+    announce(("Trap: Goblin saboteurs have wrecked %d of your workshops!"):format(demolished),
+        last_pos)
 end
 
 -- Search for a walkable surface tile (outside == true) near a map edge.
@@ -732,7 +804,7 @@ local function find_surface_spawn_pos()
     return nil
 end
 
--- ── Item handlers: traps ──────────────────────────────────────────────────────
+-- -- Item handlers: traps ------------------------------------------------------
 -- Hostile-spawn traps create units directly through the dfhack.units API instead
 -- of the modtools/create-unit script (which errors on this build:
 -- "Cannot read field world.arena_spawn"). Each trap still falls back to a
@@ -781,8 +853,8 @@ local function create_unit(race_token, pos, opts)
 
         -- A freshly created unit is neutral wildlife (it just stands around). To
         -- make a trap creature an actual threat we flag it as an active hostile:
-        --   active_invader → the game treats it as a hostile that seeks targets
-        --   marauder       → roams/attacks rather than fleeing
+        --   active_invader -> the game treats it as a hostile that seeks targets
+        --   marauder       -> roams/attacks rather than fleeing
         -- For civ units (goblins) civ_id is also set so they invade as that race.
         if opts.hostile then
             unit.flags1.active_invader = true
@@ -981,34 +1053,27 @@ local function recv_vermin_infestation()
     end
 end
 
-local function recv_tantrum_trigger()
-    -- Push the most-stressed living citizen past the tantrum threshold.
-    -- The tantrum threshold in DF is ~200,000 stress; 500,000 is well past it.
-    local target = nil
-    local highest_stress = -math.huge
+-- Unquenchable Thirst trap: every living citizen is struck by a sudden, powerful
+-- thirst and drops what they're doing to rush for a drink, draining the ale
+-- supply fort-wide. counters2.thirst_timer is DF's "time since last drink"; a
+-- value well past the drink-seeking threshold makes them very thirsty, while
+-- staying below dehydration harm - and it resets to ~0 the moment they drink, so
+-- this is a one-shot spike (safe, self-limiting), not sustained dehydration.
+local THIRST_TIMER = 48000
+
+local function recv_unquenchable_thirst()
+    local n = 0
     for _, unit in ipairs(df.global.world.units.active) do
-        if dfhack.units.isCitizen(unit)
-            and dfhack.units.isAlive(unit)
-            and unit.status.current_soul
-        then
-            local stress = unit.status.current_soul.personality.stress
-            if stress > highest_stress then
-                highest_stress = stress
-                target = unit
-            end
+        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
+            pcall(function() unit.counters2.thirst_timer = THIRST_TIMER end)
+            n = n + 1
         end
     end
-    if target and target.status.current_soul then
-        target.status.current_soul.personality.stress = 500000
-        local name = unit_display_name(target)
-        local tpos = {x=target.pos.x, y=target.pos.y, z=target.pos.z}
-        announce("Trap: " .. (name ~= "" and name or "A dwarf") .. " has had enough!",
-            tpos, df.announcement_type.CITIZEN_TANTRUM)
-    else
-        -- No eligible dwarf found (e.g. very early embark with no stress data).
-        announce("Trap: Something sinister stirs in the fortress...")
-        log.error("tantrum_trigger: no eligible citizen found")
+    if n == 0 then
+        announce("Trap: A parching thirst sweeps the halls - but no dwarves are here to feel it.")
+        return
     end
+    announce(("Trap: Unquenchable Thirst! %d dwarves drop everything, desperate for a drink!"):format(n))
 end
 
 local function recv_lost_caravan()
@@ -1017,7 +1082,7 @@ local function recv_lost_caravan()
     announce("Trap: A caravan has been lost on the road...")
 end
 
--- ── Megabeast spawn helpers ───────────────────────────────────────────────────
+-- -- Megabeast spawn helpers ---------------------------------------------------
 
 -- Search for an open, non-surface floor tile well below ground.
 -- Randomly samples positions across multiple z-levels so it handles any
@@ -1120,7 +1185,7 @@ local function beast_label(unit, species)
     return (label and label ~= "") and label or species
 end
 
--- ── Curated impact crater for the climax ──────────────────────────────────────
+-- -- Curated impact crater for the climax --------------------------------------
 local CRATER_RIM_R = 6   -- radius at the surface rim
 local CRATER_DEPTH = 5   -- z-levels carved (stepped bowl with ramped walls)
 
@@ -1438,7 +1503,7 @@ local function spawn_target_megabeast()
 end
 M.spawn_target_megabeast = spawn_target_megabeast
 
--- ── Megabeast siege: roaming warbands ─────────────────────────────────────────
+-- -- Megabeast siege: roaming warbands -----------------------------------------
 -- Time-paced enemy waves for the Slay Megabeast goal. Difficulty scales with the
 -- player's War Readiness level (1-9); readiness 10 is the curated breach. Units
 -- spawn at the embark perimeter and are armed via the verified createItem +
@@ -1660,7 +1725,7 @@ local function spawn_warband(readiness)
 end
 M.spawn_warband = spawn_warband
 
--- ── Item handlers: progression locks ─────────────────────────────────────────
+-- -- Item handlers: progression locks -----------------------------------------
 
 local function recv_merchants_coffer()
     local key = "dwarfipelago/unlock/wealth_coffers"
@@ -1793,7 +1858,7 @@ local function recv_immigration_wave()
     -- Directly add citizen dwarves (reliable). 'force Migrants' was unreliable -
     -- it reports success but often brings nobody when the parent civ has no
     -- migrants available.
-    local wave = math.random(2, 5)
+    local wave = math.random(5, 8)
     local made = spawn_citizen_dwarves(wave)
     if made == 0 then
         -- Last resort: ask the game for a wave the normal way.
@@ -2009,13 +2074,13 @@ local function recv_progressive_mining_depth()
         :format(where, math.min(n, 4)))
 end
 
--- ── Progression unlock definitions ───────────────────────────────────────────
+-- -- Progression unlock definitions -------------------------------------------
 -- Single source of truth for all progression unlocks.
 -- The panel reads this to build its Unlocks tab automatically.
 -- Add new entries here when adding a new progression item handler.
---   key  → suffix after "dwarfipelago/unlock/" in persistent storage
---   label → display name shown in the panel
---   max  → if set, treated as a counter (shows "n/max"); otherwise a boolean
+--   key  -> suffix after "dwarfipelago/unlock/" in persistent storage
+--   label -> display name shown in the panel
+--   max  -> if set, treated as a counter (shows "n/max"); otherwise a boolean
 
 M.UNLOCK_DEFS = {
     { key = "wealth_coffers",        label = "Merchant's Coffers",     max = 5 },
@@ -2034,8 +2099,8 @@ M.UNLOCK_DEFS = {
     { key = "mining_depth",          label = "Progressive Mining Depth", max = 4 },
 }
 
--- ── Dispatch table ────────────────────────────────────────────────────────────
--- Maps AP item name → handler function.
+-- -- Dispatch table ------------------------------------------------------------
+-- Maps AP item name -> handler function.
 -- Names must match items.py exactly.
 
 M.handlers = {
@@ -2078,9 +2143,9 @@ M.handlers = {
     ["Remains of the Great King"] = recv_king_remains,
 
     -- Junk trap items (filler traps sent back to DF)
-    ["Cave Fisher Silk"]       = recv_cave_fisher_silk, --currently disabled in Client
-    ["Dwarf Bones"]            = recv_dwarf_bones,
-    ["Goblin Trophy"]          = recv_goblin_trophy,
+    ["Ensnaring Webs"]         = recv_ensnaring_webs,
+    ["Order Sabotage"]         = recv_order_sabotage,
+    ["Goblin Saboteurs"]       = recv_goblin_saboteurs,
 
     ["Cut Sapphire"]         = recv_cut_sapphire,
     ["Cut Ruby"]             = recv_cut_ruby,
@@ -2098,7 +2163,7 @@ M.handlers = {
     ["Goblin Ambush"]        = recv_goblin_ambush,
     ["Cave Bear Incursion"]  = recv_cave_bear,
     ["Vermin Infestation"]   = recv_vermin_infestation,
-    ["Tantrum Trigger"]      = recv_tantrum_trigger,
+    ["Unquenchable Thirst"]  = recv_unquenchable_thirst,
     ["Lost Caravan"]         = recv_lost_caravan,
     ["Catsplosion"]          = recv_catsplosion,
 
@@ -2118,7 +2183,7 @@ M.handlers = {
     end,
 }
 
--- ── Blueprint items ───────────────────────────────────────────────────────────
+-- -- Blueprint items -----------------------------------------------------------
 -- Workshop blueprints unlock the ability to build specific workshops.
 -- The unlock_blueprint function is defined in main.lua and writes to
 -- persistent storage so the onJobInitiated hook can check it.
@@ -2176,7 +2241,7 @@ for _, bp_name in ipairs(BLUEPRINT_NAMES) do
     end
 end
 
--- ── Crafting lock items ───────────────────────────────────────────────────────
+-- -- Crafting lock items -------------------------------------------------------
 -- Receiving "Crafting X" from the AP multiworld writes a craftlock flag that
 -- dwarfipelago.lua's on_job_initiated hook reads to decide whether to allow the
 -- job. Names must match CRAFT_ITEMS in items.py exactly (minus the "Crafting " prefix).
@@ -2217,7 +2282,7 @@ for _, item_name in ipairs(CRAFTING_LOCK_ITEMS) do
     end
 end
 
--- ── Test harness (dwarfipelago test <name>) ──────────────────────────────────
+-- -- Test harness (dwarfipelago test <name>) ----------------------------------
 -- Manual in-game verification of the spawn / effect mechanics. Each test prints
 -- what happened so a failure is obvious in the console.
 
@@ -2286,6 +2351,10 @@ local TEST_LIST = {
     { "cavebear",  "Cave Bear Incursion trap",                        function() recv_cave_bear() end },
     { "catsplosion", "Catsplosion trap (10-20 fortress cats)",        function() recv_catsplosion() end },
     { "vermin",    "Vermin Infestation trap (rodents)",               function() recv_vermin_infestation() end },
+    { "saboteurs", "Goblin Saboteurs trap (wreck up to 5 workshops)", function() recv_goblin_saboteurs() end },
+    { "webs",      "Ensnaring Webs trap (freeze all citizens in webs)", function() recv_ensnaring_webs() end },
+    { "thirst",    "Unquenchable Thirst trap (all citizens rush to drink)", function() recv_unquenchable_thirst() end },
+    { "ordersab",  "Order Sabotage trap (wipe all manager work orders)", function() recv_order_sabotage() end },
     { "spider",    "Precursor threat (giant cave spider, underground)", function() spawn_precursor_threat() end },
     { "megabeast", "Force the goal megabeast (once per world)",        function() spawn_target_megabeast() end },
     { "wave",      "Spawn a roaming warband for a readiness level (arg: 1-9, default 1)",
@@ -2420,6 +2489,108 @@ local TEST_LIST = {
                        print("[test] It enters at a map edge and walks to your depot; give it time. "
                              .. "A race not neighboring your embark may not actually arrive.")
                    end },
+    { "caves",      "Mark all 6 cave locations as discovered, drill light shafts, and reveal the map",
+                   function()
+                       if dfhack.persistent.getWorldDataString("dwarfipelago/caves/generated") ~= "1" then
+                           dfhack.printerr("[test] Caves not generated yet - start the mod and wait a moment.")
+                           return
+                       end
+                       -- Read surface z from persistent storage; fall back to a living citizen's z.
+                       local surface_z = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/mining/surface_z"))
+                       if not surface_z then
+                           for _, u in ipairs(df.global.world.units.active) do
+                               if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then
+                                   surface_z = u.pos.z; break
+                               end
+                           end
+                       end
+                       -- Convert raw z to the elevation shown in the DF UI (matches masspit.lua formula).
+                       local region_z = df.global.world.map.region_z
+                       local function to_elev(z) return region_z + z - 100 end
+                       -- Channel a 1x1 shaft from just above the cave ceiling (z+3) up to
+                       -- one below the surface, then execute immediately with dig-now.
+                       -- The cave floor is at cz, with 2 open levels above it (cz+1, cz+2).
+
+                       -- Force outside=true on every non-wall tile in the cave footprint so DF
+                       -- renders them lit. Underground tiles default to outside=false (black) even
+                       -- after reveal; DF only propagates this flag on a game tick, so we set it
+                       -- directly for immediate visibility in tests.
+                       local function illuminate_cave(cx, cy, cz)
+                           for dx = -6, 6 do
+                               for dy = -6, 6 do
+                                   for dz = -1, 3 do
+                                       local x, y, z = cx + dx, cy + dy, cz + dz
+                                       local blk = dfhack.maps.getTileBlock(x, y, z)
+                                       if blk then
+                                           pcall(function()
+                                               local lx, ly = x % 16, y % 16
+                                               local shape = df.tiletype.attrs[blk.tiletype[lx][ly]].shape
+                                               if shape ~= df.tiletype_shape.WALL then
+                                                   blk.designation[lx][ly].outside = true
+                                               end
+                                           end)
+                                       end
+                                   end
+                               end
+                           end
+                       end
+
+                       local function drill_shaft(sx, sy, sz)
+                           if not surface_z then return false end
+                           -- Start at sz+4: sz+3 is solid ceiling above cave; channeling it
+                           -- would create a down-ramp at sz+2 (cave ceiling), overwriting OpenSpace.
+                           -- Set tiles directly to OpenSpace to avoid any Channel ramp side-effects.
+                           local z_bot = sz + 4
+                           local z_top = surface_z - 1
+                           if z_bot > z_top then return false end
+                           for z = z_bot, z_top do
+                               local blk = dfhack.maps.getTileBlock(sx, sy, z)
+                               if blk then
+                                   pcall(function()
+                                       local lx, ly = sx % 16, sy % 16
+                                       blk.tiletype[lx][ly]          = df.tiletype.OpenSpace
+                                       blk.designation[lx][ly].hidden = false
+                                   end)
+                               end
+                           end
+                           return true
+                       end
+                       -- AP caves
+                       local found = 0
+                       for i = 1, 6 do
+                           local key = "dwarfipelago/cave/" .. i .. "/"
+                           local x = tonumber(dfhack.persistent.getWorldDataString(key .. "x"))
+                           if x and x > 0 then
+                               dfhack.persistent.saveWorldDataString(key .. "discovered", "1")
+                               local y = tonumber(dfhack.persistent.getWorldDataString(key .. "y"))
+                               local z = tonumber(dfhack.persistent.getWorldDataString(key .. "z"))
+                               local shafted = drill_shaft(x, y, z)
+                               illuminate_cave(x, y, z)
+                               print(("[test] Cave #%d at (%d, %d, elev %d) - marked discovered%s"):format(
+                                   i, x, y, to_elev(z), shafted and ", light shaft drilled" or ""))
+                               found = found + 1
+                           else
+                               print(("[test] Cave #%d - no valid site, skipped"):format(i))
+                           end
+                       end
+                       -- Secret caves
+                       for idx, prefix in ipairs({"dwarfipelago/cave/secret/1/", "dwarfipelago/cave/secret/2/"}) do
+                           local x = tonumber(dfhack.persistent.getWorldDataString(prefix .. "x"))
+                           if x and x > 0 then
+                               local y = tonumber(dfhack.persistent.getWorldDataString(prefix .. "y"))
+                               local z = tonumber(dfhack.persistent.getWorldDataString(prefix .. "z"))
+                               local shafted = drill_shaft(x, y, z)
+                               illuminate_cave(x, y, z)
+                               print(("[test] Secret cave #%d at (%d, %d, elev %d)%s"):format(
+                                   idx, x, y, to_elev(z), shafted and " - light shaft drilled" or ""))
+                           else
+                               print(("[test] Secret cave #%d - not yet generated"):format(idx))
+                           end
+                       end
+                       -- Reveal the whole map so all shafts and caves are visible
+                       dfhack.run_command("reveal")
+                       print(("[test] %d AP cave(s) marked; run 'unreveal' when done testing."):format(found))
+                   end },
 }
 
 -- Dispatch a named test. `rest` is an array of any extra args after the name.
@@ -2456,7 +2627,7 @@ function M.reembark_batch_spawn(wave_count)
     local made = spawn_citizen_dwarves(count)
     if made == 0 then
         pcall(function() dfhack.run_command("force", "Migrants") end)
-        announce("Re-embark! Your reputation precedes you — migrants are on their way.")
+        announce("Re-embark! Your reputation precedes you - migrants are on their way.")
     else
         announce(("Re-embark! %d migrants join the rebuilt fortress."):format(made))
     end

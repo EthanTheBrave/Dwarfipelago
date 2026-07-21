@@ -14,7 +14,156 @@ local function has_noble_role(code)
     return ok and units ~= nil and #units > 0
 end
 
--- ── Wealth milestones ─────────────────────────────────────────────────────────
+-- ── Room milestones ──────────────────────────────────────────────────────────
+
+-- Quality tier (0-7) from getRoomDescription's exact return string.
+-- Tiers map to DF room value thresholds: 0, 100, 250, 500, 1000, 1500, 2500, 10000.
+local ROOM_TIER = {
+    ["Meager Quarters"]       = 0, ["Modest Quarters"]       = 1,
+    ["Quarters"]              = 2, ["Decent Quarters"]       = 3,
+    ["Fine Quarters"]         = 4, ["Great Bedroom"]         = 5,
+    ["Grand Bedroom"]         = 6, ["Royal Bedroom"]         = 7,
+
+    ["Meager Office"]         = 0, ["Modest Office"]         = 1,
+    ["Office"]                = 2, ["Decent Office"]         = 3,
+    ["Splendid Office"]       = 4, ["Throne Room"]           = 5,
+    ["Opulent Throne Room"]   = 6, ["Royal Throne Room"]     = 7,
+
+    ["Meager Dining Room"]    = 0, ["Modest Dining Room"]    = 1,
+    ["Dining Room"]           = 2, ["Decent Dining Room"]    = 3,
+    ["Fine Dining Room"]      = 4, ["Great Dining Room"]     = 5,
+    ["Grand Dining Room"]     = 6, ["Royal Dining Room"]     = 7,
+
+    ["Grave"]                     = 0, ["Servant's Burial Chamber"] = 1,
+    ["Burial Chamber"]            = 2, ["Tomb"]                     = 3,
+    ["Fine Tomb"]                 = 4, ["Mausoleum"]                = 5,
+    ["Grand Mausoleum"]           = 6, ["Royal Mausoleum"]          = 7,
+}
+
+local function zone_quality_rank(zone)
+    local desc = ""
+    pcall(function() desc = dfhack.buildings.getRoomDescription(zone) or "" end)
+    return ROOM_TIER[desc] or -1
+end
+
+-- True if at least one Civzone of the given df.civzone_type exists.
+local function has_zone_type(zone_type)
+    local found = false
+    pcall(function()
+        for _, z in ipairs(df.global.world.buildings.all) do
+            if not found then
+                local ok, t = pcall(function() return z:getType() end)
+                if ok and t == df.building_type.Civzone then
+                    local ok2, st = pcall(function() return z:getSubtype() end)
+                    if ok2 and st == zone_type then found = true end
+                end
+            end
+        end
+    end)
+    return found
+end
+
+-- Best quality tier (0-7) reached by EACH quality-rated room type, as a table
+-- keyed by df.civzone_type (Bedroom/Office/DiningHall/Tomb). -1 = no room of
+-- that type yet. Computed in a single buildings.all pass and memoized per frame,
+-- so the 20 per-room-tier checks that read it share one scan instead of 20.
+local _room_q_cache, _room_q_frame = nil, -1
+local function room_qualities()
+    local frame = df.global.world.frame_counter or 0
+    if _room_q_cache and _room_q_frame == frame then return _room_q_cache end
+    local ct = df.civzone_type
+    local q = { [ct.Bedroom] = -1, [ct.Office] = -1, [ct.DiningHall] = -1, [ct.Tomb] = -1 }
+    pcall(function()
+        for _, z in ipairs(df.global.world.buildings.all) do
+            local ok, t = pcall(function() return z:getType() end)
+            if ok and t == df.building_type.Civzone then
+                local ok2, st = pcall(function() return z:getSubtype() end)
+                if ok2 and q[st] ~= nil then
+                    local r = zone_quality_rank(z)
+                    if r > q[st] then q[st] = r end
+                end
+            end
+        end
+    end)
+    _room_q_cache, _room_q_frame = q, frame
+    return q
+end
+
+-- Best quality tier reached by a single room type (-1 if none of that type).
+local function room_quality(zone_type)
+    return room_qualities()[zone_type] or -1
+end
+
+-- True if any Civzone is assigned to a location whose abstract building passes
+-- the given is_instance check (e.g. df.abstract_building_templest:is_instance).
+local function has_location_type(check_fn)
+    local found = false
+    pcall(function()
+        local site = dfhack.world.getCurrentSite()
+        if not site then return end
+        for _, z in ipairs(df.global.world.buildings.all) do
+            if found then return end
+            local ok, t = pcall(function() return z:getType() end)
+            if ok and t == df.building_type.Civzone then
+                local loc_id = -1
+                pcall(function() loc_id = z.location_id end)
+                if loc_id and loc_id >= 0 then
+                    pcall(function()
+                        for _, bld in ipairs(site.buildings) do
+                            if bld.id == loc_id and check_fn(bld) then
+                                found = true; break
+                            end
+                        end
+                    end)
+                end
+            end
+        end
+    end)
+    return found
+end
+
+-- Highest location_tier DF itself has already computed for any location
+-- matching check_fn (e.g. abstract_building_templest/guildhallst instances).
+-- Reads the game's own tracked tier/value (abstract_building_contents.location_tier
+-- / .location_value, confirmed live via dfhack-run) instead of re-deriving it
+-- from our own item scan - that previously drifted from what the in-game UI
+-- shows, confusing players about when "Temple"/"Temple Complex" should
+-- fire. DF tiers: 0 = base (shrine / meeting place), 1 = mid (temple /
+-- guildhall), 2 = top (temple complex / grand guildhall).
+local function best_location_tier(check_fn)
+    local best = -1
+    pcall(function()
+        local site = dfhack.world.getCurrentSite()
+        if not site then return end
+        for _, bld in ipairs(site.buildings) do
+            if check_fn(bld) then
+                local ok, tier = pcall(function() return bld.contents.location_tier end)
+                if ok and tier and tier > best then best = tier end
+            end
+        end
+    end)
+    return best
+end
+
+-- Highest location_value DF has computed for any location matching check_fn -
+-- the same number the in-game UI shows. Used for the panel's progress display
+-- (best_location_tier above drives the actual AP check firing).
+local function best_location_value(check_fn)
+    local best = 0
+    pcall(function()
+        local site = dfhack.world.getCurrentSite()
+        if not site then return end
+        for _, bld in ipairs(site.buildings) do
+            if check_fn(bld) then
+                local ok, value = pcall(function() return bld.contents.location_value end)
+                if ok and value and value > best then best = value end
+            end
+        end
+    end)
+    return best
+end
+
+-- ── Wealth helpers (kept for the legendary_wealth goal and panel display) ────
 
 -- Returns current total fortress wealth (items + buildings + stocks).
 -- DF 50+ (Steam / 2022+) renamed df.global.ui → df.global.plotinfo.
@@ -50,10 +199,27 @@ local function held_by_unit(item)
     return false
 end
 
+-- Value of one coin/gem item, shared by the live treasury scan below and the
+-- created-wealth counter in dwarfipelago.lua. A coin stack is worth 10 ×
+-- material_value for a full 500 stack, i.e. each coin is material_value × 10 /
+-- 500; a cut gem's base value is 20 × material_value (DF's cut-gem base value
+-- of 20, per https://dwarffortresswiki.org/index.php/Value).
+local function item_wealth_value(item, itype)
+    local ok, mat = pcall(dfhack.matinfo.decode, item.mat_type, item.mat_index)
+    local mat_value = 1
+    if ok and mat and mat.material then
+        mat_value = mat.material.material_value or 1
+    end
+    local stack = item.stack_size or 1
+    if itype == df.item_type.COIN then
+        return stack * mat_value * 10 / 500
+    else
+        return stack * mat_value * 20
+    end
+end
+
 -- Returns the combined value of all minted coins (COIN) and cut gems (SMALLGEM)
 -- currently in fortress stocks - not carried by any unit, not belonging to traders.
--- A coin stack is worth 10 × material_value for a full 500 stack, i.e. each coin
--- is material_value × 10 / 500; a cut gem is worth its material_value.
 -- Both item types require AP-gated blueprints (Screw Press and Jeweler's Workshop)
 -- and their material values vary widely, keeping embark-site luck meaningful.
 local function treasury_wealth()
@@ -63,20 +229,35 @@ local function treasury_wealth()
         if (itype == df.item_type.COIN or itype == df.item_type.SMALLGEM)
                 and not item.flags.trader
                 and not held_by_unit(item) then
-            local ok, mat = pcall(dfhack.matinfo.decode, item.mat_type, item.mat_index)
-            local mat_value = 1
-            if ok and mat and mat.material then
-                mat_value = mat.material.material_value or 1
-            end
-            local stack = item.stack_size or 1
-            if itype == df.item_type.COIN then
-                total = total + stack * mat_value * 10 / 500
-            else
-                total = total + stack * mat_value
-            end
+            total = total + item_wealth_value(item, itype)
         end
     end
     return math.floor(total)
+end
+
+local KEY_TREASURY_CREATED = "dwarfipelago/treasury/created_value"
+
+-- Total coin/gem value ever minted/cut, independent of what's since been spent
+-- at the shop, traded away, or exported - monotonic, only ever increases.
+-- Used for the Legendary Wealth goal and the wealth-tier milestones instead of
+-- the live treasury_wealth() scan above, so spending at the shop no longer
+-- undoes wealth progress.
+function M.treasury_created_wealth()
+    return tonumber(dfhack.persistent.getWorldDataString(KEY_TREASURY_CREATED)) or 0
+end
+
+-- Add a newly-created coin/gem item's value to the created-wealth counter.
+-- If `cap` is given, the counter is clamped to it - used to pace progress
+-- behind the player's current Merchant's Coffer tier without blocking minting
+-- or gem cutting themselves (those keep working freely for shop currency).
+-- Returns the counter's new value.
+function M.add_treasury_created_wealth(item, itype, cap)
+    local delta = item_wealth_value(item, itype)
+    if delta <= 0 then return M.treasury_created_wealth() end
+    local total = M.treasury_created_wealth() + delta
+    if cap then total = math.min(total, cap) end
+    dfhack.persistent.saveWorldDataString(KEY_TREASURY_CREATED, tostring(total))
+    return total
 end
 
 -- ── Progression lock helpers ──────────────────────────────────────────────────
@@ -130,13 +311,46 @@ local function has_fortress_title(pop_req, created_req, exported_req, waves_req)
 end
 
 M.checks = {
-    -- Wealth milestones - based on combined coin + cut-gem value in fortress stocks.
-    -- Each tier requires the matching Merchant's Coffer count to have been received.
-    { id = 37370000, name = "Humble Beginnings (1,000)",    fn = function() return unlock_count("wealth_coffers") >= 1 and treasury_wealth() >= 1000    end },
-    { id = 37370001, name = "Growing Stronghold (10,000)",  fn = function() return unlock_count("wealth_coffers") >= 2 and treasury_wealth() >= 10000   end },
-    { id = 37370002, name = "Prosperous Fortress (50,000)", fn = function() return unlock_count("wealth_coffers") >= 3 and treasury_wealth() >= 50000   end },
-    { id = 37370003, name = "Rich Citadel (100,000)",       fn = function() return unlock_count("wealth_coffers") >= 4 and treasury_wealth() >= 100000  end },
-    { id = 37370004, name = "Legendary Vault (500,000)",    fn = function() return unlock_count("wealth_coffers") >= 5 and treasury_wealth() >= 500000  end },
+    -- Room type milestones - each zone type is designated.
+    { id = 37370000, name = "Bedroom",              fn = function() return has_zone_type(df.civzone_type.Bedroom)   end },
+    { id = 37370001, name = "Office",               fn = function() return has_zone_type(df.civzone_type.Office)    end },
+    { id = 37370002, name = "Tomb Zone Established", fn = function() return has_zone_type(df.civzone_type.Tomb)      end },
+    { id = 37370004, name = "Dining Hall",          fn = function() return has_zone_type(df.civzone_type.DiningHall) end },
+    -- Temple tiers: DF's own location_tier - 0 = shrine, 1 = temple, 2 = temple complex.
+    { id = 37370003, name = "Shrine",         fn = function() return has_location_type(function(b) return df.abstract_building_templest:is_instance(b) end) end },
+    { id = 37370010, name = "Temple",         fn = function() return best_location_tier(function(b) return df.abstract_building_templest:is_instance(b) end) >= 1 end },
+    { id = 37370011, name = "Temple Complex", fn = function() return best_location_tier(function(b) return df.abstract_building_templest:is_instance(b) end) >= 2 end },
+
+    -- Guildhall tiers: 0 = meeting place, 1 = guildhall, 2 = grand guildhall.
+    { id = 37370012, name = "Guildhall",       fn = function() return best_location_tier(function(b) return df.abstract_building_guildhallst:is_instance(b) end) >= 1 end },
+    { id = 37370013, name = "Grand Guildhall", fn = function() return best_location_tier(function(b) return df.abstract_building_guildhallst:is_instance(b) end) >= 2 end },
+
+    -- Per-room-type quality milestones - each room type reaching tiers 3-7 (DF
+    -- value thresholds 500 / 1000 / 1500 / 2500 / 10000). Names are DF's own room
+    -- descriptions per tier. Ids 14-33 (the old single-best 5-9 are retired).
+    { id = 37370014, name = "Decent Quarters",     fn = function() return room_quality(df.civzone_type.Bedroom)    >= 3 end },
+    { id = 37370015, name = "Fine Quarters",       fn = function() return room_quality(df.civzone_type.Bedroom)    >= 4 end },
+    { id = 37370016, name = "Great Bedroom",       fn = function() return room_quality(df.civzone_type.Bedroom)    >= 5 end },
+    { id = 37370017, name = "Grand Bedroom",       fn = function() return room_quality(df.civzone_type.Bedroom)    >= 6 end },
+    { id = 37370018, name = "Royal Bedroom",       fn = function() return room_quality(df.civzone_type.Bedroom)    >= 7 end },
+
+    { id = 37370019, name = "Decent Office",       fn = function() return room_quality(df.civzone_type.Office)     >= 3 end },
+    { id = 37370020, name = "Splendid Office",     fn = function() return room_quality(df.civzone_type.Office)     >= 4 end },
+    { id = 37370021, name = "Throne Room",         fn = function() return room_quality(df.civzone_type.Office)     >= 5 end },
+    { id = 37370022, name = "Opulent Throne Room", fn = function() return room_quality(df.civzone_type.Office)     >= 6 end },
+    { id = 37370023, name = "Royal Throne Room",   fn = function() return room_quality(df.civzone_type.Office)     >= 7 end },
+
+    { id = 37370024, name = "Decent Dining Room",  fn = function() return room_quality(df.civzone_type.DiningHall) >= 3 end },
+    { id = 37370025, name = "Fine Dining Room",    fn = function() return room_quality(df.civzone_type.DiningHall) >= 4 end },
+    { id = 37370026, name = "Great Dining Room",   fn = function() return room_quality(df.civzone_type.DiningHall) >= 5 end },
+    { id = 37370027, name = "Grand Dining Room",   fn = function() return room_quality(df.civzone_type.DiningHall) >= 6 end },
+    { id = 37370028, name = "Royal Dining Room",   fn = function() return room_quality(df.civzone_type.DiningHall) >= 7 end },
+
+    { id = 37370029, name = "Tomb",                fn = function() return room_quality(df.civzone_type.Tomb)       >= 3 end },
+    { id = 37370030, name = "Fine Tomb",           fn = function() return room_quality(df.civzone_type.Tomb)       >= 4 end },
+    { id = 37370031, name = "Mausoleum",           fn = function() return room_quality(df.civzone_type.Tomb)       >= 5 end },
+    { id = 37370032, name = "Grand Mausoleum",     fn = function() return room_quality(df.civzone_type.Tomb)       >= 6 end },
+    { id = 37370033, name = "Royal Mausoleum",     fn = function() return room_quality(df.civzone_type.Tomb)       >= 7 end },
 
     -- First production milestones
     -- These are tracked via a persistent counter set by the eventful job hook in main.lua.
@@ -159,7 +373,7 @@ M.checks = {
     { id = 37370115, name = "First Chest Made",        fn = function() return M.production_flag("chest")          end },
     { id = 37370116, name = "First Table Made",        fn = function() return M.production_flag("table")          end },
     { id = 37370117, name = "First Bed Made",          fn = function() return M.production_flag("bed")            end },
-    { id = 37370118, name = "First Anvil Forged",      fn = function() return M.production_flag("anvil")          end },
+    { id = 37370118, name = "First Anvil Made",        fn = function() return M.production_flag("anvil")          end },
     { id = 37370119, name = "First Millstone Made",    fn = function() return M.production_flag("millstone")      end },
     { id = 37370120, name = "First Minecart Made",     fn = function() return M.production_flag("minecart")       end },
 
@@ -547,6 +761,43 @@ M.fortress_wealth  = fortress_wealth
 M.treasury_wealth  = treasury_wealth
 M.exported_wealth  = exported_wealth
 
+-- Room accessors for the panel.
+M.has_zone_type        = has_zone_type
+M.room_quality         = room_quality
+M.best_location_tier   = best_location_tier
+M.best_location_value  = best_location_value
+
+function M.has_temple_zone()
+    return has_location_type(function(b) return df.abstract_building_templest:is_instance(b) end)
+end
+
+function M.has_guildhall_zone()
+    return has_location_type(function(b) return df.abstract_building_guildhallst:is_instance(b) end)
+end
+
+-- Returns the description string of the best-quality room (e.g. "Grand Bedroom"), or "".
+function M.best_room_description()
+    local best_rank = -1
+    local best_desc = ""
+    pcall(function()
+        local ct = df.civzone_type
+        for _, z in ipairs(df.global.world.buildings.all) do
+            local ok, t = pcall(function() return z:getType() end)
+            if ok and t == df.building_type.Civzone then
+                local ok2, st = pcall(function() return z:getSubtype() end)
+                if ok2 and (st == ct.Bedroom or st == ct.Office
+                         or st == ct.DiningHall or st == ct.Tomb) then
+                    local desc = ""
+                    pcall(function() desc = dfhack.buildings.getRoomDescription(z) or "" end)
+                    local r = ROOM_TIER[desc] or -1
+                    if r > best_rank then best_rank = r; best_desc = desc end
+                end
+            end
+        end
+    end)
+    return best_desc
+end
+
 -- ── Job type → craft count flag mapping ──────────────────────────────────────
 -- Separate from JOB_TO_FLAG: maps jobs to the specific AP option names used in
 -- craftable_items and craftable_materials (lowercase, underscored).
@@ -781,6 +1032,22 @@ reaction_subtype("MAKE_CLAY_HIVE",                  "hive")
 reaction_subtype("MAKE_CLAY_STATUE",                "statue")
 reaction_subtype("MAKE_CLAY_CRAFTS",                "crafts")
 
+-- Forced material for clay reactions. A completed manual job carries the clay
+-- reagent in job.items (so classify_mat resolves "ceramic"), but a MANAGER WORK
+-- ORDER has no .items and leaves mat_type/mat_index unset - so mat_craft_flag
+-- returned nil and the material suffix was dropped, storing the count under
+-- e.g. "statue" instead of "statue_ceramic". The AP client reads the suffixed
+-- key, so ceramic statues/blocks made via work orders never counted. These
+-- reactions always fire clay into a CERAMIC_* product, so the material is known.
+local REACTION_FORCE_MATERIAL = {
+    MAKE_CLAY_BRICKS   = "ceramic",
+    MAKE_CLAY_JUG      = "ceramic",
+    MAKE_LARGE_CLAY_POT = "ceramic",
+    MAKE_CLAY_HIVE     = "ceramic",
+    MAKE_CLAY_STATUE   = "ceramic",
+    MAKE_CLAY_CRAFTS   = "ceramic",
+}
+
 
 local UARMOR_SUBTYPE_FLAG = {}
 local function uarmor_subtype(subtype_id, flag)
@@ -908,6 +1175,15 @@ local function classify_mat(mat_type, mat_index)
 end
 
 local function mat_craft_flag(job)
+    -- 0. Reactions whose material is fixed by the recipe (e.g. clay -> ceramic).
+    --    Checked first because manager work orders carry neither .items nor a
+    --    usable mat_type, so the steps below can't recover the material for them.
+    local rname
+    pcall(function() rname = job.reaction_name end)
+    if rname and REACTION_FORCE_MATERIAL[rname] then
+        return REACTION_FORCE_MATERIAL[rname]
+    end
+
     -- 1. Material set directly on the job/order (mat_type/mat_index).
     local flag = classify_mat(job.mat_type, job.mat_index)
     if flag then return flag end
@@ -1155,8 +1431,7 @@ function M.find_fortress_coins_energy()
         if ok and t == df.item_type.COIN
                 and not item.flags.removed
                 and not item.flags.trader
-                and not item.flags.in_inventory
-                and not item.flags.in_job then
+                and not held_by_unit(item) then
             local j = 0
             pcall(function()
                 local ok2, mat = pcall(dfhack.matinfo.decode, item.mat_type, item.mat_index)

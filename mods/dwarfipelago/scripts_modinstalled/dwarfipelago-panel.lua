@@ -117,6 +117,23 @@ local function bp_label(name)
     return name:gsub(" Blueprint$", "")
 end
 
+-- Live status of a milestone by its AP location id, by calling the real check
+-- fn from checks.checks. Panel rows use this instead of re-reading raw flags, so
+-- the panel can never drift from the actual checks (a check added to checks.lua
+-- shows up here as soon as its id is listed). Returns true/false, or nil if the
+-- id isn't a known check.
+local _check_fn_by_id
+local function check_status(id)
+    if not _check_fn_by_id then
+        _check_fn_by_id = {}
+        for _, c in ipairs(checks.checks) do _check_fn_by_id[c.id] = c.fn end
+    end
+    local fn = _check_fn_by_id[id]
+    if not fn then return nil end
+    local ok, r = pcall(fn)
+    return ok and r or false
+end
+
 local function make_list(lines)
     local choices = {}
     for _, line in ipairs(lines) do
@@ -249,8 +266,12 @@ end
 -- ── Progress list ─────────────────────────────────────────────────────────────
 
 local TILES_THRESHOLDS  = {100, 500, 2000, 5000, 10000}
+local DEPTH_TIER_LABELS = { "Cavern 1 ceiling", "Cavern 2 ceiling", "Cavern 3 ceiling", "Magma Sea" }
 local CROPS_THRESHOLDS  = {50, 100, 250, 500, 1000}
-local WEALTH_THRESHOLDS = {1000, 10000, 50000, 100000, 500000}
+
+-- {threshold, name_at_or_above_threshold}; first entry is the base (value >= 0) name.
+local TEMPLE_TIERS    = {{0, "Shrine"}, {2000, "Temple"}, {10000, "Temple Complex"}}
+local GUILDHALL_TIERS = {{2000, "Guildhall"}, {10000, "Grand Guildhall"}}
 
 local PROD_FLAGS = {
     {"Crafted item",   "crafted_item",  "Weapon forged",  "weapon"},
@@ -279,59 +300,66 @@ local function build_progress_lines()
         table.insert(lines, {text=""})
     end
 
-    -- (War Effort for the Slay Megabeast goal lives in its own "War" tab.)
-
-    -- Mining
-    hdr("Mining")
-    local tiles = checks.mining_count()
-    local nt = next_thresh(tiles, TILES_THRESHOLDS)
-    row(("  Tiles:  %s excavated%s"):format(
-        fmt_num(tiles), nt and ("  (next: %s)"):format(fmt_num(nt)) or "  (all done!)"))
-    local c1 = checks.mining_flag("cavern1")
-    local c2 = checks.mining_flag("cavern2")
-    local c3 = checks.mining_flag("cavern3")
-    local mg = checks.mining_flag("magma")
-    row(("  Cavern 1: %-3s  2: %-3s  3: %-3s    Magma: %-3s"):format(
-        c1 and "YES" or "no", c2 and "YES" or "no",
-        c3 and "YES" or "no", mg and "YES" or "no"))
-
-    -- Progress toward the next un-breached cavern.
-    local appr = checks.cavern_approach()
-    if appr then
-        local nm = ({ "First", "Second", "Third" })[appr.cavern]
-        local nextstr = appr.next_pct and ("next check: %d%%"):format(appr.next_pct)
-            or "next: breach!"
-        row(("  Toward %s Cavern: %d%%  (%s)"):format(nm, math.floor(appr.pct), nextstr))
-        if appr.levels_remaining then
-            row(("    %d z-levels to its ceiling"):format(appr.levels_remaining))
-        end
-    elseif c1 and c2 and c3 then
-        row("  All caverns breached!", COLOR_GREEN)
-    end
-
-    local _, limit_name = checks.mining_depth_limit()
-    if limit_name then
-        row(("  Depth limit: above %s (%d/4 unlocks)"):format(
-            limit_name, checks.mining_depth_unlocks()), COLOR_YELLOW)
-    else
-        row("  Depth limit: none (dig freely)", COLOR_GREEN)
-    end
-
     -- Farming
-    blank()
     hdr("Farming")
     local crops = checks.crops_harvested()
     local nc = next_thresh(crops, CROPS_THRESHOLDS)
     row(("  Crops harvested: %s%s"):format(
         fmt_num(crops), nc and ("  (next: %s)"):format(fmt_num(nc)) or "  (all done!)"))
 
-    -- Treasury
+    -- Rooms
     blank()
-    hdr("Treasury  (coins + cut gems)")
-    local wealth = checks.treasury_wealth()
-    local nw = next_thresh(wealth, WEALTH_THRESHOLDS)
-    row(("  Current: %s%s"):format(
-        fmt_num(wealth), nw and ("  (next: %s)"):format(fmt_num(nw)) or "  (all done!)"))
+    hdr("Rooms")
+    local has_bed   = checks.has_zone_type(df.civzone_type.Bedroom)
+    local has_off   = checks.has_zone_type(df.civzone_type.Office)
+    local has_tomb  = checks.has_zone_type(df.civzone_type.Tomb)
+    local has_dine  = checks.has_zone_type(df.civzone_type.DiningHall)
+    row(("  Bedroom: %-3s  Office: %-3s  Tomb: %-3s  Dining Hall: %-3s"):format(
+        has_bed  and "YES" or "no",
+        has_off  and "YES" or "no",
+        has_tomb and "YES" or "no",
+        has_dine and "YES" or "no"),
+        (has_bed or has_off or has_tomb or has_dine) and COLOR_WHITE or COLOR_DARKGRAY)
+
+    local best_desc = checks.best_room_description()
+    row(("  Best quality: %s"):format(best_desc ~= "" and best_desc or "none"),
+        best_desc ~= "" and COLOR_WHITE or COLOR_DARKGRAY)
+
+    -- Per-room quality tier reached (checks fire at Decent=3 .. Royal=7 per type).
+    local GENERIC_TIER = { [3]="Decent", [4]="Fine", [5]="Great", [6]="Grand", [7]="Royal" }
+    local function qlabel(zt)
+        local r = checks.room_quality(zt)
+        if r < 3 then return r >= 0 and "basic" or "—" end
+        return GENERIC_TIER[r] or "—"
+    end
+    row(("  Quality:  Bedroom: %-6s Office: %-6s Dining: %-6s Tomb: %-6s"):format(
+        qlabel(df.civzone_type.Bedroom), qlabel(df.civzone_type.Office),
+        qlabel(df.civzone_type.DiningHall), qlabel(df.civzone_type.Tomb)))
+
+    local function location_row(label, value, has_zone, tiers)
+        local tier_name, next_val, next_name
+        for _, t in ipairs(tiers) do
+            if value >= t[1] then
+                tier_name = t[2]
+            else
+                next_val  = t[1]
+                next_name = t[2]
+                break
+            end
+        end
+        if not tier_name then
+            -- zone exists (or not) but hasn't reached the first threshold
+            row(("  %s: none"):format(label), COLOR_DARKGRAY)
+        elseif next_val then
+            row(("  %s: %s (%s / %s for %s)"):format(
+                label, tier_name, fmt_num(value), fmt_num(next_val), next_name))
+        else
+            row(("  %s: %s (%s)"):format(label, tier_name, fmt_num(value)), COLOR_GREEN)
+        end
+    end
+
+    location_row("Temple",    checks.best_location_value(function(b) return df.abstract_building_templest:is_instance(b)    end), nil, TEMPLE_TIERS)
+    location_row("Guildhall", checks.best_location_value(function(b) return df.abstract_building_guildhallst:is_instance(b) end), nil, GUILDHALL_TIERS)
 
     -- Production
     blank()
@@ -397,10 +425,145 @@ local function build_progress_lines()
     row(("  Population:      %d citizens"):format(pop))
     row(("  Fortress wealth: %s"):format(fmt_num(fw)))
 
+    -- Fortress title milestones (id 400-404).
+    local TITLES = {
+        {400, "Hamlet"}, {401, "Village"}, {402, "Town"},
+        {403, "City"}, {404, "Metropolis"},
+    }
+    local title_cells = {}
+    local any_title = false
+    for _, t in ipairs(TITLES) do
+        local got = check_status(37370000 + t[1])
+        if got then any_title = true end
+        table.insert(title_cells, ("%s: %s"):format(t[2], got and "YES" or "no"))
+    end
+    row("  " .. table.concat(title_cells, "  "), any_title and COLOR_WHITE or COLOR_DARKGRAY)
+
+    -- Infrastructure (id 740-742): well + screw pumps.
+    blank()
+    hdr("Infrastructure")
+    local well  = check_status(37370740)
+    local pumpw = check_status(37370741)
+    local pumpm = check_status(37370742)
+    row(("  Built a Well: %-4s  Pumped Water: %-4s  Pumped Magma: %-4s"):format(
+        well and "YES" or "no", pumpw and "YES" or "no", pumpm and "YES" or "no"),
+        (well or pumpw or pumpm) and COLOR_WHITE or COLOR_DARKGRAY)
+
+    -- Biology (id 751) + Endgame (id 760-761).
+    blank()
+    hdr("Biology & Endgame")
+    local caged = check_status(37370751)
+    local adam  = check_status(37370760)
+    local sold  = check_status(37370761)
+    row(("  Caged a Hostile Beast: %-4s"):format(caged and "YES" or "no"),
+        caged and COLOR_WHITE or COLOR_DARKGRAY)
+    row(("  Mined Adamantine: %-4s   Sold an Artifact: %-4s"):format(
+        adam and "YES" or "no", sold and "YES" or "no"),
+        (adam or sold) and COLOR_WHITE or COLOR_DARKGRAY)
+
+    -- Military / Siege (id 770-771): only meaningful for the slay_megabeast goal,
+    -- but shown always so the milestones are visible.
+    blank()
+    hdr("Military")
+    local barracks = check_status(37370770)
+    local training = check_status(37370771)
+    row(("  Barracks Established: %-4s  Training Completed: %-4s"):format(
+        barracks and "YES" or "no", training and "YES" or "no"),
+        (barracks or training) and COLOR_WHITE or COLOR_DARKGRAY)
+
     return lines
 end
 
 -- ── Craftsanity list ──────────────────────────────────────────────────────────
+
+local function build_caves_lines()
+    local lines = {}
+
+    local function hdr(s)      table.insert(lines, {text=s, pen=COLOR_CYAN})          end
+    local function row(s, pen) table.insert(lines, {text=s, pen=pen or COLOR_WHITE})  end
+    local function blank()     table.insert(lines, {text=""})                         end
+
+    -- Excavation milestones
+    hdr("Excavation")
+    local tiles = checks.mining_count()
+    local nt = next_thresh(tiles, TILES_THRESHOLDS)
+    row(("  Tiles:  %s excavated%s"):format(
+        fmt_num(tiles), nt and ("  (next: %s)"):format(fmt_num(nt)) or "  (all done!)"))
+
+    -- Cavern access
+    blank()
+    hdr("Cavern Access")
+    local c1 = checks.mining_flag("cavern1")
+    local c2 = checks.mining_flag("cavern2")
+    local c3 = checks.mining_flag("cavern3")
+    local mg = checks.mining_flag("magma")
+    row(("  Cavern 1: %-3s  2: %-3s  3: %-3s    Magma: %-3s"):format(
+        c1 and "YES" or "no", c2 and "YES" or "no",
+        c3 and "YES" or "no", mg and "YES" or "no"))
+    local appr = checks.cavern_approach()
+    if appr then
+        local nm = ({"First", "Second", "Third"})[appr.cavern]
+        local nextstr = appr.next_pct and ("next check: %d%%"):format(appr.next_pct)
+            or "next: breach!"
+        row(("  Toward %s Cavern: %d%%  (%s)"):format(nm, math.floor(appr.pct), nextstr))
+        if appr.levels_remaining then
+            row(("    %d z-levels to its ceiling"):format(appr.levels_remaining))
+        end
+    elseif c1 and c2 and c3 then
+        row("  All caverns breached!", COLOR_GREEN)
+    end
+
+    -- Progressive mining depth
+    blank()
+    if checks.mining_depth_enabled() then
+        local unlocks  = checks.mining_depth_unlocks()
+        local no_limit = unlocks >= 4
+        hdr(no_limit
+            and ("Mining Depth  (%d/4 - no limit)"):format(math.min(unlocks, 4))
+            or  ("Mining Depth  (%d/4 unlocked)"):format(unlocks))
+        for tier = 1, 4 do
+            local done     = unlocks >= tier
+            local is_limit = not no_limit and (unlocks == tier - 1)
+            local status   = done and "done" or (is_limit and "LOCKED  <- current" or "locked")
+            local pen      = done and COLOR_GREEN or (is_limit and COLOR_YELLOW or COLOR_DARKGRAY)
+            row(("  [%d] %-22s %s"):format(tier, DEPTH_TIER_LABELS[tier] .. ":", status), pen)
+        end
+    else
+        hdr("Mining Depth")
+        row("  Progressive depth not enabled for this seed.", COLOR_DARKGRAY)
+    end
+
+    -- Custom caves
+    blank()
+    hdr("Custom Caves")
+    local caves_gen = ps("caves/generated", "0") == "1"
+    if not caves_gen then
+        row("  Not yet generated.", COLOR_DARKGRAY)
+    else
+        local frag_used = tonumber(ps("caves/fragment_index", "0")) or 0
+        local n_found   = 0
+        for i = 1, 6 do
+            if ps("cave/" .. i .. "/discovered", "0") == "1" then n_found = n_found + 1 end
+        end
+        local secrets = ps("caves/secrets_done", "0") == "1"
+        row(("  Fragments used: %d/6   Caves found: %d/6   Secrets: %s"):format(
+            frag_used, n_found, secrets and "done" or "pending"),
+            n_found == 6 and COLOR_GREEN or COLOR_WHITE)
+        for i = 1, 6, 2 do
+            local j  = i + 1
+            local d1 = ps("cave/" .. i .. "/discovered", "0") == "1"
+            local d2 = ps("cave/" .. j .. "/discovered", "0") == "1"
+            local pen = (d1 and d2) and COLOR_GREEN
+                     or (not d1 and not d2) and COLOR_DARKGRAY
+                     or COLOR_WHITE
+            row(("  Cave #%d: %-3s          Cave #%d: %-3s"):format(
+                i, d1 and "YES" or "no",
+                j, d2 and "YES" or "no"), pen)
+        end
+    end
+
+    return lines
+end
 
 local function build_crafts_lines()
     local lines = {}
@@ -651,7 +814,7 @@ function DwarfipelagoPanel:init()
         and ("  (%d%% of population)"):format(dl_thresh)
         or  ("  (every %d deaths)"):format(dl_thresh)) or ""
 
-    local W, H = 62, 48
+    local W, H = 76, 48
 
     -- Tab 1 Status -----------------------
     function StatusTab()
@@ -726,6 +889,13 @@ function DwarfipelagoPanel:init()
         table.insert(tab_list, "Progress")
         return widgets.Panel{
             subviews = { make_list(build_progress_lines()) },
+        }
+    end
+
+    local function CavesTab()
+        table.insert(tab_list, "Caves")
+        return widgets.Panel{
+            subviews = { make_list(build_caves_lines()) },
         }
     end
 
@@ -959,13 +1129,13 @@ function DwarfipelagoPanel:init()
                 elseif not unlocked then
                     state, pen = "shrine needed", COLOR_DARKGRAY
                 elseif coffers < (e.tier or 1) then
-                    state, pen = ("LOCKED (%d coffers)"):format(e.tier or 1), COLOR_RED
+                    state, pen = ("need %d coffers"):format(e.tier or 1), COLOR_RED
                 elseif coins < price then
                     state, pen = "need coins", COLOR_YELLOW
                 else
                     state, pen, buyable = "BUY", COLOR_GREEN, true
                 end
-                local text = ("%-20.20s -> %-12.12s %8s* [%s]"):format(
+                local text = ("%-30.30s -> %-12.12s %8s* [%s]"):format(
                     tostring(e.item or "?"), tostring(e.player or "?"), fmt_num(price), state)
                 table.insert(choices, {text = text, pen = pen, slot = sn, buyable = buyable})
             end
@@ -1116,6 +1286,7 @@ function DwarfipelagoPanel:init()
     end
     table.insert(tabviews, UnlocksTab())
     table.insert(tabviews, ProgressTab())
+    table.insert(tabviews, CavesTab())
     if ps("craftsanity_enabled", "0") ~= "0" then
         table.insert(tabviews, CraftsanityTab())
     end   

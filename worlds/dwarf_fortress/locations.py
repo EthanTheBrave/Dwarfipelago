@@ -15,13 +15,43 @@ class LocationData:
     threshold: int = 0
 
 
-# ── Wealth Milestones ─────────────────────────────────────────────────────────
-WEALTH_LOCATIONS: list[LocationData] = [
-    LocationData("Humble Beginnings (1,000)",    BASE_ID + 0,  "Fortress"),
-    LocationData("Growing Stronghold (10,000)",  BASE_ID + 1,  "Fortress"),
-    LocationData("Prosperous Fortress (50,000)", BASE_ID + 2,  "Fortress"),
-    LocationData("Rich Citadel (100,000)",       BASE_ID + 3,  "Fortress"),
-    LocationData("Legendary Vault (500,000)",    BASE_ID + 4,  "Fortress"),
+# ── Room Milestones ───────────────────────────────────────────────────────────
+ROOM_LOCATIONS: list[LocationData] = [
+    # Each room type designated
+    LocationData("Bedroom",              BASE_ID + 0,  "Fortress"),
+    LocationData("Office",               BASE_ID + 1,  "Fortress"),
+    LocationData("Tomb Zone Established", BASE_ID + 2,  "Fortress"),
+    LocationData("Dining Hall",          BASE_ID + 4,  "Fortress"),
+    # Temple tiers: shrine / temple (2000+) / temple complex (10000+)
+    LocationData("Shrine",               BASE_ID + 3,  "Fortress"),
+    LocationData("Temple",               BASE_ID + 10, "Fortress"),
+    LocationData("Temple Complex",       BASE_ID + 11, "Fortress"),
+    # Guildhall tiers: guildhall (2000+) / grand guildhall (10000+)
+    LocationData("Guildhall",            BASE_ID + 12, "Fortress"),
+    LocationData("Grand Guildhall",      BASE_ID + 13, "Fortress"),
+    # Per-room-type quality tiers (each room type reaching DF value tiers 3-7).
+    # Names are DF's own per-tier room descriptions. Ids 14-33; the old single
+    # "best across all rooms" tiers (5-9) are retired.
+    LocationData("Decent Quarters",     BASE_ID + 14, "Fortress"),
+    LocationData("Fine Quarters",       BASE_ID + 15, "Fortress"),
+    LocationData("Great Bedroom",       BASE_ID + 16, "Fortress"),
+    LocationData("Grand Bedroom",       BASE_ID + 17, "Fortress"),
+    LocationData("Royal Bedroom",       BASE_ID + 18, "Fortress"),
+    LocationData("Decent Office",       BASE_ID + 19, "Fortress"),
+    LocationData("Splendid Office",     BASE_ID + 20, "Fortress"),
+    LocationData("Throne Room",         BASE_ID + 21, "Fortress"),
+    LocationData("Opulent Throne Room", BASE_ID + 22, "Fortress"),
+    LocationData("Royal Throne Room",   BASE_ID + 23, "Fortress"),
+    LocationData("Decent Dining Room",  BASE_ID + 24, "Fortress"),
+    LocationData("Fine Dining Room",    BASE_ID + 25, "Fortress"),
+    LocationData("Great Dining Room",   BASE_ID + 26, "Fortress"),
+    LocationData("Grand Dining Room",   BASE_ID + 27, "Fortress"),
+    LocationData("Royal Dining Room",   BASE_ID + 28, "Fortress"),
+    LocationData("Tomb",                BASE_ID + 29, "Fortress"),
+    LocationData("Fine Tomb",           BASE_ID + 30, "Fortress"),
+    LocationData("Mausoleum",           BASE_ID + 31, "Fortress"),
+    LocationData("Grand Mausoleum",     BASE_ID + 32, "Fortress"),
+    LocationData("Royal Mausoleum",     BASE_ID + 33, "Fortress"),
 ]
 
 # ── First Production Milestones ───────────────────────────────────────────────
@@ -1550,21 +1580,14 @@ COMBAT_SKILLS: list[LocationData] = [
 # the client/mod) and releases that slot's item to its recipient.
 # NOTE: ids 800..1084 are reserved for an unimplemented feature; keep clear of it.
 SHOP_SLOTS = 50
-# Per-slot price (minted-coin VALUE) is rolled randomly in this range at gen time.
-# Hardcoded -- the shop has no YAML options.
+# Per-slot price (minted-coin VALUE) is rolled within a tier band at gen time:
+# the [MIN, MAX] range is split into 5 equal fifths, one per coffer tier, so
+# higher-tier slots always cost more than lower-tier ones. Hardcoded -- no YAML options.
 SHOP_PRICE_MIN = 2000
-SHOP_PRICE_MAX = 20000
+SHOP_PRICE_MAX = 100000
 SHOP_LOCATIONS: list[LocationData] = [
     LocationData(f"Shop Slot {i}", BASE_ID + 2199 + i, "Fortress")
     for i in range(1, SHOP_SLOTS + 1)
-]
-
-# Custom cave locations: 6 pre-carved pockets hidden between cavern layers.
-# Always active — 2 per inter-cavern gap × 3 gaps. IDs 2300..2305.
-CAVE_LOCATION_COUNT = 6
-CAVE_LOCATIONS: list[LocationData] = [
-    LocationData(f"Custom Cave {i + 1}", BASE_ID + 2300 + i, "Fortress")
-    for i in range(CAVE_LOCATION_COUNT)
 ]
 
 # Craft locations are NOT included here. They are computed deterministically by
@@ -1572,10 +1595,10 @@ CAVE_LOCATIONS: list[LocationData] = [
 # location_name_to_id in __init__.py (see _FULL_LOCATION_TABLE). Keeping them out
 # of this module avoids a circular import (craftsanity imports from locations).
 ALL_LOCATIONS: list[LocationData] = (
-    WEALTH_LOCATIONS + PRODUCTION_LOCATIONS + TRADE_LOCATIONS
+    ROOM_LOCATIONS + PRODUCTION_LOCATIONS + TRADE_LOCATIONS
     + STATUS_LOCATIONS + TITLE_LOCATIONS + MINING_LOCATIONS
     + FARMING_LOCATIONS + INFRASTRUCTURE_LOCATIONS
     + BIOLOGY_LOCATIONS + ENDGAME_LOCATIONS + SIEGE_LOCATIONS
-    + JOB_SKILLS + COMBAT_SKILLS + SHOP_LOCATIONS + CAVE_LOCATIONS
+    + JOB_SKILLS + COMBAT_SKILLS + SHOP_LOCATIONS
 )
 LOCATION_TABLE: dict[str, int] = {loc.name: loc.ap_id for loc in ALL_LOCATIONS}

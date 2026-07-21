@@ -13,7 +13,7 @@ from .items import (
 )
 from .locations import (
     LocationData, LOCATION_TABLE, ALL_LOCATIONS, SHOP_LOCATIONS, SHOP_SLOTS,
-    SHOP_PRICE_MIN, SHOP_PRICE_MAX, CAVE_LOCATIONS,
+    SHOP_PRICE_MIN, SHOP_PRICE_MAX,
 )
 from .craftsanity import (
     generate_location_data,
@@ -145,26 +145,16 @@ class DwarfFortressWorld(World):
         # Active set = the static non-craft locations (LOCATION_TABLE) plus the
         # craft subset this slot generated. Goal-based filtering then drops
         # locations that don't apply to the chosen goal:
-        #   - wealth tiers are coffer progression locks (legendary_wealth only)
         #   - the noble ladder is charter progression locks (mountainhome only)
         # rules.py only references these for their matching goal, so dropping them
         # leaves no dangling rule lookups. (Mirrors the item removal in create_items.)
         active = set(LOCATION_TABLE.keys()) | set(self.dynamic_locations_names)
-        WEALTH_TIER_LOCATIONS = {
-            "Humble Beginnings (1,000)",
-            "Growing Stronghold (10,000)",
-            "Prosperous Fortress (50,000)",
-            "Rich Citadel (100,000)",
-            "Legendary Vault (500,000)",
-        }
         NOBLE_LADDER_LOCATIONS = {
             "Baron Appointed",
             "Count Appointed",
             "Duke Appointed",
             "Monarch Takes Residence",
         }
-        if self.options.goal != DwarfFortressGoal.option_legendary_wealth:
-            active -= WEALTH_TIER_LOCATIONS
         if self.options.goal != DwarfFortressGoal.option_mountainhome:
             active -= NOBLE_LADDER_LOCATIONS
         SIEGE_LOCATION_NAMES = {"Barracks Established", "Training Completed"}
@@ -172,8 +162,10 @@ class DwarfFortressWorld(World):
             active -= SIEGE_LOCATION_NAMES
         for skill_names in self.remove_skill_locations_names:
              active.remove(skill_names)
-        # The shop is always on, so its 50 slots are always active (coffer-gated
-        # in rules.py).
+        # The shop's 50 slots are active (and coffer-gated in rules.py) only when
+        # the Merchant's Shop option is enabled; drop them entirely when it's off.
+        if not self.options.merchant_shop:
+            active -= {loc.name for loc in SHOP_LOCATIONS}
         # Keep the registry's deterministic order for reproducible fill.
         self.active_location_names = [n for n in _FULL_LOCATION_TABLE if n in active]
 
@@ -219,11 +211,18 @@ class DwarfFortressWorld(World):
             if d.classification == ItemClassification.progression
         ]
         received_trap_names = {d.name for d in RECEIVED_TRAPS}
+        # Traps that don't make sense for the chosen options. With craftpermits=all,
+        # brewing is gated behind the Alcohol permit, so an ale-draining thirst trap
+        # could leave a fort with no way to make more - exclude it in that mode.
+        excluded_trap_names: set[str] = set()
+        if self.options.craftpermits == CraftingPermits.option_all:
+            excluded_trap_names.add("Unquenchable Thirst")
         optional: list[ItemData] = [
             d for d in self.ap_item_pool
             for _ in range(d.quantity)
             if d.classification != ItemClassification.progression
             and (trap_weight > 0 or d.name not in received_trap_names)
+            and d.name not in excluded_trap_names
         ]
 
         for item_data in self.ap_item_pool:
@@ -257,12 +256,19 @@ class DwarfFortressWorld(World):
             elif self.options.goal == DwarfFortressGoal.option_king_remains and item_data.name == "Remains of the Great King":
                 item_data.quantity = self.options.remains_great_king.value
 
-        # The always-on shop is gated by Merchant's Coffer count, so the coffers
-        # must always be in the pool -- even for goals whose loop above stripped
-        # them. Re-add the (x5) coffer item if needed.
+        # The shop is gated by Merchant's Coffer count, so the coffers must be in
+        # the pool whenever the shop is on -- even for goals whose loop above
+        # stripped them. The legendary_wealth goal also needs coffers for its win
+        # condition regardless of the shop. When neither applies, drop them so a
+        # shop-off seed isn't padded with useless coffers.
         coffer = next((d for d in self.ap_item_pool if d.name == "Merchant's Coffer"), None)
-        if coffer is not None and coffer not in required:
-            required.append(coffer)
+        if coffer is not None:
+            needs_coffer = bool(self.options.merchant_shop) \
+                or self.options.goal == DwarfFortressGoal.option_legendary_wealth
+            if needs_coffer and coffer not in required:
+                required.append(coffer)
+            elif not needs_coffer and coffer in required:
+                required.remove(coffer)
 
         item_pool: list[DwarfFortressItem] = []
 
@@ -324,14 +330,23 @@ class DwarfFortressWorld(World):
         # Shop slots: per-slot random coin price + coffer tier, keyed by location id
         # (as a string for JSON). The client scouts these ids to learn each slot's
         # item/recipient and writes them, with the price, for the in-game shop tab.
+        # Price is banded by tier so higher-coffer slots always cost more than
+        # lower-coffer ones: tier N draws from the Nth fifth of [PRICE_MIN, PRICE_MAX].
+        # Shop is off -> emit no slots (the client treats an empty dict as "no shop").
+        # Otherwise scale each slot's price by the multiplier (percent of default).
         shop_data = {}
-        lo, hi = SHOP_PRICE_MIN, SHOP_PRICE_MAX
-        for slot, loc in enumerate(SHOP_LOCATIONS, start=1):
-            shop_data[str(loc.ap_id)] = {
-                "slot": slot,
-                "tier": (slot - 1) // 10 + 1,
-                "price": self.random.randint(lo, hi),
-            }
+        if self.options.merchant_shop:
+            mult = self.options.shop_price_multiplier.value / 100
+            tier_step = (SHOP_PRICE_MAX - SHOP_PRICE_MIN) // 5
+            for slot, loc in enumerate(SHOP_LOCATIONS, start=1):
+                tier = (slot - 1) // 10 + 1
+                tier_lo = SHOP_PRICE_MIN + (tier - 1) * tier_step
+                tier_hi = SHOP_PRICE_MIN + tier * tier_step if tier < 5 else SHOP_PRICE_MAX
+                shop_data[str(loc.ap_id)] = {
+                    "slot": slot,
+                    "tier": tier,
+                    "price": max(1, round(self.random.randint(tier_lo, tier_hi) * mult)),
+                }
         return {
             "goal": self.options.goal.value,
             "wealth_goal_amount": self.options.wealth_goal_amount.value,
@@ -354,6 +369,7 @@ class DwarfFortressWorld(World):
             "deathlink_percentage": self.options.deathlink_percentage.value,
             "energy_link": self.options.energy_link.value,
             "mining_depth": self.options.mining_depth.value,
+            "shop_enabled": self.options.merchant_shop.value,
             "shop": shop_data,
             "version": f"{self.world_version.as_simple_string()}",
         }

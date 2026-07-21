@@ -166,7 +166,6 @@ Completing these milestones sends items to other players:
 - **Infrastructure** - Built a Well, Pumped Water, Pumped Magma
 - **Biology** - First Eggs Hatched, Caged a Hostile Beast
 - **Deep / Endgame** - Mined Adamantine, Sold an Artifact
-- **Custom Caves** - 6 hidden pre-carved pockets between cavern layers, discovered when a dwarf first enters one (see Custom Caves section below)
 - **Craftsanity** - optional crafting milestone checks (see below)
 
 </details>
@@ -307,10 +306,10 @@ Caves are shaped as organic ovals (roughly 15–35 tiles of floor depending on r
 
 | Type | Physical contents | Discovery effect |
 |------|------------------|-----------------|
-| **Treasure cave** | Random filler items (boulders, bars, cloth, leather, plump helmet wine) plus 2 varieties of cut gems | Sends an AP location check |
-| **Trap cave** | Iron and copper ore boulders — designed to look like a promising mine find, but discovery spawns a wave of hostile underground creatures | Sends an AP location check and spawns enemies |
+| **Treasure cave** | Random filler items (boulders, bars, cloth, leather, plump helmet wine) plus 2 varieties of cut gems | None required - flavor loot only |
+| **Trap cave** | Iron and copper ore boulders — designed to look like a promising mine find, but discovery spawns a wave of hostile underground creatures | Spawns enemies |
 
-Caves alternate treasure/trap so each pair of caves in a gap has one of each type.
+Caves alternate treasure/trap so each pair of caves in a gap has one of each type. They are not AP location checks - finding them is optional flavor, not required for seed completion.
 
 ### Cave Map Fragments
 
@@ -319,7 +318,7 @@ Caves alternate treasure/trap so each pair of caves in a gap has one of each typ
 - **Treasure cave** — `Riches await at approximately (x, y), N levels underground.`
 - **Trap cave** — `Danger lurks to the [east/west/north/south], deep underground (z=N). Tread carefully!`
 
-Hints are revealed one per fragment received in index order. If you have already discovered all caves before receiving all fragments, extra fragments are acknowledged but produce no additional text.
+Hints are revealed one per fragment received in index order. Since cave discovery isn't gated behind fragments, you can stumble onto every cave yourself before all fragments arrive - once that happens, any further fragment is just a stack of old paper with nothing left to reveal. If you've received all 6 fragments' worth of hints but haven't found every cave, extra fragments are acknowledged but produce no additional text.
 
 </details>
 
@@ -336,7 +335,7 @@ Hints are revealed one per fragment received in index order. If you have already
 | Trade goods | Cut gems, gold/silver/steel bars, masterwork crafts |
 | Resources | Food bundles, wood bundles, iron ore, coal |
 | Industry materials | Flux stone, pig iron, charcoal, cloth bolts, tanned leather, **bags of sand** (glassmaking), raw clay (kaolinite for porcelain), plus rare low-grade copper tools (pick/axe/sword) |
-| Traps | Goblin ambush, cave bear incursion, vermin infestation, tantrum trigger, lost caravan |
+| Traps | Goblin ambush, cave bear incursion, vermin infestation, unquenchable thirst, lost caravan, catsplosion, goblin saboteurs, ensnaring webs |
 | Crafting Permits | When `craftpermits` is enabled, each permit item unlocks the ability to craft one item type (e.g. you can't make a table until the Table permit arrives). See the Crafting Permits section. |
 | Cave Map Fragment | Reveals a hint about the next undiscovered custom cave — coordinate hint for treasure caves, directional warning for trap caves. Up to 6 per slot; extra fragments beyond 6 are acknowledged but produce no new hint. |
 | Remains of the Great King | Treasure-hunt goal item - collect all of them (`king_remains` goal) to win. |
@@ -471,7 +470,7 @@ A running list of ideas, planned features, and things that still need doing. No 
 ### To Do
 
 - [x] Implement DFHack protobuf wire encoding for `RunCommand` to deliver items in-game
-- [x] Implement trap item spawning in `items.lua` (goblin ambush, cave bear, vermin, tantrum)
+- [x] Implement trap item spawning in `items.lua` (goblin ambush, cave bear, vermin, unquenchable thirst)
 - [x] Add `fill_slot_data` population goal amount to client sync so Lua reads the correct target
 - [x] Goal completion detection and AP victory signaling (`ClientStatus.CLIENT_GOAL`)
 - [x] Fortress status checks - noble appointments and civilisation recognition milestones
