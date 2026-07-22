@@ -18,11 +18,11 @@ Complete economic and production milestones in your fortress to send items to ot
 | DFHack Mod | `mods/dwarfipelago/` | DFHack mod - copy into your DF installation's `mods/` folder |
 | AP Client | `worlds/dwarf_fortress/DwarfFortressClient.py` | Bundled inside the AP world package - launched automatically by the AP launcher |
 
-## Setup
-
-See [`worlds/dwarf_fortress/docs/setup_en.md`](worlds/dwarf_fortress/docs/setup_en.md) for full installation and configuration instructions.
-
 ---
+
+## Setup & Getting Started
+
+See [`worlds/dwarf_fortress/docs/setup_en.md`](worlds/dwarf_fortress/docs/setup_en.md) for full installation and configuration instructions. The sections below cover what happens once you're up and running.
 
 <details>
 <summary>World Generation</summary>
@@ -57,8 +57,6 @@ The mod will still work, but when you run `dwarfipelago start` it will warn you 
 
 </details>
 
----
-
 <details>
 <summary>Trade Depot</summary>
 
@@ -87,7 +85,28 @@ When you load a fortress with Dwarfipelago active, the mod automatically places 
 
 </details>
 
+<details>
+<summary>Troubleshooting</summary>
+
+- **"Dwarf Fortress not found"** - set `game_path` in `host.yaml` (see Step 4 above)
+- **Client can't connect to DFHack** - ensure DFHack is running and its remote API is active on `127.0.0.1:5000`
+- **Mod doesn't start automatically** - load a fortress first and wait ~5 seconds; you can also run `dwarfipelago start` manually in the DFHack console
+- **Items not arriving** - check the client log window; items are delivered via DFHack script calls when the client is connected
+
+### Where to find errors
+
+There are two separate error logs:
+
+- **AP client window** - client, RPC, and network errors (with full tracebacks). This is the window opened by the **Dwarf Fortress Client** launcher button.
+- **`<Dwarf Fortress>/dwarfipelago.log`** - in-game mod errors (item spawn failures, trade depot placement, etc.). The exact path is printed to the DFHack console when the mod starts; you can also print it with `lua print(reqscript("internal/dwarfipelago/log").path())`.
+
+For full setup details see [`worlds/dwarf_fortress/docs/setup_en.md`](worlds/dwarf_fortress/docs/setup_en.md). For the Lua ↔ Python interface, see [`LUA_INTERFACE.md`](LUA_INTERFACE.md).
+
+</details>
+
 ---
+
+## Goals & Winning
 
 <details>
 <summary>Win Conditions</summary>
@@ -139,8 +158,6 @@ Victory is only recognised once **all** of the following are true for your chose
 
 </details>
 
----
-
 <details>
 <summary>The Slay Megabeast Goal - How It Works</summary>
 
@@ -186,304 +203,7 @@ Killing some other megabeast before you summon the goal target won't count - onl
 
 ---
 
-<details>
-<summary>Locations (Checks)</summary>
-
-Completing these milestones sends items to other players:
-
-- **Treasury milestones** - Humble Beginnings (1,000☼) through Legendary Vault (500,000☼) — based on the combined value of **minted coins and cut gems** in fortress stocks, not total fortress wealth
-- **First production** - first weapon forged, armor crafted, meal prepared, brew completed, metal bar smelted, gem cut, and more (18 milestones)
-- **Trade & diplomacy** - dwarven/elven/human caravan visits, outpost liaison meeting, first raid, first artifact recovery, first act of diplomacy (an elven/human caravan-visit check auto-completes if that civilisation doesn't exist in your world, so it can't soft-lock the seed)
-- **Fortress status** - noble appointments and civilisation recognition milestones
-- **Fortress titles** - Hamlet, Village, Town, City, Metropolis (population + wealth thresholds)
-- **Room milestones** - each room type designated (bedroom, office, dining hall, tomb) plus quality tiers per room (Decent → Royal), and temple/guildhall tiers (Shrine → Temple → Temple Complex, Guildhall → Grand Guildhall)
-- **Mining** - cavern-approach progress (25% / 50% toward each cavern), tiles excavated (100 → 10,000), and breach events (First/Second/Third Cavern, Reached the Magma Sea, Welcome to the Circus). When **Progressive Mining Depth** is enabled, how deep you may dig is itself gated by items (see below)
-- **Farming** - harvested-crop milestones (50 / 100 / 250 / 500 / 1,000 crops)
-- **Infrastructure** - Built a Well, Pumped Water, Pumped Magma
-- **Biology** - First Eggs Hatched, Caged a Hostile Beast
-- **Deep / Endgame** - Mined Adamantine, Sold an Artifact
-- **Craftsanity** - optional crafting milestone checks (see below)
-- **Skillsanity** - optional per-skill checks: each level a dwarf gains in a tracked labor or combat skill fires a check (see below)
-
-</details>
-
----
-
-<details>
-<summary>Craftsanity</summary>
-
-Craftsanity adds location checks for producing crafted items in bulk. When enabled, crafting **N** of a given item (or item + material combination) sends a check to the AP server. The client polls DFHack's persistent craft counters and fires checks as thresholds are crossed.
-
-### Enabling Craftsanity
-
-Set `craftsanity` in your options YAML:
-
-| Value | Behaviour |
-|-------|-----------|
-| `off` | No crafting checks (default) |
-| `on` | Check fires when N items have been **crafted** |
-| `storage` | Check fires when N items are **present in a stockpile** |
-
-### Item Group
-
-`craftsanity_item_group` selects which items generate checks. Choose a preset that matches your desired playtime, or pick `choose` and hand-pick items manually.
-
-| Group | Items included | Good for |
-|-------|---------------|----------|
-| `easy` | 10 items - Beds, Blocks, Alcohol, Chair, Table, Door, Barrel, Bucket, Container, Cloth | Short sessions or casual runs |
-| `medium` *(default)* | 25 items - Easy set plus Crafts, Cage, Leather, Mechanism, Prepared Meal, Bookcase, Cabinet, Floodgate, Animal Trap, Statue, Armor Stand, Pedestal, Weapon Rack, Corkscrew, Bin | Balanced early-game variety |
-| `hard` | ~45 items - Medium set plus metalwork, glass, armour, weapons, food processing, and more | Extended runs with late-game crafting |
-| `craftsanity` | All ~100 craftable items | Maximum locations; pairs well with materials enabled |
-| `choose` | Manual - use the `craftsanity_items` list in your YAML | Full control over exactly which items are checks |
-
-### Materials
-
-`craftsanity_enable_materials: true` splits each item check into per-material variants - crafting **N Stone Blocks** and **N Metal Blocks** are separate checks. Use `craftsanity_materials` to restrict which material types are included (Stone, Wood, Metal, Glass, Leather, Cloth, Bone, Ceramic).
-
-### Threshold and Amount
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `craftsanity_max_amount` | Total items to produce per item (or item+material) for all checks combined | 15 |
-| `craftsanity_threshold` | How many crafted items equals one check (e.g. `5` = a check every 5 produced) | 5 |
-
-A `max_amount` of 15 with a `threshold` of 5 produces **3 checks** per item: at 5, 10, and a final check at 15.
-
-### Example YAML
-
-```yaml
-craftsanity: on
-craftsanity_item_group: medium       # easy | medium | hard | craftsanity | choose
-craftsanity_enable_materials: false  # true to split checks by material type
-craftsanity_max_amount: 15
-craftsanity_threshold: 5
-# Only used when craftsanity_item_group is 'choose':
-# craftsanity_items:
-#   - Beds
-#   - Blocks
-#   - Cloth
-```
-
-</details>
-
----
-
-<details>
-<summary>Skillsanity</summary>
-
-Skillsanity turns your dwarves **leveling up** into location checks. Each time a dwarf reaches a new level in a tracked skill, a check fires — so a fortress that trains broadly sends a steady stream of items. (Some skills are far harder to train than others, so pick your groups with that in mind.)
-
-Enable it with `skillsanity: true` in your options YAML (off by default).
-
-### Which skills count
-
-Skills are split into **labor** and **combat** groups, each with its own preset selector:
-
-| Option | Values | Notes |
-|--------|--------|-------|
-| `skillsanity_skill_group` | `easy` / `medium` *(default)* / `all` / `choose` | Labor skills. `easy` is the common workshop/industry skills; `medium` adds finicky ones; `all` adds the rarest (Trapper, Bone Doctor, Strand Extractor…). |
-| `skillsanity_skills` | list | Only used when the group is `choose` — hand-pick the labor skills. |
-| `skillsanity_enable_combat` | `true` *(default)* / `false` | Whether combat skills are also checks. (Pikedwarf, Misc. Object User, and Thrower are never included — they can't realistically be trained in fort mode.) |
-| `skillsanity_combat_skill_group` | `easy` / `medium` *(default)* / `all` / `choose` | Combat skills. |
-| `skillsanity_combat_skills` | list | Only used when the combat group is `choose`. |
-
-### How many checks per skill
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `skillsanity_max_level` | Highest level that fires a check — `1` = Novice, `15` = Legendary | 15 |
-| `skillsanity_level_mechanic` | How dwarves who **arrive already skilled** (embark/migrants) are handled | `untouched` |
-
-`skillsanity_level_mechanic` matters because migrants can show up pre-trained:
-
-- `untouched` *(default)* — a level-7 miner who arrives immediately sends **all 7** mining checks at once.
-- `lower_skills` — an arriving dwarf's skills are **lowered to match your next unclaimed check**. If you already have a level-3 miner (3 mining checks sent), a new level-7 miner is dropped to level 4 and sends just **one** more. This keeps checks paced to your own progress instead of front-loading them.
-
-### Example YAML
-
-```yaml
-skillsanity: true
-skillsanity_skill_group: medium          # easy | medium | all | choose
-skillsanity_enable_combat: true
-skillsanity_combat_skill_group: medium   # easy | medium | all | choose
-skillsanity_max_level: 15                # 1 = Novice … 15 = Legendary
-skillsanity_level_mechanic: untouched    # untouched | lower_skills
-```
-
-</details>
-
----
-
-<details>
-<summary>Crafting Permits</summary>
-
-Crafting Permits turn item production itself into a progression gate: until you receive the permit for an item, any job that would make it is cancelled in-game with a one-time notice (the same enforcement style as workshop blueprints). Permits arrive from the multiworld as their own items.
-
-This is an **opt-in** layer on top of Craftsanity — **Craftsanity must be enabled**, because permits add 97 additional items to the pool.
-
-Set `craftpermits` in your options YAML:
-
-| Value | Behaviour |
-|-------|-----------|
-| `off` | No permits required - craft anything you have the workshop for (default) |
-| `on` | You **start with** permits for Beds, Charcoal, Leather, Cloth, Alcohol, and Prepared Meal; every other permitted item must be unlocked from the multiworld |
-| `all` | Every permitted item is gated - you start with no permits |
-
-Permit enforcement is goal-independent and stacks with the workshop blueprint gate: you need both the workshop's blueprint *and* the item's permit before a dwarf will complete the job.
-
-### Example YAML
-
-```yaml
-craftsanity: on        # required - permits do nothing without craftsanity
-craftpermits: on       # off | on | all
-```
-
-</details>
-
----
-
-<details>
-<summary>Energy Link</summary>
-
-Energy Link connects your fortress to the multiworld's shared energy pool. You contribute surplus production into the pool, and spend energy to call a caravan early when you need to trade.
-
-Enable it with `energy_link: true` in your options YAML (off by default).
-
-### Depositing energy
-
-From the **Energy** tab of the in-game panel (or the console commands below) you can convert fortress goods into shared energy:
-
-| Resource | Rate |
-|----------|------|
-| Alcohol | 100 kJ per unit |
-| Prepared food | 50 kJ per item |
-| Minted coins | 1 kJ per ☼ of face value |
-
-Deposited energy is sent to the shared pool and is available to every Energy Link player in the session.
-
-### Calling a caravan early
-
-Spend energy from the pool to **request a caravan** before its normal seasonal arrival. The mod calculates the energy cost, the client deducts it from the shared pool if you can afford it, and the caravan is then spawned and arrives - leaving again on its own schedule like any normal caravan. If the pool can't cover the cost, the request is declined.
-
-### Console commands
-
-```
-# Deposit a specific coin value (☼) into the shared pool
-dwarfipelago deposit-coins 500
-```
-
-Ale and food deposits, the current pool balance (shown in MJ and raw kJ), and the "call a caravan" action are all available from the panel's **Energy** tab.
-
-</details>
-
----
-
-<details>
-<summary>Merchant's Shop</summary>
-
-The Merchant's Shop lets you **spend minted coins to buy multiworld items** — a way to turn your economy into progress when the checks dry up. It's on by default; disable it with `merchant_shop: false`.
-
-### Opening the shop — the Merchant's Shrine
-
-The shop is closed until you build a **Merchant's Shrine** and keep it standing. A shrine is a **dedicated temple zone** (a Civzone assigned to a temple location) that contains:
-
-- a built **altar** (Offering Place),
-- a **container** (bin/coffer),
-- **bars of the chosen type** — **5 gold**, **10 silver**, or **20 coke** (the accepted bar type is configurable), and
-- total zone value **≥ 5,000☼**.
-
-The shop opens a few seconds after the shrine qualifies, and **closes again if the shrine is dismantled** — it must stay intact. The panel's **Shop** tab shows your progress toward these requirements.
-
-### Buying
-
-- The shop has **50 slots**; **10 unlock per Merchant's Coffer** you've received (so all 50 need all 5 coffers).
-- Each slot holds **one multiworld item at a coin price** (a value banded by tier). Buying deducts that value from your minted coins and sends the item's location check; each slot is bought once.
-- Buy from the panel's **Shop** tab, or from the console: `dwarfipelago buy-shop <slot>`.
-
-### Options
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `merchant_shop` | Enable the shop (50 slots, 10 per coffer) | on |
-| `shop_price_multiplier` | Scales every slot's price, as a percent of default (`100` = default, `50` = half, `200` = double). Range 10–1000. | 100 |
-
-</details>
-
----
-
-<details>
-<summary>Progressive Mining Depth</summary>
-
-With Progressive Mining Depth (on by default: `progressive_mining_depths`), you **can't just dig straight to hell** — how deep your dwarves may dig is gated behind items from the multiworld. Dig jobs below your current allowed floor are held until you receive the next **Progressive Mining Depth** item.
-
-There are **four** Progressive Mining Depth items; each one lowers the floor by one tier:
-
-| Items received | You may dig down to… |
-|---|---|
-| 0 | just above the **first cavern** |
-| 1 | just above the **second cavern** |
-| 2 | just above the **third cavern** |
-| 3 | just above the **magma sea** |
-| 4 | **everything** (magma sea and below) |
-
-The thresholds are based on your own world's cavern/magma z-levels as they're discovered. Disable the feature with `progressive_mining_depths: false` to allow unrestricted digging.
-
-</details>
-
----
-
-<details>
-<summary>Custom Caves</summary>
-
-Dwarfipelago always carves **6 hidden pockets** into the solid rock between your three cavern layers (2 per inter-cavern gap) at the start of the world. They are completely invisible on the map until a dwarf walks into one.
-
-Caves are shaped as organic ovals (roughly 15–35 tiles of floor depending on random radius), with a taller vaulted centre and ragged natural-looking edges. Their interiors are stocked with physical DF items at generation time.
-
-### Cave types
-
-| Type | Physical contents | Discovery effect |
-|------|------------------|-----------------|
-| **Treasure cave** | Random filler items (boulders, bars, cloth, leather, plump helmet wine) plus 2 varieties of cut gems | None required - flavor loot only |
-| **Trap cave** | Iron and copper ore boulders — designed to look like a promising mine find, but discovery spawns a wave of hostile underground creatures | Spawns enemies |
-
-Caves alternate treasure/trap so each pair of caves in a gap has one of each type. They are not AP location checks - finding them is optional flavor, not required for seed completion.
-
-### Cave Map Fragments
-
-**Cave Map Fragments** are useful items placed into the multiworld item pool (6 per slot). Receiving one reveals the next cave hint in sequence via an in-game announcement:
-
-- **Treasure cave** — `Riches await at approximately (x, y), N levels underground.`
-- **Trap cave** — `Danger lurks to the [east/west/north/south], deep underground (z=N). Tread carefully!`
-
-Hints are revealed one per fragment received in index order. Since cave discovery isn't gated behind fragments, you can stumble onto every cave yourself before all fragments arrive - once that happens, any further fragment is just a stack of old paper with nothing left to reveal. If you've received all 6 fragments' worth of hints but haven't found every cave, extra fragments are acknowledged but produce no additional text.
-
-</details>
-
----
-
-<details>
-<summary>Items Received</summary>
-
-| Type | Examples |
-|------|---------|
-| Workshop blueprints | 29 blueprints that unlock workshops, furnaces, and farm plots - **progression items** (see Progression section below) |
-| Progression locks | Merchant's Coffer (x5), Immigration Wave (x5), Noble Ladder charters (x4), Military Training (x10) - gate milestone checks and goal completion |
-| Prestige rewards | Artifact Weapon (adamantine battle axe), Artifact Armor (full adamantine set), Master Builder's Codex (genuine indestructible **artifact** adamantine door) |
-| Trade goods | Cut gems, gold/silver/steel bars, masterwork crafts |
-| Resources | Food bundles, wood bundles, iron ore, coal |
-| Industry materials | Flux stone, pig iron, charcoal, cloth bolts, tanned leather, **bags of sand** (glassmaking), raw clay (kaolinite for porcelain), plus rare low-grade copper tools (pick/axe/sword) |
-| Livestock | Breeding pairs - pigs, chickens, alpacas, cows, sheep, yaks - delivered to the depot to grow your herds |
-| Fortress unlocks | **Progressive Mining Depth** (x4 - each lets you dig one cavern tier deeper), **Sunlight Tonic** (your dwarves may walk freely in sunlight - no cave-adaptation nausea) |
-| Traps | Goblin ambush, cave bear incursion, vermin infestation, unquenchable thirst, lost caravan, catsplosion, goblin saboteurs, ensnaring webs, **order sabotage** (shreds every current manager work order) |
-| Crafting Permits | When `craftpermits` is enabled, each permit item unlocks the ability to craft one item type (e.g. you can't make a table until the Table permit arrives). See the Crafting Permits section. |
-| Cave Map Fragment | Reveals a hint about the next undiscovered custom cave — coordinate hint for treasure caves, directional warning for trap caves. Up to 6 per slot; extra fragments beyond 6 are acknowledged but produce no new hint. |
-| Remains of the Great King | Treasure-hunt goal item - collect all of them (`king_remains` goal) to win. |
-
-All received goods are delivered to the **trade depot**.
-
-</details>
-
----
+## Progression & Items
 
 <details>
 <summary>Progression</summary>
@@ -563,7 +283,290 @@ Throughout the Multiworld will contain this item. Collect all of them to reach y
 
 </details>
 
+<details>
+<summary>Items Received</summary>
+
+| Type | Examples |
+|------|---------|
+| Workshop blueprints | 29 blueprints that unlock workshops, furnaces, and farm plots - **progression items** (see Progression section below) |
+| Progression locks | Merchant's Coffer (x5), Immigration Wave (x5), Noble Ladder charters (x4), Military Training (x10) - gate milestone checks and goal completion |
+| Prestige rewards | Artifact Weapon (adamantine battle axe), Artifact Armor (full adamantine set), Master Builder's Codex (genuine indestructible **artifact** adamantine door) |
+| Trade goods | Cut gems, gold/silver/steel bars, masterwork crafts |
+| Resources | Food bundles, wood bundles, iron ore, coal |
+| Industry materials | Flux stone, pig iron, charcoal, cloth bolts, tanned leather, **bags of sand** (glassmaking), raw clay (kaolinite for porcelain), plus rare low-grade copper tools (pick/axe/sword) |
+| Livestock | Breeding pairs - pigs, chickens, alpacas, cows, sheep, yaks - delivered to the depot to grow your herds |
+| Fortress unlocks | **Progressive Mining Depth** (x4 - each lets you dig one cavern tier deeper), **Sunlight Tonic** (your dwarves may walk freely in sunlight - no cave-adaptation nausea) |
+| Traps | Goblin ambush, cave bear incursion, vermin infestation, unquenchable thirst, lost caravan, catsplosion, goblin saboteurs, ensnaring webs, **order sabotage** (shreds every current manager work order) |
+| Crafting Permits | When `craftpermits` is enabled, each permit item unlocks the ability to craft one item type (e.g. you can't make a table until the Table permit arrives). See the Crafting Permits section. |
+| Cave Map Fragment | Reveals a hint about the next undiscovered custom cave — coordinate hint for treasure caves, directional warning for trap caves. Up to 6 per slot; extra fragments beyond 6 are acknowledged but produce no new hint. |
+| Remains of the Great King | Treasure-hunt goal item - collect all of them (`king_remains` goal) to win. |
+
+All received goods are delivered to the **trade depot**.
+
+</details>
+
 ---
+
+## Location Sources & Optional Systems
+
+<details>
+<summary>Locations (Checks)</summary>
+
+Completing these milestones sends items to other players:
+
+- **Treasury milestones** - Humble Beginnings (1,000☼) through Legendary Vault (500,000☼) — based on the combined value of **minted coins and cut gems** in fortress stocks, not total fortress wealth
+- **First production** - first weapon forged, armor crafted, meal prepared, brew completed, metal bar smelted, gem cut, and more (18 milestones)
+- **Trade & diplomacy** - dwarven/elven/human caravan visits, outpost liaison meeting, first raid, first artifact recovery, first act of diplomacy (an elven/human caravan-visit check auto-completes if that civilisation doesn't exist in your world, so it can't soft-lock the seed)
+- **Fortress status** - noble appointments and civilisation recognition milestones
+- **Fortress titles** - Hamlet, Village, Town, City, Metropolis (population + wealth thresholds)
+- **Room milestones** - each room type designated (bedroom, office, dining hall, tomb) plus quality tiers per room (Decent → Royal), and temple/guildhall tiers (Shrine → Temple → Temple Complex, Guildhall → Grand Guildhall)
+- **Mining** - cavern-approach progress (25% / 50% toward each cavern), tiles excavated (100 → 10,000), and breach events (First/Second/Third Cavern, Reached the Magma Sea, Welcome to the Circus). When **Progressive Mining Depth** is enabled, how deep you may dig is itself gated by items (see below)
+- **Farming** - harvested-crop milestones (50 / 100 / 250 / 500 / 1,000 crops)
+- **Infrastructure** - Built a Well, Pumped Water, Pumped Magma
+- **Biology** - First Eggs Hatched, Caged a Hostile Beast
+- **Deep / Endgame** - Mined Adamantine, Sold an Artifact
+- **Craftsanity** - optional crafting milestone checks (see below)
+- **Skillsanity** - optional per-skill checks: each level a dwarf gains in a tracked labor or combat skill fires a check (see below)
+
+</details>
+
+<details>
+<summary>Craftsanity</summary>
+
+Craftsanity adds location checks for producing crafted items in bulk. When enabled, crafting **N** of a given item (or item + material combination) sends a check to the AP server. The client polls DFHack's persistent craft counters and fires checks as thresholds are crossed.
+
+### Enabling Craftsanity
+
+Set `craftsanity` in your options YAML:
+
+| Value | Behaviour |
+|-------|-----------|
+| `off` | No crafting checks (default) |
+| `on` | Check fires when N items have been **crafted** |
+| `storage` | Check fires when N items are **present in a stockpile** |
+
+### Item Group
+
+`craftsanity_item_group` selects which items generate checks. Choose a preset that matches your desired playtime, or pick `choose` and hand-pick items manually.
+
+| Group | Items included | Good for |
+|-------|---------------|----------|
+| `easy` | 10 items - Beds, Blocks, Alcohol, Chair, Table, Door, Barrel, Bucket, Container, Cloth | Short sessions or casual runs |
+| `medium` *(default)* | 25 items - Easy set plus Crafts, Cage, Leather, Mechanism, Prepared Meal, Bookcase, Cabinet, Floodgate, Animal Trap, Statue, Armor Stand, Pedestal, Weapon Rack, Corkscrew, Bin | Balanced early-game variety |
+| `hard` | ~45 items - Medium set plus metalwork, glass, armour, weapons, food processing, and more | Extended runs with late-game crafting |
+| `craftsanity` | All ~100 craftable items | Maximum locations; pairs well with materials enabled |
+| `choose` | Manual - use the `craftsanity_items` list in your YAML | Full control over exactly which items are checks |
+
+### Materials
+
+`craftsanity_enable_materials: true` splits each item check into per-material variants - crafting **N Stone Blocks** and **N Metal Blocks** are separate checks. Use `craftsanity_materials` to restrict which material types are included (Stone, Wood, Metal, Glass, Leather, Cloth, Bone, Ceramic).
+
+### Threshold and Amount
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `craftsanity_max_amount` | Total items to produce per item (or item+material) for all checks combined | 15 |
+| `craftsanity_threshold` | How many crafted items equals one check (e.g. `5` = a check every 5 produced) | 5 |
+
+A `max_amount` of 15 with a `threshold` of 5 produces **3 checks** per item: at 5, 10, and a final check at 15.
+
+### Example YAML
+
+```yaml
+craftsanity: on
+craftsanity_item_group: medium       # easy | medium | hard | craftsanity | choose
+craftsanity_enable_materials: false  # true to split checks by material type
+craftsanity_max_amount: 15
+craftsanity_threshold: 5
+# Only used when craftsanity_item_group is 'choose':
+# craftsanity_items:
+#   - Beds
+#   - Blocks
+#   - Cloth
+```
+
+</details>
+
+<details>
+<summary>Skillsanity</summary>
+
+Skillsanity turns your dwarves **leveling up** into location checks. Each time a dwarf reaches a new level in a tracked skill, a check fires — so a fortress that trains broadly sends a steady stream of items. (Some skills are far harder to train than others, so pick your groups with that in mind.)
+
+Enable it with `skillsanity: true` in your options YAML (off by default).
+
+### Which skills count
+
+Skills are split into **labor** and **combat** groups, each with its own preset selector:
+
+| Option | Values | Notes |
+|--------|--------|-------|
+| `skillsanity_skill_group` | `easy` / `medium` *(default)* / `all` / `choose` | Labor skills. `easy` is the common workshop/industry skills; `medium` adds finicky ones; `all` adds the rarest (Trapper, Bone Doctor, Strand Extractor…). |
+| `skillsanity_skills` | list | Only used when the group is `choose` — hand-pick the labor skills. |
+| `skillsanity_enable_combat` | `true` *(default)* / `false` | Whether combat skills are also checks. (Pikedwarf, Misc. Object User, and Thrower are never included — they can't realistically be trained in fort mode.) |
+| `skillsanity_combat_skill_group` | `easy` / `medium` *(default)* / `all` / `choose` | Combat skills. |
+| `skillsanity_combat_skills` | list | Only used when the combat group is `choose`. |
+
+### How many checks per skill
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `skillsanity_max_level` | Highest level that fires a check — `1` = Novice, `15` = Legendary | 15 |
+| `skillsanity_level_mechanic` | How dwarves who **arrive already skilled** (embark/migrants) are handled | `untouched` |
+
+`skillsanity_level_mechanic` matters because migrants can show up pre-trained:
+
+- `untouched` *(default)* — a level-7 miner who arrives immediately sends **all 7** mining checks at once.
+- `lower_skills` — an arriving dwarf's skills are **lowered to match your next unclaimed check**. If you already have a level-3 miner (3 mining checks sent), a new level-7 miner is dropped to level 4 and sends just **one** more. This keeps checks paced to your own progress instead of front-loading them.
+
+### Example YAML
+
+```yaml
+skillsanity: true
+skillsanity_skill_group: medium          # easy | medium | all | choose
+skillsanity_enable_combat: true
+skillsanity_combat_skill_group: medium   # easy | medium | all | choose
+skillsanity_max_level: 15                # 1 = Novice … 15 = Legendary
+skillsanity_level_mechanic: untouched    # untouched | lower_skills
+```
+
+</details>
+
+<details>
+<summary>Crafting Permits</summary>
+
+Crafting Permits turn item production itself into a progression gate: until you receive the permit for an item, any job that would make it is cancelled in-game with a one-time notice (the same enforcement style as workshop blueprints). Permits arrive from the multiworld as their own items.
+
+This is an **opt-in** layer on top of Craftsanity — **Craftsanity must be enabled**, because permits add 97 additional items to the pool.
+
+Set `craftpermits` in your options YAML:
+
+| Value | Behaviour |
+|-------|-----------|
+| `off` | No permits required - craft anything you have the workshop for (default) |
+| `on` | You **start with** permits for Beds, Charcoal, Leather, Cloth, Alcohol, and Prepared Meal; every other permitted item must be unlocked from the multiworld |
+| `all` | Every permitted item is gated - you start with no permits |
+
+Permit enforcement is goal-independent and stacks with the workshop blueprint gate: you need both the workshop's blueprint *and* the item's permit before a dwarf will complete the job.
+
+### Example YAML
+
+```yaml
+craftsanity: on        # required - permits do nothing without craftsanity
+craftpermits: on       # off | on | all
+```
+
+</details>
+
+<details>
+<summary>Progressive Mining Depth</summary>
+
+With Progressive Mining Depth (on by default: `progressive_mining_depths`), you **can't just dig straight to hell** — how deep your dwarves may dig is gated behind items from the multiworld. Dig jobs below your current allowed floor are held until you receive the next **Progressive Mining Depth** item.
+
+There are **four** Progressive Mining Depth items; each one lowers the floor by one tier:
+
+| Items received | You may dig down to… |
+|---|---|
+| 0 | just above the **first cavern** |
+| 1 | just above the **second cavern** |
+| 2 | just above the **third cavern** |
+| 3 | just above the **magma sea** |
+| 4 | **everything** (magma sea and below) |
+
+The thresholds are based on your own world's cavern/magma z-levels as they're discovered. Disable the feature with `progressive_mining_depths: false` to allow unrestricted digging.
+
+</details>
+
+<details>
+<summary>Merchant's Shop</summary>
+
+The Merchant's Shop lets you **spend minted coins to buy multiworld items** — a way to turn your economy into progress when the checks dry up. It's on by default; disable it with `merchant_shop: false`.
+
+### Opening the shop — the Merchant's Shrine
+
+The shop is closed until you build a **Merchant's Shrine** and keep it standing. A shrine is a **dedicated temple zone** (a Civzone assigned to a temple location) that contains:
+
+- a built **altar** (Offering Place),
+- a **container** (bin/coffer),
+- **bars of the chosen type** — **5 gold**, **10 silver**, or **20 coke** (the accepted bar type is configurable), and
+- total zone value **≥ 5,000☼**.
+
+The shop opens a few seconds after the shrine qualifies, and **closes again if the shrine is dismantled** — it must stay intact. The panel's **Shop** tab shows your progress toward these requirements.
+
+### Buying
+
+- The shop has **50 slots**; **10 unlock per Merchant's Coffer** you've received (so all 50 need all 5 coffers).
+- Each slot holds **one multiworld item at a coin price** (a value banded by tier). Buying deducts that value from your minted coins and sends the item's location check; each slot is bought once.
+- Buy from the panel's **Shop** tab, or from the console: `dwarfipelago buy-shop <slot>`.
+
+### Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `merchant_shop` | Enable the shop (50 slots, 10 per coffer) | on |
+| `shop_price_multiplier` | Scales every slot's price, as a percent of default (`100` = default, `50` = half, `200` = double). Range 10–1000. | 100 |
+
+</details>
+
+<details>
+<summary>Energy Link</summary>
+
+Energy Link connects your fortress to the multiworld's shared energy pool. You contribute surplus production into the pool, and spend energy to call a caravan early when you need to trade.
+
+Enable it with `energy_link: true` in your options YAML (off by default).
+
+### Depositing energy
+
+From the **Energy** tab of the in-game panel (or the console commands below) you can convert fortress goods into shared energy:
+
+| Resource | Rate |
+|----------|------|
+| Alcohol | 100 kJ per unit |
+| Prepared food | 50 kJ per item |
+| Minted coins | 1 kJ per ☼ of face value |
+
+Deposited energy is sent to the shared pool and is available to every Energy Link player in the session.
+
+### Calling a caravan early
+
+Spend energy from the pool to **request a caravan** before its normal seasonal arrival. The mod calculates the energy cost, the client deducts it from the shared pool if you can afford it, and the caravan is then spawned and arrives - leaving again on its own schedule like any normal caravan. If the pool can't cover the cost, the request is declined.
+
+### Console commands
+
+```
+# Deposit a specific coin value (☼) into the shared pool
+dwarfipelago deposit-coins 500
+```
+
+Ale and food deposits, the current pool balance (shown in MJ and raw kJ), and the "call a caravan" action are all available from the panel's **Energy** tab.
+
+</details>
+
+<details>
+<summary>Custom Caves</summary>
+
+Dwarfipelago always carves **6 hidden pockets** into the solid rock between your three cavern layers (2 per inter-cavern gap) at the start of the world. They are completely invisible on the map until a dwarf walks into one.
+
+Caves are shaped as organic ovals (roughly 15–35 tiles of floor depending on random radius), with a taller vaulted centre and ragged natural-looking edges. Their interiors are stocked with physical DF items at generation time.
+
+### Cave types
+
+| Type | Physical contents | Discovery effect |
+|------|------------------|-----------------|
+| **Treasure cave** | Random filler items (boulders, bars, cloth, leather, plump helmet wine) plus 2 varieties of cut gems | None required - flavor loot only |
+| **Trap cave** | Iron and copper ore boulders — designed to look like a promising mine find, but discovery spawns a wave of hostile underground creatures | Spawns enemies |
+
+Caves alternate treasure/trap so each pair of caves in a gap has one of each type. They are not AP location checks - finding them is optional flavor, not required for seed completion.
+
+### Cave Map Fragments
+
+**Cave Map Fragments** are useful items placed into the multiworld item pool (6 per slot). Receiving one reveals the next cave hint in sequence via an in-game announcement:
+
+- **Treasure cave** — `Riches await at approximately (x, y), N levels underground.`
+- **Trap cave** — `Danger lurks to the [east/west/north/south], deep underground (z=N). Tread carefully!`
+
+Hints are revealed one per fragment received in index order. Since cave discovery isn't gated behind fragments, you can stumble onto every cave yourself before all fragments arrive - once that happens, any further fragment is just a stack of old paper with nothing left to reveal. If you've received all 6 fragments' worth of hints but haven't found every cave, extra fragments are acknowledged but produce no additional text.
+
+</details>
 
 <details>
 <summary>DeathLink</summary>
@@ -577,8 +580,6 @@ Dwarfipelago supports Archipelago's DeathLink system with a configurable thresho
 - Set `deathlink_percentage: true` to treat the threshold as a **percentage of your current population** instead of a flat count
 
 </details>
-
----
 
 <details>
 <summary>Other Options</summary>
@@ -594,26 +595,7 @@ A few smaller knobs that don't have their own section:
 
 ---
 
-<details>
-<summary>Troubleshooting</summary>
-
-- **"Dwarf Fortress not found"** - set `game_path` in `host.yaml` (see Step 4 above)
-- **Client can't connect to DFHack** - ensure DFHack is running and its remote API is active on `127.0.0.1:5000`
-- **Mod doesn't start automatically** - load a fortress first and wait ~5 seconds; you can also run `dwarfipelago start` manually in the DFHack console
-- **Items not arriving** - check the client log window; items are delivered via DFHack script calls when the client is connected
-
-### Where to find errors
-
-There are two separate error logs:
-
-- **AP client window** - client, RPC, and network errors (with full tracebacks). This is the window opened by the **Dwarf Fortress Client** launcher button.
-- **`<Dwarf Fortress>/dwarfipelago.log`** - in-game mod errors (item spawn failures, trade depot placement, etc.). The exact path is printed to the DFHack console when the mod starts; you can also print it with `lua print(reqscript("internal/dwarfipelago/log").path())`.
-
-For full setup details see [`worlds/dwarf_fortress/docs/setup_en.md`](worlds/dwarf_fortress/docs/setup_en.md). For the Lua ↔ Python interface, see [`LUA_INTERFACE.md`](LUA_INTERFACE.md).
-
-</details>
-
----
+## Project Board
 
 <details>
 <summary>Project Board</summary>
@@ -653,5 +635,3 @@ A running list of ideas, planned features, and things that still need doing. No 
 - [X] **Rival Beast When MegaBeast is Victory** - finds a named beast during world gen and spawns them in when a specific check is sent
 
 </details>
-
----
