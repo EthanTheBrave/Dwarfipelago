@@ -115,6 +115,15 @@ class DynamicCraftingLocationRules:
     def leather_works(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks")
 
+    def bonecraft(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Bonecraft")
+
+    def leathercraft(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Leathercraft")
+
+    def clothcraftdwarf(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Clothcraft")
+
     def permit(self, state:CollectionState, permit:str) -> bool:
         return state.has(permit + " Permit", self.player)
     
