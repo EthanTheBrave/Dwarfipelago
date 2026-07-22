@@ -329,8 +329,8 @@ local function build_progress_lines()
     local GENERIC_TIER = { [3]="Decent", [4]="Fine", [5]="Great", [6]="Grand", [7]="Royal" }
     local function qlabel(zt)
         local r = checks.room_quality(zt)
-        if r < 3 then return r >= 0 and "basic" or "—" end
-        return GENERIC_TIER[r] or "—"
+        if r < 3 then return r >= 0 and "basic" or "-" end
+        return GENERIC_TIER[r] or "-"
     end
     row(("  Quality:  Bedroom: %-6s Office: %-6s Dining: %-6s Tomb: %-6s"):format(
         qlabel(df.civzone_type.Bedroom), qlabel(df.civzone_type.Office),

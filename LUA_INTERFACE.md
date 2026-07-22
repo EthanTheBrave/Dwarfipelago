@@ -34,6 +34,7 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/pending_checks` | JSON `int[]` | Lua | AP location IDs ready to send to the server |
 | `dwarfipelago/pending_item_created` | JSON `ItemEvent[]` | Lua | Items created since last poll (see schema below) |
 | `dwarfipelago/pending_item_stockpiled` | JSON `ItemEvent[]` | Lua | Items placed into a stockpile since last poll |
+| `dwarfipelago/shop_buy` | JSON `int[]` | Lua | Merchant's Shop slot indices the player has purchased; Python fulfils each (deducts coins, sends the item) then clears the queue |
 
 ### State Flags (peek, do not clear)
 
@@ -48,6 +49,7 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/trade/<flag>` | `"1"` or absent | Lua | Set when a trade/caravan milestone fires |
 | `dwarfipelago/craft_count/<flag>` | Integer string | Lua | Cumulative crafts completed for that flag |
 | `dwarfipelago/craft_count_index` | JSON `string[]` | Lua | Every craft flag that has been incremented this world; lets `status` enumerate dynamic material-split keys |
+| `dwarfipelago/skill/<name>` | Integer string | Lua | Highest level of skill `<name>` already counted toward skillsanity checks (so re-scans don't re-fire levels already sent) |
 | `dwarfipelago/blueprint/<name>` | `"1"` or absent | Lua | Set when a blueprint item has been received |
 | `dwarfipelago/unlock/wealth_coffers` | Integer string | Lua | How many Merchant's Coffers received (0–5); gates wealth tier checks. Coffers also cap coin minting / gem cutting, but **only when `goal` is `"1"` (legendary_wealth)** — under other goals minting/cutting is never blocked |
 | `dwarfipelago/unlock/immigration_waves` | Integer string | Lua | How many Immigration Waves received (0–5); gates title/population checks |
@@ -60,8 +62,14 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/unlock/artifact_armor` | `"1"` or absent | Lua | Set when Artifact Armor received; gates population_boom prestige requirement |
 | `dwarfipelago/unlock/master_builders_codex` | `"1"` or absent | Lua | Set when Master Builder's Codex received; gates legendary_wealth, mountainhome, and population_boom goals |
 | `dwarfipelago/unlock/RotGK` | Integer string | Lua | How many Remains of the Great King received; the king_remains goal completes when this reaches `king_remains_goal` |
+| `dwarfipelago/unlock/mining_depth` | Integer string | Lua | How many Progressive Mining Depth items received (0–4); each lowers the allowed dig floor by one cavern tier (only enforced when config `mining_depth` is `"1"`) |
+| `dwarfipelago/unlock/sunlight_tonic` | `"1"` or absent | Lua | Set when the Sunlight Tonic is received; dwarves may then walk freely in sunlight (no cave-adaptation nausea) |
 | `dwarfipelago/craftlock/<flag>` | `"1"` or absent | Lua | Set when the Crafting Permit for `<flag>` is received. When `crafting_permits` is non-zero, jobs producing an item whose flag is unset are cancelled |
 | `dwarfipelago/depot_built` | `"1"` or absent | Lua | Set once the starting trade depot has been placed or adopted |
+| `dwarfipelago/shop_unlocked` | `"0"` or `"1"` | Lua | `"1"` while a valid **Merchant's Shrine** stands (a temple zone with a built altar, a container, the required bars — 5 gold / 10 silver / 20 coke — and value ≥ 5000☼); the shop is only buyable while set |
+| `dwarfipelago/shop_unlocked_announced` | `"1"` or `""` | Lua | Dedupe flag so the "shop has opened" announcement fires once per opening |
+| `dwarfipelago/shop_pending` | JSON `{slot: true}` | Lua | Slots the player has bought that await client confirmation; the panel/buy guard treat them as unavailable until the item is confirmed (then the slot's `bought` flag is set in `shop`) |
+| `dwarfipelago/shrine_progress` | Float string | Lua | Progress (0–1 across the shrine's requirements) toward opening the shop, for the panel's Shop tab |
 | `dwarfipelago/megabeast/spawned` | `"1"` or absent | Lua | Set once the climax megabeast has been summoned. The summon is **player-initiated** (`dwarfipelago summon-beast` / the panel War tab's button), allowed only once the full war effort - 10 Military Training + Artifact Weapon + 2 Immigration Waves - is in hand. Prevents re-summoning on reload and stops roaming waves |
 | `dwarfipelago/megabeast/target_id` | Integer string | Lua | Unit ID of the pinned target megabeast; only this unit's death counts for the goal (natural megabeasts are cleared at load) |
 | `dwarfipelago/megabeast/champion` | `"1"` or absent | Lua | Set once the one-time veteran champion dwarf has joined (rare chance per Military Training, guaranteed at tier 8) |
@@ -89,7 +97,7 @@ All keys are namespaced under `dwarfipelago/`.
 
 | Key | Format | Written by | Description |
 |-----|--------|------------|-------------|
-| `dwarfipelago/goal` | `"0"`–`"4"` | Python | Goal type from slot data (0=slay_megabeast, 1=legendary_wealth, 2=population_boom, 3=mountainhome, 4=king_remains) |
+| `dwarfipelago/goal` | `"0"`–`"5"` | Python | Goal type from slot data (0=slay_megabeast, 1=legendary_wealth, 2=population_boom, 3=mountainhome, 4=king_remains, 5=dwarfsanity) |
 | `dwarfipelago/wealth_goal` | Integer string | Python | Wealth target for legendary_wealth goal |
 | `dwarfipelago/pop_goal` | Integer string | Python | Population target for population_boom goal |
 | `dwarfipelago/king_remains_goal` | Integer string | Python | Number of Remains of the Great King required for the king_remains goal |
@@ -110,6 +118,16 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/craftsanity_enabled` | `"0"`, `"1"`, or `"2"` | Python | Craftsanity mode: 0=off, 1=on (crafted), 2=storage |
 | `dwarfipelago/craftsanity_materials` | `"0"` or `"1"` | Python | When `"1"`, craft counts are split by material type (e.g. `barrel_wood` vs `barrel_metal`) |
 | `dwarfipelago/custom_caves` | `"0"` or `"1"` | Python | Whether the Custom Caves feature is enabled for this slot; written by `_sync_slot_data` from `slot_data["custom_caves"]` |
+| `dwarfipelago/deathlink` | `"0"` or `"1"` | Python | Whether DeathLink is enabled for this slot |
+| `dwarfipelago/mining_depth` | `"0"` or `"1"` | Python | Whether **Progressive Mining Depth** gating is on. When `"1"`, Lua caps dig jobs at the floor implied by `unlock/mining_depth` |
+| `dwarfipelago/craftsanity_max` | Integer string | Python | Total items to craft per item for all of its checks combined |
+| `dwarfipelago/craftsanity_threshold` | Integer string | Python | Crafts per check (a check fires every N produced) |
+| `dwarfipelago/craftsanity_labels` | JSON `{flag: label}` | Python | Display name for each craft flag, shown on the panel's Crafts tab |
+| `dwarfipelago/skillsanity_enabled` | `"0"` or `"1"` | Python | Whether Skillsanity is enabled for this slot |
+| `dwarfipelago/skillsanity_max_level` | Integer string | Python | Highest skill level that fires a check (1=Novice … 15=Legendary) |
+| `dwarfipelago/skillsanity_behaviour` | `"0"` or `"1"` | Python | Level mechanic for pre-skilled arrivals: `0`=leave untouched (all levels fire at once), `1`=lower to the next unclaimed check |
+| `dwarfipelago/shop_enabled` | `"0"` or `"1"` | Python | Whether the Merchant's Shop is enabled for this slot |
+| `dwarfipelago/shop` | JSON `{slot: {item, price, bought}}` | Python | The shop's slot contents — one multiworld item and its coin price per slot |
 
 ---
 
@@ -252,7 +270,8 @@ Load them from Python via `reqscript("internal/dwarfipelago/<module>")`.
 | `get_all_craft_counts()` | fn → table | `{flag = count}` for every flag in the craft index with count > 0 (used by `status`) |
 | `clear_craft_counts()` | fn | Wipe all recorded craft counts and the index (used by `reset`) |
 | `fortress_wealth()` | fn → int | Current total fortress wealth (items + buildings + stocks) |
-| `treasury_wealth()` | fn → int | Combined value of minted coins + cut gems in stocks (used by the legendary_wealth goal and wealth-tier checks) |
+| `treasury_wealth()` | fn → int | Combined value of minted coins + cut gems **currently in fortress stocks** (live scan; used for the panel's wealth display) |
+| `treasury_created_wealth()` | fn → int | **Lifetime** value of all coins minted + gems cut this world (a running counter, unaffected by later spending). Drives the **legendary_wealth** goal and the wealth-tier checks |
 
 ### `state`
 
@@ -315,16 +334,24 @@ It is a DFHack overlay widget + ZScreen popup. Open it three ways:
 - Run `dwarfipelago-panel` directly from the DFHack console
 
 The popup is a resizable `widgets.Window` containing a `widgets.TabBar` + `widgets.Pages`,
-each page a `widgets.Panel`. The tabs are `{"Status", "Unlocks", "Progress", "Crafts", "Controls", "Energy"}`:
+each page a `widgets.Panel`. Tabs are built **dynamically** — several appear only when
+the matching feature is enabled for the slot — so their absolute index is not fixed.
+Full order:
+`{"Status", "Unlocks", "Progress", "Caves", "Crafts", "Controls", "Energy", "Permits", "Skills", "Shop", "War"}`
 
-| Tab | Contents |
-|-----|----------|
-| **Status** | enabled state, goal, completion, depot status |
-| **Unlocks** | progression unlock counts/flags — **built dynamically** from `items.UNLOCK_DEFS` |
-| **Progress** | goal progress (wealth/population/remains toward target) |
-| **Crafts** | craftsanity craft counts and craftlock/permit status |
-| **Controls** | Restart/Start (`Shift+S`), Reset all AP state (`Shift+R`), Reset seed (`Shift+D`) |
-| **Energy** | Energy Link pool balance (MJ + raw kJ), Deposit Ale/Food/Coins, and call-a-caravan (only meaningful when `energy_enabled` is `"1"`) |
+| Tab | Shown when | Contents |
+|-----|-----------|----------|
+| **Status** | always | enabled state, goal, completion, depot status |
+| **Unlocks** | always | progression unlock counts/flags — **built dynamically** from `items.UNLOCK_DEFS` |
+| **Progress** | always | goal progress (wealth/population/remains toward target) |
+| **Caves** | custom caves on | custom-cave discovery and hint status |
+| **Crafts** | craftsanity on | craftsanity craft counts vs thresholds |
+| **Controls** | always | Restart/Start (`Shift+S`), Reset all AP state (`Shift+R`), Reset seed (`Shift+D`) |
+| **Energy** | `energy_enabled` | Energy Link pool balance (MJ + raw kJ), Deposit Ale/Food/Coins, and call-a-caravan |
+| **Permits** | craftpermits on | crafting-permit (craftlock) status per item |
+| **Skills** | skillsanity on | skillsanity per-skill level progress |
+| **Shop** | `merchant_shop` on | Merchant's Shop slots/prices, shrine progress, and buy controls |
+| **War** | slay_megabeast goal | War Readiness, barracks/soldier status, and the **Summon the Megabeast** button |
 
 `open_panel()` toggles: calling it again while open dismisses the existing instance.
 
@@ -344,7 +371,7 @@ automatically (and in `dwarfipelago status`).
 
 ### Adding a control button
 
-Add a `widgets.HotkeyLabel` to the **Controls** page's `subviews` (Tab 3):
+Add a `widgets.HotkeyLabel` to the **Controls** page's `subviews` (locate the page by its `"Controls"` label — the tab order is dynamic, so don't assume a fixed index):
 ```lua
 widgets.HotkeyLabel{
     frame = {t=5, l=2},           -- next free row under the existing controls
@@ -396,8 +423,21 @@ dwarfipelago resetseed
 # Manually deliver an item (for testing)
 dwarfipelago receive "Gold Bar"
 
-# Deposit a coin value (☼) into the shared Energy Link pool (requires energy_enabled)
+# Deposit into the shared Energy Link pool (requires energy_enabled)
 dwarfipelago deposit-coins 500
+dwarfipelago deposit-ale
+dwarfipelago deposit-food
+
+# Call an AP-summoned caravan early / send the current one away (Energy Link)
+dwarfipelago call-caravan
+dwarfipelago dismiss-caravan
+
+# Buy Merchant's Shop slot N (requires the shop open — build a Merchant's Shrine)
+dwarfipelago buy-shop 3
+
+# Summon the target megabeast (slay_megabeast goal; needs the full war effort:
+# 10 Military Training + Artifact Weapon + 2 Immigration Waves)
+dwarfipelago summon-beast
 
 # Run a mechanic verification test (no name = list them). Tests:
 #   spawn [RACE] | find <substr> | goblin | cavebear | vermin | spider
