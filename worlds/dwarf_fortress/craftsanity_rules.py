@@ -73,7 +73,10 @@ class DynamicCraftingLocationRules:
     
     def glass(self, state:CollectionState) -> bool:
         return self.job_type(state, "Glass")
-            
+
+    def ceramic(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Ceramics")
+
     def metal(self, state:CollectionState) -> bool:
         return self.process_resource(state, "metal") and ((self.can_fuel_workshops(state) \
         and state.has("Forge Blueprint", self.player)) or \
@@ -108,7 +111,10 @@ class DynamicCraftingLocationRules:
         else:
             return state.has("Tanner's Blueprint", self.player) and self.butcher_workshop(state) \
             and self.permit(state, "Leather")
-    
+
+    def leather_works(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Leatherworks")
+
     def permit(self, state:CollectionState, permit:str) -> bool:
         return state.has(permit + " Permit", self.player)
     
@@ -254,7 +260,10 @@ class DynamicCraftingLocationRules:
         
     def wood_or_metal(self, state:CollectionState) -> bool:
         return self.job_type(state, "Metal") or self.job_type(state, "Woodworks")
-    
+
+    def wood_or_leather_or_metal(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Metal") or self.job_type(state, "Woodworks") or self.job_type(state, "Leatherworks")
+
     def wood_or_metal_or_glass(self, state:CollectionState) -> bool:
         return self.job_type(state, "Metal") or self.job_type(state, "Woodworks") or self.job_type(state, "Glass")
     
@@ -283,6 +292,9 @@ class DynamicCraftingLocationRules:
     
     def butcher_workshop(self, state:CollectionState) -> bool:
         return state.has("Butcher's Shop Blueprint", self.player)
+
+    def clothier_workshop(self, state:CollectionState) -> bool:
+        return state.has("Clothier's Shop Blueprint", self.player)
     
     def famer_workshop(self, state:CollectionState) -> bool:
         return state.has("Farmer's Workshop Blueprint", self.player)
