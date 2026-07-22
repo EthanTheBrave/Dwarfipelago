@@ -712,7 +712,7 @@ end
 -- SABOTAGE_COUNT of the player's workshops/furnaces, goblin-style. Buildings are
 -- deconstructed (their materials drop as rubble to re-haul and rebuild). Fizzles
 -- with a near-miss message if the player has no eligible buildings.
-local SABOTAGE_COUNT = 5
+local SABOTAGE_COUNT = 1
 
 local function recv_goblin_saboteurs()
     -- Collect the player's workshops and furnaces as sabotage targets.
@@ -2590,7 +2590,7 @@ local TEST_LIST = {
     { "cavebear",  "Cave Bear Incursion trap",                        function() recv_cave_bear() end },
     { "catsplosion", "Catsplosion trap (10-20 fortress cats)",        function() recv_catsplosion() end },
     { "vermin",    "Vermin Infestation trap (rodents)",               function() recv_vermin_infestation() end },
-    { "saboteurs", "Goblin Saboteurs trap (wreck up to 5 workshops)", function() recv_goblin_saboteurs() end },
+    { "saboteurs", "Goblin Saboteurs trap (wreck 1 workshop)", function() recv_goblin_saboteurs() end },
     { "webs",      "Ensnaring Webs trap (freeze all citizens in webs)", function() recv_ensnaring_webs() end },
     { "thirst",    "Unquenchable Thirst trap (all citizens rush to drink)", function() recv_unquenchable_thirst() end },
     { "ordersab",  "Order Sabotage trap (wipe all manager work orders)", function() recv_order_sabotage() end },
