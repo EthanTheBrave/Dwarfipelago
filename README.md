@@ -92,15 +92,50 @@ When you load a fortress with Dwarfipelago active, the mod automatically places 
 <details>
 <summary>Win Conditions</summary>
 
-Configurable per-slot in your options YAML. Every goal also requires a minimum number of **Immigration Waves** (see Progression below).
+Choose one with the `goal` option in your YAML. Every goal is gated by more than population — each has a **definitive checklist** of progression items and in-fort conditions, listed below. The multiworld pool is filtered to your goal, so only the items your goal needs are shuffled in.
 
-| Goal | Description | Waves required |
-|------|-------------|---------------|
-| `legendary_wealth` | Accumulate a configurable treasury value in **minted coins and cut gems** (default: 100,000☼) *(default)* | 3 |
-| `slay_megabeast` | Wage a war campaign - muster a military, weather roaming warbands, and slay the megabeast that falls upon your fortress **(hard)** | 2 |
-| `population_boom` | Grow your fortress to a configurable population (default: 300 dwarves) **(unstable / unfinished - not recommended)** | 5 |
-| `mountainhome` | Achieve Mountainhome status - the monarch takes residence in your fortress (very difficult) | 5 |
-| `king_remains` | Treasure hunters, Kobolds and Goblins has plundered our great halls and took the remains of our great king. They have traded them outside of our realm and we need our friends to help find them. We need to find all X remains (`remains_great_king`, default 10) to bring our great king back into our halls. | 0 |
+| Goal | Description |
+|------|-------------|
+| `legendary_wealth` *(default)* | Accumulate a configurable treasury value in **minted coins and cut gems** (default 100,000☼) |
+| `slay_megabeast` **(hard)** | Wage a war campaign - muster a military, weather roaming warbands, and slay the megabeast that falls upon your fortress |
+| `population_boom` **(unstable / unfinished - not recommended)** | Grow your fortress to a configurable population (default 300 dwarves) |
+| `mountainhome` | Achieve Mountainhome status - the monarch takes residence in your fortress (very difficult) |
+| `king_remains` | Treasure hunters, Kobolds and Goblins plundered our halls and took the remains of our great king. Recover all of them to bring the king home. |
+| `dwarfsanity` | Collect **every workshop blueprint and every crafting permit** in the pool. Requires `craftpermits` enabled. |
+
+### Completion requirements (definitive)
+
+Victory is only recognised once **all** of the following are true for your chosen goal:
+
+**`legendary_wealth`**
+- Treasury value (minted coins + cut gems in stocks) ≥ `wealth_goal_amount` (default 100,000☼)
+- All **5 Merchant's Coffers** received
+- **3 Immigration Waves** received
+- **Master Builder's Codex** received
+
+**`slay_megabeast`**
+- All **10 Military Training** received
+- **Artifact Weapon** received
+- **2 Immigration Waves** received *(these three unlock the **Summon the Megabeast** button in the panel's War tab)*
+- **Slay the summoned target megabeast** — killing a stray megabeast before you summon the target does not count
+
+**`population_boom`**
+- **≥ `pop_goal`** living citizens (default 300)
+- **5 Immigration Waves** received
+- Any **one** prestige item: **Master Builder's Codex**, **Artifact Weapon**, or **Artifact Armor**
+
+**`mountainhome`**
+- A **monarch** (king or queen) has taken up residence in your fortress
+- **Monarch's Invitation** received
+- **5 Immigration Waves** received
+- **Master Builder's Codex** received
+- **Artifact Weapon** received
+
+**`king_remains`**
+- Collect all **Remains of the Great King** — the required count is `remains_of_the_great_king` (default 10, range 5–100)
+
+**`dwarfsanity`**
+- Receive **every workshop blueprint** *and* **every crafting permit** in the pool (so `craftpermits` must be enabled)
 
 </details>
 
@@ -161,12 +196,14 @@ Completing these milestones sends items to other players:
 - **Trade & diplomacy** - dwarven/elven/human caravan visits, outpost liaison meeting, first raid, first artifact recovery, first act of diplomacy (an elven/human caravan-visit check auto-completes if that civilisation doesn't exist in your world, so it can't soft-lock the seed)
 - **Fortress status** - noble appointments and civilisation recognition milestones
 - **Fortress titles** - Hamlet, Village, Town, City, Metropolis (population + wealth thresholds)
-- **Mining** - depth milestones (10/25/50/75/100 levels below the surface), tiles excavated (100 → 10,000), and breach events (First/Second/Third Cavern, Reached the Magma Sea, Welcome to the Circus)
+- **Room milestones** - each room type designated (bedroom, office, dining hall, tomb) plus quality tiers per room (Decent → Royal), and temple/guildhall tiers (Shrine → Temple → Temple Complex, Guildhall → Grand Guildhall)
+- **Mining** - cavern-approach progress (25% / 50% toward each cavern), tiles excavated (100 → 10,000), and breach events (First/Second/Third Cavern, Reached the Magma Sea, Welcome to the Circus). When **Progressive Mining Depth** is enabled, how deep you may dig is itself gated by items (see below)
 - **Farming** - harvested-crop milestones (50 / 100 / 250 / 500 / 1,000 crops)
 - **Infrastructure** - Built a Well, Pumped Water, Pumped Magma
 - **Biology** - First Eggs Hatched, Caged a Hostile Beast
 - **Deep / Endgame** - Mined Adamantine, Sold an Artifact
 - **Craftsanity** - optional crafting milestone checks (see below)
+- **Skillsanity** - optional per-skill checks: each level a dwarf gains in a tracked labor or combat skill fires a check (see below)
 
 </details>
 
@@ -225,6 +262,52 @@ craftsanity_threshold: 5
 #   - Beds
 #   - Blocks
 #   - Cloth
+```
+
+</details>
+
+---
+
+<details>
+<summary>Skillsanity</summary>
+
+Skillsanity turns your dwarves **leveling up** into location checks. Each time a dwarf reaches a new level in a tracked skill, a check fires — so a fortress that trains broadly sends a steady stream of items. (Some skills are far harder to train than others, so pick your groups with that in mind.)
+
+Enable it with `skillsanity: true` in your options YAML (off by default).
+
+### Which skills count
+
+Skills are split into **labor** and **combat** groups, each with its own preset selector:
+
+| Option | Values | Notes |
+|--------|--------|-------|
+| `skillsanity_skill_group` | `easy` / `medium` *(default)* / `all` / `choose` | Labor skills. `easy` is the common workshop/industry skills; `medium` adds finicky ones; `all` adds the rarest (Trapper, Bone Doctor, Strand Extractor…). |
+| `skillsanity_skills` | list | Only used when the group is `choose` — hand-pick the labor skills. |
+| `skillsanity_enable_combat` | `true` *(default)* / `false` | Whether combat skills are also checks. (Pikedwarf, Misc. Object User, and Thrower are never included — they can't realistically be trained in fort mode.) |
+| `skillsanity_combat_skill_group` | `easy` / `medium` *(default)* / `all` / `choose` | Combat skills. |
+| `skillsanity_combat_skills` | list | Only used when the combat group is `choose`. |
+
+### How many checks per skill
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `skillsanity_max_level` | Highest level that fires a check — `1` = Novice, `15` = Legendary | 15 |
+| `skillsanity_level_mechanic` | How dwarves who **arrive already skilled** (embark/migrants) are handled | `untouched` |
+
+`skillsanity_level_mechanic` matters because migrants can show up pre-trained:
+
+- `untouched` *(default)* — a level-7 miner who arrives immediately sends **all 7** mining checks at once.
+- `lower_skills` — an arriving dwarf's skills are **lowered to match your next unclaimed check**. If you already have a level-3 miner (3 mining checks sent), a new level-7 miner is dropped to level 4 and sends just **one** more. This keeps checks paced to your own progress instead of front-loading them.
+
+### Example YAML
+
+```yaml
+skillsanity: true
+skillsanity_skill_group: medium          # easy | medium | all | choose
+skillsanity_enable_combat: true
+skillsanity_combat_skill_group: medium   # easy | medium | all | choose
+skillsanity_max_level: 15                # 1 = Novice … 15 = Legendary
+skillsanity_level_mechanic: untouched    # untouched | lower_skills
 ```
 
 </details>
@@ -296,6 +379,60 @@ Ale and food deposits, the current pool balance (shown in MJ and raw kJ), and th
 ---
 
 <details>
+<summary>Merchant's Shop</summary>
+
+The Merchant's Shop lets you **spend minted coins to buy multiworld items** — a way to turn your economy into progress when the checks dry up. It's on by default; disable it with `merchant_shop: false`.
+
+### Opening the shop — the Merchant's Shrine
+
+The shop is closed until you build a **Merchant's Shrine** and keep it standing. A shrine is a **dedicated temple zone** (a Civzone assigned to a temple location) that contains:
+
+- a built **altar** (Offering Place),
+- a **container** (bin/coffer),
+- **bars of the chosen type** — **5 gold**, **10 silver**, or **20 coke** (the accepted bar type is configurable), and
+- total zone value **≥ 5,000☼**.
+
+The shop opens a few seconds after the shrine qualifies, and **closes again if the shrine is dismantled** — it must stay intact. The panel's **Shop** tab shows your progress toward these requirements.
+
+### Buying
+
+- The shop has **50 slots**; **10 unlock per Merchant's Coffer** you've received (so all 50 need all 5 coffers).
+- Each slot holds **one multiworld item at a coin price** (a value banded by tier). Buying deducts that value from your minted coins and sends the item's location check; each slot is bought once.
+- Buy from the panel's **Shop** tab, or from the console: `dwarfipelago buy-shop <slot>`.
+
+### Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `merchant_shop` | Enable the shop (50 slots, 10 per coffer) | on |
+| `shop_price_multiplier` | Scales every slot's price, as a percent of default (`100` = default, `50` = half, `200` = double). Range 10–1000. | 100 |
+
+</details>
+
+---
+
+<details>
+<summary>Progressive Mining Depth</summary>
+
+With Progressive Mining Depth (on by default: `progressive_mining_depths`), you **can't just dig straight to hell** — how deep your dwarves may dig is gated behind items from the multiworld. Dig jobs below your current allowed floor are held until you receive the next **Progressive Mining Depth** item.
+
+There are **four** Progressive Mining Depth items; each one lowers the floor by one tier:
+
+| Items received | You may dig down to… |
+|---|---|
+| 0 | just above the **first cavern** |
+| 1 | just above the **second cavern** |
+| 2 | just above the **third cavern** |
+| 3 | just above the **magma sea** |
+| 4 | **everything** (magma sea and below) |
+
+The thresholds are based on your own world's cavern/magma z-levels as they're discovered. Disable the feature with `progressive_mining_depths: false` to allow unrestricted digging.
+
+</details>
+
+---
+
+<details>
 <summary>Custom Caves</summary>
 
 Dwarfipelago always carves **6 hidden pockets** into the solid rock between your three cavern layers (2 per inter-cavern gap) at the start of the world. They are completely invisible on the map until a dwarf walks into one.
@@ -335,7 +472,9 @@ Hints are revealed one per fragment received in index order. Since cave discover
 | Trade goods | Cut gems, gold/silver/steel bars, masterwork crafts |
 | Resources | Food bundles, wood bundles, iron ore, coal |
 | Industry materials | Flux stone, pig iron, charcoal, cloth bolts, tanned leather, **bags of sand** (glassmaking), raw clay (kaolinite for porcelain), plus rare low-grade copper tools (pick/axe/sword) |
-| Traps | Goblin ambush, cave bear incursion, vermin infestation, unquenchable thirst, lost caravan, catsplosion, goblin saboteurs, ensnaring webs |
+| Livestock | Breeding pairs - pigs, chickens, alpacas, cows, sheep, yaks - delivered to the depot to grow your herds |
+| Fortress unlocks | **Progressive Mining Depth** (x4 - each lets you dig one cavern tier deeper), **Sunlight Tonic** (your dwarves may walk freely in sunlight - no cave-adaptation nausea) |
+| Traps | Goblin ambush, cave bear incursion, vermin infestation, unquenchable thirst, lost caravan, catsplosion, goblin saboteurs, ensnaring webs, **order sabotage** (shreds every current manager work order) |
 | Crafting Permits | When `craftpermits` is enabled, each permit item unlocks the ability to craft one item type (e.g. you can't make a table until the Table permit arrives). See the Crafting Permits section. |
 | Cave Map Fragment | Reveals a hint about the next undiscovered custom cave — coordinate hint for treasure caves, directional warning for trap caves. Up to 6 per slot; extra fragments beyond 6 are acknowledged but produce no new hint. |
 | Remains of the Great King | Treasure-hunt goal item - collect all of them (`king_remains` goal) to win. |
@@ -436,6 +575,20 @@ Dwarfipelago supports Archipelago's DeathLink system with a configurable thresho
 - Receiving a DeathLink kills **N random dwarves** in your fortress
 - Set `deathlink_threshold: 1` in your options for classic one-death-equals-one-death behaviour
 - Set `deathlink_percentage: true` to treat the threshold as a **percentage of your current population** instead of a flat count
+
+</details>
+
+---
+
+<details>
+<summary>Other Options</summary>
+
+A few smaller knobs that don't have their own section:
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `trap_item_weight` | Percentage of filler items that are traps (`0` = never, `100` = all filler is traps) | 20 |
+| `trades_in_logic` | Whether resource trades count as logical access - e.g. trading for metal bars can satisfy a requirement instead of needing a Smelter blueprint | off |
 
 </details>
 

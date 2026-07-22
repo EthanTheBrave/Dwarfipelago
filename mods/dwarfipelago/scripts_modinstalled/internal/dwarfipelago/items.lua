@@ -2085,7 +2085,7 @@ end
 M.UNLOCK_DEFS = {
     { key = "wealth_coffers",        label = "Merchant's Coffers",     max = 5 },
     { key = "immigration_waves",     label = "Immigration Waves",      max = 5 },
-    { key = "military_training",     label = "Military Training",      max = 4 },
+    { key = "military_training",     label = "Military Training",      max = 10 },
     { key = "RotGK",                 label = "Remains of the Great King"},
     { key = "dwarfsanity",           label = "Dwarfsanity"},
     { key = "baron_charter",         label = "Baron's Charter" },
