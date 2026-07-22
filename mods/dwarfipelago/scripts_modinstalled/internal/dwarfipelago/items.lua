@@ -7,6 +7,7 @@ local M = {}
 
 local log      = reqscript("internal/dwarfipelago/log")
 local bestiary = reqscript("internal/dwarfipelago/bestiary")
+local checks   = reqscript("internal/dwarfipelago/checks")
 
 -- -- Helpers -------------------------------------------------------------------
 
@@ -1766,6 +1767,50 @@ local SIEGE_FACTIONS = {
       announce = "Night creatures stir in the dark and descend upon the fortress!" },
 }
 
+-- Defense-aware scaling: a fortress that turtles behind traps and a big standing
+-- army would trivialise a fixed-size siege, so scale the wave up with its defenses
+-- (readiness only reflects a 4-soldier minimum, so army size beyond that and trap
+-- density are the signals it misses). Capped so a heavily-defended fort still faces
+-- a beatable siege, never an impossible one. All knobs tunable here.
+local DEFENSE_MIN_SOLDIERS  = 4     -- soldiers the readiness gate already assumes
+local DEFENSE_SOLDIER_WEIGHT = 2    -- each trained soldier beyond that ~ this many trap-points
+local DEFENSE_SCALE          = 40   -- defense score that reaches the full bonus
+local DEFENSE_MAX_BONUS      = 1.0  -- max added multiplier (1.0 => up to 2x wave size)
+
+-- Count the fort's defensive traps + upright spikes.
+local function count_defensive_traps()
+    local n = 0
+    local DEFENSIVE = {
+        [df.trap_type.WeaponTrap]    = true,
+        [df.trap_type.CageTrap]      = true,
+        [df.trap_type.StoneFallTrap] = true,
+    }
+    for _, b in ipairs(df.global.world.buildings.all) do
+        local ok, t = pcall(function() return b:getType() end)
+        if ok then
+            if t == df.building_type.Trap then
+                local ok2, tt = pcall(function() return b.trap_type end)
+                if ok2 and DEFENSIVE[tt] then n = n + 1 end
+            elseif t == df.building_type.Weapon then  -- upright spike/spear
+                n = n + 1
+            end
+        end
+    end
+    return n
+end
+
+-- Wave-size multiplier (1.0 .. 1+DEFENSE_MAX_BONUS) from the fort's defenses.
+local function fort_defense_multiplier()
+    local traps = 0
+    pcall(function() traps = count_defensive_traps() end)
+    local soldiers = 0
+    pcall(function() soldiers = checks.count_military_skill(3) end)  -- Competent+ citizens
+    local army_extra = math.max(0, soldiers - DEFENSE_MIN_SOLDIERS)
+    local score = traps + army_extra * DEFENSE_SOLDIER_WEIGHT
+    local mult = 1 + math.min(DEFENSE_MAX_BONUS, score / DEFENSE_SCALE)
+    return mult, traps, soldiers
+end
+
 -- Choose a siege faction for this wave: unlocked by readiness and actually
 -- fieldable in this world (its civ/races present). Goblins are the guaranteed
 -- fallback (a dark fortress effectively always exists).
@@ -1828,6 +1873,9 @@ local function spawn_warband(readiness)
     local has_armor   = (tier_armor == "light" or tier_armor == "full")
     local weapon_pool = (faction.weapons == "elf") and ELF_WEAPONS or WARBAND_WEAPONS
 
+    -- Scale the whole wave up with the fort's defenses (traps + standing army).
+    local mult, def_traps, def_soldiers = fort_defense_multiplier()
+
     local function spawn_one(civ)
         local race = pool[math.random(#pool)]
         return create_unit(race, { x = x, y = y, z = z }, { civ_id = civ or -1, hostile = true })
@@ -1837,7 +1885,7 @@ local function spawn_warband(readiness)
     local spawned = 0
 
     -- Infantry (night creatures come unarmed but are threats in their own right).
-    local n = math.max(1, math.floor(math.random(tier.size[1], tier.size[2]) * (faction.size_mult or 1)))
+    local n = math.max(1, math.floor(math.random(tier.size[1], tier.size[2]) * (faction.size_mult or 1) * mult))
     for _ = 1, n do
         local unit = spawn_one(civ_id)
         if unit then
@@ -1853,7 +1901,7 @@ local function spawn_warband(readiness)
 
     -- Ranged contingent: crossbows for the metal civs, bows for elves.
     if faction.ranged ~= "none" and mat then
-        local nr = math.random(tier.ranged[1], tier.ranged[2])
+        local nr = math.floor(math.random(tier.ranged[1], tier.ranged[2]) * mult)
         for _ = 1, nr do
             local unit = spawn_one(civ_id)
             if unit then
@@ -1884,7 +1932,7 @@ local function spawn_warband(readiness)
     -- animals; a night raid's escorts are simply more night creatures.
     local beast_pool = (faction.key == "night") and pool
         or (faction.beasts and bestiary.filter_present(faction.beasts))
-    local nb = math.random(tier.beasts[1], tier.beasts[2])
+    local nb = math.floor(math.random(tier.beasts[1], tier.beasts[2]) * mult)
     if faction.key == "night" and nb == 0 then nb = math.random(1, 2) end
     if beast_pool and #beast_pool > 0 and nb > 0 then
         for _ = 1, nb do
@@ -1909,8 +1957,8 @@ local function spawn_warband(readiness)
         dfhack.gui.showAnnouncement(
             ("[AP] %s %d enemies close on the fortress."):format(faction.announce, spawned),
             COLOR_RED, true)
-        log.info(("Warband spawned: %s siege, readiness %d, %d enemies at (%d,%d,%d)"):format(
-            faction.key, readiness, spawned, x, y, z))
+        log.info(("Warband spawned: %s siege, readiness %d, %d enemies (defense x%.2f: %d traps, %d soldiers) at (%d,%d,%d)"):format(
+            faction.key, readiness, spawned, mult, def_traps, def_soldiers, x, y, z))
     end
     return spawned
 end
