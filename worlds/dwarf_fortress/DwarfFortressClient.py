@@ -832,6 +832,10 @@ class DwarfFortressContext(CommonContext):
 
     _IMMIGRATION_WAVE_ID = 37370631  # BASE_ID + 631
     _TRAP_FLAG           = 0b100     # ItemClassification.trap bit
+    # Max items delivered per poll (~every _poll_interval s). Caps the burst of
+    # createitem RPCs so a re-embark (which re-delivers the whole item history)
+    # can't flood DFHack in one tick; the rest continue on subsequent polls.
+    _MAX_ITEMS_PER_POLL  = 100
 
     async def _apply_pending_items(self):
         """Apply any received AP items that haven't been delivered yet."""
@@ -883,13 +887,47 @@ class DwarfFortressContext(CommonContext):
                     ),
                 )
                 self._is_reembark = True
+            else:
+                # An interrupted re-embark (client or DFHack restarted mid-recovery)
+                # leaves reembark_mode="1" in world data with received_index partway
+                # through. Resume re-embark handling so the remaining traps stay
+                # skipped and the one consolidated migrant batch still fires when
+                # delivery finishes.
+                raw_mode = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: self.dfhack.run_command(
+                        "lua",
+                        'print(dfhack.persistent.getWorldDataString'
+                        '("dwarfipelago/reembark_mode") or "")',
+                    ),
+                )
+                if raw_mode and raw_mode.strip() == "1":
+                    self._is_reembark = True
+                    logger.info(
+                        f"[Dwarfipelago] Resuming interrupted re-embark recovery at "
+                        f"item {self._received_index}/{len(self.items_received)}"
+                    )
 
         pending = len(self.items_received) - self._received_index
         if pending > 0:
             self.debug(f"Applying {pending} pending item(s) starting at index {self._received_index}")
 
         skipped_traps = 0
+        processed_this_poll = 0
         for i in range(self._received_index, len(self.items_received)):
+            # Throttle: process at most _MAX_ITEMS_PER_POLL items per poll so a
+            # large backlog (especially a re-embark re-delivering the entire item
+            # history) doesn't flood DFHack with createitem RPCs in a single burst.
+            # received_index is persisted after each item, so the remainder is
+            # picked up on the next poll from where we left off.
+            if processed_this_poll >= self._MAX_ITEMS_PER_POLL:
+                self.debug(
+                    f"Item throttle: processed {processed_this_poll} this poll, "
+                    f"{len(self.items_received) - i} remaining — continuing next poll"
+                )
+                break
+            processed_this_poll += 1
+
             network_item = self.items_received[i]
 
             # During re-embark, skip all trap-classified items so a recovering fortress
