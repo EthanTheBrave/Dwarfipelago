@@ -1573,27 +1573,26 @@ local function set_skill(unit, skill_id, level)
     soul.skills:insert("#", { new = true, id = skill_id, rating = level })
 end
 
--- Per-readiness wave config (tunable). Difficulty curve: 1-3 very easy, 4 easy-
--- to-medium, 5-6 medium, 7-9 hard. armor: none|shield|light(breast+helm)|full.
+-- Per-readiness wave config (tunable). Difficulty curve modeled on DF sieges
+-- (dwarffortresswiki.org/index.php/Siege): early waves are token raids, but the
+-- later ones escalate toward a real siege - swelling melee numbers, a crossbow
+-- contingent, and multiple monster escorts (trolls/ogres) under an elite
+-- commander (readiness 7+). size/ranged/beasts are {min,max} rolled per wave.
+-- (For scale reference the wiki's regular+monster siege sizes are ~10 at Town,
+-- ~40+5 at City, up to 120+40 at Metropolis; roaming waves stay well under the
+-- top since the summoned megabeast is the real finale.)
+-- armor: none|shield|light(breast+helm)|full.
 local WARBAND_TIERS = {
-    [1] = { size = {2, 2},  mat = "COPPER", armor = "none",   skill = {0, 0}, pool = "easy", escort = 0 },
-    [2] = { size = {2, 3},  mat = "COPPER", armor = "none",   skill = {0, 1}, pool = "easy", escort = 0 },
-    [3] = { size = {3, 3},  mat = "COPPER", armor = "shield", skill = {0, 1}, pool = "easy", escort = 0 },
-    [4] = { size = {3, 4},  mat = "IRON",   armor = "shield", skill = {2, 3}, pool = "mid",  escort = 0 },
-    [5] = { size = {4, 5},  mat = "IRON",   armor = "light",  skill = {3, 4}, pool = "mid",  escort = 0 },
-    [6] = { size = {5, 6},  mat = "IRON",   armor = "light",  skill = {4, 5}, pool = "mid",  escort = 0 },
-    [7] = { size = {6, 7},  mat = "IRON",   armor = "full",   skill = {6, 7}, pool = "hard", escort = 25 },
-    [8] = { size = {7, 8},  mat = "IRON",   armor = "full",   skill = {7, 8}, pool = "hard", escort = 50 },
-    [9] = { size = {8, 10}, mat = "STEEL",  armor = "full",   skill = {8, 9}, pool = "hard", escort = 75 },
+    [1] = { size = {2, 2},   mat = "COPPER", armor = "none",   skill = {0, 0}, ranged = {0, 0}, beasts = {0, 0} },
+    [2] = { size = {2, 3},   mat = "COPPER", armor = "none",   skill = {0, 1}, ranged = {0, 0}, beasts = {0, 0} },
+    [3] = { size = {3, 4},   mat = "COPPER", armor = "shield", skill = {0, 1}, ranged = {0, 0}, beasts = {0, 0} },
+    [4] = { size = {4, 5},   mat = "IRON",   armor = "shield", skill = {2, 3}, ranged = {0, 1}, beasts = {0, 0} },
+    [5] = { size = {5, 6},   mat = "IRON",   armor = "light",  skill = {3, 4}, ranged = {1, 1}, beasts = {0, 0} },
+    [6] = { size = {6, 8},   mat = "IRON",   armor = "light",  skill = {4, 5}, ranged = {1, 2}, beasts = {0, 1} },
+    [7] = { size = {9, 11},  mat = "IRON",   armor = "full",   skill = {6, 7}, ranged = {2, 3}, beasts = {1, 1} },
+    [8] = { size = {12, 15}, mat = "IRON",   armor = "full",   skill = {7, 8}, ranged = {3, 4}, beasts = {1, 2} },
+    [9] = { size = {16, 20}, mat = "STEEL",  armor = "full",   skill = {8, 9}, ranged = {4, 6}, beasts = {2, 3} },
 }
-
--- Race pools by tier keyword (filtered to what the world actually has at spawn).
-local WARBAND_POOLS = {
-    easy = { "KOBOLD", "GOBLIN" },
-    mid  = { "GOBLIN", "ELF", "HUMAN", "REPTILE_MAN", "SERPENT_MAN", "BAT_MAN" },
-    hard = { "GOBLIN", "HUMAN", "ANT_MAN", "REPTILE_MAN", "SERPENT_MAN" },
-}
-local WARBAND_ESCORTS = { "TROLL", "OGRE" }
 
 -- Weapon options: {itemdef id, matching job_skill name}. Picked per unit.
 local WARBAND_WEAPONS = {
@@ -1602,6 +1601,25 @@ local WARBAND_WEAPONS = {
     { "ITEM_WEAPON_SPEAR",       "SPEAR" },
     { "ITEM_WEAPON_MACE",        "MACE" },
 }
+-- Elves fight with wooden weapons only (no metal), so their melee is limited to
+-- what makes sense carved from a log.
+local ELF_WEAPONS = {
+    { "ITEM_WEAPON_SWORD_SHORT", "SWORD" },
+    { "ITEM_WEAPON_SPEAR",       "SPEAR" },
+}
+
+-- A plant-wood material for elven gear, resolved once from the first plant that
+-- yields structural wood (cached).
+local _wood_mat
+local function find_wood_mat()
+    if _wood_mat ~= nil then return _wood_mat or nil end
+    for _, p in ipairs(df.global.world.raws.plants.all) do
+        local mi = dfhack.matinfo.find("PLANT_MAT:" .. p.id .. ":WOOD")
+        if mi then _wood_mat = { type = mi.type, index = mi.index }; return _wood_mat end
+    end
+    _wood_mat = false
+    return nil
+end
 
 -- Worn-armor pieces for a tier keyword: {item_type, itemdef vector, id, part flag}.
 local function armor_pieces(kind)
@@ -1620,14 +1638,15 @@ end
 
 -- Arm a humanoid: weapon (+off-hand shield) + armor set. Returns the weapon's
 -- job_skill name so the caller can buff the matching skill.
-local function equip_warrior(unit, mat, give_shield, armor_kind)
+local function equip_warrior(unit, mat, give_shield, armor_kind, weapon_pool)
     local W = df.global.world.raws.itemdefs
     local grasps = find_body_parts(unit, "GRASP")
 
-    local wpn = WARBAND_WEAPONS[math.random(#WARBAND_WEAPONS)]
+    weapon_pool = weapon_pool or WARBAND_WEAPONS
+    local wpn = weapon_pool[math.random(#weapon_pool)]
     local wpn_sub = itemdef_subtype(W.weapons, wpn[1])
     if not wpn_sub then  -- fall back to the short sword if this world lacks it
-        wpn = WARBAND_WEAPONS[1]; wpn_sub = itemdef_subtype(W.weapons, wpn[1])
+        wpn = weapon_pool[1]; wpn_sub = itemdef_subtype(W.weapons, wpn[1])
     end
     equip_item(unit, df.item_type.WEAPON, wpn_sub, mat, df.inv_item_role_type.Weapon, grasps[1])
 
@@ -1654,6 +1673,119 @@ local function buff_warrior(unit, weapon_skill, level, has_shield, has_armor)
     end)
 end
 
+-- Arm a crossbow goblin: a crossbow in the main hand plus a worn quiver holding a
+-- stack of bolts, so the ranged contingent can actually fire. Best-effort and
+-- pcall-guarded - if a world lacks the itemdefs the unit simply goes without.
+-- Buffs the crossbow skill.
+local function equip_crossbow(unit, mat, level)
+    local W = df.global.world.raws.itemdefs
+    local grasps = find_body_parts(unit, "GRASP")
+    local xbow_sub = itemdef_subtype(W.weapons, "ITEM_WEAPON_CROSSBOW")
+    if not (xbow_sub and grasps[1]) then return false end
+    equip_item(unit, df.item_type.WEAPON, xbow_sub, mat, df.inv_item_role_type.Weapon, grasps[1])
+    pcall(function()
+        local body     = find_body_part(unit, "UPPERBODY")
+        local bolt_sub = itemdef_subtype(W.ammo, "ITEM_AMMO_BOLTS")
+        local qv = dfhack.items.createItem(unit, df.item_type.QUIVER, -1, mat.type, mat.index, false)
+        local qi = qv and qv[1]
+        if qi and body then
+            qi.flags.forbid = false
+            dfhack.items.moveToInventory(qi, unit, df.inv_item_role_type.Worn, body)
+            if bolt_sub then
+                local bolts = dfhack.items.createItem(unit, df.item_type.AMMO, bolt_sub, mat.type, mat.index, false)
+                local bi = bolts and bolts[1]
+                if bi then
+                    bi.flags.forbid = false
+                    pcall(function() bi.stack_size = 25 end)
+                    dfhack.items.moveToContainer(bi, qi)
+                end
+            end
+        end
+    end)
+    buff_warrior(unit, "CROSSBOW", level, false, false)
+    return true
+end
+
+-- Arm an elven archer: a bow in the main hand plus a worn quiver of arrows. Same
+-- best-effort pattern as equip_crossbow, but bow/arrows and the BOW skill.
+local function equip_bow(unit, mat, level)
+    local W = df.global.world.raws.itemdefs
+    local grasps = find_body_parts(unit, "GRASP")
+    local bow_sub = itemdef_subtype(W.weapons, "ITEM_WEAPON_BOW")
+    if not (bow_sub and grasps[1]) then return false end
+    equip_item(unit, df.item_type.WEAPON, bow_sub, mat, df.inv_item_role_type.Weapon, grasps[1])
+    pcall(function()
+        local body    = find_body_part(unit, "UPPERBODY")
+        local arr_sub = itemdef_subtype(W.ammo, "ITEM_AMMO_ARROWS")
+        local qv = dfhack.items.createItem(unit, df.item_type.QUIVER, -1, mat.type, mat.index, false)
+        local qi = qv and qv[1]
+        if qi and body then
+            qi.flags.forbid = false
+            dfhack.items.moveToInventory(qi, unit, df.inv_item_role_type.Worn, body)
+            if arr_sub then
+                local arrows = dfhack.items.createItem(unit, df.item_type.AMMO, arr_sub, mat.type, mat.index, false)
+                local ai = arrows and arrows[1]
+                if ai then
+                    ai.flags.forbid = false
+                    pcall(function() ai.stack_size = 25 end)
+                    dfhack.items.moveToContainer(ai, qi)
+                end
+            end
+        end
+    end)
+    buff_warrior(unit, "BOW", level, false, false)
+    return true
+end
+
+-- Themed siege factions. Each roaming wave is drawn from ONE of these (whichever
+-- are present in the world and unlocked by readiness), so a wave reads as a real
+-- siege from a particular civilisation rather than a random grab-bag:
+--   * goblin - the classic dark-fortress host: metal arms, crossbows, trolls/ogres
+--   * human  - a disciplined army: metal arms, crossbows, war dogs
+--   * elf    - wooden weapons and bows, no metal, giant-animal escorts
+--   * night  - night creatures (werebeasts, night trolls, ...): a monster raid,
+--              no equipment and no civ, only the beasts themselves
+-- material: metal (uses the tier's mat) | wood | none.  ranged: crossbow|bow|none.
+-- armor: "tier" uses the tier's armor kind; "none" = unarmoured.
+local SIEGE_FACTIONS = {
+    { key = "goblin", civ = "GOBLIN", races = {"GOBLIN"}, material = "metal", weapons = "metal",
+      armor = "tier", ranged = "crossbow", arm_beasts = true, min_readiness = 1,
+      beasts = { "TROLL", "OGRE" },
+      announce = "A goblin siege descends on the fortress!" },
+    { key = "human", civ = "HUMAN", races = {"HUMAN"}, material = "metal", weapons = "metal",
+      armor = "tier", ranged = "crossbow", arm_beasts = false, min_readiness = 4,
+      beasts = { "DOG", "WOLF" },
+      announce = "A human army lays siege to the fortress!" },
+    { key = "elf", civ = "ELF", races = {"ELF"}, material = "wood", weapons = "elf",
+      armor = "none", ranged = "bow", arm_beasts = false, min_readiness = 4,
+      beasts = { "GIANT_JAGUAR", "GIANT_TIGER", "GIANT_LEOPARD", "GRIZZLY_BEAR", "ELEPHANT", "LION", "TIGER" },
+      announce = "An elven host emerges from the wilds to besiege the fortress!" },
+    { key = "night", civ = nil, races = nil, material = "none", weapons = "none",
+      armor = "none", ranged = "none", arm_beasts = false, min_readiness = 5, size_mult = 0.4,
+      beasts = nil,  -- infantry AND escorts are night creatures (pulled from the bestiary)
+      announce = "Night creatures stir in the dark and descend upon the fortress!" },
+}
+
+-- Choose a siege faction for this wave: unlocked by readiness and actually
+-- fieldable in this world (its civ/races present). Goblins are the guaranteed
+-- fallback (a dark fortress effectively always exists).
+local function pick_siege_faction(readiness)
+    local usable = {}
+    for _, f in ipairs(SIEGE_FACTIONS) do
+        if readiness >= f.min_readiness then
+            local ok
+            if f.key == "night" then
+                ok = #bestiary.census().night > 0
+            else
+                ok = (find_civ_id(f.civ) ~= nil) and #bestiary.filter_present(f.races) > 0
+            end
+            if ok then usable[#usable + 1] = f end
+        end
+    end
+    if #usable == 0 then return SIEGE_FACTIONS[1] end  -- goblin fallback
+    return usable[math.random(#usable)]
+end
+
 -- Spawn a roaming warband for the given readiness level (1-9). Returns the count
 -- spawned. Picks a surface-edge tile so the enemies march in.
 local function spawn_warband(readiness)
@@ -1667,59 +1799,118 @@ local function spawn_warband(readiness)
     end
     if not x then log.error("spawn_warband: no spawn position found"); return 0 end
 
-    -- Requested material with fallbacks (steel may be absent from a world).
-    local mat = dfhack.matinfo.find("INORGANIC:" .. tier.mat)
-        or dfhack.matinfo.find("INORGANIC:IRON")
-        or dfhack.matinfo.find("INORGANIC:COPPER")
+    -- Pick which civilisation/faction sieges this wave, and build its roster.
+    local faction = pick_siege_faction(readiness)
 
-    local pool = bestiary.filter_present(WARBAND_POOLS[tier.pool] or {})
-    if #pool == 0 then pool = bestiary.filter_present({ "GOBLIN" }) end
+    local pool
+    if faction.key == "night" then
+        pool = bestiary.census().night          -- werebeasts, night trolls, ...
+    else
+        pool = bestiary.filter_present(faction.races)
+    end
+    if not pool or #pool == 0 then pool = bestiary.filter_present({ "GOBLIN" }) end
     if #pool == 0 then log.error("spawn_warband: no usable race present in world"); return 0 end
 
-    local goblin_civ = find_goblin_civ_id()
-    local give_shield = (tier.armor == "shield" or tier.armor == "full")
-    local has_armor   = (tier.armor == "light" or tier.armor == "full")
-    local n = math.random(tier.size[1], tier.size[2])
+    -- Faction material: metal factions use the tier's metal (steel may be absent);
+    -- elves use wood; night creatures fight unarmed (mat stays nil).
+    local mat
+    if faction.material == "metal" then
+        mat = dfhack.matinfo.find("INORGANIC:" .. tier.mat)
+            or dfhack.matinfo.find("INORGANIC:IRON")
+            or dfhack.matinfo.find("INORGANIC:COPPER")
+    elseif faction.material == "wood" then
+        mat = find_wood_mat()
+    end
+
+    local civ_id      = faction.civ and find_civ_id(faction.civ) or -1
+    local tier_armor  = (faction.armor == "tier") and tier.armor or "none"
+    local give_shield = (tier_armor == "shield" or tier_armor == "full")
+    local has_armor   = (tier_armor == "light" or tier_armor == "full")
+    local weapon_pool = (faction.weapons == "elf") and ELF_WEAPONS or WARBAND_WEAPONS
+
+    local function spawn_one(civ)
+        local race = pool[math.random(#pool)]
+        return create_unit(race, { x = x, y = y, z = z }, { civ_id = civ or -1, hostile = true })
+    end
+    local function rskill() return math.random(tier.skill[1], tier.skill[2]) end
 
     local spawned = 0
+
+    -- Infantry (night creatures come unarmed but are threats in their own right).
+    local n = math.max(1, math.floor(math.random(tier.size[1], tier.size[2]) * (faction.size_mult or 1)))
     for _ = 1, n do
-        local race = pool[math.random(#pool)]
-        local civ  = (race == "GOBLIN") and goblin_civ or -1
-        local unit = create_unit(race, { x = x, y = y, z = z }, { civ_id = civ, hostile = true })
+        local unit = spawn_one(civ_id)
         if unit then
             if mat then
                 pcall(function()
-                    local wskill = equip_warrior(unit, mat, give_shield, tier.armor)
-                    buff_warrior(unit, wskill, math.random(tier.skill[1], tier.skill[2]), give_shield, has_armor)
+                    local wskill = equip_warrior(unit, mat, give_shield, tier_armor, weapon_pool)
+                    buff_warrior(unit, wskill, rskill(), give_shield, has_armor)
                 end)
             end
             spawned = spawned + 1
         end
     end
 
-    -- Higher tiers: a chance of one armed beast brute (weapon only - armor fit on
-    -- a troll/ogre-sized body is unreliable).
-    if tier.escort and tier.escort > 0 and math.random(100) <= tier.escort then
-        local beasts = bestiary.filter_present(WARBAND_ESCORTS)
-        if #beasts > 0 then
-            local brute = create_unit(beasts[math.random(#beasts)], { x = x, y = y, z = z },
-                                      { civ_id = -1, hostile = true })
-            if brute and mat then
-                local grasps = find_body_parts(brute, "GRASP")
-                equip_item(brute, df.item_type.WEAPON,
-                           itemdef_subtype(df.global.world.raws.itemdefs.weapons, "ITEM_WEAPON_AXE_BATTLE"),
-                           mat, df.inv_item_role_type.Weapon, grasps[1])
-                buff_warrior(brute, "AXE", math.floor((tier.skill[1] + tier.skill[2]) / 2), false, false)
+    -- Ranged contingent: crossbows for the metal civs, bows for elves.
+    if faction.ranged ~= "none" and mat then
+        local nr = math.random(tier.ranged[1], tier.ranged[2])
+        for _ = 1, nr do
+            local unit = spawn_one(civ_id)
+            if unit then
+                pcall(function()
+                    if faction.ranged == "bow" then equip_bow(unit, mat, rskill())
+                    else equip_crossbow(unit, mat, rskill()) end
+                end)
+                spawned = spawned + 1
             end
-            if brute then spawned = spawned + 1 end
+        end
+    end
+
+    -- Elite commander leading the siege (readiness 7+, armed factions only): a
+    -- single general the way a real siege has one master.
+    if readiness >= 7 and mat then
+        local cmdr = spawn_one(civ_id)
+        if cmdr then
+            local cmdr_armor = (tier_armor == "none") and "none" or "full"
+            pcall(function()
+                local wskill = equip_warrior(cmdr, mat, give_shield, cmdr_armor, weapon_pool)
+                buff_warrior(cmdr, wskill, math.min(tier.skill[2] + 3, 15), give_shield, cmdr_armor ~= "none")
+            end)
+            spawned = spawned + 1
+        end
+    end
+
+    -- Monster escorts: goblins bring trolls/ogres, humans war dogs, elves giant
+    -- animals; a night raid's escorts are simply more night creatures.
+    local beast_pool = (faction.key == "night") and pool
+        or (faction.beasts and bestiary.filter_present(faction.beasts))
+    local nb = math.random(tier.beasts[1], tier.beasts[2])
+    if faction.key == "night" and nb == 0 then nb = math.random(1, 2) end
+    if beast_pool and #beast_pool > 0 and nb > 0 then
+        for _ = 1, nb do
+            local brute = create_unit(beast_pool[math.random(#beast_pool)],
+                                      { x = x, y = y, z = z }, { civ_id = -1, hostile = true })
+            if brute then
+                if mat and faction.arm_beasts then  -- goblin trolls/ogres wield an axe
+                    pcall(function()
+                        local grasps = find_body_parts(brute, "GRASP")
+                        equip_item(brute, df.item_type.WEAPON,
+                                   itemdef_subtype(df.global.world.raws.itemdefs.weapons, "ITEM_WEAPON_AXE_BATTLE"),
+                                   mat, df.inv_item_role_type.Weapon, grasps[1])
+                        buff_warrior(brute, "AXE", math.floor((tier.skill[1] + tier.skill[2]) / 2), false, false)
+                    end)
+                end
+                spawned = spawned + 1
+            end
         end
     end
 
     if spawned > 0 then
         dfhack.gui.showAnnouncement(
-            ("[AP] A roaming warband attacks! %d enemies close on the fortress."):format(spawned),
+            ("[AP] %s %d enemies close on the fortress."):format(faction.announce, spawned),
             COLOR_RED, true)
-        log.info(("Warband spawned: readiness %d, %d enemies at (%d,%d,%d)"):format(readiness, spawned, x, y, z))
+        log.info(("Warband spawned: %s siege, readiness %d, %d enemies at (%d,%d,%d)"):format(
+            faction.key, readiness, spawned, x, y, z))
     end
     return spawned
 end
