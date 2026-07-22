@@ -2605,6 +2605,11 @@ local TEST_LIST = {
                        print("[test] Next wave forced due; it spawns on the next poll if readiness>=1 and goal is Slay Megabeast.")
                    end },
     { "migrants",  "Add a wave of citizen dwarves",                    function() recv_immigration_wave() end },
+    { "dwarves",   "Spawn N citizen dwarves with NO AP counter change (arg: N, default 5)",
+                   function(rest)
+                       local n = spawn_citizen_dwarves(tonumber(rest[1]) or 5)
+                       print(("[test] spawned %d citizen dwarf(s) - immigration_waves counter unchanged"):format(n))
+                   end },
     { "spawn-livestock", "Spawn a breeding group of livestock (arg: pigs|chickens|alpacas|cows|sheep|yaks)",
                    function(rest)
                        local LIVESTOCK = {
