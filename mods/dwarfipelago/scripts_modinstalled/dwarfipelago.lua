@@ -37,9 +37,14 @@ local function fmt_energy(j)
     end
 end
 
--- Set to true while we are applying a received DeathLink so that the death
--- hook does not count those kills toward our own outgoing DeathLink threshold.
-local applying_recv_deathlink = false
+-- Unit ids we killed while applying a received DeathLink, so the death hook does
+-- NOT count those kills toward our own outgoing DeathLink threshold. This is a set
+-- keyed by unit id rather than a simple boolean flag because dfhack.units.kill()
+-- fires onUnitDeath asynchronously (on a later tick) - by the time the death event
+-- arrives a boolean set/cleared around the kill loop is already false, so the
+-- deaths would be counted and bounce a DeathLink straight back, looping forever
+-- between two DF slots. Each id is consumed by the death hook when it fires.
+local deathlink_killed_ids = {}
 
 -- Job types that count as "mining" for the depth / tiles-excavated milestones.
 -- Built defensively so names absent in a given DF version are skipped.
@@ -435,9 +440,13 @@ local function on_unit_death(uid)
     end
 
     -- ── DeathLink: count citizen deaths ──────────────────────────────────────
-    -- Skip deaths we inflicted ourselves when applying a received DeathLink,
-    -- so those don't feed back into our outgoing threshold.
-    if applying_recv_deathlink then return end
+    -- Skip (and consume) deaths we inflicted ourselves applying a received
+    -- DeathLink, so those don't feed back into our outgoing threshold and bounce
+    -- a DeathLink back to the sender in an endless loop.
+    if deathlink_killed_ids[uid] then
+        deathlink_killed_ids[uid] = nil
+        return
+    end
     if was_citizen(unit) then
         local count = state.increment_death_count()
         -- Python polls death_count vs deathlinks_sent and fires the Bounce packets.
@@ -487,10 +496,14 @@ local function apply_pending_recv_deathlinks()
         candidates[i], candidates[j] = candidates[j], candidates[i]
     end
 
-    applying_recv_deathlink = true
     local killed = 0
     for i = 1, math.min(to_kill, #candidates) do
         local unit = candidates[i]
+        local uid  = unit.id
+        -- Mark BEFORE killing: dfhack.units.kill may fire onUnitDeath either
+        -- synchronously here or on a later tick, and either way this death must
+        -- not count toward our outgoing DeathLink threshold.
+        deathlink_killed_ids[uid] = true
         -- modtools/kill-unit does not exist in modern DFHack; use the Lua API
         -- directly. Try dfhack.units.kill() first (available in newer builds),
         -- then fall back to blood depletion which causes natural bleed-out death.
@@ -504,10 +517,10 @@ local function apply_pending_recv_deathlinks()
         if ok then
             killed = killed + 1
         else
+            deathlink_killed_ids[uid] = nil  -- kill failed; let a real death count normally
             log.error("kill unit failed: " .. tostring(err))
         end
     end
-    applying_recv_deathlink = false
 
     dfhack.gui.showAnnouncement(
         ("[AP] DeathLink! %d dwarves have met a mysterious fate."):format(killed),
