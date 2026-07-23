@@ -204,7 +204,7 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         needs_depth("Welcome to the Circus", 4)
 
         loc = multiworld.get_location("Mined Adamantine", player)
-        loc.access_rule = lambda state: state.has("Progressive Mining Depth", player, 4)
+        loc.access_rule = lambda state: dynamic_rules.can_mine_adamantine(state)
 
     # -- Infrastructure ---------------------------------------------------------
     loc = multiworld.get_location("Built a Well", player)
