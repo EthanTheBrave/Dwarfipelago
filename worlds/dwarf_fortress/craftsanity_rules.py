@@ -129,9 +129,15 @@ class DynamicCraftingLocationRules:
     
     def can_mine_adamantine(self, state:CollectionState) -> bool:
         if self.world.options.mining_depth:
-            return state.has("Progressive Mining Depth", self.player, 4)
+            if self.world.options.craftpermits == CraftingPermits.option_off:
+                return state.has("Progressive Mining Depth", self.player, 4)
+            else:
+                return state.has("Progressive Mining Depth", self.player, 4) and self.metal_pick(state)
         else:
-            return True
+            if self.world.options.craftpermits == CraftingPermits.option_off:
+                return True
+            else:
+                return self.metal_pick(state)
         
     def can_fuel_workshops(self, state:CollectionState) -> bool:
         if self.world.options.trades_inlogic: #can buy fuel
@@ -1591,7 +1597,13 @@ class DynamicCraftingLocationRules:
         return (self.metal_mailshirt(state) or self.metal_breastplate(state) \
         or self.leather_leatherarmor(state) or self.adamantine_mailshirt(state) or self.adamantine_breastplate(state)) \
         and (self.metal_or_bone_or_leather_leggings(state) or self.metal_or_bone_greaves(state))
-        
+
+    def metal_furniture(self, state:CollectionState) -> bool:
+        return self.metal_pedestal(state) or self.metal_altar(state) \
+        or self.metal_armorstand(state) or self.metal_blocks(state) or self.metal_bookcase(state) \
+        or self.metal_burial(state) or self.metal_cabinet(state) or self.metal_cage(state) or self.metal_chair(state) \
+        or self.metal_door(state) or self.metal_floodgate(state) or self.metal_grate(state) or self.metal_hatchcover(state) \
+        or self.metal_weaponrack(state) or self.metal_container(state) or self.metal_statue(state) or self.metal_table(state)
     
     def set_dynamic_rules(self) -> None:
         for location in self.world.dynamic_locations:
