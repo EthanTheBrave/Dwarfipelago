@@ -3,7 +3,7 @@ from worlds.dwarf_fortress.craftsanity_rules import DynamicCraftingLocationRules
 from worlds.dwarf_fortress.items import BLUEPRINT_ITEMS, CRAFT_ITEMS
 from worlds.dwarf_fortress.skillsanity import Skillsanity
 from .options import DwarfFortressGoal, CraftingPermits
-from .locations import SHOP_SLOTS
+from .locations import ROOM_LOCATIONS, SHOP_SLOTS
 
 
 # Population/title tier → how many Immigration Waves needed to unlock it.
@@ -230,6 +230,16 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         loc.access_rule = lambda state: (dynamic_rules.metal_corkscrew(state) or dynamic_rules.glass_corkscrew(state)) \
         and (dynamic_rules.stone_blocks(state) or dynamic_rules.glass_blocks(state) or dynamic_rules.metal_blocks(state)) \
         and (dynamic_rules.glass_pipesection(state) or dynamic_rules.metal_pipesection(state))
+
+    # --- Room Milestones ----------------------------------------------------------
+    for locations in ROOM_LOCATIONS:
+        if locations.name in {"Temple Complex", "Grand Guildhall", "Royal Bedroom", "Royal Throne Room",
+        "Royal Dining Room", "Royal Mausoleum"}:
+            loc = multiworld.get_location(locations.name, player)
+            if options.craftpermits == CraftingPermits.option_off:
+                loc.access_rule = lambda state: (dynamic_rules.metal(state)) #ability to make metal products
+            else:
+                loc.access_rule = lambda state: (dynamic_rules.metal_furniture(state)) #ability to make any metal furniture
     
     # ── Biology / Animal Milestones ───────────────────────────────────────────────
     # "First Eggs Hatched" disabled: hatch detection unreliable on DF v50. Re-enable
