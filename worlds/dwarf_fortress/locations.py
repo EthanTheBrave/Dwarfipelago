@@ -1602,3 +1602,25 @@ ALL_LOCATIONS: list[LocationData] = (
     + JOB_SKILLS + COMBAT_SKILLS + SHOP_LOCATIONS
 )
 LOCATION_TABLE: dict[str, int] = {loc.name: loc.ap_id for loc in ALL_LOCATIONS}
+
+
+# ── Excludable check categories ───────────────────────────────────────────────
+# Each set can be stripped of progression items (they then hold filler only) via
+# its own YAML toggle, so no partner's run is ever gated behind a hard DF
+# milestone the player may never reach. Skill checks are intentionally NOT here:
+# Skillsanity is already opt-in and its skill group / max level let the player
+# control that grind directly.
+EXCLUDE_DEEP_ENDGAME: set[str] = {
+    "Reached the Magma Sea", "Welcome to the Circus", "Mined Adamantine",
+}
+EXCLUDE_TOP_ROOMS: set[str] = {
+    "Grand Bedroom", "Royal Bedroom",
+    "Opulent Throne Room", "Royal Throne Room",
+    "Grand Dining Room", "Royal Dining Room",
+    "Grand Mausoleum", "Royal Mausoleum",
+    "Temple Complex", "Grand Guildhall",
+}
+EXCLUDE_TOP_FORTRESS: set[str] = {
+    "City Established", "Metropolis Established",
+    "Duke Appointed", "Monarch Takes Residence",
+}

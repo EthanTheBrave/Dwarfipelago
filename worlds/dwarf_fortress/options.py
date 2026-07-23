@@ -383,6 +383,38 @@ class ShopPriceMultiplier(Range):
     default = 100
 
 
+# ── Exclude difficult checks ─────────────────────────────────────────────────
+# Each toggle keeps progression items out of a group of hard / end-game checks:
+# those locations then hold filler only, so no other player's run is gated behind
+# a Dwarf Fortress milestone you may never reach - you still get an item for
+# completing them, just never someone else's progression. (Skill checks aren't
+# covered - Skillsanity is already opt-in and configurable.)
+
+class ExcludeDeepEndgameChecks(Toggle):
+    """
+    Keep progression out of the deep / endgame checks (filler only):
+    Reached the Magma Sea, Welcome to the Circus, Mined Adamantine.
+    """
+    display_name = "Exclude Deep & Endgame Checks"
+
+
+class ExcludeTopRoomChecks(Toggle):
+    """
+    Keep progression out of the top room / location tiers (filler only): the Grand
+    & Royal Bedroom / Throne Room / Dining Room / Mausoleum tiers, Temple Complex,
+    and Grand Guildhall.
+    """
+    display_name = "Exclude Top Room Tiers"
+
+
+class ExcludeTopFortressChecks(Toggle):
+    """
+    Keep progression out of the top fortress milestones (filler only):
+    City & Metropolis Established, Duke Appointed, Monarch Takes Residence.
+    """
+    display_name = "Exclude Top Fortress Milestones"
+
+
 @dataclass
 class DwarfFortressOptions(PerGameCommonOptions):
     deathlink: DeathLink
@@ -414,6 +446,9 @@ class DwarfFortressOptions(PerGameCommonOptions):
     skillsanity_max_level: SkillsanityMaxLevel
     skillsanity_behaviour: SkillsanityLevelMechanic
     trap_item_weight: TrapItemWeight
+    exclude_deep_endgame_checks: ExcludeDeepEndgameChecks
+    exclude_top_room_checks: ExcludeTopRoomChecks
+    exclude_top_fortress_checks: ExcludeTopFortressChecks
     start_inventory: StartingDefaultDFInventory
 
 
