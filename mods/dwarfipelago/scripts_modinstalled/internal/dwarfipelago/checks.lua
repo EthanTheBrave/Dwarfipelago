@@ -1342,7 +1342,14 @@ end
 
 function M.increment_craft_count(flag)
     local key = CRAFT_COUNT_PREFIX .. flag
-    local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
+    -- Only count crafts that actually have a craftsanity check this seed. The AP
+    -- client pre-initializes craft_count/<flag> to "0" for exactly the selected
+    -- items/materials (init_crafting_locations); a missing key therefore means
+    -- this item isn't part of craftsanity, so we must NOT create storage for it -
+    -- otherwise every unrelated workshop job pollutes our persistent data.
+    local raw = dfhack.persistent.getWorldDataString(key)
+    if raw == nil then return nil end
+    local n = (tonumber(raw) or 0) + 1
     dfhack.persistent.saveWorldDataString(key, tostring(n))
     craft_index_add(flag)
     return n
