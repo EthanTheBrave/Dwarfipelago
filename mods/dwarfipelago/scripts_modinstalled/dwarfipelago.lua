@@ -1922,6 +1922,15 @@ end
 -- Fires whenever DF creates a new item (crafted output, dropped loot, etc.).
 -- Pushes item info to "dwarfipelago/pending_item_created" for the Python client.
 
+-- Adamantine finished goods the AP world gifts (Artifact Weapon / Artifact Armor /
+-- Master Builder's Codex door). Receiving these must NOT fire "Mined Adamantine" -
+-- forging real adamantine goods always requires mining the raw form first, so a
+-- genuine mine still fires the check via the raw boulder/wafer.
+local ADAMANTINE_ARTIFACT_TYPES = {
+    DOOR = true, WEAPON = true, ARMOR = true, HELM = true,
+    SHIELD = true, GLOVES = true, PANTS = true, SHOES = true,
+}
+
 local function on_item_created(item_id)
     if not state.is_enabled() then return end
     local item = df.item.find(item_id)
@@ -1974,11 +1983,12 @@ local function on_item_created(item_id)
             end
         end
 
-        -- Adamantine detection: fires the first time any adamantine item is created
-        -- (raw adamantine boulders when mined, or strands/wafers in some DF versions).
-        -- Exclude DOOR items: the Master Builder's Codex delivers an adamantine door
-        -- which would otherwise falsely trigger this check.
-        if not checks.production_flag("adamantine") and t ~= "DOOR" then
+        -- Adamantine detection: fires the first time raw adamantine is mined (raw
+        -- adamantine boulders when mined, or strands/wafers in some DF versions).
+        -- Excludes the finished adamantine goods the AP world gifts (Artifact
+        -- Weapon / Armor / Master Builder's Codex door) so receiving those doesn't
+        -- falsely count as mining it yourself.
+        if not checks.production_flag("adamantine") and not ADAMANTINE_ARTIFACT_TYPES[t] then
             local ok_mat, mat = pcall(dfhack.matinfo.decode, item)
             if ok_mat and mat then
                 local ok_tok, token = pcall(function() return mat:getToken() end)
