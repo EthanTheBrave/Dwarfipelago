@@ -289,6 +289,17 @@ local function recv_stone_trinket()
     announce_at_depot("Received: Stone Trinket! A finely carved marble figurine.")
 end
 
+-- Stone Slabs: blank memorial slabs. Engrave one with a dead dwarf's name and
+-- build it to lay their ghost to rest - a lifeline when caskets are permit-locked
+-- and the unburied dead start haunting the fort. Stone fallbacks so it works in
+-- any world.
+local function recv_stone_slab()
+    local n = spawn_item("SLAB", "INORGANIC:MICROCLINE", 2)
+    if n == 0 then n = spawn_item("SLAB", "INORGANIC:GRANITE", 2) end
+    if n == 0 then n = spawn_item("SLAB", "INORGANIC:LIMESTONE", 2) end
+    announce_at_depot("Received: Stone Slabs! Engrave and build them to lay the dead to rest.")
+end
+
 local function recv_bone_crafts()
     spawn_item("FIGURINE", "CREATURE_MAT:DWARF:BONE")
     announce_at_depot("Received: Bone Crafts!")
@@ -2346,6 +2357,7 @@ M.handlers = {
     -- Filler items
     ["Dwarven Ale"]          = recv_dwarven_ale,
     ["Stone Trinket"]        = recv_stone_trinket,
+    ["Stone Slab"]           = recv_stone_slab,
     ["Bone Crafts"]          = recv_bone_crafts,
     ["Raw Ore"]              = recv_raw_ore,
     ["Wooden Cup"]           = recv_wooden_cup,

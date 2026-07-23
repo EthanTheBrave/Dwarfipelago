@@ -117,6 +117,7 @@ FILLER_ITEMS: list[ItemData] = [
     ItemData("Tanned Leather",         BASE_ID + 529, ItemClassification.filler, weight=10),
     ItemData("Bag of Sand",            BASE_ID + 536, ItemClassification.filler, weight=10),
     ItemData("Raw Clay",               BASE_ID + 537, ItemClassification.filler, weight=10),
+    ItemData("Stone Slab",             BASE_ID + 539, ItemClassification.filler, weight=10),
     # Low-grade (copper) tools/gear - genuinely useful recovery items, kept rare.
     ItemData("Copper Pick",            BASE_ID + 533, ItemClassification.filler, weight=3),
     ItemData("Copper Axe",             BASE_ID + 534, ItemClassification.filler, weight=3),
