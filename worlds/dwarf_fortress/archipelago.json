@@ -1,6 +1,6 @@
 {
     "game": "Dwarf Fortress",
-    "world_version": "1.2.0",
+    "world_version": "1.3.0",
     "authors": ["Dwarfipelago Contributors"],
     "minimum_ap_version": "0.4.0",
     "compatible_version": 7,
