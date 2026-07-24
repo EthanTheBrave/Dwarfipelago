@@ -18,10 +18,10 @@ class LocationData:
 # ── Room Milestones ───────────────────────────────────────────────────────────
 ROOM_LOCATIONS: list[LocationData] = [
     # Each room type designated
-    LocationData("Bedroom",              BASE_ID + 0,  "Fortress"),
-    LocationData("Office",               BASE_ID + 1,  "Fortress"),
-    LocationData("Tomb Zone Established", BASE_ID + 2,  "Fortress"),
-    LocationData("Dining Hall",          BASE_ID + 4,  "Fortress"),
+    LocationData("Bedroom Established",     BASE_ID + 0,  "Fortress"),
+    LocationData("Office Established",      BASE_ID + 1,  "Fortress"),
+    LocationData("Tomb Established",        BASE_ID + 2,  "Fortress"),
+    LocationData("Dining Hall Established", BASE_ID + 4,  "Fortress"),
     # Temple tiers: shrine / temple (2000+) / temple complex (10000+)
     LocationData("Shrine",               BASE_ID + 3,  "Fortress"),
     LocationData("Temple",               BASE_ID + 10, "Fortress"),
@@ -183,10 +183,10 @@ SIEGE_LOCATIONS: list[LocationData] = [
 COMBAT_LOCATIONS: list[LocationData] = [
     LocationData("First Kill",              BASE_ID + 780, "Fortress"),
     LocationData("Survived a Siege",        BASE_ID + 781, "Fortress"),
-    LocationData("Forgotten Beast",         BASE_ID + 782, "Fortress"),
-    LocationData("Titan",                   BASE_ID + 783, "Fortress"),
-    LocationData("Semi-megabeast",          BASE_ID + 784, "Fortress"),
-    LocationData("Megabeast",               BASE_ID + 785, "Fortress"),
+    LocationData("Forgotten Beast Slain",   BASE_ID + 782, "Fortress"),
+    LocationData("Titan Slain",             BASE_ID + 783, "Fortress"),
+    LocationData("Semi-megabeast Slain",    BASE_ID + 784, "Fortress"),
+    LocationData("Megabeast Slain",         BASE_ID + 785, "Fortress"),
 ]
 
 # ── Strange Moods & Artifacts ─────────────────────────────────────────────────

@@ -366,10 +366,10 @@ end
 
 M.checks = {
     -- Room type milestones - each zone type is designated.
-    { id = 37370000, name = "Bedroom",              fn = function() return has_zone_type(df.civzone_type.Bedroom)   end },
-    { id = 37370001, name = "Office",               fn = function() return has_zone_type(df.civzone_type.Office)    end },
-    { id = 37370002, name = "Tomb Zone Established", fn = function() return has_zone_type(df.civzone_type.Tomb)      end },
-    { id = 37370004, name = "Dining Hall",          fn = function() return has_zone_type(df.civzone_type.DiningHall) end },
+    { id = 37370000, name = "Bedroom Established",     fn = function() return has_zone_type(df.civzone_type.Bedroom)   end },
+    { id = 37370001, name = "Office Established",      fn = function() return has_zone_type(df.civzone_type.Office)    end },
+    { id = 37370002, name = "Tomb Established",        fn = function() return has_zone_type(df.civzone_type.Tomb)      end },
+    { id = 37370004, name = "Dining Hall Established", fn = function() return has_zone_type(df.civzone_type.DiningHall) end },
     -- Temple tiers: DF's own location_tier - 0 = shrine, 1 = temple, 2 = temple complex.
     -- Shrine also fires when any temple location exists at ANY tier (location_tier >= 0),
     -- not just via the Civzone->location link. Temple/Complex read location_tier while
@@ -527,10 +527,10 @@ M.checks = {
     -- dwarfipelago.lua. Apply to every goal.
     { id = 37370780, name = "First Kill",              fn = function() return M.production_flag("first_kill")           end },
     { id = 37370781, name = "Survived a Siege",        fn = function() return M.production_flag("siege_survived")       end },
-    { id = 37370782, name = "Forgotten Beast",         fn = function() return M.production_flag("slew_forgotten_beast") end },
-    { id = 37370783, name = "Titan",                   fn = function() return M.production_flag("slew_titan")           end },
-    { id = 37370784, name = "Semi-megabeast",          fn = function() return M.production_flag("slew_semimegabeast")   end },
-    { id = 37370785, name = "Megabeast",               fn = function() return M.production_flag("slew_megabeast")       end },
+    { id = 37370782, name = "Forgotten Beast Slain",   fn = function() return M.production_flag("slew_forgotten_beast") end },
+    { id = 37370783, name = "Titan Slain",             fn = function() return M.production_flag("slew_titan")           end },
+    { id = 37370784, name = "Semi-megabeast Slain",    fn = function() return M.production_flag("slew_semimegabeast")   end },
+    { id = 37370785, name = "Megabeast Slain",         fn = function() return M.production_flag("slew_megabeast")       end },
 
     -- Strange moods & artifacts - set by poll detectors in dwarfipelago.lua.
     { id = 37370790, name = "First Strange Mood",      fn = function() return M.production_flag("strange_mood")         end },
