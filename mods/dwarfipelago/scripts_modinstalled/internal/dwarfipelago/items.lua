@@ -821,10 +821,32 @@ local function column_surface_z(x, y, z_hi, z_lo)
     return nil
 end
 
+-- The fort's main walkable group: the connectivity id shared by the most living
+-- citizens. DF only lets a siege enter the map where it can actually path to the
+-- site; a tile's "walkable group" is how the game represents that connectivity
+-- (same non-zero id == mutually reachable, 0 == unwalkable). Requiring a spawn
+-- tile to be in this group recreates that guarantee cheaply - an O(1) lookup per
+-- candidate instead of a pathfind. nil only if no citizen is on a walkable tile.
+local function fort_walk_group()
+    local counts, best, best_n = {}, nil, nil
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then
+            local g = dfhack.maps.getWalkableGroup(u.pos)
+            if g and g ~= 0 then
+                counts[g] = (counts[g] or 0) + 1
+                if not best_n or counts[g] > best_n then best, best_n = g, counts[g] end
+            end
+        end
+    end
+    return best
+end
+
 -- Find an open surface tile near a map edge for a hostile to spawn on, so it has
 -- to path inward toward the fort (giving dwarves time to react). Per-column
 -- surface detection makes this elevation-aware and independent of where citizens
--- currently stand. Returns x, y, z or nil on failure.
+-- currently stand; the walkable-group gate makes the tile reachable to the fort,
+-- the same guarantee the game enforces for a real siege's entry point. Returns
+-- x, y, z or nil on failure.
 local function find_surface_spawn_pos()
     if not dfhack.isMapLoaded() then return nil end
     local map = df.global.world.map
@@ -841,7 +863,23 @@ local function find_surface_spawn_pos()
         function() return math.random(map.x_count-11, map.x_count-1-m), math.random(m, map.y_count-1-m) end,
     }
 
-    for _ = 1, 120 do
+    -- Preferred pass: a surface edge tile in the fort's walkable group, so the
+    -- wave can path to the fortress exactly like a natural siege's entry point.
+    local fg = fort_walk_group()
+    if fg then
+        for _ = 1, 150 do
+            local x, y = edge_gens[math.random(4)]()
+            local z = column_surface_z(x, y, z_hi, z_lo)
+            if z and dfhack.maps.getWalkableGroup({x = x, y = y, z = z}) == fg then
+                return x, y, z
+            end
+        end
+    end
+
+    -- Fallback: any open surface edge tile. Keeps a wave landing outdoors near the
+    -- edge even if the perimeter is fenced off from the fort's group - better than
+    -- not spawning, and still never inside the fort.
+    for _ = 1, 60 do
         local x, y = edge_gens[math.random(4)]()
         local z = column_surface_z(x, y, z_hi, z_lo)
         if z then return x, y, z end
