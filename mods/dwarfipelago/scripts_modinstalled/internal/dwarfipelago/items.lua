@@ -767,24 +767,70 @@ local function recv_goblin_saboteurs()
         last_pos)
 end
 
--- Search for a walkable surface tile (outside == true) near a map edge.
--- Biases toward the embark perimeter so spawned hostiles have to path inward,
--- giving dwarves time to react. Returns x, y, z or nil on failure.
+-- Reliable estimate of the fortress surface z-level. Prefers the z captured at
+-- embark (dwarfipelago/mining/surface_z, taken before digging began), then the
+-- HIGHEST living citizen, and only then a fraction of the map height. Never the
+-- first citizen in the list: in an established fort that dwarf is usually
+-- underground, which is what used to anchor the spawn search onto fort levels,
+-- make it find nothing, and drop waves onto dwarves via the fort fallback.
+local function estimate_surface_z()
+    local map = df.global.world.map
+    local persisted = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/mining/surface_z"))
+    if persisted then return persisted end
+    local best
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then
+            if not best or u.pos.z > best then best = u.pos.z end
+        end
+    end
+    return best or math.floor(map.z_count * 0.7)
+end
+
+-- True only for a genuine open-air surface tile a hostile can be dropped onto:
+-- open to the sky, dry, revealed, a natural (non-constructed) walkable floor or
+-- ramp, with no building and no unit already occupying it. The building and
+-- construction checks are what keep spawns off workshops and fort structures.
+local function is_open_surface_tile(x, y, z)
+    local blk = dfhack.maps.getTileBlock(x, y, z)
+    if not blk then return false end
+    local lx, ly = x % 16, y % 16
+    local ok = false
+    pcall(function()
+        local des   = blk.designation[lx][ly]
+        local occ   = blk.occupancy[lx][ly]
+        local tt    = blk.tiletype[lx][ly]
+        local shape = df.tiletype.attrs[tt].shape
+        local mat   = df.tiletype.attrs[tt].material
+        ok = des.outside
+          and des.flow_size == 0
+          and not des.hidden
+          and occ.building == df.tile_building_occ.None
+          and not occ.unit
+          and mat ~= df.tiletype_material.CONSTRUCTION
+          and (shape == df.tiletype_shape.FLOOR or shape == df.tiletype_shape.RAMP)
+    end)
+    return ok
+end
+
+-- Topmost open-air surface tile in column (x,y) within [z_lo, z_hi], or nil.
+-- Scans downward so it lands on the true ground, past sky, canopy and overhangs.
+local function column_surface_z(x, y, z_hi, z_lo)
+    for z = z_hi, z_lo, -1 do
+        if is_open_surface_tile(x, y, z) then return z end
+    end
+    return nil
+end
+
+-- Find an open surface tile near a map edge for a hostile to spawn on, so it has
+-- to path inward toward the fort (giving dwarves time to react). Per-column
+-- surface detection makes this elevation-aware and independent of where citizens
+-- currently stand. Returns x, y, z or nil on failure.
 local function find_surface_spawn_pos()
     if not dfhack.isMapLoaded() then return nil end
     local map = df.global.world.map
-
-    -- Estimate surface z from a living citizen (fallback: upper portion of map).
-    local surface_z = math.floor(map.z_count * 0.7)
-    for _, unit in ipairs(df.global.world.units.active) do
-        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
-            surface_z = unit.pos.z
-            break
-        end
-    end
-
-    local z_lo = math.max(0, surface_z - 3)
-    local z_hi = math.min(map.z_count - 1, surface_z + 5)
+    local anchor = estimate_surface_z()
+    local z_hi = math.min(map.z_count - 1, anchor + 12)
+    local z_lo = math.max(0, anchor - 12)
     local m    = 4  -- stay off the very map edge to avoid bound issues
 
     -- Four generators, one per embark edge (N/S/W/E).
@@ -795,23 +841,10 @@ local function find_surface_spawn_pos()
         function() return math.random(map.x_count-11, map.x_count-1-m), math.random(m, map.y_count-1-m) end,
     }
 
-    for z = z_hi, z_lo, -1 do
-        for _ = 1, 60 do
-            local x, y = edge_gens[math.random(4)]()
-            local block = dfhack.maps.getTileBlock(x, y, z)
-            if block then
-                local lx, ly = x % 16, y % 16
-                local ok = false
-                pcall(function()
-                    local des   = block.designation[lx][ly]
-                    local shape = df.tiletype.attrs[block.tiletype[lx][ly]].shape
-                    ok = des.outside and des.flow_size == 0
-                      and (shape == df.tiletype_shape.FLOOR
-                        or shape == df.tiletype_shape.RAMP)
-                end)
-                if ok then return x, y, z end
-            end
-        end
+    for _ = 1, 120 do
+        local x, y = edge_gens[math.random(4)]()
+        local z = column_surface_z(x, y, z_hi, z_lo)
+        if z then return x, y, z end
     end
     return nil
 end
@@ -1252,10 +1285,7 @@ local function find_crater_center(rim)
     local inset = rim + 3
     if map.x_count <= inset * 2 or map.y_count <= inset * 2 then return nil end
 
-    local surface_z = math.floor(map.z_count * 0.7)
-    for _, u in ipairs(df.global.world.units.active) do
-        if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then surface_z = u.pos.z; break end
-    end
+    local surface_z = estimate_surface_z()
 
     for _ = 1, 150 do
         local x, y
@@ -1264,15 +1294,21 @@ local function find_crater_center(rim)
         elseif edge == 2 then x = math.random(inset, map.x_count-1-inset); y = map.y_count-1-inset - math.random(0, 8)
         elseif edge == 3 then x = inset + math.random(0, 8); y = math.random(inset, map.y_count-1-inset)
         else x = map.x_count-1-inset - math.random(0, 8); y = math.random(inset, map.y_count-1-inset) end
-        for z = math.min(map.z_count-1, surface_z+4), math.max(1, surface_z-4), -1 do
+        for z = math.min(map.z_count-1, surface_z+10), math.max(1, surface_z-10), -1 do
             local blk = dfhack.maps.getTileBlock(x, y, z)
             if blk then
                 local lx, ly = x % 16, y % 16
                 local ok = false
                 pcall(function()
                     local des   = blk.designation[lx][ly]
-                    local shape = df.tiletype.attrs[blk.tiletype[lx][ly]].shape
-                    ok = des.outside and des.flow_size == 0 and shape == df.tiletype_shape.FLOOR
+                    local occ   = blk.occupancy[lx][ly]
+                    local tt    = blk.tiletype[lx][ly]
+                    local shape = df.tiletype.attrs[tt].shape
+                    local mat   = df.tiletype.attrs[tt].material
+                    ok = des.outside and des.flow_size == 0 and not des.hidden
+                      and occ.building == df.tile_building_occ.None
+                      and mat ~= df.tiletype_material.CONSTRUCTION
+                      and shape == df.tiletype_shape.FLOOR
                 end)
                 if ok and footprint_is_dry(x, y, z, rim, CRATER_DEPTH) then return x, y, z end
             end
@@ -1848,12 +1884,12 @@ local function spawn_warband(readiness)
     local tier = WARBAND_TIERS[readiness]
     if not tier then log.warn("spawn_warband: no tier for readiness " .. tostring(readiness)); return 0 end
 
+    -- Spawn only on a real surface tile near the edge. If none is available, skip
+    -- this wave rather than dropping the warband inside the fort (the old fort-tile
+    -- fallback spawned enemies onto dwarves and workshops). A later wave retries
+    -- once a valid site exists.
     local x, y, z = find_surface_spawn_pos()
-    if not x then
-        local sx, sy, sz = get_fort_spawn_pos()
-        x, y, z = tonumber(sx), tonumber(sy), tonumber(sz)
-    end
-    if not x then log.error("spawn_warband: no spawn position found"); return 0 end
+    if not x then log.warn("spawn_warband: no surface spawn position; skipping wave"); return 0 end
 
     -- Pick which civilisation/faction sieges this wave, and build its roster.
     local faction = pick_siege_faction(readiness)
