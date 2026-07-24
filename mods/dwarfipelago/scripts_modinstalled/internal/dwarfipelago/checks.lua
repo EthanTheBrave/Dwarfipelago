@@ -522,6 +522,19 @@ M.checks = {
     { id = 37370771, name = "Training Completed",
       fn = function() return dfhack.persistent.getWorldDataString("dwarfipelago/goal") == "0"
                           and M.training_completed() end },
+
+    -- Combat & threats - set by the onUnitDeath hook and siege detector in
+    -- dwarfipelago.lua. Apply to every goal.
+    { id = 37370780, name = "First Kill",              fn = function() return M.production_flag("first_kill")           end },
+    { id = 37370781, name = "Survived a Siege",        fn = function() return M.production_flag("siege_survived")       end },
+    { id = 37370782, name = "Slew a Forgotten Beast",  fn = function() return M.production_flag("slew_forgotten_beast") end },
+    { id = 37370783, name = "Slew a Titan",            fn = function() return M.production_flag("slew_titan")           end },
+    { id = 37370784, name = "Slew a Semi-megabeast",   fn = function() return M.production_flag("slew_semimegabeast")   end },
+    { id = 37370785, name = "Slew a Megabeast",        fn = function() return M.production_flag("slew_megabeast")       end },
+
+    -- Strange moods & artifacts - set by poll detectors in dwarfipelago.lua.
+    { id = 37370790, name = "First Strange Mood",      fn = function() return M.production_flag("strange_mood")         end },
+    { id = 37370791, name = "First Artifact Created",  fn = function() return M.production_flag("artifact_created")     end },
 }
 
 -- ── Production flag helpers ───────────────────────────────────────────────────

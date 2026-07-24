@@ -439,6 +439,22 @@ local function on_unit_death(uid)
         end
     end
 
+    -- ── Combat milestone checks ───────────────────────────────────────────────
+    -- Enemy deaths fire the combat checks - independent of the megabeast goal and
+    -- active for every goal. A slain beast also counts as your First Kill.
+    pcall(function()
+        local enemy = false
+        if dfhack.units.isForgottenBeast(unit) then checks.set_production_flag("slew_forgotten_beast"); enemy = true end
+        if dfhack.units.isTitan(unit)          then checks.set_production_flag("slew_titan");            enemy = true end
+        if dfhack.units.isSemiMegabeast(unit)  then checks.set_production_flag("slew_semimegabeast");    enemy = true end
+        if dfhack.units.isMegabeast(unit)      then checks.set_production_flag("slew_megabeast");        enemy = true end
+        if not enemy then
+            local ok, inv = pcall(dfhack.units.isInvader, unit)
+            enemy = ok and inv or false
+        end
+        if enemy then checks.set_production_flag("first_kill") end
+    end)
+
     -- ── DeathLink: count citizen deaths ──────────────────────────────────────
     -- Skip (and consume) deaths we inflicted ourselves applying a received
     -- DeathLink, so those don't feed back into our outgoing threshold and bounce
@@ -1503,6 +1519,64 @@ end
 -- ── Poll loop: wealth, trade, and goal milestones ─────────────────────────────
 -- Runs every POLL_TICKS game ticks. Production checks are handled by eventful.
 
+-- ── Combat / mood milestone detectors ─────────────────────────────────────────
+
+-- Survived a Siege: hostile invaders were on the map and are now gone, with
+-- citizens still alive. A persistent latch survives save/reload.
+local function detect_siege_survived()
+    if checks.production_flag("siege_survived") then return end
+    local invaders, citizens = 0, 0
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isAlive(u) then
+            local ok, inv = pcall(dfhack.units.isInvader, u)
+            if ok and inv then invaders = invaders + 1 end
+            if dfhack.units.isCitizen(u) then citizens = citizens + 1 end
+        end
+    end
+    local key = "dwarfipelago/combat/siege_active"
+    if invaders > 0 then
+        dfhack.persistent.saveWorldDataString(key, "1")
+    elseif dfhack.persistent.getWorldDataString(key) == "1" then
+        dfhack.persistent.saveWorldDataString(key, "")
+        if citizens > 0 then
+            checks.set_production_flag("siege_survived")
+            dfhack.gui.showAnnouncement("[AP] Your fortress has survived a siege!", COLOR_GREEN, true)
+        end
+    end
+end
+
+-- First Strange Mood: a citizen enters an artifact-producing mood (Fey, Secretive,
+-- Possessed, Macabre, Fell - the insanity moods 5+ do not count).
+local function detect_strange_mood()
+    if checks.production_flag("strange_mood") then return end
+    local mt = df.mood_type
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then
+            local m = u.mood
+            if m == mt.Fey or m == mt.Secretive or m == mt.Possessed
+                    or m == mt.Macabre or m == mt.Fell then
+                checks.set_production_flag("strange_mood")
+                return
+            end
+        end
+    end
+end
+
+-- First Artifact Created: the world artifact count grows past the baseline captured
+-- on the first poll (world-gen artifacts) - a moody dwarf finished a masterwork.
+local function detect_artifact_created()
+    if checks.production_flag("artifact_created") then return end
+    local key = "dwarfipelago/combat/artifact_baseline"
+    local base = tonumber(dfhack.persistent.getWorldDataString(key))
+    local cur  = #df.global.world.artifacts.all
+    if not base then
+        dfhack.persistent.saveWorldDataString(key, tostring(cur))
+    elseif cur > base then
+        checks.set_production_flag("artifact_created")
+        dfhack.gui.showAnnouncement("[AP] An artifact has been created in your fortress!", COLOR_CYAN, true)
+    end
+end
+
 local function poll_checks()
     if not state.is_enabled() then return end
     -- repeatUtil fires the callback immediately on registration, and again
@@ -1572,6 +1646,9 @@ local function poll_checks()
     guard("caged_beast",   detect_caged_hostile_beast)
     guard("cave_adapt",    suppress_cave_adaptation)
     guard("sold_artifact", detect_sold_artifact)
+    guard("siege_survived", detect_siege_survived)
+    guard("strange_mood",   detect_strange_mood)
+    guard("artifact_made",  detect_artifact_created)
     guard("shrine",        detect_shrine)
     guard("spawn_caravan", _check_spawn_caravan_approved)
     guard("skills",        checks.update_skill_levels)

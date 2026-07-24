@@ -177,6 +177,24 @@ SIEGE_LOCATIONS: list[LocationData] = [
     LocationData("Training Completed",   BASE_ID + 771, "Fortress"),
 ]
 
+# ── Combat & Threats ──────────────────────────────────────────────────────────
+# Fired by the onUnitDeath hook and a siege detector in dwarfipelago.lua; apply to
+# every goal (combat happens in any fort), unlike the megabeast-only siege checks.
+COMBAT_LOCATIONS: list[LocationData] = [
+    LocationData("First Kill",              BASE_ID + 780, "Fortress"),
+    LocationData("Survived a Siege",        BASE_ID + 781, "Fortress"),
+    LocationData("Slew a Forgotten Beast",  BASE_ID + 782, "Fortress"),
+    LocationData("Slew a Titan",            BASE_ID + 783, "Fortress"),
+    LocationData("Slew a Semi-megabeast",   BASE_ID + 784, "Fortress"),
+    LocationData("Slew a Megabeast",        BASE_ID + 785, "Fortress"),
+]
+
+# ── Strange Moods & Artifacts ─────────────────────────────────────────────────
+MOOD_LOCATIONS: list[LocationData] = [
+    LocationData("First Strange Mood",     BASE_ID + 790, "Fortress"),
+    LocationData("First Artifact Created", BASE_ID + 791, "Fortress"),
+]
+
 JOB_SKILLS: list[LocationData] = [
     LocationData("Novice Stonecutter",         BASE_ID + 800, "Fortress", False, "", "stonecutter", 1),
     LocationData("Adequate Stonecutter",       BASE_ID + 801, "Fortress", False, "", "stonecutter", 2),
@@ -1599,6 +1617,7 @@ ALL_LOCATIONS: list[LocationData] = (
     + STATUS_LOCATIONS + TITLE_LOCATIONS + MINING_LOCATIONS
     + FARMING_LOCATIONS + INFRASTRUCTURE_LOCATIONS
     + BIOLOGY_LOCATIONS + ENDGAME_LOCATIONS + SIEGE_LOCATIONS
+    + COMBAT_LOCATIONS + MOOD_LOCATIONS
     + JOB_SKILLS + COMBAT_SKILLS + SHOP_LOCATIONS
 )
 LOCATION_TABLE: dict[str, int] = {loc.name: loc.ap_id for loc in ALL_LOCATIONS}
