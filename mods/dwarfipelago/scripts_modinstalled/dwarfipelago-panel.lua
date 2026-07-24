@@ -471,6 +471,34 @@ local function build_progress_lines()
         barracks and "YES" or "no", training and "YES" or "no"),
         (barracks or training) and COLOR_WHITE or COLOR_DARKGRAY)
 
+    -- Combat (id 780-785): first kill, siege survival, and slain great beasts.
+    blank()
+    hdr("Combat")
+    local first_kill = check_status(37370780)
+    local siege_surv = check_status(37370781)
+    row(("  First Kill: %-4s  Survived a Siege: %-4s"):format(
+        first_kill and "YES" or "no", siege_surv and "YES" or "no"),
+        (first_kill or siege_surv) and COLOR_WHITE or COLOR_DARKGRAY)
+    local slew_fb  = check_status(37370782)
+    local slew_ttn = check_status(37370783)
+    local slew_smb = check_status(37370784)
+    local slew_mb  = check_status(37370785)
+    row(("  Slew - Forgotten Beast: %-4s  Titan: %-4s"):format(
+        slew_fb and "YES" or "no", slew_ttn and "YES" or "no"),
+        (slew_fb or slew_ttn) and COLOR_WHITE or COLOR_DARKGRAY)
+    row(("  Slew - Semi-megabeast: %-4s   Megabeast: %-4s"):format(
+        slew_smb and "YES" or "no", slew_mb and "YES" or "no"),
+        (slew_smb or slew_mb) and COLOR_WHITE or COLOR_DARKGRAY)
+
+    -- Moods & Artifacts (id 790-791).
+    blank()
+    hdr("Moods & Artifacts")
+    local mood = check_status(37370790)
+    local arti = check_status(37370791)
+    row(("  First Strange Mood: %-4s  First Artifact: %-4s"):format(
+        mood and "YES" or "no", arti and "YES" or "no"),
+        (mood or arti) and COLOR_WHITE or COLOR_DARKGRAY)
+
     return lines
 end
 
