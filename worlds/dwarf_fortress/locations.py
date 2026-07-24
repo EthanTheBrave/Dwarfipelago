@@ -183,10 +183,10 @@ SIEGE_LOCATIONS: list[LocationData] = [
 COMBAT_LOCATIONS: list[LocationData] = [
     LocationData("First Kill",              BASE_ID + 780, "Fortress"),
     LocationData("Survived a Siege",        BASE_ID + 781, "Fortress"),
-    LocationData("Slew a Forgotten Beast",  BASE_ID + 782, "Fortress"),
-    LocationData("Slew a Titan",            BASE_ID + 783, "Fortress"),
-    LocationData("Slew a Semi-megabeast",   BASE_ID + 784, "Fortress"),
-    LocationData("Slew a Megabeast",        BASE_ID + 785, "Fortress"),
+    LocationData("Forgotten Beast",         BASE_ID + 782, "Fortress"),
+    LocationData("Titan",                   BASE_ID + 783, "Fortress"),
+    LocationData("Semi-megabeast",          BASE_ID + 784, "Fortress"),
+    LocationData("Megabeast",               BASE_ID + 785, "Fortress"),
 ]
 
 # ── Strange Moods & Artifacts ─────────────────────────────────────────────────

@@ -527,10 +527,10 @@ M.checks = {
     -- dwarfipelago.lua. Apply to every goal.
     { id = 37370780, name = "First Kill",              fn = function() return M.production_flag("first_kill")           end },
     { id = 37370781, name = "Survived a Siege",        fn = function() return M.production_flag("siege_survived")       end },
-    { id = 37370782, name = "Slew a Forgotten Beast",  fn = function() return M.production_flag("slew_forgotten_beast") end },
-    { id = 37370783, name = "Slew a Titan",            fn = function() return M.production_flag("slew_titan")           end },
-    { id = 37370784, name = "Slew a Semi-megabeast",   fn = function() return M.production_flag("slew_semimegabeast")   end },
-    { id = 37370785, name = "Slew a Megabeast",        fn = function() return M.production_flag("slew_megabeast")       end },
+    { id = 37370782, name = "Forgotten Beast",         fn = function() return M.production_flag("slew_forgotten_beast") end },
+    { id = 37370783, name = "Titan",                   fn = function() return M.production_flag("slew_titan")           end },
+    { id = 37370784, name = "Semi-megabeast",          fn = function() return M.production_flag("slew_semimegabeast")   end },
+    { id = 37370785, name = "Megabeast",               fn = function() return M.production_flag("slew_megabeast")       end },
 
     -- Strange moods & artifacts - set by poll detectors in dwarfipelago.lua.
     { id = 37370790, name = "First Strange Mood",      fn = function() return M.production_flag("strange_mood")         end },

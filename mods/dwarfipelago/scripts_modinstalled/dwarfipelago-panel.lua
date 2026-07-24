@@ -483,10 +483,10 @@ local function build_progress_lines()
     local slew_ttn = check_status(37370783)
     local slew_smb = check_status(37370784)
     local slew_mb  = check_status(37370785)
-    row(("  Slew - Forgotten Beast: %-4s  Titan: %-4s"):format(
+    row(("  Forgotten Beast: %-4s  Titan: %-4s"):format(
         slew_fb and "YES" or "no", slew_ttn and "YES" or "no"),
         (slew_fb or slew_ttn) and COLOR_WHITE or COLOR_DARKGRAY)
-    row(("  Slew - Semi-megabeast: %-4s   Megabeast: %-4s"):format(
+    row(("  Semi-megabeast: %-4s   Megabeast: %-4s"):format(
         slew_smb and "YES" or "no", slew_mb and "YES" or "no"),
         (slew_smb or slew_mb) and COLOR_WHITE or COLOR_DARKGRAY)
 
