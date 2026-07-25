@@ -1206,47 +1206,53 @@ end
 local function detect_pump_activity()
     if checks.production_flag("pump_water") and checks.production_flag("pump_magma") then return end
 
+    -- Return "water" / "magma" if the tile holds that liquid (flow_size > 0), else nil.
     local function liquid_at(x, y, z)
         local ok, blk = pcall(dfhack.maps.getTileBlock, x, y, z)
         if not ok or not blk then return nil end
-        local des = blk.designation[x % 16][y % 16]
-        if not des then return nil end
-        local flow = 0
-        pcall(function() flow = des.flow_size end)
-        if flow == 0 then return nil end
-        -- liquid_type is the tile_liquid enum (Water=0, Magma=1). Comparing the
-        -- raw value as a boolean is wrong: 0 is truthy in Lua, so it would always
-        -- report "magma". Compare explicitly against Magma.
-        local is_magma = false
-        pcall(function() is_magma = (des.liquid_type == df.tile_liquid.Magma) end)
-        return is_magma and "magma" or "water"
+        local liq
+        pcall(function()
+            local des = blk.designation[x % 16][y % 16]
+            if des.flow_size > 0 then
+                -- liquid_type is tile_liquid (Water=0, Magma=1); 0 is truthy in Lua,
+                -- so compare explicitly against Magma rather than as a boolean.
+                liq = (des.liquid_type == df.tile_liquid.Magma) and "magma" or "water"
+            end
+        end)
+        return liq
+    end
+
+    local function fire(liq)
+        if liq == "water" and not checks.production_flag("pump_water") then
+            checks.set_production_flag("pump_water")
+            dfhack.gui.showAnnouncement("[AP] Water has been pumped!", COLOR_GREEN, true)
+        elseif liq == "magma" and not checks.production_flag("pump_magma") then
+            checks.set_production_flag("pump_magma")
+            dfhack.gui.showAnnouncement("[AP] Magma has been pumped!", COLOR_GREEN, true)
+        end
     end
 
     pcall(function()
         for _, bld in ipairs(df.global.world.buildings.all) do
             local ok_t, btype = pcall(function() return bld:getType() end)
-            if not (ok_t and btype == df.building_type.ScrewPump) then goto skip_pump end
-
-            -- A screw pump pumps either when powered by a machine network OR when
-            -- hand-cranked by a dwarf (machine_id == -1 in that case). The old
-            -- code required machine_id >= 0, so hand-pumped water/magma never
-            -- counted. We now accept any built pump adjacent to the liquid.
-
-            -- Check the five tiles that could be the intake: directly below,
-            -- and the four horizontal neighbours one level down.
-            local x, y, z = bld.x1, bld.y1, bld.z
-            for _, d in ipairs({{0,0,-1},{-1,0,-1},{1,0,-1},{0,-1,-1},{0,1,-1}}) do
-                local liq = liquid_at(x + d[1], y + d[2], z + d[3])
-                if liq == "water" and not checks.production_flag("pump_water") then
-                    checks.set_production_flag("pump_water")
-                    dfhack.gui.showAnnouncement("[AP] Water has been pumped!", COLOR_GREEN, true)
-                elseif liq == "magma" and not checks.production_flag("pump_magma") then
-                    checks.set_production_flag("pump_magma")
-                    dfhack.gui.showAnnouncement("[AP] Magma has been pumped!", COLOR_GREEN, true)
+            if ok_t and btype == df.building_type.ScrewPump then
+                -- Orientation-independent: a pump's intake/output tile varies with
+                -- its direction, and the source may sit at the pump's z or one below.
+                -- Scan the footprint plus a one-tile ring over z and z-1 so any
+                -- working pump is caught (the old five-tiles-below check missed some).
+                local x1 = math.min(bld.x1, bld.x2) - 1
+                local x2 = math.max(bld.x1, bld.x2) + 1
+                local y1 = math.min(bld.y1, bld.y2) - 1
+                local y2 = math.max(bld.y1, bld.y2) + 1
+                for z = bld.z, bld.z - 1, -1 do
+                    for x = x1, x2 do
+                        for y = y1, y2 do
+                            fire(liquid_at(x, y, z))
+                        end
+                    end
                 end
             end
             if checks.production_flag("pump_water") and checks.production_flag("pump_magma") then return end
-            ::skip_pump::
         end
     end)
 end
