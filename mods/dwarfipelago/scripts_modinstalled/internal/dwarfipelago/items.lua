@@ -1526,10 +1526,7 @@ local function spawn_fire_disc(x, y, z, r)
     end
 end
 
--- Buffs the summoned finale beast (ancient size, maxed attributes, legendary
--- combat skills), scaled by the fort's defenses. Defined further down with the
--- defense-scaling helpers it depends on; forward-declared here so the spawn can
--- call it.
+-- Forward-declared; defined below with the defense-scaling helpers it uses.
 local buff_megabeast
 
 -- The climax: the megabeast falls from the sky, gouging a crater near the map
@@ -1606,9 +1603,7 @@ local function spawn_target_megabeast()
     dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/target_id", tostring(beast.id))
     dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/spawned", "1")
 
-    -- Make the finale beast formidable, scaled to the fort's defenses. No wild
-    -- escorts: a megabeast attacks anything nearby, so trolls/ogres just clashed
-    -- with it - the beast itself carries the fight now.
+    -- Buff the beast (no escorts - a megabeast just clashes with them anyway).
     buff_megabeast(beast, species)
 
     -- Fiery impact: a fire-immune beast crashes down wreathed in dragonfire.
@@ -1631,22 +1626,13 @@ local function spawn_target_megabeast()
 end
 M.spawn_target_megabeast = spawn_target_megabeast
 
--- Dragonfire disc radius when a fire-breather melts its way out of a cage. Kept
--- small: dragonfire only ignites flammable things (the wood cage, stored organics,
--- anyone standing there), so on a stone fort it scorches the area without becoming
--- a guaranteed fort-wide inferno. Raise for more collateral.
+-- Dragonfire disc radius on a fiery cage-break. Small; raise for more collateral.
 local CAGE_BREAK_FIRE_R = 2
 
--- Free a caged unit onto the map at the cage's current location. Reverses the
--- two-way cage<->unit link (the unit's CONTAINED_IN_ITEM ref and the cage's
--- CONTAINS_UNIT back-ref), clears the caged flag, and teleports the unit to where
--- the cage physically sits. getPosition resolves that tile through whatever holds
--- the cage - a hauling dwarf, a stockpile, or a built cage - so a cage in transit
--- works fine. We resolve the drop tile FIRST and bail without touching anything if
--- it can't be found, so we never strand a unit "freed" but off the map; the next
--- poll simply tries again. Returns the drop position, or nil if not freed.
+-- Free a caged unit at the cage's current location and return that pos (nil if not
+-- freed). Resolves the drop tile first (getPosition works even mid-haul) and bails
+-- before mutating if it can't, so a unit is never stranded off-map.
 local function free_from_cage(unit)
-    -- Locate the containing cage and a valid drop tile before mutating anything.
     local cage
     for _, ref in ipairs(unit.general_refs) do
         if df.general_ref_contained_in_itemst:is_instance(ref) then
@@ -1656,10 +1642,10 @@ local function free_from_cage(unit)
     end
     if not cage then return nil end
     local x, y, z = dfhack.items.getPosition(cage)
-    if not x then return nil end  -- cage position unresolvable; leave caged, retry later
+    if not x then return nil end  -- unresolvable; leave caged, retry next poll
     local pos = { x = x, y = y, z = z }
 
-    -- Sever the cage's back-reference to this unit.
+    -- Sever both sides of the cage<->unit link.
     for j = #cage.general_refs - 1, 0, -1 do
         local cref = cage.general_refs[j]
         if df.general_ref_contains_unitst:is_instance(cref) and cref.unit_id == unit.id then
@@ -1667,7 +1653,6 @@ local function free_from_cage(unit)
             cref:delete()
         end
     end
-    -- Sever the unit's reference(s) to the cage.
     for k = #unit.general_refs - 1, 0, -1 do
         local ref = unit.general_refs[k]
         if df.general_ref_contained_in_itemst:is_instance(ref) then
@@ -1682,13 +1667,9 @@ local function free_from_cage(unit)
     return pos
 end
 
--- Poll hook: legendary megabeasts ship with TRAPAVOID unset, so the finale beast
--- can be caught in a single cheap cage trap, permanently stalling the Slay
--- Megabeast goal. We deliberately do NOT make it avoid traps (that would neuter the
--- player's weapon-trap defenses, which are the intended way to fight it). Instead,
--- if the pinned target beast is ever caged, it bursts free right where the cage
--- sits - so cage cheese does not work, but every other trap still counts.
--- Repeatable: re-cage it and it breaks out again.
+-- Poll hook: megabeasts lack TRAPAVOID, so a cheap cage trap can stall the goal.
+-- Rather than make it trap-immune (which would neuter weapon defenses), free the
+-- pinned target whenever it's caged. Repeatable.
 function M.break_caged_megabeast()
     local tid = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/target_id"))
     if not tid then return end
@@ -1697,11 +1678,8 @@ function M.break_caged_megabeast()
     local pos = free_from_cage(unit)
     if not pos then return end
 
-    -- Dragon-tier beasts (FIREIMMUNE_SUPER) exude dragonfire as they escape: they
-    -- survive their own flames, so they erupt free in a gout of fire that melts the
-    -- cage to slag and scorches whatever the player packed around it. The ref-surgery
-    -- above is the reliable release; the fire is spectacle and consequence. Lesser
-    -- beasts (which would be harmed by dragonfire) just burst the cage open.
+    -- Dragon-tier beasts (FIREIMMUNE_SUPER) survive their own flames, so wreathe the
+    -- escape in dragonfire; lesser beasts (which fire would harm) just burst free.
     local super = false
     pcall(function()
         super = df.global.world.raws.creatures.all[unit.race].caste[unit.caste].flags.FIREIMMUNE_SUPER == true
@@ -2026,10 +2004,7 @@ local function fort_defense_multiplier()
     return mult, traps, soldiers
 end
 
--- Interpolate a caste's body_size growth curve (parallel body_size / body_size_day
--- vectors, days) to the volume in cm3 at a given age in years. DF years are 336
--- days. Clamps to the curve ends. Dragons keep growing to ~1000yr; most creatures
--- cap at adulthood, so this also yields the proper adult size for a newborn spawn.
+-- Size (cm3) at a given age from the caste's body_size growth curve. DF year = 336 days.
 local DF_DAYS_PER_YEAR = 336
 local function size_at_age(caste, age_years)
     local bs, bd = caste.body_size, caste.body_size_day
@@ -2048,12 +2023,8 @@ local function size_at_age(caste, age_years)
     return bs[n-1]
 end
 
--- Buff the summoned megabeast into a formidable finale, scaled by the fort's
--- defenses (the same trap+troop signal the waves use, fort_defense_multiplier).
--- Even an undefended fort gets a proper mature beast (fixing the runt/newborn
--- units dfhack.units.create can otherwise produce); a heavily fortified one gets
--- an ancient, near-max-attribute, legendary-fighting nightmare. Assigns the
--- forward-declared upvalue so spawn_target_megabeast (defined earlier) can call it.
+-- Buff the finale beast (size, attributes, combat skills), scaled by fort defenses
+-- via fort_defense_multiplier. Always leaves it a formidable mature beast.
 buff_megabeast = function(unit, species)
     pcall(function()
         local mult = select(1, fort_defense_multiplier())      -- 1.0 .. 2.0
@@ -2061,11 +2032,8 @@ buff_megabeast = function(unit, species)
         local cr    = df.global.world.raws.creatures.all[unit.race]
         local caste = cr.caste[unit.caste]
 
-        -- 1) Age -> size. Scale age from half-grown toward the curve's oldest point
-        -- (ancient for dragons, full adult for others), so size scales with defenses.
-        -- ONLY ever grow: a runt/newborn spawn balloons up, but a beast that happened
-        -- to spawn large is left alone. Age is set to match the size so the game's own
-        -- growth won't pull it back.
+        -- 1) Age -> size: half-grown to ancient by frac. Only grow (never shrink a
+        -- large spawn); age set to match so the game's growth won't pull it back.
         local child_age = caste.misc.child_age or 1
         local last      = #caste.body_size_day - 1
         local max_age   = math.max(child_age, math.floor((last >= 0 and caste.body_size_day[last] or 0) / DF_DAYS_PER_YEAR))
