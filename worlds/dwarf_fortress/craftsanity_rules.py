@@ -74,6 +74,9 @@ class DynamicCraftingLocationRules:
     def glass(self, state:CollectionState) -> bool:
         return self.job_type(state, "Glass")
 
+    def glass_and_pearlash(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Glass") and self.job_type(state, "Ceramics")
+
     def ceramic(self, state:CollectionState) -> bool:
         return self.job_type(state, "Ceramics")
 
@@ -884,7 +887,7 @@ class DynamicCraftingLocationRules:
     def adamantine_pipesection(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinemetal") and self.permit(state, "Pipe Section")
     def glass_pipesection(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Glass") and self.permit(state, "Pipe Section")
+        return self.job_type(state, "Glass") and self.pearlash(state) and self.permit(state, "Pipe Section")
     def wood_or_metal_or_glass_pipesection(self, state:CollectionState) -> bool:
         return self.wood_or_metal_or_glass(state) and self.permit(state, "Pipe Section")
     
@@ -2659,7 +2662,7 @@ class DynamicCraftingLocationRules:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.glass_pipesection)
                     else:
-                        set_rule(loc, self.glass)
+                        set_rule(loc, self.glass_and_pearlash)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.wood_or_metal_or_glass_pipesection)
