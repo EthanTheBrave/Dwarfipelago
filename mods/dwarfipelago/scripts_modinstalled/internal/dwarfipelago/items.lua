@@ -1630,6 +1630,12 @@ local function spawn_target_megabeast()
 end
 M.spawn_target_megabeast = spawn_target_megabeast
 
+-- Dragonfire disc radius when a fire-breather melts its way out of a cage. Kept
+-- small: dragonfire only ignites flammable things (the wood cage, stored organics,
+-- anyone standing there), so on a stone fort it scorches the area without becoming
+-- a guaranteed fort-wide inferno. Raise for more collateral.
+local CAGE_BREAK_FIRE_R = 2
+
 -- Free a caged unit onto the map at the cage's current location. Reverses the
 -- two-way cage<->unit link (the unit's CONTAINED_IN_ITEM ref and the cage's
 -- CONTAINS_UNIT back-ref), clears the caged flag, and teleports the unit to where
@@ -1676,12 +1682,28 @@ function M.break_caged_megabeast()
     local unit = df.unit.find(tid)
     if not unit or not unit.flags1.caged or not dfhack.units.isAlive(unit) then return end
     local pos = free_from_cage(unit)
-    if pos then
+    if not pos then return end
+
+    -- Dragon-tier beasts (FIREIMMUNE_SUPER) exude dragonfire as they escape: they
+    -- survive their own flames, so they erupt free in a gout of fire that melts the
+    -- cage to slag and scorches whatever the player packed around it. The ref-surgery
+    -- above is the reliable release; the fire is spectacle and consequence. Lesser
+    -- beasts (which would be harmed by dragonfire) just burst the cage open.
+    local super = false
+    pcall(function()
+        super = df.global.world.raws.creatures.all[unit.race].caste[unit.caste].flags.FIREIMMUNE_SUPER == true
+    end)
+    if super then
+        spawn_fire_disc(pos.x, pos.y, pos.z, CAGE_BREAK_FIRE_R)
+        dfhack.gui.showAnnouncement(
+            "[AP] The beast ERUPTS in dragonfire, melting its cage to slag, and strides free! Slay it for victory!",
+            COLOR_RED, true)
+    else
         dfhack.gui.showAnnouncement(
             "[AP] The beast BURSTS from its flimsy cage - no prison can hold it! Slay it for victory!",
             COLOR_RED, true)
-        log.info(("Megabeast broke free of a cage at (%d,%d,%d)"):format(pos.x, pos.y, pos.z))
     end
+    log.info(("Megabeast broke free of a cage at (%d,%d,%d) fiery=%s"):format(pos.x, pos.y, pos.z, tostring(super)))
 end
 
 -- -- Megabeast siege: roaming warbands -----------------------------------------
