@@ -767,14 +767,41 @@ local function recv_goblin_saboteurs()
         last_pos)
 end
 
--- Reliable estimate of the fortress surface z-level. Prefers the z captured at
--- embark (dwarfipelago/mining/surface_z, taken before digging began), then the
--- HIGHEST living citizen, and only then a fraction of the map height. Never the
--- first citizen in the list: in an established fort that dwarf is usually
--- underground, which is what used to anchor the spawn search onto fort levels,
--- make it find nothing, and drop waves onto dwarves via the fort fallback.
+-- The trade depot's z-level if it sits on the open surface, else nil. The mod
+-- builds the depot at the embark wagon (on the surface) and it must be
+-- wagon-accessible from the map edge, so when its tile is open to the sky its z
+-- is a reliable, drift-free surface anchor. The `outside` check is what makes it
+-- trustworthy: a depot the player tucked underground is rejected here so callers
+-- fall back rather than anchoring the surface search below ground.
+local function depot_surface_z()
+    local cx, cy, cz = find_trade_depot_center()
+    if not cx then return nil end
+    local blk = dfhack.maps.getTileBlock(cx, cy, cz)
+    if not blk then return nil end
+    local outside = false
+    pcall(function() outside = blk.designation[cx % 16][cy % 16].outside end)
+    return outside and cz or nil
+end
+
+-- Persistent memory of the depot's surface z. The poll refreshes it every tick the
+-- depot is on the open surface (see refresh_surface_anchor), so if the player later
+-- relocates the depot underground we still remember where the surface was, rather
+-- than losing the anchor to a live check that now fails.
+local DEPOT_SURFACE_Z_KEY = "dwarfipelago/mining/depot_surface_z"
+
+-- Reliable estimate of the fortress surface z-level. Prefers the trade depot: its
+-- current z if it is on the open surface, else the last z we remembered it at.
+-- Only if the depot was never seen on the surface does it fall back to the
+-- embark-captured key, the HIGHEST living citizen, then a fraction of the map
+-- height - all of which can point underground on an established fort (the old
+-- first-citizen capture pinned to whatever dwarf was listed first, usually below
+-- ground, which anchored the spawn search onto fort levels and made it find nothing).
 local function estimate_surface_z()
     local map = df.global.world.map
+    local live = depot_surface_z()
+    if live then return live end
+    local saved = tonumber(dfhack.persistent.getWorldDataString(DEPOT_SURFACE_Z_KEY))
+    if saved then return saved end
     local persisted = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/mining/surface_z"))
     if persisted then return persisted end
     local best
@@ -784,6 +811,14 @@ local function estimate_surface_z()
         end
     end
     return best or math.floor(map.z_count * 0.7)
+end
+
+-- Called from the poll: while the depot sits on the open surface, remember its z so
+-- the surface anchor survives the player later moving the depot underground. Only
+-- ever writes a valid surface z (never overwrites with a bad value).
+function M.refresh_surface_anchor()
+    local dz = depot_surface_z()
+    if dz then dfhack.persistent.saveWorldDataString(DEPOT_SURFACE_Z_KEY, tostring(dz)) end
 end
 
 -- True only for a genuine open-air surface tile a hostile can be dropped onto:
@@ -850,9 +885,15 @@ end
 local function find_surface_spawn_pos()
     if not dfhack.isMapLoaded() then return nil end
     local map = df.global.world.map
-    local anchor = estimate_surface_z()
-    local z_hi = math.min(map.z_count - 1, anchor + 12)
-    local z_lo = math.max(0, anchor - 12)
+    -- Scan the full column top-down: column_surface_z returns the topmost open-air
+    -- tile, which IS the local surface. Because is_open_surface_tile requires the
+    -- `outside` flag (never set on fort interiors or caverns), a full-range scan
+    -- can only ever land on a real surface tile - so an edge at any elevation is
+    -- found, no matter how far it sits from the depot anchor. Cheap (~0.3ms/call,
+    -- once per wave), so we do not narrow it to a window that could miss a steep
+    -- edge.
+    local z_hi = map.z_count - 1
+    local z_lo = 0
     local m    = 4  -- stay off the very map edge to avoid bound issues
 
     -- Four generators, one per embark edge (N/S/W/E).

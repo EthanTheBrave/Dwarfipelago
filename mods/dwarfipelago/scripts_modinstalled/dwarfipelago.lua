@@ -1521,6 +1521,11 @@ local function poll_checks()
         end
     end
 
+    -- Remember the trade depot's surface z while it is on the open surface, so wave
+    -- spawns keep a reliable surface anchor even if the player later relocates the
+    -- depot underground. Cheap; only writes when the depot is genuinely on top.
+    items.refresh_surface_anchor()
+
     compute_cavern_ceilings()
     -- Secret world caves: always generate, independent of the custom_caves option.
     caves.generate_secret_caves()
