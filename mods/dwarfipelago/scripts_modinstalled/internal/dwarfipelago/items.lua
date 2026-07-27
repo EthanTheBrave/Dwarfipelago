@@ -1526,6 +1526,12 @@ local function spawn_fire_disc(x, y, z, r)
     end
 end
 
+-- Buffs the summoned finale beast (ancient size, maxed attributes, legendary
+-- combat skills), scaled by the fort's defenses. Defined further down with the
+-- defense-scaling helpers it depends on; forward-declared here so the spawn can
+-- call it.
+local buff_megabeast
+
 -- The climax: the megabeast falls from the sky, gouging a crater near the map
 -- edge, and rises to march on the fort. If a clean crater floor can't be made, it
 -- lands in the open instead - and if a fire-immune beast is available, wreathed in
@@ -1600,15 +1606,10 @@ local function spawn_target_megabeast()
     dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/target_id", tostring(beast.id))
     dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/spawned", "1")
 
-    -- Escort: wild brutes - but NOT in the fiery case (the fire would burn them).
-    if not fiery then
-        local escorts = bestiary.filter_present({ "TROLL", "OGRE" })
-        if #escorts > 0 then
-            for _ = 1, 2 do
-                create_unit(escorts[math.random(#escorts)], { x = bx, y = by, z = bz }, { civ_id = -1, hostile = true })
-            end
-        end
-    end
+    -- Make the finale beast formidable, scaled to the fort's defenses. No wild
+    -- escorts: a megabeast attacks anything nearby, so trolls/ogres just clashed
+    -- with it - the beast itself carries the fight now.
+    buff_megabeast(beast, species)
 
     -- Fiery impact: a fire-immune beast crashes down wreathed in dragonfire.
     if fiery then spawn_fire_disc(bx, by, bz, 3) end
@@ -2023,6 +2024,87 @@ local function fort_defense_multiplier()
     local score = traps + army_extra * DEFENSE_SOLDIER_WEIGHT
     local mult = 1 + math.min(DEFENSE_MAX_BONUS, score / DEFENSE_SCALE)
     return mult, traps, soldiers
+end
+
+-- Interpolate a caste's body_size growth curve (parallel body_size / body_size_day
+-- vectors, days) to the volume in cm3 at a given age in years. DF years are 336
+-- days. Clamps to the curve ends. Dragons keep growing to ~1000yr; most creatures
+-- cap at adulthood, so this also yields the proper adult size for a newborn spawn.
+local DF_DAYS_PER_YEAR = 336
+local function size_at_age(caste, age_years)
+    local bs, bd = caste.body_size, caste.body_size_day
+    local n = #bs
+    if n == 0 then return nil end
+    local days = age_years * DF_DAYS_PER_YEAR
+    if days <= bd[0]   then return bs[0] end
+    if days >= bd[n-1] then return bs[n-1] end
+    for i = 1, n - 1 do
+        if days <= bd[i] then
+            local span = math.max(1, bd[i] - bd[i-1])
+            local t = (days - bd[i-1]) / span
+            return math.floor(bs[i-1] + (bs[i] - bs[i-1]) * t)
+        end
+    end
+    return bs[n-1]
+end
+
+-- Buff the summoned megabeast into a formidable finale, scaled by the fort's
+-- defenses (the same trap+troop signal the waves use, fort_defense_multiplier).
+-- Even an undefended fort gets a proper mature beast (fixing the runt/newborn
+-- units dfhack.units.create can otherwise produce); a heavily fortified one gets
+-- an ancient, near-max-attribute, legendary-fighting nightmare. Assigns the
+-- forward-declared upvalue so spawn_target_megabeast (defined earlier) can call it.
+buff_megabeast = function(unit, species)
+    pcall(function()
+        local mult = select(1, fort_defense_multiplier())      -- 1.0 .. 2.0
+        local frac = math.max(0, math.min(1, mult - 1))         -- 0 .. 1
+        local cr    = df.global.world.raws.creatures.all[unit.race]
+        local caste = cr.caste[unit.caste]
+
+        -- 1) Age -> size. Scale age from half-grown toward the curve's oldest point
+        -- (ancient for dragons, full adult for others), so size scales with defenses.
+        -- ONLY ever grow: a runt/newborn spawn balloons up, but a beast that happened
+        -- to spawn large is left alone. Age is set to match the size so the game's own
+        -- growth won't pull it back.
+        local child_age = caste.misc.child_age or 1
+        local last      = #caste.body_size_day - 1
+        local max_age   = math.max(child_age, math.floor((last >= 0 and caste.body_size_day[last] or 0) / DF_DAYS_PER_YEAR))
+        local age = math.floor(child_age + (max_age - child_age) * (0.5 + 0.5 * frac))
+        local target = size_at_age(caste, age)
+        local si = unit.body and unit.body.size_info
+        if target and si and target > si.size_base then
+            local ratio = target / math.max(1, si.size_base)
+            si.size_base, si.size_cur = target, target
+            pcall(function() si.area_base   = math.floor(si.area_base   * ratio ^ (2/3)) end)
+            pcall(function() si.area_cur    = math.floor(si.area_cur    * ratio ^ (2/3)) end)
+            pcall(function() si.length_base = math.floor(si.length_base * ratio ^ (1/3)) end)
+            pcall(function() si.length_cur  = math.floor(si.length_cur  * ratio ^ (1/3)) end)
+            unit.birth_year = df.global.cur_year - age
+            pcall(function() unit.birth_time = df.global.cur_year_tick end)
+        end
+
+        -- 2) Physical attributes -> toward max (70% undefended .. 100% fortified).
+        local afrac = 0.7 + 0.3 * frac
+        local pa = unit.body.physical_attrs
+        for _, name in ipairs({ "STRENGTH", "TOUGHNESS", "ENDURANCE", "AGILITY", "RECUPERATION", "DISEASE_RESISTANCE" }) do
+            local a = pa[df.physical_attribute_type[name]]
+            if a then
+                local tgt = math.floor(a.max_value * afrac)
+                if a.value < tgt then a.value = tgt end
+            end
+        end
+
+        -- 3) Natural-weapon combat skills -> Proficient(10) .. Legendary(20).
+        local level = math.floor(10 + 10 * frac)
+        local js = df.job_skill
+        for _, sn in ipairs({ "BITE", "WRESTLING", "DODGING", "MELEE_COMBAT", "GRASP_STRIKE", "STANCE_STRIKE" }) do
+            local id = js[sn]
+            if id then set_skill(unit, id, level) end
+        end
+
+        log.info(("Megabeast buff %s: age=%d size=%s attr=%d%% skill=%d (defense mult %.2f)")
+            :format(tostring(species), age, tostring(target), math.floor(afrac * 100), level, mult))
+    end)
 end
 
 -- Choose a siege faction for this wave: unlocked by readiness and actually
