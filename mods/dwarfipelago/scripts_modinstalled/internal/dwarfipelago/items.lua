@@ -1639,31 +1639,43 @@ local CAGE_BREAK_FIRE_R = 2
 -- Free a caged unit onto the map at the cage's current location. Reverses the
 -- two-way cage<->unit link (the unit's CONTAINED_IN_ITEM ref and the cage's
 -- CONTAINS_UNIT back-ref), clears the caged flag, and teleports the unit to where
--- the cage physically sits (getPosition resolves it through a hauler/stockpile).
--- Returns the drop position, or nil if the unit could not be located in a cage.
+-- the cage physically sits. getPosition resolves that tile through whatever holds
+-- the cage - a hauling dwarf, a stockpile, or a built cage - so a cage in transit
+-- works fine. We resolve the drop tile FIRST and bail without touching anything if
+-- it can't be found, so we never strand a unit "freed" but off the map; the next
+-- poll simply tries again. Returns the drop position, or nil if not freed.
 local function free_from_cage(unit)
-    local pos
+    -- Locate the containing cage and a valid drop tile before mutating anything.
+    local cage
+    for _, ref in ipairs(unit.general_refs) do
+        if df.general_ref_contained_in_itemst:is_instance(ref) then
+            cage = df.item.find(ref.item_id)
+            break
+        end
+    end
+    if not cage then return nil end
+    local x, y, z = dfhack.items.getPosition(cage)
+    if not x then return nil end  -- cage position unresolvable; leave caged, retry later
+    local pos = { x = x, y = y, z = z }
+
+    -- Sever the cage's back-reference to this unit.
+    for j = #cage.general_refs - 1, 0, -1 do
+        local cref = cage.general_refs[j]
+        if df.general_ref_contains_unitst:is_instance(cref) and cref.unit_id == unit.id then
+            cage.general_refs:erase(j)
+            cref:delete()
+        end
+    end
+    -- Sever the unit's reference(s) to the cage.
     for k = #unit.general_refs - 1, 0, -1 do
         local ref = unit.general_refs[k]
         if df.general_ref_contained_in_itemst:is_instance(ref) then
-            local cage = df.item.find(ref.item_id)
-            if cage then
-                local x, y, z = dfhack.items.getPosition(cage)
-                if x then pos = { x = x, y = y, z = z } end
-                for j = #cage.general_refs - 1, 0, -1 do
-                    local cref = cage.general_refs[j]
-                    if df.general_ref_contains_unitst:is_instance(cref) and cref.unit_id == unit.id then
-                        cage.general_refs:erase(j)
-                        cref:delete()
-                    end
-                end
-            end
             unit.general_refs:erase(k)
             ref:delete()
         end
     end
     unit.flags1.caged = false
-    if pos and not dfhack.units.teleport(unit, pos) then
+    if not dfhack.units.teleport(unit, pos) then
         unit.pos.x, unit.pos.y, unit.pos.z = pos.x, pos.y, pos.z
     end
     return pos
