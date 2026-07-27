@@ -1630,6 +1630,60 @@ local function spawn_target_megabeast()
 end
 M.spawn_target_megabeast = spawn_target_megabeast
 
+-- Free a caged unit onto the map at the cage's current location. Reverses the
+-- two-way cage<->unit link (the unit's CONTAINED_IN_ITEM ref and the cage's
+-- CONTAINS_UNIT back-ref), clears the caged flag, and teleports the unit to where
+-- the cage physically sits (getPosition resolves it through a hauler/stockpile).
+-- Returns the drop position, or nil if the unit could not be located in a cage.
+local function free_from_cage(unit)
+    local pos
+    for k = #unit.general_refs - 1, 0, -1 do
+        local ref = unit.general_refs[k]
+        if df.general_ref_contained_in_itemst:is_instance(ref) then
+            local cage = df.item.find(ref.item_id)
+            if cage then
+                local x, y, z = dfhack.items.getPosition(cage)
+                if x then pos = { x = x, y = y, z = z } end
+                for j = #cage.general_refs - 1, 0, -1 do
+                    local cref = cage.general_refs[j]
+                    if df.general_ref_contains_unitst:is_instance(cref) and cref.unit_id == unit.id then
+                        cage.general_refs:erase(j)
+                        cref:delete()
+                    end
+                end
+            end
+            unit.general_refs:erase(k)
+            ref:delete()
+        end
+    end
+    unit.flags1.caged = false
+    if pos and not dfhack.units.teleport(unit, pos) then
+        unit.pos.x, unit.pos.y, unit.pos.z = pos.x, pos.y, pos.z
+    end
+    return pos
+end
+
+-- Poll hook: legendary megabeasts ship with TRAPAVOID unset, so the finale beast
+-- can be caught in a single cheap cage trap, permanently stalling the Slay
+-- Megabeast goal. We deliberately do NOT make it avoid traps (that would neuter the
+-- player's weapon-trap defenses, which are the intended way to fight it). Instead,
+-- if the pinned target beast is ever caged, it bursts free right where the cage
+-- sits - so cage cheese does not work, but every other trap still counts.
+-- Repeatable: re-cage it and it breaks out again.
+function M.break_caged_megabeast()
+    local tid = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/target_id"))
+    if not tid then return end
+    local unit = df.unit.find(tid)
+    if not unit or not unit.flags1.caged or not dfhack.units.isAlive(unit) then return end
+    local pos = free_from_cage(unit)
+    if pos then
+        dfhack.gui.showAnnouncement(
+            "[AP] The beast BURSTS from its flimsy cage - no prison can hold it! Slay it for victory!",
+            COLOR_RED, true)
+        log.info(("Megabeast broke free of a cage at (%d,%d,%d)"):format(pos.x, pos.y, pos.z))
+    end
+end
+
 -- -- Megabeast siege: roaming warbands -----------------------------------------
 -- Time-paced enemy waves for the Slay Megabeast goal. Difficulty scales with the
 -- player's War Readiness level (1-9); readiness 10 is the curated breach. Units
