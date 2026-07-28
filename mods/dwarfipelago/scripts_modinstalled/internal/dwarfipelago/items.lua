@@ -1220,22 +1220,41 @@ local function recv_lost_caravan()
     announce("Trap: A caravan bound for your fortress has been lost on the road...")
 end
 
+-- True for creatures that can learn (the merchants/guards), false for livestock.
+local function is_sapient(unit)
+    local c = df.global.world.raws.creatures.all[unit.race].caste[unit.caste]
+    return c.flags[df.caste_raw_flags.CAN_LEARN]
+end
+
 -- Spoil an arriving caravan's whole cargo if the curse is armed: perishables rot
--- outright ("rotten X"), everything else arrives at max wear and near-worthless.
--- Fires once, then disarms. Called from caravan detection; returns true if it fired.
+-- outright ("rotten X"), everything else arrives at max wear and near-worthless,
+-- and the livestock it brought to sell (caged or roped animals) die in transit. The
+-- merchant flag scopes the kill to caravan members - the fort's own caged pets and
+-- chained war dogs are never merchant-flagged, so they are untouched; wagon-pullers
+-- are merchant-flagged but not caged/roped, so they survive. Fires once, then
+-- disarms. Called from caravan detection; returns true if it fired.
 local function trigger_lost_caravan_curse()
     if dfhack.persistent.getWorldDataString(LOST_CARAVAN_FLAG) ~= "1" then return false end
-    local n = 0
+    local goods = 0
     for _, it in ipairs(df.global.world.items.all) do
         if it.flags.trader then
             it.flags.rotten = true            -- spoils perishables; inert on non-organic goods
             pcall(function() it.wear = 3 end)  -- guts the value of metal/stone/craft goods
-            n = n + 1
+            goods = goods + 1
+        end
+    end
+    local killed = 0
+    for _, u in ipairs(df.global.world.units.active) do
+        if u.flags1.merchant and (u.flags1.caged or u.flags1.chained)
+                and dfhack.units.isAlive(u) and not dfhack.units.isCitizen(u)
+                and not is_sapient(u) then
+            pcall(function() u.body.blood_count = 0 end)  -- bleeds out, leaving a corpse to rot
+            killed = killed + 1
         end
     end
     dfhack.persistent.saveWorldDataString(LOST_CARAVAN_FLAG, "")  -- disarm
     announce("A caravan got lost on its way here, and unfortunately couldn't keep the cargo alive.")
-    log.info(("Lost Caravan curse: spoiled %d trade goods"):format(n))
+    log.info(("Lost Caravan curse: spoiled %d trade goods, lost %d livestock"):format(goods, killed))
     return true
 end
 M.trigger_lost_caravan_curse = trigger_lost_caravan_curse
