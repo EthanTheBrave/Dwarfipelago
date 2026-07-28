@@ -174,6 +174,11 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     loc = multiworld.get_location("First Instrument Made", player)
     loc.access_rule = lambda state: state.has("Craftsdwarf's Workshop Blueprint", player)
 
+    # A patient is treated in a hospital, which needs a bed - gate on bed-making
+    # ability (same rule as First Bed Made). First Birth stays always available.
+    loc = multiworld.get_location("First Patient Treated", player)
+    dynamic_rules.df_location_rule(loc, "Beds", "")
+
     # -- Harvesting Gates ------------------------------------------------------
     loc = multiworld.get_location("Harvest 50 Crops", player)
     loc.access_rule = lambda state: dynamic_rules.process_resource(state, "farming")
