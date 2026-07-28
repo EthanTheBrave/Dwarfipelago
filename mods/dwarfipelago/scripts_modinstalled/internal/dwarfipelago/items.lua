@@ -2110,9 +2110,17 @@ local function pick_siege_faction(readiness)
     return usable[math.random(#usable)]
 end
 
+-- Resolve a faction by its key (goblin|human|elf|night), case-insensitive. nil if none.
+local function faction_by_key(key)
+    key = tostring(key):lower()
+    for _, f in ipairs(SIEGE_FACTIONS) do if f.key == key then return f end end
+    return nil
+end
+
 -- Spawn a roaming warband for the given readiness level (1-9). Returns the count
--- spawned. Picks a surface-edge tile so the enemies march in.
-local function spawn_warband(readiness)
+-- spawned. Picks a surface-edge tile so the enemies march in. An optional
+-- faction_key (goblin|human|elf|night) forces that faction instead of a random one.
+local function spawn_warband(readiness, faction_key)
     local tier = WARBAND_TIERS[readiness]
     if not tier then log.warn("spawn_warband: no tier for readiness " .. tostring(readiness)); return 0 end
 
@@ -2123,8 +2131,12 @@ local function spawn_warband(readiness)
     local x, y, z = find_surface_spawn_pos()
     if not x then log.warn("spawn_warband: no surface spawn position; skipping wave"); return 0 end
 
-    -- Pick which civilisation/faction sieges this wave, and build its roster.
-    local faction = pick_siege_faction(readiness)
+    -- Pick which civilisation/faction sieges this wave, and build its roster. A
+    -- forced faction_key overrides the random pick (unknown key -> random).
+    local faction = faction_key and faction_by_key(faction_key) or pick_siege_faction(readiness)
+    if faction_key and not faction_by_key(faction_key) then
+        log.warn("spawn_warband: unknown faction '" .. tostring(faction_key) .. "'; picking randomly")
+    end
 
     local pool
     if faction.key == "night" then
@@ -2918,8 +2930,8 @@ local TEST_LIST = {
     { "ordersab",  "Order Sabotage trap (wipe all manager work orders)", function() recv_order_sabotage() end },
     { "spider",    "Precursor threat (giant cave spider, underground)", function() spawn_precursor_threat() end },
     { "megabeast", "Force the goal megabeast (once per world)",        function() spawn_target_megabeast() end },
-    { "wave",      "Spawn a roaming warband for a readiness level (arg: 1-9, default 1)",
-                   function(rest) spawn_warband(tonumber(rest[1]) or 1) end },
+    { "wave",      "Spawn a warband (args: readiness 1-9 [default 1] [, faction goblin|human|elf|night])",
+                   function(rest) spawn_warband(tonumber(rest[1]) or 1, rest[2]) end },
     { "wave-now",  "Force the scheduled wave due now (tests the auto-scheduler; needs readiness>=1, slay_megabeast)",
                    function()
                        dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/next_wave_tick", "0")
