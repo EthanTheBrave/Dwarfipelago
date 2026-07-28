@@ -139,6 +139,41 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     loc = multiworld.get_location("First Metal Bar Smelted", player)
     dynamic_rules.df_location_rule(loc, "Metal Bars", "")
 
+    # ── New "first" production milestones ──────────────────────────────────────
+    # Steel is smelted, so it shares the metal-bar (smelter) gate.
+    loc = multiworld.get_location("First Steel Bar", player)
+    dynamic_rules.df_location_rule(loc, "Metal Bars", "")
+
+    # A roast is a lavish prepared meal - same kitchen gate as the first meal.
+    loc = multiworld.get_location("First Roast", player)
+    dynamic_rules.df_location_rule(loc, "Prepared Meal", "")
+
+    # Glass is produced at a glass furnace; glass() self-adjusts to require the
+    # Glass permit as well when crafting permits are on.
+    loc = multiworld.get_location("First Glass Made", player)
+    loc.access_rule = lambda state: dynamic_rules.glass(state)
+
+    # Soap: the soap maker's workshop (plus the lye/tallow chain and Soap permit
+    # when permits are enabled).
+    loc = multiworld.get_location("First Soap Made", player)
+    if options.craftpermits == CraftingPermits.option_off:
+        loc.access_rule = lambda state: dynamic_rules.soap(state)
+    else:
+        loc.access_rule = lambda state: dynamic_rules.make_soap(state)
+
+    # Coins: the ability to make metal (plus the Coins permit when permits are
+    # enabled), matching the Merchant's Shop coin-minting gate.
+    loc = multiworld.get_location("First Coins Minted", player)
+    if options.craftpermits == CraftingPermits.option_off:
+        loc.access_rule = lambda state: dynamic_rules.metal(state)
+    else:
+        loc.access_rule = lambda state: dynamic_rules.metal_coins(state)
+
+    # Instruments are civ-generated and made at varying workshops; the craftsdwarf's
+    # workshop is the common one, used here as a best-guess hard requirement.
+    loc = multiworld.get_location("First Instrument Made", player)
+    loc.access_rule = lambda state: state.has("Craftsdwarf's Workshop Blueprint", player)
+
     # -- Harvesting Gates ------------------------------------------------------
     loc = multiworld.get_location("Harvest 50 Crops", player)
     loc.access_rule = lambda state: dynamic_rules.process_resource(state, "farming")
