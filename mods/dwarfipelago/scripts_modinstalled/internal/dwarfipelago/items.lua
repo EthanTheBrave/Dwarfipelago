@@ -179,6 +179,18 @@ local function find_civ_id(token)
     return fallback
 end
 
+-- Any enemy civilisation id, used as a shared "banner" for waves whose faction has
+-- no civ of its own (night raids). Skips the player's civ. Returns -1 if none.
+local function any_enemy_civ_id()
+    local mine = df.global.plotinfo and df.global.plotinfo.civ_id or -1
+    for _, ent in ipairs(df.global.world.entities.all) do
+        if ent.id ~= mine and ent.type == df.historical_entity_type.Civilization then
+            return ent.id
+        end
+    end
+    return -1
+end
+
 -- -- Item handlers: trade goods ------------------------------------------------
 -- createitem syntax: <item-token> <material>
 --   Cut gems  -> SMALLGEM INORGANIC:<gem>   (SMALLGEM = cut gem; ROUGH = uncut)
@@ -2134,7 +2146,11 @@ local function spawn_warband(readiness)
         mat = find_wood_mat()
     end
 
-    local civ_id      = faction.civ and find_civ_id(faction.civ) or -1
+    -- One shared civ id for the whole wave: a civ_id of -1 (wild) makes a unit
+    -- hostile to everyone, its own siege included, so beasts, wall-breakers and
+    -- champions would infight. Night raids borrow any enemy civ as a banner.
+    local civ_id      = (faction.civ and find_civ_id(faction.civ)) or find_goblin_civ_id()
+    if not civ_id or civ_id == -1 then civ_id = any_enemy_civ_id() end
     local tier_armor  = (faction.armor == "tier") and tier.armor or "none"
     local give_shield = (tier_armor == "shield" or tier_armor == "full")
     local has_armor   = (tier_armor == "light" or tier_armor == "full")
@@ -2212,7 +2228,7 @@ local function spawn_warband(readiness)
     if beast_pool and #beast_pool > 0 and nb > 0 then
         for _ = 1, nb do
             local brute = create_unit(beast_pool[math.random(#beast_pool)],
-                                      { x = x, y = y, z = z }, { civ_id = -1, hostile = true })
+                                      { x = x, y = y, z = z }, { civ_id = civ_id, hostile = true })
             if brute then
                 if mat and faction.arm_beasts then  -- goblin trolls/ogres wield an axe
                     pcall(function()
@@ -2238,7 +2254,7 @@ local function spawn_warband(readiness)
             local nwb = math.max(1, math.floor((readiness - 6) * mult))
             for _ = 1, nwb do
                 local wb = create_unit(breakers[math.random(#breakers)],
-                                       { x = x, y = y, z = z }, { civ_id = -1, hostile = true })
+                                       { x = x, y = y, z = z }, { civ_id = civ_id, hostile = true })
                 if wb then spawned = spawned + 1 end
             end
         end
@@ -2252,7 +2268,7 @@ local function spawn_warband(readiness)
         if #champions > 0 then
             for _ = 1, (readiness - 7) do
                 local champ = create_unit(champions[math.random(#champions)],
-                                          { x = x, y = y, z = z }, { civ_id = -1, hostile = true })
+                                          { x = x, y = y, z = z }, { civ_id = civ_id, hostile = true })
                 if champ then spawned = spawned + 1 end
             end
         end
