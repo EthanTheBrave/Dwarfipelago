@@ -1552,20 +1552,28 @@ local function detect_siege_survived()
     end
 end
 
--- First Strange Mood: a citizen enters an artifact-producing mood (Fey, Secretive,
--- Possessed, Macabre, Fell - the insanity moods 5+ do not count).
+-- Strange-mood build jobs (one per workshop type). Such a job exists only once a
+-- moody dwarf has CLAIMED a workshop.
+local STRANGE_MOOD_JOBS = {}
+for _, n in ipairs({ "StrangeMoodCrafter", "StrangeMoodJeweller", "StrangeMoodForge",
+                     "StrangeMoodMagmaForge", "StrangeMoodBrooding", "StrangeMoodFell",
+                     "StrangeMoodCarpenter", "StrangeMoodMason" }) do
+    local id = df.job_type[n]
+    if id then STRANGE_MOOD_JOBS[id] = true end
+end
+
+-- First Strange Mood: fires once a mood has claimed a workshop, not on mood entry -
+-- AP locks workshops, so a mood that can't reach an unlocked one fails and shouldn't count.
 local function detect_strange_mood()
     if checks.production_flag("strange_mood") then return end
-    local mt = df.mood_type
-    for _, u in ipairs(df.global.world.units.active) do
-        if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then
-            local m = u.mood
-            if m == mt.Fey or m == mt.Secretive or m == mt.Possessed
-                    or m == mt.Macabre or m == mt.Fell then
-                checks.set_production_flag("strange_mood")
-                return
-            end
+    local link = df.global.world.jobs.list.next
+    while link do
+        local job = link.item
+        if job and STRANGE_MOOD_JOBS[job.job_type] then
+            checks.set_production_flag("strange_mood")
+            return
         end
+        link = link.next
     end
 end
 
