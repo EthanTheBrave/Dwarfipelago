@@ -1966,7 +1966,7 @@ local SIEGE_FACTIONS = {
       beasts = { "DOG", "WOLF" },
       announce = "A human army lays siege to the fortress!" },
     { key = "elf", civ = "ELF", races = {"ELF"}, material = "wood", weapons = "elf",
-      armor = "none", ranged = "bow", arm_beasts = false, min_readiness = 4,
+      armor = "tier", ranged = "bow", arm_beasts = false, min_readiness = 4,
       beasts = { "GIANT_JAGUAR", "GIANT_TIGER", "GIANT_LEOPARD", "GRIZZLY_BEAR", "ELEPHANT", "LION", "TIGER" },
       announce = "An elven host emerges from the wilds to besiege the fortress!" },
     { key = "night", civ = nil, races = nil, material = "none", weapons = "none",
