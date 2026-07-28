@@ -315,7 +315,7 @@ All received goods are delivered to the **trade depot**.
 Completing these milestones sends items to other players:
 
 - **Treasury milestones** - Humble Beginnings (1,000☼) through Legendary Vault (500,000☼) — based on the combined value of **minted coins and cut gems** in fortress stocks, not total fortress wealth
-- **First production** - first weapon forged, armor crafted, meal prepared, brew completed, metal bar smelted, gem cut, and more (18 milestones)
+- **First production** - first weapon forged, armor crafted, meal prepared, brew completed, metal bar smelted, gem cut, steel bar smelted, glass made, soap made, instrument crafted, coins minted, lavish roast, and more (27 milestones)
 - **Trade & diplomacy** - dwarven/elven/human caravan visits, outpost liaison meeting, first raid, first artifact recovery, first act of diplomacy (an elven/human caravan-visit check auto-completes if that civilisation doesn't exist in your world, so it can't soft-lock the seed)
 - **Fortress status** - noble appointments and civilisation recognition milestones
 - **Fortress titles** - Hamlet, Village, Town, City, Metropolis (population + wealth thresholds)
@@ -323,7 +323,10 @@ Completing these milestones sends items to other players:
 - **Mining** - cavern-approach progress (25% / 50% toward each cavern), tiles excavated (100 → 10,000), and breach events (First/Second/Third Cavern, Reached the Magma Sea, Welcome to the Circus). When **Progressive Mining Depth** is enabled, how deep you may dig is itself gated by items (see below)
 - **Farming** - harvested-crop milestones (50 / 100 / 250 / 500 / 1,000 crops)
 - **Infrastructure** - Built a Well, Pumped Water, Pumped Magma
-- **Biology** - First Eggs Hatched, Caged a Hostile Beast
+- **Biology** - Caged a Hostile Beast, First Birth (a child born in the fortress)
+- **Health** - First Patient Treated (a wounded dwarf is cared for in the hospital; gated behind bed-making, and the Beds permit when crafting permits are set to *all*)
+- **Combat & threats** - First Kill and First Siege (every goal); beast-slain milestones - Forgotten Beast, Titan, Semi-megabeast, Megabeast (all goals except Slay Megabeast, and optionally excludable via the *Exclude Difficult Combat Checks* toggle); enemy-kill counts - Slay 10 / 25 / 50 / 100 / 200 Enemies (Slay Megabeast goal only, gated behind Military Training)
+- **Strange moods & artifacts** - First Strange Mood (fires the moment the first mood is claimed), First Artifact Created
 - **Deep / Endgame** - Mined Adamantine, Sold an Artifact
 - **Craftsanity** - optional crafting milestone checks (see below)
 - **Skillsanity** - optional per-skill checks: each level a dwarf gains in a tracked labor or combat skill fires a check (see below)
@@ -624,8 +627,8 @@ A running list of ideas, planned features, and things that still need doing. No 
 ### Ideas / Future Features
 
 - [X] **Skill milestone locations** - first Skilled / Expert / Master dwarf per skill category (originally cut for scope)
-- [ ] **Combat milestone locations** - first kill, first siege survived, first forgotten beast
-- [ ] **Artifact creation check** - a dwarf goes into a strange mood and produces an artifact
+- [X] **Combat milestone locations** - first kill, first siege, and beast-slain checks (forgotten beast, titan, semi-megabeast, megabeast), plus enemy-kill counts on the Slay Megabeast goal
+- [X] **Artifact creation check** - a dwarf goes into a strange mood and produces an artifact
 - [ ] **Custom AP items** - define unique DF-flavored items as raw reactions for cleaner in-game delivery
 - [X] **Overlay UI** - DFHack overlay panel showing current AP connection status and recent items
 - [X] **Multi-fortress support** - allow switching between saves without resetting AP state
