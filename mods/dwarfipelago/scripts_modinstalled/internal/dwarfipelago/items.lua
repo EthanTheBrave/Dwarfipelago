@@ -1782,10 +1782,10 @@ local WARBAND_TIERS = {
     [3] = { size = {3, 4},   mat = "COPPER", armor = "shield", skill = {0, 1}, ranged = {0, 0}, beasts = {0, 0} },
     [4] = { size = {4, 5},   mat = "IRON",   armor = "shield", skill = {2, 3}, ranged = {0, 1}, beasts = {0, 0} },
     [5] = { size = {5, 6},   mat = "IRON",   armor = "light",  skill = {3, 4}, ranged = {1, 1}, beasts = {0, 0} },
-    [6] = { size = {6, 8},   mat = "IRON",   armor = "light",  skill = {4, 5}, ranged = {1, 2}, beasts = {0, 1} },
-    [7] = { size = {9, 11},  mat = "IRON",   armor = "full",   skill = {6, 7}, ranged = {2, 3}, beasts = {1, 1} },
-    [8] = { size = {12, 15}, mat = "IRON",   armor = "full",   skill = {7, 8}, ranged = {3, 4}, beasts = {1, 2} },
-    [9] = { size = {16, 20}, mat = "STEEL",  armor = "full",   skill = {8, 9}, ranged = {4, 6}, beasts = {2, 3} },
+    [6] = { size = {7, 10},  mat = "IRON",   armor = "light",  skill = {4, 5},  ranged = {2, 3},  beasts = {1, 2} },
+    [7] = { size = {11, 15}, mat = "IRON",   armor = "full",   skill = {6, 7},  ranged = {3, 5},  beasts = {2, 3} },
+    [8] = { size = {16, 22}, mat = "IRON",   armor = "full",   skill = {7, 9},  ranged = {5, 8},  beasts = {3, 5} },
+    [9] = { size = {24, 32}, mat = "STEEL",  armor = "full",   skill = {8, 10}, ranged = {7, 11}, beasts = {5, 8} },
 }
 
 -- Weapon options: {itemdef id, matching job_skill name}. Picked per unit.
@@ -1968,7 +1968,7 @@ local SIEGE_FACTIONS = {
 local DEFENSE_MIN_SOLDIERS  = 4     -- soldiers the readiness gate already assumes
 local DEFENSE_SOLDIER_WEIGHT = 2    -- each trained soldier beyond that ~ this many trap-points
 local DEFENSE_SCALE          = 40   -- defense score that reaches the full bonus
-local DEFENSE_MAX_BONUS      = 1.0  -- max added multiplier (1.0 => up to 2x wave size)
+local DEFENSE_MAX_BONUS      = 1.5  -- max added multiplier (1.5 => up to 2.5x wave size)
 
 -- Count the fort's defensive traps + upright spikes.
 local function count_defensive_traps()
