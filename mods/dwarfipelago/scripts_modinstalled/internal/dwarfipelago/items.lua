@@ -1871,6 +1871,9 @@ end
 -- stack of bolts, so the ranged contingent can actually fire. Best-effort and
 -- pcall-guarded - if a world lacks the itemdefs the unit simply goes without.
 -- Buffs the crossbow skill.
+-- Ammo a siege marksman carries, so they sustain fire through a long siege.
+local RANGED_AMMO_STACK = 90
+
 local function equip_crossbow(unit, mat, level)
     local W = df.global.world.raws.itemdefs
     local grasps = find_body_parts(unit, "GRASP")
@@ -1890,7 +1893,7 @@ local function equip_crossbow(unit, mat, level)
                 local bi = bolts and bolts[1]
                 if bi then
                     bi.flags.forbid = false
-                    pcall(function() bi.stack_size = 25 end)
+                    pcall(function() bi.stack_size = RANGED_AMMO_STACK end)
                     dfhack.items.moveToContainer(bi, qi)
                 end
             end
@@ -1921,7 +1924,7 @@ local function equip_bow(unit, mat, level)
                 local ai = arrows and arrows[1]
                 if ai then
                     ai.flags.forbid = false
-                    pcall(function() ai.stack_size = 25 end)
+                    pcall(function() ai.stack_size = RANGED_AMMO_STACK end)
                     dfhack.items.moveToContainer(ai, qi)
                 end
             end
@@ -2163,15 +2166,23 @@ local function spawn_warband(readiness)
         end
     end
 
-    -- Ranged contingent: crossbows for the metal civs, bows for elves.
+    -- Ranged contingent (the siege's "artillery"): elite marksmen skilled well
+    -- above the infantry, carrying big ammo stacks; steel crossbows from readiness 7
+    -- for penetration. Crossbows for the metal civs, bows for elves.
     if faction.ranged ~= "none" and mat then
+        local ranged_skill = math.min(tier.skill[2] + 5, 18)
+        local xbow_mat = mat
+        if faction.ranged == "crossbow" and readiness >= 7 then
+            local steel = dfhack.matinfo.find("INORGANIC:STEEL")
+            if steel then xbow_mat = { type = steel.type, index = steel.index } end
+        end
         local nr = math.floor(math.random(tier.ranged[1], tier.ranged[2]) * mult)
         for _ = 1, nr do
             local unit = spawn_one(civ_id)
             if unit then
                 pcall(function()
-                    if faction.ranged == "bow" then equip_bow(unit, mat, rskill())
-                    else equip_crossbow(unit, mat, rskill()) end
+                    if faction.ranged == "bow" then equip_bow(unit, mat, ranged_skill)
+                    else equip_crossbow(unit, xbow_mat, ranged_skill) end
                 end)
                 spawned = spawned + 1
             end
@@ -2229,6 +2240,20 @@ local function spawn_warband(readiness)
                 local wb = create_unit(breakers[math.random(#breakers)],
                                        { x = x, y = y, z = z }, { civ_id = -1, hostile = true })
                 if wb then spawned = spawned + 1 end
+            end
+        end
+    end
+
+    -- Champion beasts: from readiness 8 the siege is joined by a semi-megabeast
+    -- (minotaur, cyclops, ettin, giant) - a BD2 bruiser far tougher than a troll.
+    -- One at readiness 8, two at readiness 9.
+    if readiness >= 8 then
+        local champions = bestiary.census().semimegabeast
+        if #champions > 0 then
+            for _ = 1, (readiness - 7) do
+                local champ = create_unit(champions[math.random(#champions)],
+                                          { x = x, y = y, z = z }, { civ_id = -1, hostile = true })
+                if champ then spawned = spawned + 1 end
             end
         end
     end
