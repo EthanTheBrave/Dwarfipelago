@@ -57,6 +57,16 @@ for _, name in ipairs({
     if v ~= nil then MINING_JOBS[v] = true end
 end
 
+-- Hospital treatment jobs - completing any of these means a patient was helped.
+local MEDICAL_JOBS = {}
+for _, name in ipairs({
+    "DiagnosePatient", "Surgery", "DressWound", "CleanPatient",
+    "PlaceInTraction", "ApplyCast", "SetBone",
+}) do
+    local v = df.job_type[name]
+    if v ~= nil then MEDICAL_JOBS[v] = true end
+end
+
 -- Reverse-map a block's global_feature id to the embark's map_feature object.
 -- World-independent: feature_global_idx maps each map_features[i] to its global
 -- id, so we scan it live (~11 entries) rather than hardcoding anything.
@@ -1589,6 +1599,24 @@ local function detect_artifact_created()
     end
 end
 
+-- First Birth: a child born in the fortress. Gated on age so a migrant arriving
+-- with an (older) baby doesn't count - only a freshly-born citizen infant fires it.
+local function detect_first_birth()
+    if checks.production_flag("first_birth") then return end
+    local YEAR_TICKS = 403200  -- 12 months * 28 days * 1200 ticks
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isBaby(u) and dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then
+            local age = (df.global.cur_year - u.birth_year) * YEAR_TICKS
+                      + (df.global.cur_year_tick - u.birth_time)
+            if age >= 0 and age < 2400 then  -- born within ~2 days = an in-fort birth
+                checks.set_production_flag("first_birth")
+                dfhack.gui.showAnnouncement("[AP] A child has been born in the fortress!", COLOR_GREEN, true)
+                return
+            end
+        end
+    end
+end
+
 local function poll_checks()
     if not state.is_enabled() then return end
     -- repeatUtil fires the callback immediately on registration, and again
@@ -1661,6 +1689,7 @@ local function poll_checks()
     guard("first_siege", detect_first_siege)
     guard("strange_mood",   detect_strange_mood)
     guard("artifact_made",  detect_artifact_created)
+    guard("first_birth",    detect_first_birth)
     guard("shrine",        detect_shrine)
     guard("spawn_caravan", _check_spawn_caravan_approved)
     guard("skills",        checks.update_skill_levels)
@@ -1719,6 +1748,12 @@ local function on_job_completed(job)
     local prod_flag = checks.job_to_production_flag(job)
     if prod_flag and not checks.production_flag(prod_flag) then
         checks.set_production_flag(prod_flag)
+    end
+
+    -- "First Patient Treated": a doctor completes a hospital treatment job.
+    if MEDICAL_JOBS[job.job_type] and not checks.production_flag("patient_treated") then
+        checks.set_production_flag("patient_treated")
+        dfhack.gui.showAnnouncement("[AP] A patient has been treated in the hospital!", COLOR_GREEN, true)
     end
 
     -- Well / trap construction detection (both complete as ConstructBuilding jobs).
@@ -2084,6 +2119,48 @@ local function on_item_created(item_id)
                         ("[AP] %s reached - minting and gem cutting still work for the shop, but wealth progress is capped until the next Merchant's Coffer (%d/5)."):format(
                             tier and tier.name or "wealth tier", coffers),
                         COLOR_YELLOW, true)
+                end
+            end
+        end
+
+        -- New "first" production milestones. Item-based so manager-order output
+        -- counts too (those jobs don't reach on_job_completed).
+        if t == "INSTRUMENT" and not checks.production_flag("instrument") then
+            checks.set_production_flag("instrument")
+            dfhack.gui.showAnnouncement("[AP] Your first instrument has been crafted!", COLOR_GREEN, true)
+        end
+        if t == "COIN" and not checks.production_flag("coins") then
+            checks.set_production_flag("coins")
+            dfhack.gui.showAnnouncement("[AP] Your first coins have been minted!", COLOR_GREEN, true)
+        end
+        if t == "FOOD" and not checks.production_flag("roast") then
+            local ok_ing, n = pcall(function() return #item.ingredients end)
+            if ok_ing and n >= 4 then  -- a 4-ingredient prepared meal is a lavish roast
+                checks.set_production_flag("roast")
+                dfhack.gui.showAnnouncement("[AP] A lavish roast has been prepared!", COLOR_GREEN, true)
+            end
+        end
+        -- Material-based firsts: steel bar, glass, soap. One decode until all three fire.
+        if not (checks.production_flag("steel_bar") and checks.production_flag("glass")
+                and checks.production_flag("soap")) then
+            local token
+            local ok_mat, mat = pcall(dfhack.matinfo.decode, item)
+            if ok_mat and mat then
+                local ok_tok, tok = pcall(function() return mat:getToken() end)
+                if ok_tok and tok then token = tok:upper() end
+            end
+            if token then
+                if t == "BAR" and token:find("STEEL") and not checks.production_flag("steel_bar") then
+                    checks.set_production_flag("steel_bar")
+                    dfhack.gui.showAnnouncement("[AP] The first steel has been forged!", COLOR_GREEN, true)
+                end
+                if token:find("GLASS") and not checks.production_flag("glass") then
+                    checks.set_production_flag("glass")
+                    dfhack.gui.showAnnouncement("[AP] Glass has been made!", COLOR_GREEN, true)
+                end
+                if token:find("SOAP") and not checks.production_flag("soap") then
+                    checks.set_production_flag("soap")
+                    dfhack.gui.showAnnouncement("[AP] The first soap has been made!", COLOR_GREEN, true)
                 end
             end
         end

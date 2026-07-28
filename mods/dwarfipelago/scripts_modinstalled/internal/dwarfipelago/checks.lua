@@ -438,6 +438,12 @@ M.checks = {
     { id = 37370118, name = "First Anvil Made",        fn = function() return M.production_flag("anvil")          end },
     { id = 37370119, name = "First Millstone Made",    fn = function() return M.production_flag("millstone")      end },
     { id = 37370120, name = "First Minecart Made",     fn = function() return M.production_flag("minecart")       end },
+    { id = 37370121, name = "First Steel Bar",         fn = function() return M.production_flag("steel_bar")      end },
+    { id = 37370122, name = "First Glass Made",        fn = function() return M.production_flag("glass")          end },
+    { id = 37370123, name = "First Soap Made",         fn = function() return M.production_flag("soap")           end },
+    { id = 37370124, name = "First Instrument Made",   fn = function() return M.production_flag("instrument")     end },
+    { id = 37370125, name = "First Coins Minted",      fn = function() return M.production_flag("coins")          end },
+    { id = 37370126, name = "First Roast",             fn = function() return M.production_flag("roast")          end },
 
     -- Trade / export milestones
     { id = 37370202, name = "Dwarven Caravan Visit",    fn = function() return M.trade_flag("dwarven_caravan")    end },
@@ -505,10 +511,14 @@ M.checks = {
     { id = 37370741, name = "Pumped Water",  fn = function() return M.production_flag("pump_water") end },
     { id = 37370742, name = "Pumped Magma",  fn = function() return M.production_flag("pump_magma") end },
 
+    -- Health / hospital.
+    { id = 37370745, name = "First Patient Treated", fn = function() return M.production_flag("patient_treated") end },
+
     -- Biology / animals.
     -- "First Eggs Hatched" (37370750) disabled: hatch detection unreliable on DF v50.
     -- { id = 37370750, name = "First Eggs Hatched", fn = function() return M.production_flag("egg_hatched")     end },
     { id = 37370751, name = "Caged a Hostile Beast", fn = function() return M.production_flag("caged_hostile_beast") end },
+    { id = 37370752, name = "First Birth",           fn = function() return M.production_flag("first_birth")        end },
 
     -- Deep / endgame.
     { id = 37370760, name = "Mined Adamantine", fn = function() return M.production_flag("adamantine")    end },

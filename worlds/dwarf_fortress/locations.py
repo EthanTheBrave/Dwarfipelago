@@ -77,6 +77,12 @@ PRODUCTION_LOCATIONS: list[LocationData] = [
     LocationData("First Anvil Made",         BASE_ID + 118, "Fortress"),
     LocationData("First Millstone Made",     BASE_ID + 119, "Fortress"),
     LocationData("First Minecart Made",      BASE_ID + 120, "Fortress"),
+    LocationData("First Steel Bar",          BASE_ID + 121, "Fortress"),
+    LocationData("First Glass Made",         BASE_ID + 122, "Fortress"),
+    LocationData("First Soap Made",          BASE_ID + 123, "Fortress"),
+    LocationData("First Instrument Made",    BASE_ID + 124, "Fortress"),
+    LocationData("First Coins Minted",       BASE_ID + 125, "Fortress"),
+    LocationData("First Roast",              BASE_ID + 126, "Fortress"),
 ]
 
 # ── Trade / Export Milestones ─────────────────────────────────────────────────
@@ -154,11 +160,17 @@ INFRASTRUCTURE_LOCATIONS: list[LocationData] = [
     LocationData("Pumped Magma",   BASE_ID + 742, "Fortress"),
 ]
 
+# ── Health / Hospital Milestones ──────────────────────────────────────────────
+HEALTH_LOCATIONS: list[LocationData] = [
+    LocationData("First Patient Treated", BASE_ID + 745, "Fortress"),
+]
+
 # ── Biology / Animal Milestones ───────────────────────────────────────────────
 BIOLOGY_LOCATIONS: list[LocationData] = [
     # "First Eggs Hatched" (BASE_ID + 750) disabled: hatch detection unreliable on DF v50.
     # LocationData("First Eggs Hatched",  BASE_ID + 750, "Fortress"),
     LocationData("Caged a Hostile Beast",   BASE_ID + 751, "Fortress"),
+    LocationData("First Birth",             BASE_ID + 752, "Fortress"),
 ]
 
 # ── Deep / Endgame Milestones ─────────────────────────────────────────────────
@@ -1625,7 +1637,7 @@ SHOP_LOCATIONS: list[LocationData] = [
 ALL_LOCATIONS: list[LocationData] = (
     ROOM_LOCATIONS + PRODUCTION_LOCATIONS + TRADE_LOCATIONS
     + STATUS_LOCATIONS + TITLE_LOCATIONS + MINING_LOCATIONS
-    + FARMING_LOCATIONS + INFRASTRUCTURE_LOCATIONS
+    + FARMING_LOCATIONS + INFRASTRUCTURE_LOCATIONS + HEALTH_LOCATIONS
     + BIOLOGY_LOCATIONS + ENDGAME_LOCATIONS + SIEGE_LOCATIONS
     + COMBAT_LOCATIONS + MOOD_LOCATIONS + ENEMY_KILL_LOCATIONS
     + JOB_SKILLS + COMBAT_SKILLS + SHOP_LOCATIONS

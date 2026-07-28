@@ -284,7 +284,11 @@ local PROD_FLAGS = {
     {"Barrel made",    "barrel",        "Chest made",     "chest"},
     {"Table made",     "table",         "Bed made",       "bed"},
     {"Anvil forged",   "anvil",         "Millstone",      "millstone"},
-    {"Minecart",       "minecart",      nil,              nil},
+    {"Minecart",       "minecart",      "Steel bar",      "steel_bar"},
+    {"Glass made",     "glass",         "Soap made",      "soap"},
+    {"Instrument",     "instrument",    "Coins minted",   "coins"},
+    {"Roast",          "roast",         "Patient treated", "patient_treated"},
+    {"First birth",    "first_birth",   nil,              nil},
 }
 
 local function build_progress_lines()
