@@ -166,7 +166,7 @@ class DwarfFortressWorld(World):
         if self.options.goal != DwarfFortressGoal.option_slay_megabeast:
             active -= SIEGE_LOCATION_NAMES
         # Great-beast kills overlap the Slay Megabeast goal (that kill IS the goal),
-        # so drop them there; First Kill / Survived a Siege stay (they come from waves).
+        # so drop them there; First Kill / First Siege stay (they come from waves).
         BEAST_SLAIN_LOCATION_NAMES = {
             "Forgotten Beast Slain", "Titan Slain", "Semi-megabeast Slain", "Megabeast Slain",
         }

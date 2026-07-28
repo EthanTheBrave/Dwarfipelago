@@ -1532,26 +1532,18 @@ end
 
 -- ── Combat / mood milestone detectors ─────────────────────────────────────────
 
--- Survived a Siege: hostile invaders were on the map and are now gone, with
--- citizens still alive. A persistent latch survives save/reload.
-local function detect_siege_survived()
-    if checks.production_flag("siege_survived") then return end
-    local invaders, citizens = 0, 0
+-- First Siege: fires the moment hostile invaders appear (a siege, ambush, or a
+-- Slay Megabeast wave) - like the caravan checks, no survival needed.
+local function detect_first_siege()
+    if checks.production_flag("first_siege") then return end
     for _, u in ipairs(df.global.world.units.active) do
         if dfhack.units.isAlive(u) then
             local ok, inv = pcall(dfhack.units.isInvader, u)
-            if ok and inv then invaders = invaders + 1 end
-            if dfhack.units.isCitizen(u) then citizens = citizens + 1 end
-        end
-    end
-    local key = "dwarfipelago/combat/siege_active"
-    if invaders > 0 then
-        dfhack.persistent.saveWorldDataString(key, "1")
-    elseif dfhack.persistent.getWorldDataString(key) == "1" then
-        dfhack.persistent.saveWorldDataString(key, "")
-        if citizens > 0 then
-            checks.set_production_flag("siege_survived")
-            dfhack.gui.showAnnouncement("[AP] Your fortress has survived a siege!", COLOR_GREEN, true)
+            if ok and inv then
+                checks.set_production_flag("first_siege")
+                dfhack.gui.showAnnouncement("[AP] A hostile force besieges your fortress!", COLOR_YELLOW, true)
+                return
+            end
         end
     end
 end
@@ -1665,7 +1657,7 @@ local function poll_checks()
     guard("caged_beast",   detect_caged_hostile_beast)
     guard("cave_adapt",    suppress_cave_adaptation)
     guard("sold_artifact", detect_sold_artifact)
-    guard("siege_survived", detect_siege_survived)
+    guard("first_siege", detect_first_siege)
     guard("strange_mood",   detect_strange_mood)
     guard("artifact_made",  detect_artifact_created)
     guard("shrine",        detect_shrine)

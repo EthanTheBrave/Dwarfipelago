@@ -526,7 +526,7 @@ M.checks = {
     -- Combat & threats - set by the onUnitDeath hook and siege detector in
     -- dwarfipelago.lua. Apply to every goal.
     { id = 37370780, name = "First Kill",              fn = function() return M.production_flag("first_kill")           end },
-    { id = 37370781, name = "Survived a Siege",        fn = function() return M.production_flag("siege_survived")       end },
+    { id = 37370781, name = "First Siege",             fn = function() return M.production_flag("first_siege")          end },
     { id = 37370782, name = "Forgotten Beast Slain",   fn = function() return M.production_flag("slew_forgotten_beast") end },
     { id = 37370783, name = "Titan Slain",             fn = function() return M.production_flag("slew_titan")           end },
     { id = 37370784, name = "Semi-megabeast Slain",    fn = function() return M.production_flag("slew_semimegabeast")   end },

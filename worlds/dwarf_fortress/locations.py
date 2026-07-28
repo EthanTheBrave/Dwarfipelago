@@ -182,7 +182,7 @@ SIEGE_LOCATIONS: list[LocationData] = [
 # every goal (combat happens in any fort), unlike the megabeast-only siege checks.
 COMBAT_LOCATIONS: list[LocationData] = [
     LocationData("First Kill",              BASE_ID + 780, "Fortress"),
-    LocationData("Survived a Siege",        BASE_ID + 781, "Fortress"),
+    LocationData("First Siege",             BASE_ID + 781, "Fortress"),
     LocationData("Forgotten Beast Slain",   BASE_ID + 782, "Fortress"),
     LocationData("Titan Slain",             BASE_ID + 783, "Fortress"),
     LocationData("Semi-megabeast Slain",    BASE_ID + 784, "Fortress"),

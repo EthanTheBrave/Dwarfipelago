@@ -476,7 +476,7 @@ local function build_progress_lines()
     hdr("Combat")
     local first_kill = check_status(37370780)
     local siege_surv = check_status(37370781)
-    row(("  First Kill: %-4s  Survived a Siege: %-4s"):format(
+    row(("  First Kill: %-4s  First Siege: %-4s"):format(
         first_kill and "YES" or "no", siege_surv and "YES" or "no"),
         (first_kill or siege_surv) and COLOR_WHITE or COLOR_DARKGRAY)
     if tonumber(ps("goal", 0)) == 0 then
