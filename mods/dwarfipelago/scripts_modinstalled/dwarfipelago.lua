@@ -459,7 +459,11 @@ local function on_unit_death(uid)
             local ok, inv = pcall(dfhack.units.isInvader, unit)
             enemy = ok and inv or false
         end
-        if enemy then checks.set_production_flag("first_kill") end
+        if enemy then
+            checks.set_production_flag("first_kill")
+            -- Tally kills for the "Slay N Enemies" checks (Slay Megabeast goal only).
+            if slay then checks.increment_enemies_killed() end
+        end
     end)
 
     -- ── DeathLink: count citizen deaths ──────────────────────────────────────

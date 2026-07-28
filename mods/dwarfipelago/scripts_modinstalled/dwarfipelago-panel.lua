@@ -479,8 +479,13 @@ local function build_progress_lines()
     row(("  First Kill: %-4s  Survived a Siege: %-4s"):format(
         first_kill and "YES" or "no", siege_surv and "YES" or "no"),
         (first_kill or siege_surv) and COLOR_WHITE or COLOR_DARKGRAY)
-    -- Great-beast kills are deactivated on Slay Megabeast; hide them there.
-    if tonumber(ps("goal", 0)) ~= 0 then
+    if tonumber(ps("goal", 0)) == 0 then
+        -- Slay Megabeast: show the enemy kill tally (drives the Slay N Enemies checks).
+        local kills = checks.enemies_killed()
+        row(("  Enemies slain: %s"):format(fmt_num(kills)),
+            kills > 0 and COLOR_WHITE or COLOR_DARKGRAY)
+    else
+        -- Great-beast kills are deactivated on Slay Megabeast; show them elsewhere.
         local slew_fb  = check_status(37370782)
         local slew_ttn = check_status(37370783)
         local slew_smb = check_status(37370784)

@@ -335,6 +335,16 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         multiworld.get_location("Training Completed", player).access_rule = \
             lambda state: dynamic_rules.metal(state)
 
+        # Enemy-kill tallies need waves, which Military Training starts and grows;
+        # bigger tallies require more training (larger waves).
+        ENEMY_KILL_TRAINING = {
+            "Slay 10 Enemies": 1, "Slay 25 Enemies": 2, "Slay 50 Enemies": 3,
+            "Slay 100 Enemies": 5, "Slay 200 Enemies": 7,
+        }
+        for loc_name, need in ENEMY_KILL_TRAINING.items():
+            multiworld.get_location(loc_name, player).access_rule = \
+                lambda state, n=need: state.count("Military Training", player) >= n
+
     elif options.goal == DwarfFortressGoal.option_legendary_wealth:
         # Legendary Wealth requires the Blueprint, all five coffers, and a workforce.
         goal_location.access_rule = lambda state: (

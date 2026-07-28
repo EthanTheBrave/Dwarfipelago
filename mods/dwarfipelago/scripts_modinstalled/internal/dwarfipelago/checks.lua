@@ -535,6 +535,13 @@ M.checks = {
     -- Strange moods & artifacts - set by poll detectors in dwarfipelago.lua.
     { id = 37370790, name = "First Strange Mood",      fn = function() return M.production_flag("strange_mood")         end },
     { id = 37370791, name = "First Artifact Created",  fn = function() return M.production_flag("artifact_created")     end },
+
+    -- Cumulative enemy kills (Slay Megabeast goal). Counted in on_unit_death.
+    { id = 37370792, name = "Slay 10 Enemies",         fn = function() return M.enemies_killed() >= 10  end },
+    { id = 37370793, name = "Slay 25 Enemies",         fn = function() return M.enemies_killed() >= 25  end },
+    { id = 37370794, name = "Slay 50 Enemies",         fn = function() return M.enemies_killed() >= 50  end },
+    { id = 37370795, name = "Slay 100 Enemies",        fn = function() return M.enemies_killed() >= 100 end },
+    { id = 37370796, name = "Slay 200 Enemies",        fn = function() return M.enemies_killed() >= 200 end },
 }
 
 -- ── Production flag helpers ───────────────────────────────────────────────────
@@ -715,6 +722,16 @@ end
 -- Cumulative harvested crops (PLANT items), incremented by the onItemCreated hook.
 function M.crops_harvested()
     return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/farming/crop_count")) or 0
+end
+
+-- Cumulative enemies slain, incremented from on_unit_death (Slay Megabeast goal).
+function M.enemies_killed()
+    return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/combat/enemies_killed")) or 0
+end
+function M.increment_enemies_killed()
+    local n = M.enemies_killed() + 1
+    dfhack.persistent.saveWorldDataString("dwarfipelago/combat/enemies_killed", tostring(n))
+    return n
 end
 
 -- ── Job type → production flag mapping ───────────────────────────────────────

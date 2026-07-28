@@ -195,6 +195,16 @@ MOOD_LOCATIONS: list[LocationData] = [
     LocationData("First Artifact Created", BASE_ID + 791, "Fortress"),
 ]
 
+# ── Enemy kill count (Slay Megabeast goal only) ───────────────────────────────
+# The megabeast goal throws waves of enemies at the fort; these reward the tally.
+ENEMY_KILL_LOCATIONS: list[LocationData] = [
+    LocationData("Slay 10 Enemies",  BASE_ID + 792, "Fortress"),
+    LocationData("Slay 25 Enemies",  BASE_ID + 793, "Fortress"),
+    LocationData("Slay 50 Enemies",  BASE_ID + 794, "Fortress"),
+    LocationData("Slay 100 Enemies", BASE_ID + 795, "Fortress"),
+    LocationData("Slay 200 Enemies", BASE_ID + 796, "Fortress"),
+]
+
 JOB_SKILLS: list[LocationData] = [
     LocationData("Novice Stonecutter",         BASE_ID + 800, "Fortress", False, "", "stonecutter", 1),
     LocationData("Adequate Stonecutter",       BASE_ID + 801, "Fortress", False, "", "stonecutter", 2),
@@ -1617,7 +1627,7 @@ ALL_LOCATIONS: list[LocationData] = (
     + STATUS_LOCATIONS + TITLE_LOCATIONS + MINING_LOCATIONS
     + FARMING_LOCATIONS + INFRASTRUCTURE_LOCATIONS
     + BIOLOGY_LOCATIONS + ENDGAME_LOCATIONS + SIEGE_LOCATIONS
-    + COMBAT_LOCATIONS + MOOD_LOCATIONS
+    + COMBAT_LOCATIONS + MOOD_LOCATIONS + ENEMY_KILL_LOCATIONS
     + JOB_SKILLS + COMBAT_SKILLS + SHOP_LOCATIONS
 )
 LOCATION_TABLE: dict[str, int] = {loc.name: loc.ap_id for loc in ALL_LOCATIONS}

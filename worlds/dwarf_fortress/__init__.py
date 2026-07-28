@@ -158,7 +158,11 @@ class DwarfFortressWorld(World):
         }
         if self.options.goal != DwarfFortressGoal.option_mountainhome:
             active -= NOBLE_LADDER_LOCATIONS
-        SIEGE_LOCATION_NAMES = {"Barracks Established", "Training Completed"}
+        SIEGE_LOCATION_NAMES = {
+            "Barracks Established", "Training Completed",
+            "Slay 10 Enemies", "Slay 25 Enemies", "Slay 50 Enemies",
+            "Slay 100 Enemies", "Slay 200 Enemies",
+        }
         if self.options.goal != DwarfFortressGoal.option_slay_megabeast:
             active -= SIEGE_LOCATION_NAMES
         # Great-beast kills overlap the Slay Megabeast goal (that kill IS the goal),
