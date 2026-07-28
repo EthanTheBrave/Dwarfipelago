@@ -2217,6 +2217,22 @@ local function spawn_warband(readiness)
         end
     end
 
+    -- Wall-breakers (readiness 7+): a large siege brings building-destroyer brutes
+    -- (trolls/ogres, BD level 2) that smash through constructed walls, fortifications,
+    -- and buildings, so a walled-off funnel can't trivialise it. Goblin waves already
+    -- field them as escorts; give the other factions a few here.
+    if readiness >= 7 and faction.key ~= "goblin" then
+        local breakers = bestiary.filter_present({ "TROLL", "OGRE" })
+        if #breakers > 0 then
+            local nwb = math.max(1, math.floor((readiness - 6) * mult))
+            for _ = 1, nwb do
+                local wb = create_unit(breakers[math.random(#breakers)],
+                                       { x = x, y = y, z = z }, { civ_id = -1, hostile = true })
+                if wb then spawned = spawned + 1 end
+            end
+        end
+    end
+
     if spawned > 0 then
         dfhack.gui.showAnnouncement(
             ("[AP] %s %d enemies close on the fortress."):format(faction.announce, spawned),
