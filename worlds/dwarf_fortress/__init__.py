@@ -14,7 +14,7 @@ from .items import (
 from .locations import (
     LocationData, LOCATION_TABLE, ALL_LOCATIONS, SHOP_LOCATIONS, SHOP_SLOTS,
     SHOP_PRICE_MIN, SHOP_PRICE_MAX,
-    EXCLUDE_DEEP_ENDGAME, EXCLUDE_TOP_ROOMS, EXCLUDE_TOP_FORTRESS,
+    EXCLUDE_DEEP_ENDGAME, EXCLUDE_TOP_ROOMS, EXCLUDE_TOP_FORTRESS, EXCLUDE_COMBAT,
 )
 from .craftsanity import (
     generate_location_data,
@@ -196,6 +196,8 @@ class DwarfFortressWorld(World):
             excluded_names |= EXCLUDE_TOP_ROOMS
         if self.options.exclude_top_fortress_checks:
             excluded_names |= EXCLUDE_TOP_FORTRESS
+        if self.options.exclude_combat_checks:
+            excluded_names |= EXCLUDE_COMBAT
         for name in self.active_location_names:
             loc = DwarfFortressLocation(
                 self.player, name, self.location_name_to_id[name], fortress

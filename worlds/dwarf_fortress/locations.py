@@ -1643,3 +1643,6 @@ EXCLUDE_TOP_FORTRESS: set[str] = {
     "City Established", "Metropolis Established",
     "Duke Appointed", "Monarch Takes Residence",
 }
+EXCLUDE_COMBAT: set[str] = {
+    "Forgotten Beast Slain", "Titan Slain", "Semi-megabeast Slain", "Megabeast Slain",
+}

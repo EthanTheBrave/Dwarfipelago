@@ -415,6 +415,15 @@ class ExcludeTopFortressChecks(Toggle):
     display_name = "Exclude Top Fortress Milestones"
 
 
+class ExcludeCombatChecks(Toggle):
+    """
+    Keep progression out of the difficult combat checks (filler only): the great-beast
+    kills - Forgotten Beast, Titan, Semi-megabeast, and Megabeast Slain. (These are
+    already off on the Slay Megabeast goal.)
+    """
+    display_name = "Exclude Difficult Combat Checks"
+
+
 @dataclass
 class DwarfFortressOptions(PerGameCommonOptions):
     deathlink: DeathLink
@@ -449,6 +458,7 @@ class DwarfFortressOptions(PerGameCommonOptions):
     exclude_deep_endgame_checks: ExcludeDeepEndgameChecks
     exclude_top_room_checks: ExcludeTopRoomChecks
     exclude_top_fortress_checks: ExcludeTopFortressChecks
+    exclude_combat_checks: ExcludeCombatChecks
     start_inventory: StartingDefaultDFInventory
 
 
