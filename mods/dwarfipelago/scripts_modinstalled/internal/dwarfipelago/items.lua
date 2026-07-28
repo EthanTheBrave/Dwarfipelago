@@ -1212,11 +1212,33 @@ local function recv_unquenchable_thirst()
     announce(("Trap: Unquenchable Thirst! %d dwarves drop everything, desperate for a drink!"):format(n))
 end
 
+local LOST_CARAVAN_FLAG = "dwarfipelago/trap/lost_caravan"
+
 local function recv_lost_caravan()
-    -- Flag that the next caravan should be skipped / arrive empty.
-    dfhack.persistent.saveWorldDataString("dwarfipelago/trap/lost_caravan", "1")
-    announce("Trap: A caravan has been lost on the road...")
+    -- Arm the curse; it fires when the next caravan actually arrives.
+    dfhack.persistent.saveWorldDataString(LOST_CARAVAN_FLAG, "1")
+    announce("Trap: A caravan bound for your fortress has been lost on the road...")
 end
+
+-- Spoil an arriving caravan's whole cargo if the curse is armed: perishables rot
+-- outright ("rotten X"), everything else arrives at max wear and near-worthless.
+-- Fires once, then disarms. Called from caravan detection; returns true if it fired.
+local function trigger_lost_caravan_curse()
+    if dfhack.persistent.getWorldDataString(LOST_CARAVAN_FLAG) ~= "1" then return false end
+    local n = 0
+    for _, it in ipairs(df.global.world.items.all) do
+        if it.flags.trader then
+            it.flags.rotten = true            -- spoils perishables; inert on non-organic goods
+            pcall(function() it.wear = 3 end)  -- guts the value of metal/stone/craft goods
+            n = n + 1
+        end
+    end
+    dfhack.persistent.saveWorldDataString(LOST_CARAVAN_FLAG, "")  -- disarm
+    announce("A caravan got lost on its way here, and unfortunately couldn't keep the cargo alive.")
+    log.info(("Lost Caravan curse: spoiled %d trade goods"):format(n))
+    return true
+end
+M.trigger_lost_caravan_curse = trigger_lost_caravan_curse
 
 -- -- Megabeast spawn helpers ---------------------------------------------------
 

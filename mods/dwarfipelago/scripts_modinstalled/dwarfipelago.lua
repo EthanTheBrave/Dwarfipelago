@@ -603,6 +603,7 @@ local function detect_caravans()
         if dfhack.units.isAlive(unit) then
             -- Merchant units mark a caravan visit for that race.
             if unit.flags1.merchant then
+                items.trigger_lost_caravan_curse()  -- spoils this cargo if the trap is armed
                 local creature = df.creature_raw.find(unit.race)
                 if creature then
                     local flag = CARAVAN_RACES[creature.creature_id]

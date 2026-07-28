@@ -296,7 +296,7 @@ Throughout the Multiworld will contain this item. Collect all of them to reach y
 | Industry materials | Flux stone, pig iron, charcoal, cloth bolts, tanned leather, **bags of sand** (glassmaking), raw clay (kaolinite for porcelain), plus rare low-grade copper tools (pick/axe/sword) |
 | Livestock | Breeding pairs - pigs, chickens, alpacas, cows, sheep, yaks - delivered to the depot to grow your herds |
 | Fortress unlocks | **Progressive Mining Depth** (x4 - each lets you dig one cavern tier deeper), **Sunlight Tonic** (your dwarves may walk freely in sunlight - no cave-adaptation nausea) |
-| Traps | Goblin ambush, cave bear incursion, vermin infestation, unquenchable thirst, lost caravan, catsplosion, goblin saboteurs, ensnaring webs, **order sabotage** (shreds every current manager work order) |
+| Traps | Goblin ambush, cave bear incursion, vermin infestation, unquenchable thirst, lost caravan (the next caravan's cargo arrives rotten and worthless), catsplosion, goblin saboteurs, ensnaring webs, **order sabotage** (shreds every current manager work order) |
 | Crafting Permits | When `craftpermits` is enabled, each permit item unlocks the ability to craft one item type (e.g. you can't make a table until the Table permit arrives). See the Crafting Permits section. |
 | Cave Map Fragment | Reveals a hint about the next undiscovered custom cave — coordinate hint for treasure caves, directional warning for trap caves. Up to 6 per slot; extra fragments beyond 6 are acknowledged but produce no new hint. |
 | Remains of the Great King | Treasure-hunt goal item - collect all of them (`king_remains` goal) to win. |
