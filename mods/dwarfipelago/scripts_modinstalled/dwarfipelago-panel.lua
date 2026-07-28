@@ -479,16 +479,19 @@ local function build_progress_lines()
     row(("  First Kill: %-4s  Survived a Siege: %-4s"):format(
         first_kill and "YES" or "no", siege_surv and "YES" or "no"),
         (first_kill or siege_surv) and COLOR_WHITE or COLOR_DARKGRAY)
-    local slew_fb  = check_status(37370782)
-    local slew_ttn = check_status(37370783)
-    local slew_smb = check_status(37370784)
-    local slew_mb  = check_status(37370785)
-    row(("  Forgotten Beast: %-4s  Titan: %-4s"):format(
-        slew_fb and "YES" or "no", slew_ttn and "YES" or "no"),
-        (slew_fb or slew_ttn) and COLOR_WHITE or COLOR_DARKGRAY)
-    row(("  Semi-megabeast: %-4s   Megabeast: %-4s"):format(
-        slew_smb and "YES" or "no", slew_mb and "YES" or "no"),
-        (slew_smb or slew_mb) and COLOR_WHITE or COLOR_DARKGRAY)
+    -- Great-beast kills are deactivated on Slay Megabeast; hide them there.
+    if tonumber(ps("goal", 0)) ~= 0 then
+        local slew_fb  = check_status(37370782)
+        local slew_ttn = check_status(37370783)
+        local slew_smb = check_status(37370784)
+        local slew_mb  = check_status(37370785)
+        row(("  Forgotten Beast: %-4s  Titan: %-4s"):format(
+            slew_fb and "YES" or "no", slew_ttn and "YES" or "no"),
+            (slew_fb or slew_ttn) and COLOR_WHITE or COLOR_DARKGRAY)
+        row(("  Semi-megabeast: %-4s   Megabeast: %-4s"):format(
+            slew_smb and "YES" or "no", slew_mb and "YES" or "no"),
+            (slew_smb or slew_mb) and COLOR_WHITE or COLOR_DARKGRAY)
+    end
 
     -- Moods & Artifacts (id 790-791).
     blank()

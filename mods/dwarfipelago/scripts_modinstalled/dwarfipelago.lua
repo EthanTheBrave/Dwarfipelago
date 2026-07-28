@@ -440,14 +440,21 @@ local function on_unit_death(uid)
     end
 
     -- ── Combat milestone checks ───────────────────────────────────────────────
-    -- Enemy deaths fire the combat checks - independent of the megabeast goal and
-    -- active for every goal. A slain beast also counts as your First Kill.
+    -- First Kill applies to every goal. The great-beast kills are deactivated on
+    -- Slay Megabeast (that kill IS the goal; those locations are dropped from its pool).
     pcall(function()
-        local enemy = false
-        if dfhack.units.isForgottenBeast(unit) then checks.set_production_flag("slew_forgotten_beast"); enemy = true end
-        if dfhack.units.isTitan(unit)          then checks.set_production_flag("slew_titan");            enemy = true end
-        if dfhack.units.isSemiMegabeast(unit)  then checks.set_production_flag("slew_semimegabeast");    enemy = true end
-        if dfhack.units.isMegabeast(unit)      then checks.set_production_flag("slew_megabeast");        enemy = true end
+        local slay = (goal_setting("goal", -1) == 0)
+        local fb  = dfhack.units.isForgottenBeast(unit)
+        local ti  = dfhack.units.isTitan(unit)
+        local smb = dfhack.units.isSemiMegabeast(unit)
+        local mb  = dfhack.units.isMegabeast(unit)
+        local enemy = fb or ti or smb or mb
+        if enemy and not slay then
+            if fb  then checks.set_production_flag("slew_forgotten_beast") end
+            if ti  then checks.set_production_flag("slew_titan")           end
+            if smb then checks.set_production_flag("slew_semimegabeast")   end
+            if mb  then checks.set_production_flag("slew_megabeast")       end
+        end
         if not enemy then
             local ok, inv = pcall(dfhack.units.isInvader, unit)
             enemy = ok and inv or false

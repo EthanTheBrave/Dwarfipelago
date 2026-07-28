@@ -161,6 +161,13 @@ class DwarfFortressWorld(World):
         SIEGE_LOCATION_NAMES = {"Barracks Established", "Training Completed"}
         if self.options.goal != DwarfFortressGoal.option_slay_megabeast:
             active -= SIEGE_LOCATION_NAMES
+        # Great-beast kills overlap the Slay Megabeast goal (that kill IS the goal),
+        # so drop them there; First Kill / Survived a Siege stay (they come from waves).
+        BEAST_SLAIN_LOCATION_NAMES = {
+            "Forgotten Beast Slain", "Titan Slain", "Semi-megabeast Slain", "Megabeast Slain",
+        }
+        if self.options.goal == DwarfFortressGoal.option_slay_megabeast:
+            active -= BEAST_SLAIN_LOCATION_NAMES
         for skill_names in self.remove_skill_locations_names:
              active.remove(skill_names)
         # The shop's 50 slots are active (and coffer-gated in rules.py) only when
