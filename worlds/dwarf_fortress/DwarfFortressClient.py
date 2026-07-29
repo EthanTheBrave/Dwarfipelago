@@ -1612,7 +1612,23 @@ class DwarfFortressContext(CommonContext):
             if key in args['keys']:
                 stored = args['keys'][key]
                 if stored is not None:
-                    self._completed_crafting_locations = stored
+                    # Reconcile with the server's authoritative checked_locations:
+                    # drop any id we locally marked "completed" that the server
+                    # never actually recorded (a LocationChecks message lost in
+                    # flight on a disconnect). Otherwise that location is skipped
+                    # forever and its check never reaches AP even though the count
+                    # is well past threshold. Only reconcile once we actually have
+                    # the server's set, so an empty/not-yet-synced set can't wipe
+                    # a legitimately-completed list.
+                    def _server_has(loc):
+                        try:
+                            return int(loc) in self.checked_locations
+                        except (TypeError, ValueError):
+                            return False
+                    if self.checked_locations:
+                        self._completed_crafting_locations = [loc for loc in stored if _server_has(loc)]
+                    else:
+                        self._completed_crafting_locations = stored
                 else:
                     self._completed_crafting_locations = [0]
                 # Mark loaded so _crafting_location_checks can run even when the
