@@ -492,7 +492,12 @@ local function task_on_row(row, y)
                 then -- these don't have other material types
                     return { y = y, start = pos, finish = finish, mat = material, craft = craft}
                 end
-                if craftsanity_enabled() then
+                -- Append the material suffix only when material-split counting is
+                -- on. The counter (checks.job_to_craft_flag) keys as "<craft>_<mat>"
+                -- only if craftsanity_materials is set; keying off craftsanity_enabled
+                -- here made the overlay read "barrel_wood" while the real key was
+                -- "barrel", so material items showed no counter when materials was off.
+                if craftsanity_materials_enabled() then
                     local mat = material_required_by(row)
                     if mat then material = mat end
                 end
