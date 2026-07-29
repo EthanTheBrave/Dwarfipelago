@@ -46,12 +46,17 @@ local QUALITY_MULT = { [0] = 1, [1] = 2, [2] = 3, [3] = 4, [4] = 5, [5] = 12 }
 -- Compute a zone's room value the way DF does (see header note).
 local function zone_room_value(zone)
     local value = 0
-    -- Built furniture only; loose items on the floor do not count.
+    -- Built furniture only: a building's own construction material (use_mode PERM)
+    -- counts, but items merely displayed/stored on it (a statue on a pedestal, goods
+    -- in a cabinet - use_mode TEMP) do NOT, matching DF's room-value calc. Loose
+    -- items on the floor don't count either.
     pcall(function()
         for _, fb in ipairs(zone.contained_buildings) do
             for _, ci in ipairs(fb.contained_items) do
-                local ok, v = pcall(function() return dfhack.items.getValue(ci.item) end)
-                if ok and v then value = value + v end
+                if ci.use_mode == df.building_item_role_type.PERM then
+                    local ok, v = pcall(function() return dfhack.items.getValue(ci.item) end)
+                    if ok and v then value = value + v end
+                end
             end
         end
     end)
