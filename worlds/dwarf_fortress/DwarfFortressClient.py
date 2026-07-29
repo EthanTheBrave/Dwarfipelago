@@ -1626,7 +1626,13 @@ class DwarfFortressContext(CommonContext):
                         except (TypeError, ValueError):
                             return False
                     if self.checked_locations:
-                        self._completed_crafting_locations = [loc for loc in stored if _server_has(loc)]
+                        kept, dropped = [], []
+                        for loc in stored:
+                            (kept if _server_has(loc) else dropped).append(loc)
+                        self._completed_crafting_locations = kept
+                        if dropped:
+                            self.debug(f"Reconcile: dropped {len(dropped)} stale completed id(s) "
+                                       f"the server has no record of (will re-fire): {dropped}")
                     else:
                         self._completed_crafting_locations = stored
                 else:
