@@ -1526,6 +1526,11 @@ local function poll_checks()
     -- depot underground. Cheap; only writes when the depot is genuinely on top.
     items.refresh_surface_anchor()
 
+    -- Slay Megabeast goal: if the finale beast has been caged (cheap cage traps can
+    -- catch it, since megabeasts lack TRAPAVOID), let it burst free where the cage
+    -- sits so the goal can't be stalled by a single cage. No-op for other goals.
+    items.break_caged_megabeast()
+
     compute_cavern_ceilings()
     -- Secret world caves: always generate, independent of the custom_caves option.
     caves.generate_secret_caves()

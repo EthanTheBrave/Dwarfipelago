@@ -1526,6 +1526,9 @@ local function spawn_fire_disc(x, y, z, r)
     end
 end
 
+-- Forward-declared; defined below with the defense-scaling helpers it uses.
+local buff_megabeast
+
 -- The climax: the megabeast falls from the sky, gouging a crater near the map
 -- edge, and rises to march on the fort. If a clean crater floor can't be made, it
 -- lands in the open instead - and if a fire-immune beast is available, wreathed in
@@ -1600,15 +1603,8 @@ local function spawn_target_megabeast()
     dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/target_id", tostring(beast.id))
     dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/spawned", "1")
 
-    -- Escort: wild brutes - but NOT in the fiery case (the fire would burn them).
-    if not fiery then
-        local escorts = bestiary.filter_present({ "TROLL", "OGRE" })
-        if #escorts > 0 then
-            for _ = 1, 2 do
-                create_unit(escorts[math.random(#escorts)], { x = bx, y = by, z = bz }, { civ_id = -1, hostile = true })
-            end
-        end
-    end
+    -- Buff the beast (no escorts - a megabeast just clashes with them anyway).
+    buff_megabeast(beast, species)
 
     -- Fiery impact: a fire-immune beast crashes down wreathed in dragonfire.
     if fiery then spawn_fire_disc(bx, by, bz, 3) end
@@ -1629,6 +1625,77 @@ local function spawn_target_megabeast()
     print("[Dwarfipelago] Megabeast climax: " .. tostring(species))
 end
 M.spawn_target_megabeast = spawn_target_megabeast
+
+-- Dragonfire disc radius on a fiery cage-break. Small; raise for more collateral.
+local CAGE_BREAK_FIRE_R = 2
+
+-- Free a caged unit at the cage's current location and return that pos (nil if not
+-- freed). Resolves the drop tile first (getPosition works even mid-haul) and bails
+-- before mutating if it can't, so a unit is never stranded off-map.
+local function free_from_cage(unit)
+    local cage
+    for _, ref in ipairs(unit.general_refs) do
+        if df.general_ref_contained_in_itemst:is_instance(ref) then
+            cage = df.item.find(ref.item_id)
+            break
+        end
+    end
+    if not cage then return nil end
+    local x, y, z = dfhack.items.getPosition(cage)
+    if not x then return nil end  -- unresolvable; leave caged, retry next poll
+    local pos = { x = x, y = y, z = z }
+
+    -- Sever both sides of the cage<->unit link.
+    for j = #cage.general_refs - 1, 0, -1 do
+        local cref = cage.general_refs[j]
+        if df.general_ref_contains_unitst:is_instance(cref) and cref.unit_id == unit.id then
+            cage.general_refs:erase(j)
+            cref:delete()
+        end
+    end
+    for k = #unit.general_refs - 1, 0, -1 do
+        local ref = unit.general_refs[k]
+        if df.general_ref_contained_in_itemst:is_instance(ref) then
+            unit.general_refs:erase(k)
+            ref:delete()
+        end
+    end
+    unit.flags1.caged = false
+    if not dfhack.units.teleport(unit, pos) then
+        unit.pos.x, unit.pos.y, unit.pos.z = pos.x, pos.y, pos.z
+    end
+    return pos
+end
+
+-- Poll hook: megabeasts lack TRAPAVOID, so a cheap cage trap can stall the goal.
+-- Rather than make it trap-immune (which would neuter weapon defenses), free the
+-- pinned target whenever it's caged. Repeatable.
+function M.break_caged_megabeast()
+    local tid = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/target_id"))
+    if not tid then return end
+    local unit = df.unit.find(tid)
+    if not unit or not unit.flags1.caged or not dfhack.units.isAlive(unit) then return end
+    local pos = free_from_cage(unit)
+    if not pos then return end
+
+    -- Dragon-tier beasts (FIREIMMUNE_SUPER) survive their own flames, so wreathe the
+    -- escape in dragonfire; lesser beasts (which fire would harm) just burst free.
+    local super = false
+    pcall(function()
+        super = df.global.world.raws.creatures.all[unit.race].caste[unit.caste].flags.FIREIMMUNE_SUPER == true
+    end)
+    if super then
+        spawn_fire_disc(pos.x, pos.y, pos.z, CAGE_BREAK_FIRE_R)
+        dfhack.gui.showAnnouncement(
+            "[AP] The beast ERUPTS in dragonfire, melting its cage to slag, and strides free! Slay it for victory!",
+            COLOR_RED, true)
+    else
+        dfhack.gui.showAnnouncement(
+            "[AP] The beast BURSTS from its flimsy cage - no prison can hold it! Slay it for victory!",
+            COLOR_RED, true)
+    end
+    log.info(("Megabeast broke free of a cage at (%d,%d,%d) fiery=%s"):format(pos.x, pos.y, pos.z, tostring(super)))
+end
 
 -- -- Megabeast siege: roaming warbands -----------------------------------------
 -- Time-paced enemy waves for the Slay Megabeast goal. Difficulty scales with the
@@ -1935,6 +2002,77 @@ local function fort_defense_multiplier()
     local score = traps + army_extra * DEFENSE_SOLDIER_WEIGHT
     local mult = 1 + math.min(DEFENSE_MAX_BONUS, score / DEFENSE_SCALE)
     return mult, traps, soldiers
+end
+
+-- Size (cm3) at a given age from the caste's body_size growth curve. DF year = 336 days.
+local DF_DAYS_PER_YEAR = 336
+local function size_at_age(caste, age_years)
+    local bs, bd = caste.body_size, caste.body_size_day
+    local n = #bs
+    if n == 0 then return nil end
+    local days = age_years * DF_DAYS_PER_YEAR
+    if days <= bd[0]   then return bs[0] end
+    if days >= bd[n-1] then return bs[n-1] end
+    for i = 1, n - 1 do
+        if days <= bd[i] then
+            local span = math.max(1, bd[i] - bd[i-1])
+            local t = (days - bd[i-1]) / span
+            return math.floor(bs[i-1] + (bs[i] - bs[i-1]) * t)
+        end
+    end
+    return bs[n-1]
+end
+
+-- Buff the finale beast (size, attributes, combat skills), scaled by fort defenses
+-- via fort_defense_multiplier. Always leaves it a formidable mature beast.
+buff_megabeast = function(unit, species)
+    pcall(function()
+        local mult = select(1, fort_defense_multiplier())      -- 1.0 .. 2.0
+        local frac = math.max(0, math.min(1, mult - 1))         -- 0 .. 1
+        local cr    = df.global.world.raws.creatures.all[unit.race]
+        local caste = cr.caste[unit.caste]
+
+        -- 1) Age -> size: half-grown to ancient by frac. Only grow (never shrink a
+        -- large spawn); age set to match so the game's growth won't pull it back.
+        local child_age = caste.misc.child_age or 1
+        local last      = #caste.body_size_day - 1
+        local max_age   = math.max(child_age, math.floor((last >= 0 and caste.body_size_day[last] or 0) / DF_DAYS_PER_YEAR))
+        local age = math.floor(child_age + (max_age - child_age) * (0.5 + 0.5 * frac))
+        local target = size_at_age(caste, age)
+        local si = unit.body and unit.body.size_info
+        if target and si and target > si.size_base then
+            local ratio = target / math.max(1, si.size_base)
+            si.size_base, si.size_cur = target, target
+            pcall(function() si.area_base   = math.floor(si.area_base   * ratio ^ (2/3)) end)
+            pcall(function() si.area_cur    = math.floor(si.area_cur    * ratio ^ (2/3)) end)
+            pcall(function() si.length_base = math.floor(si.length_base * ratio ^ (1/3)) end)
+            pcall(function() si.length_cur  = math.floor(si.length_cur  * ratio ^ (1/3)) end)
+            unit.birth_year = df.global.cur_year - age
+            pcall(function() unit.birth_time = df.global.cur_year_tick end)
+        end
+
+        -- 2) Physical attributes -> toward max (70% undefended .. 100% fortified).
+        local afrac = 0.7 + 0.3 * frac
+        local pa = unit.body.physical_attrs
+        for _, name in ipairs({ "STRENGTH", "TOUGHNESS", "ENDURANCE", "AGILITY", "RECUPERATION", "DISEASE_RESISTANCE" }) do
+            local a = pa[df.physical_attribute_type[name]]
+            if a then
+                local tgt = math.floor(a.max_value * afrac)
+                if a.value < tgt then a.value = tgt end
+            end
+        end
+
+        -- 3) Natural-weapon combat skills -> Proficient(10) .. Legendary(20).
+        local level = math.floor(10 + 10 * frac)
+        local js = df.job_skill
+        for _, sn in ipairs({ "BITE", "WRESTLING", "DODGING", "MELEE_COMBAT", "GRASP_STRIKE", "STANCE_STRIKE" }) do
+            local id = js[sn]
+            if id then set_skill(unit, id, level) end
+        end
+
+        log.info(("Megabeast buff %s: age=%d size=%s attr=%d%% skill=%d (defense mult %.2f)")
+            :format(tostring(species), age, tostring(target), math.floor(afrac * 100), level, mult))
+    end)
 end
 
 -- Choose a siege faction for this wave: unlocked by readiness and actually
