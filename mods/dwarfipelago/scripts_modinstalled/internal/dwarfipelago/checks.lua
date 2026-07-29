@@ -16,34 +16,88 @@ end
 
 -- ── Room milestones ──────────────────────────────────────────────────────────
 
--- Quality tier (0-7) from getRoomDescription's exact return string.
--- Tiers map to DF room value thresholds: 0, 100, 250, 500, 1000, 1500, 2500, 10000.
-local ROOM_TIER = {
-    ["Meager Quarters"]       = 0, ["Modest Quarters"]       = 1,
-    ["Quarters"]              = 2, ["Decent Quarters"]       = 3,
-    ["Fine Quarters"]         = 4, ["Great Bedroom"]         = 5,
-    ["Grand Bedroom"]         = 6, ["Royal Bedroom"]         = 7,
+-- DF v50 keeps rooms as civzones and exposes NO quality/value accessor:
+-- getRoomDescription() only works on the removed furniture-"is_room" system, and
+-- the value DF shows is computed on demand and stored nowhere readable. So we
+-- recompute the room value the way DF does and map it to the same quality tiers.
+--
+-- Reverse-engineered against DF's own numbers (view_sheets.unit_room_curval):
+--   value = sum of BUILT furniture item values   (loose items are NOT counted -
+--           a stray chair lying on the floor is ignored; that mismatch is what
+--           broke earlier attempts)
+--         + 1 per floor tile in the zone
+--         + engraved tiles contribute their art value in place of the base 1
+-- Verified exact on empty rooms (value == tile count, e.g. a 7x9 room = 63) and
+-- furnished rooms (built bed 6030 + bed 80 + 16 tiles = 6126, matching DF).
 
-    ["Meager Office"]         = 0, ["Modest Office"]         = 1,
-    ["Office"]                = 2, ["Decent Office"]         = 3,
-    ["Splendid Office"]       = 4, ["Throne Room"]           = 5,
-    ["Opulent Throne Room"]   = 6, ["Royal Throne Room"]     = 7,
+-- Room value -> quality tier (0-7) via DF's value breakpoints.
+local ROOM_VALUE_BREAKS = {100, 250, 500, 1000, 1500, 2500, 10000}
+local function value_to_tier(v)
+    local t = 0
+    for i, brk in ipairs(ROOM_VALUE_BREAKS) do
+        if v >= brk then t = i else break end
+    end
+    return t
+end
 
-    ["Meager Dining Room"]    = 0, ["Modest Dining Room"]    = 1,
-    ["Dining Room"]           = 2, ["Decent Dining Room"]    = 3,
-    ["Fine Dining Room"]      = 4, ["Great Dining Room"]     = 5,
-    ["Grand Dining Room"]     = 6, ["Royal Dining Room"]     = 7,
+-- DF value multiplier by item/engraving quality (0=ordinary .. 5=masterful).
+local QUALITY_MULT = { [0] = 1, [1] = 2, [2] = 3, [3] = 4, [4] = 5, [5] = 12 }
 
-    ["Grave"]                     = 0, ["Servant's Burial Chamber"] = 1,
-    ["Burial Chamber"]            = 2, ["Tomb"]                     = 3,
-    ["Fine Tomb"]                 = 4, ["Mausoleum"]                = 5,
-    ["Grand Mausoleum"]           = 6, ["Royal Mausoleum"]          = 7,
-}
+-- Compute a zone's room value the way DF does (see header note).
+local function zone_room_value(zone)
+    local value = 0
+    -- Built furniture only: a building's own construction material (use_mode PERM)
+    -- counts, but items merely displayed/stored on it (a statue on a pedestal, goods
+    -- in a cabinet - use_mode TEMP) do NOT, matching DF's room-value calc. Loose
+    -- items on the floor don't count either.
+    pcall(function()
+        for _, fb in ipairs(zone.contained_buildings) do
+            for _, ci in ipairs(fb.contained_items) do
+                if ci.use_mode == df.building_item_role_type.PERM then
+                    local ok, v = pcall(function() return dfhack.items.getValue(ci.item) end)
+                    if ok and v then value = value + v end
+                end
+            end
+        end
+    end)
+    -- Map engraved tiles so the floor loop can value them by quality.
+    local eng_q = {}
+    pcall(function()
+        for _, e in ipairs(df.global.world.event.engravings) do
+            local p = e.pos
+            if p.z == zone.z and p.x >= zone.x1 and p.x <= zone.x2
+                    and p.y >= zone.y1 and p.y <= zone.y2 then
+                eng_q[p.x * 100000 + p.y] = e.quality or 0
+            end
+        end
+    end)
+    local tmat
+    pcall(function() tmat = require('tile-material') end)
+    -- Floor: a natural tile is worth 1; a smoothed+engraved tile is worth
+    -- 10 * material_value * (1 + quality_modifier) - DF's ~10x smoothed-floor base
+    -- plus the engraving bonus (10 * material_value * quality_modifier), per the DF
+    -- wiki 'Engraving' value formula. The image depicted has no effect on value.
+    for x = zone.x1, zone.x2 do
+        for y = zone.y1, zone.y2 do
+            local q = eng_q[x * 100000 + y]
+            if q and tmat then
+                local mv = 0
+                pcall(function()
+                    local mi = tmat.GetTileMat(x, y, zone.z)
+                    mv = (mi and mi.material and mi.material.material_value) or 0
+                end)
+                value = value + 10 * mv * (1 + (QUALITY_MULT[q] or 1))
+            else
+                value = value + 1
+            end
+        end
+    end
+    return value
+end
 
+-- Best quality tier (0-7) reached by a zone, from its computed room value.
 local function zone_quality_rank(zone)
-    local desc = ""
-    pcall(function() desc = dfhack.buildings.getRoomDescription(zone) or "" end)
-    return ROOM_TIER[desc] or -1
+    return value_to_tier(zone_room_value(zone))
 end
 
 -- True if at least one Civzone of the given df.civzone_type exists.
