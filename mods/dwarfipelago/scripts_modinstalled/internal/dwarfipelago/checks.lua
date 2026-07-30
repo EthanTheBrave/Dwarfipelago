@@ -868,6 +868,7 @@ M.has_zone_type        = has_zone_type
 M.room_quality         = room_quality
 M.best_location_tier   = best_location_tier
 M.best_location_value  = best_location_value
+M.held_by_unit         = held_by_unit
 
 function M.has_temple_zone()
     return has_location_type(function(b) return df.abstract_building_templest:is_instance(b) end)

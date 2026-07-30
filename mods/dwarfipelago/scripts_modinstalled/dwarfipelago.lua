@@ -1042,10 +1042,12 @@ local function detect_shrine()
         -- 3. ONE items.all pass. The cheap pos/bbox test runs per item per zone,
         --    but the expensive value/type/material lookups run only for an item
         --    that actually lands in a zone (and then only once).
+        --    getPosition (not raw it.pos) resolves an item to its real map tile
+        --    THROUGH its container, so gold bars and valuables stored in a bin/
+        --    coffer count toward the zone; items a unit is carrying are excluded.
         for _, it in ipairs(df.global.world.items.all) do
-            local p = it.pos
-            if p then
-                local px, py, pz = p.x, p.y, p.z
+            local px, py, pz = dfhack.items.getPosition(it)
+            if px and not checks.held_by_unit(it) then
                 for _, zn in ipairs(zones) do
                     if pz == zn.z and px >= zn.x1 and px <= zn.x2
                             and py >= zn.y1 and py <= zn.y2 then
