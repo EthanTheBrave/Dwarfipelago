@@ -1197,9 +1197,14 @@ function DwarfipelagoPanel:init()
             {label="Silver (10 req)",  value="silver"},
         }
 
-        local function head_text(unlocked)
+        local function head_text(unlocked, prog)
+            local has_target = prog and prog.x ~= nil
+            local at = has_target and ("  @ (%d, %d, %d)"):format(prog.x, prog.y, prog.z) or ""
             if unlocked then
-                return {{text="Shrine: DETECTED", pen=COLOR_GREEN}, "  (shop is open)"}
+                return {{text="Shrine: DETECTED", pen=COLOR_GREEN}, "  (shop is open)"..at}
+            elseif has_target then
+                return {{text="Shrine: TARGETED", pen=COLOR_YELLOW},
+                        "  - a gold statue marks it"..at}
             end
             return {{text="Shrine: NOT DETECTED", pen=COLOR_RED},
                     "  - build/repair the temple to open the shop"}
@@ -1229,7 +1234,7 @@ function DwarfipelagoPanel:init()
             local shop, pending, coffers, coins, unlocked, prog = read_state()
             local btype = bar_sel and bar_sel:getOptionValue() or
                           dfhack.persistent.getWorldDataString("dwarfipelago/shrine_bar_type") or "gold"
-            if shrine_head then shrine_head:setText(head_text(unlocked)) end
+            if shrine_head then shrine_head:setText(head_text(unlocked, prog)) end
             if req_label   then req_label:setText(req_text(prog, btype)) end
             if coin_label  then coin_label:setText(coin_text(coffers, coins)) end
             if shop_list   then
@@ -1241,7 +1246,7 @@ function DwarfipelagoPanel:init()
         local shop0, pending0, coffers0, coins0, unlocked0, prog0 = read_state()
         local init_bar = dfhack.persistent.getWorldDataString("dwarfipelago/shrine_bar_type") or "gold"
 
-        shrine_head = widgets.Label{frame={t=0, l=0}, text=head_text(unlocked0)}
+        shrine_head = widgets.Label{frame={t=0, l=0}, text=head_text(unlocked0, prog0)}
         req_label   = widgets.Label{frame={t=1, l=0}, text=req_text(prog0, init_bar)}
         bar_sel = widgets.CycleHotkeyLabel{
             frame          = {t=2, l=0},

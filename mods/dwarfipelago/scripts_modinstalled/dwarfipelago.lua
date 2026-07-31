@@ -978,6 +978,95 @@ local SHRINE_BAR_TOKS  = {gold="GOLD", coke="COKE", silver="SILVER"}
 local SHRINE_POLL_INTERVAL = 5   -- run once every 5 polls (~every 500 ticks)
 local _shrine_poll_counter = 0
 
+-- ── Shrine marker ─────────────────────────────────────────────────────────────
+-- A single forbidden gold statue placed in the zone the shop has claimed, so the
+-- player can tell at a glance which temple is being watched. It is tracked by id
+-- (shrine_marker), moved when the claimed zone changes, and garbage-collected
+-- when no temple zone exists. The scan excludes it by id so it never counts
+-- toward the shrine's own value requirement; it is left low enough in value not
+-- to disturb DF's own temple-tier reading.
+local SHRINE_MARKER_KEY  = "dwarfipelago/shrine_marker"
+local SHRINE_MARKER_ZONE = "dwarfipelago/shrine_marker_zone"
+
+local function shrine_marker_material()
+    for _, tok in ipairs({ "INORGANIC:GOLD", "INORGANIC:PLATINUM",
+                           "INORGANIC:SILVER", "INORGANIC:COPPER" }) do
+        local m = dfhack.matinfo.find(tok)
+        if m then return m.type, m.index end
+    end
+end
+
+-- First open floor tile in the zone (so the marker never lands in a wall);
+-- falls back to the zone centre.
+local function shrine_floor_tile(best)
+    local ok_shape = {
+        [df.tiletype_shape.FLOOR]   = true,
+        [df.tiletype_shape.BOULDER] = true,
+        [df.tiletype_shape.PEBBLES] = true,
+    }
+    for x = best.x1 or best.cx, best.x2 or best.cx do
+        for y = best.y1 or best.cy, best.y2 or best.cy do
+            local tt = dfhack.maps.getTileType(x, y, best.cz)
+            if tt and ok_shape[df.tiletype.attrs[tt].shape] then return x, y, best.cz end
+        end
+    end
+    return best.cx, best.cy, best.cz
+end
+
+local function sync_shrine_marker(best, marker_id)
+    local marker = marker_id and df.item.find(marker_id) or nil
+
+    -- No temple zone claimed: retire the marker.
+    if not best.zone_id then
+        if marker then pcall(function()
+            marker.flags.forbid = true
+            marker.flags.hidden = true
+            marker.flags.garbage_collect = true
+        end) end
+        dfhack.persistent.saveWorldDataString(SHRINE_MARKER_KEY, "")
+        dfhack.persistent.saveWorldDataString(SHRINE_MARKER_ZONE, "")
+        return
+    end
+
+    local tx, ty, tz = shrine_floor_tile(best)
+    if marker then
+        local mx, my, mz = dfhack.items.getPosition(marker)
+        if mx ~= tx or my ~= ty or mz ~= tz then
+            pcall(function() dfhack.items.moveToGround(marker, { x = tx, y = ty, z = tz }) end)
+        end
+        pcall(function() marker.flags.forbid = true end)
+    else
+        -- Create a fresh marker (also self-heals if the old one was destroyed).
+        local creator
+        for _, u in ipairs(df.global.world.units.active) do
+            if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then creator = u; break end
+        end
+        if not creator then return end
+        local mt, mi = shrine_marker_material()
+        if not mt then return end
+        pcall(function()
+            local made = dfhack.items.createItem(creator, df.item_type.STATUE, -1, mt, mi, false)
+            local it = made and made[1]
+            if not it then return end
+            dfhack.items.moveToGround(it, { x = tx, y = ty, z = tz })
+            it.flags.forbid = true
+            marker = it
+            dfhack.persistent.saveWorldDataString(SHRINE_MARKER_KEY, tostring(it.id))
+        end)
+        if not marker then return end
+    end
+
+    -- Point the player at the shrine once, when the claimed zone changes.
+    if tostring(best.zone_id) ~= dfhack.persistent.getWorldDataString(SHRINE_MARKER_ZONE) then
+        dfhack.persistent.saveWorldDataString(SHRINE_MARKER_ZONE, tostring(best.zone_id))
+        pcall(function()
+            dfhack.gui.showZoomAnnouncement(df.announcement_type.CARAVAN_ARRIVAL,
+                { x = tx, y = ty, z = tz },
+                "[AP] The merchant god's mark rests upon this shrine.", COLOR_GREEN, true)
+        end)
+    end
+end
+
 local function detect_shrine()
     -- Shop disabled for this seed => never scan (shop_enabled written by the AP
     -- client). Absent/blank means an older seed with no flag: treat as enabled.
@@ -990,6 +1079,7 @@ local function detect_shrine()
     local bar_type = dfhack.persistent.getWorldDataString("dwarfipelago/shrine_bar_type") or "gold"
     local bar_req  = SHRINE_BAR_REQS[bar_type] or 5
     local bar_tok  = SHRINE_BAR_TOKS[bar_type] or "GOLD"
+    local marker_id = tonumber(dfhack.persistent.getWorldDataString(SHRINE_MARKER_KEY))
 
     local best = {value=0, bars=0, altar=false, bin=false, ok=false, score=-1}
     pcall(function()
@@ -1015,10 +1105,13 @@ local function detect_shrine()
                 local loc = -1
                 pcall(function() loc = z.location_id end)
                 if loc and loc >= 0 and temple_locs[loc] then
+                    local zx1, zx2 = math.min(z.x1, z.x2), math.max(z.x1, z.x2)
+                    local zy1, zy2 = math.min(z.y1, z.y2), math.max(z.y1, z.y2)
                     zones[#zones + 1] = {
-                        x1 = math.min(z.x1, z.x2), x2 = math.max(z.x1, z.x2),
-                        y1 = math.min(z.y1, z.y2), y2 = math.max(z.y1, z.y2),
-                        z = z.z, value = 0, bars = 0, bin = false, altar = false,
+                        id = z.id,
+                        x1 = zx1, x2 = zx2, y1 = zy1, y2 = zy2, z = z.z,
+                        cx = math.floor((zx1 + zx2) / 2), cy = math.floor((zy1 + zy2) / 2),
+                        value = 0, bars = 0, bin = false, altar = false,
                     }
                 end
             end
@@ -1047,7 +1140,7 @@ local function detect_shrine()
         --    coffer count toward the zone; items a unit is carrying are excluded.
         for _, it in ipairs(df.global.world.items.all) do
             local px, py, pz = dfhack.items.getPosition(it)
-            if px and not checks.held_by_unit(it) then
+            if px and (not marker_id or it.id ~= marker_id) and not checks.held_by_unit(it) then
                 for _, zn in ipairs(zones) do
                     if pz == zn.z and px >= zn.x1 and px <= zn.x2
                             and py >= zn.y1 and py <= zn.y2 then
@@ -1078,16 +1171,22 @@ local function detect_shrine()
                 best = {
                     value = zn.value, bars = zn.bars, altar = zn.altar, bin = zn.bin, score = score,
                     ok = zn.altar and zn.bin and zn.bars >= bar_req and zn.value >= SHRINE_VALUE_REQ,
+                    zone_id = zn.id, cx = zn.cx, cy = zn.cy, cz = zn.z,
+                    x1 = zn.x1, x2 = zn.x2, y1 = zn.y1, y2 = zn.y2,
                 }
             end
         end
     end)
+
+    -- Mark the claimed zone in-world so it is identifiable at a glance.
+    sync_shrine_marker(best, marker_id)
 
     dfhack.persistent.saveWorldDataString("dwarfipelago/shop_unlocked", best.ok and "1" or "0")
     dfhack.persistent.saveWorldDataString("dwarfipelago/shrine_progress", json.encode({
         value=best.value, value_req=SHRINE_VALUE_REQ,
         bars=best.bars,   bars_req=bar_req,
         altar=best.altar, bin=best.bin, ok=best.ok,
+        zone=best.zone_id, x=best.cx, y=best.cy, z=best.cz,
     }))
 
     if best.ok then
