@@ -297,6 +297,29 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         loc.access_rule = lambda state: dynamic_rules.wood_or_metal_or_glass_cage(state) \
             and dynamic_rules.mechanic_mechanism(state)
 
+    # ── Fortress-life & industry milestones ───────────────────────────────────
+    # First Legendary Dwarf, Tavern Established, Library Established, and
+    # Completed a Trade need no blueprint (mining/zone-designation/log-built depot
+    # + an auto-arriving caravan), so they stay always-reachable like base room
+    # zones and the caravan-visit checks.
+
+    # Harnessed Power: a water wheel or windmill needs a mechanism.
+    loc = multiworld.get_location("Harnessed Power", player)
+    if options.craftpermits == CraftingPermits.option_off:
+        loc.access_rule = lambda state: state.has("Mechanic's Workshop Blueprint", player)
+    else:
+        loc.access_rule = lambda state: dynamic_rules.mechanic_mechanism(state)
+
+    # Tamed a Wild Beast: capture a wild animal in a cage trap (cage + mechanism),
+    # then train it - same gate as Caged a Hostile Beast.
+    loc = multiworld.get_location("Tamed a Wild Beast", player)
+    if options.craftpermits == CraftingPermits.option_off:
+        loc.access_rule = lambda state: dynamic_rules.wood_or_metal_or_glass(state) \
+            and dynamic_rules.mechanic_workshop(state)
+    else:
+        loc.access_rule = lambda state: dynamic_rules.wood_or_metal_or_glass_cage(state) \
+            and dynamic_rules.mechanic_mechanism(state)
+
 
     # ── Merchant's Shop gates ─────────────────────────────────────────────────
     # Shop slots require:

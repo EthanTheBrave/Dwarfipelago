@@ -207,6 +207,19 @@ MOOD_LOCATIONS: list[LocationData] = [
     LocationData("First Artifact Created", BASE_ID + 791, "Fortress"),
 ]
 
+# ── Fortress-life & industry milestones ───────────────────────────────────────
+# Player-driven checks: master a skill, raise the other major locations, harness
+# power, complete a trade, tame a wild beast. Ids live in the 3000 gap (clear of
+# skillsanity <2200 and craftsanity >=100000).
+FORTRESS_LIFE_LOCATIONS: list[LocationData] = [
+    LocationData("First Legendary Dwarf", BASE_ID + 3000, "Fortress"),
+    LocationData("Tavern Established",     BASE_ID + 3001, "Fortress"),
+    LocationData("Library Established",    BASE_ID + 3002, "Fortress"),
+    LocationData("Harnessed Power",        BASE_ID + 3003, "Fortress"),
+    LocationData("Completed a Trade",      BASE_ID + 3004, "Fortress"),
+    LocationData("Tamed a Wild Beast",     BASE_ID + 3005, "Fortress"),
+]
+
 # ── Enemy kill count (Slay Megabeast goal only) ───────────────────────────────
 # The megabeast goal throws waves of enemies at the fort; these reward the tally.
 ENEMY_KILL_LOCATIONS: list[LocationData] = [
@@ -1640,6 +1653,7 @@ ALL_LOCATIONS: list[LocationData] = (
     + FARMING_LOCATIONS + INFRASTRUCTURE_LOCATIONS + HEALTH_LOCATIONS
     + BIOLOGY_LOCATIONS + ENDGAME_LOCATIONS + SIEGE_LOCATIONS
     + COMBAT_LOCATIONS + MOOD_LOCATIONS + ENEMY_KILL_LOCATIONS
+    + FORTRESS_LIFE_LOCATIONS
     + JOB_SKILLS + COMBAT_SKILLS + SHOP_LOCATIONS
 )
 LOCATION_TABLE: dict[str, int] = {loc.name: loc.ap_id for loc in ALL_LOCATIONS}

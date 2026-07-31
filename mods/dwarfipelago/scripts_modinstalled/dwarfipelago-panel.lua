@@ -511,6 +511,22 @@ local function build_progress_lines()
         mood and "YES" or "no", arti and "YES" or "no"),
         (mood or arti) and COLOR_WHITE or COLOR_DARKGRAY)
 
+    -- Fortress life & industry (id 3000-3005).
+    blank()
+    hdr("Fortress Life")
+    local legend = check_status(37373000)
+    local tavern = check_status(37373001)
+    local libry  = check_status(37373002)
+    local power  = check_status(37373003)
+    local trade  = check_status(37373004)
+    local tamed  = check_status(37373005)
+    row(("  Legendary Dwarf: %-4s  Tavern: %-4s  Library: %-4s"):format(
+        legend and "YES" or "no", tavern and "YES" or "no", libry and "YES" or "no"),
+        (legend or tavern or libry) and COLOR_WHITE or COLOR_DARKGRAY)
+    row(("  Harnessed Power: %-4s  Completed a Trade: %-4s  Tamed a Beast: %-4s"):format(
+        power and "YES" or "no", trade and "YES" or "no", tamed and "YES" or "no"),
+        (power or trade or tamed) and COLOR_WHITE or COLOR_DARKGRAY)
+
     return lines
 end
 

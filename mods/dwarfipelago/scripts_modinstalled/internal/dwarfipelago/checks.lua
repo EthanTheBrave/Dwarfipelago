@@ -552,6 +552,16 @@ M.checks = {
     { id = 37370794, name = "Slay 50 Enemies",         fn = function() return M.enemies_killed() >= 50  end },
     { id = 37370795, name = "Slay 100 Enemies",        fn = function() return M.enemies_killed() >= 100 end },
     { id = 37370796, name = "Slay 200 Enemies",        fn = function() return M.enemies_killed() >= 200 end },
+
+    -- Fortress-life & industry milestones. legendary/power/trade/tame are latched
+    -- by poll detectors in dwarfipelago.lua; tavern/library read the live location
+    -- list like the temple checks. Apply to every goal.
+    { id = 37373000, name = "First Legendary Dwarf",   fn = function() return M.production_flag("legendary_dwarf") end },
+    { id = 37373001, name = "Tavern Established",       fn = function() return has_location_type(function(b) return df.abstract_building_inn_tavernst:is_instance(b) end) end },
+    { id = 37373002, name = "Library Established",      fn = function() return has_location_type(function(b) return df.abstract_building_libraryst:is_instance(b) end) end },
+    { id = 37373003, name = "Harnessed Power",         fn = function() return M.production_flag("harnessed_power") end },
+    { id = 37373004, name = "Completed a Trade",       fn = function() return M.production_flag("completed_trade") end },
+    { id = 37373005, name = "Tamed a Wild Beast",      fn = function() return M.production_flag("tamed_beast") end },
 }
 
 -- ── Production flag helpers ───────────────────────────────────────────────────

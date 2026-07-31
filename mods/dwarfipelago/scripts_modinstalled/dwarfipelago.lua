@@ -1718,6 +1718,90 @@ local function detect_first_birth()
     end
 end
 
+-- First Legendary Dwarf: any citizen reaches Legendary (skill rating 15+) in any
+-- skill. Latched so a later skill-rust can't un-fire the milestone.
+local function detect_legendary_dwarf()
+    if checks.production_flag("legendary_dwarf") then return end
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then
+            local soul = u.status.current_soul
+            if soul then
+                for _, sk in ipairs(soul.skills) do
+                    if sk.rating and sk.rating >= df.skill_rating.Legendary then
+                        checks.set_production_flag("legendary_dwarf")
+                        dfhack.gui.showAnnouncement("[AP] A dwarf has achieved Legendary mastery!", COLOR_GREEN, true)
+                        return
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Harnessed Power: a water wheel or windmill exists in the fort. Latched.
+local function detect_harnessed_power()
+    if checks.production_flag("harnessed_power") then return end
+    for _, b in ipairs(df.global.world.buildings.all) do
+        local ok, t = pcall(function() return b:getType() end)
+        if ok and (t == df.building_type.WaterWheel or t == df.building_type.Windmill) then
+            checks.set_production_flag("harnessed_power")
+            dfhack.gui.showAnnouncement("[AP] Your fortress harnesses the power of water or wind!", COLOR_CYAN, true)
+            return
+        end
+    end
+end
+
+-- Completed a Trade: while a merchant caravan is present, baseline the goods it
+-- owns (trader flag); when one of those goods loses the trader flag it has been
+-- bought - a completed trade. Baseline resets when no merchant is present.
+local _trade_baseline = nil
+local function detect_completed_trade()
+    if checks.production_flag("completed_trade") then return end
+    local merchant_present = false
+    for _, u in ipairs(df.global.world.units.active) do
+        local ok, m = pcall(function() return u.flags1.merchant end)
+        if ok and m then merchant_present = true; break end
+    end
+    if not merchant_present then _trade_baseline = nil; return end
+    if not _trade_baseline then
+        _trade_baseline = {}
+        for _, it in ipairs(df.global.world.items.all) do
+            if it.flags.trader then _trade_baseline[it.id] = true end
+        end
+        return
+    end
+    for id in pairs(_trade_baseline) do
+        local it = df.item.find(id)
+        if it and not it.flags.trader then
+            checks.set_production_flag("completed_trade")
+            dfhack.gui.showAnnouncement("[AP] You have completed a trade with a caravan!", COLOR_GREEN, true)
+            return
+        end
+    end
+end
+
+-- Tamed a Wild Beast: a creature seen wild on the map later becomes tame (animal
+-- training). Bought/bred tame animals are tame from first sight, so they are
+-- never in the wild-seen set and don't count. In-memory set (rebuilt on reload;
+-- the latched flag makes that harmless once it has fired).
+local _wild_seen = {}
+local function detect_tamed_beast()
+    if checks.production_flag("tamed_beast") then return end
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isAlive(u) and not dfhack.units.isCitizen(u) then
+            if dfhack.units.isTame(u) then
+                if _wild_seen[u.id] then
+                    checks.set_production_flag("tamed_beast")
+                    dfhack.gui.showAnnouncement("[AP] A wild beast has been tamed!", COLOR_GREEN, true)
+                    return
+                end
+            elseif dfhack.units.isAnimal(u) then
+                _wild_seen[u.id] = true
+            end
+        end
+    end
+end
+
 local function poll_checks()
     if not state.is_enabled() then return end
     -- repeatUtil fires the callback immediately on registration, and again
@@ -1791,6 +1875,10 @@ local function poll_checks()
     guard("strange_mood",   detect_strange_mood)
     guard("artifact_made",  detect_artifact_created)
     guard("first_birth",    detect_first_birth)
+    guard("legendary_dwarf", detect_legendary_dwarf)
+    guard("harnessed_power", detect_harnessed_power)
+    guard("completed_trade", detect_completed_trade)
+    guard("tamed_beast",     detect_tamed_beast)
     guard("shrine",        detect_shrine)
     guard("spawn_caravan", _check_spawn_caravan_approved)
     guard("skills",        checks.update_skill_levels)
