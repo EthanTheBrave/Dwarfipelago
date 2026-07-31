@@ -739,6 +739,13 @@ class DwarfFortressContext(CommonContext):
         if self.debug_mode:
             logger.info(f"[debug] {msg}")
 
+    def make_gui(self):
+        """Title the client window to match its launcher entry, not the default
+        'Archipelago Text Client'."""
+        ui = super().make_gui()
+        ui.base_title = "Dwarf Fortress Client"
+        return ui
+
     # ── DFHack polling ────────────────────────────────────────────────────────
 
     async def dfhack_poll_loop(self):
