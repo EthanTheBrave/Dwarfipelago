@@ -989,7 +989,7 @@ function DwarfipelagoPanel:init()
                     key   = "CUSTOM_SHIFT_R",
                     label = "Reset all AP state",
                     on_activate = function()
-                        dfhack.run_command("dwarfipelago", "reset")
+                        dfhack.run_command("dwarfipelago", "progress-wipe")
                         self:dismiss()
                     end,
                 },

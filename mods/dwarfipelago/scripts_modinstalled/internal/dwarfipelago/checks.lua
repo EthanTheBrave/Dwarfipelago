@@ -1477,7 +1477,7 @@ function M.get_all_craft_counts()
     return out
 end
 
--- Clears all recorded craft counts and the index (used by 'dwarfipelago reset').
+-- Clears all recorded craft counts and the index (used by 'dwarfipelago progress-wipe').
 function M.clear_craft_counts()
     local json = require('json')
     local raw  = dfhack.persistent.getWorldDataString(CRAFT_INDEX_KEY)
@@ -1683,7 +1683,7 @@ function M.get_all_skill_counts()
     return out
 end
 
--- Clears all recorded skill levels back to 0 (used by 'dwarfipelago reset').
+-- Clears all recorded skill levels back to 0 (used by 'dwarfipelago progress-wipe').
 -- Only resets skills that were initialised for this slot (level >= 0).
 function M.clear_skill_counts()
     for _, skilltype in ipairs(SKILL_LIST) do

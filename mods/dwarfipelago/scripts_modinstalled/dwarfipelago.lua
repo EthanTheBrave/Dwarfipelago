@@ -3,7 +3,7 @@
 --   dwarfipelago start              -- enable and register hooks
 --   dwarfipelago stop               -- disable and unregister hooks
 --   dwarfipelago status             -- show current state
---   dwarfipelago reset              -- wipe persistent state (use with care)
+--   dwarfipelago progress-wipe      -- wipe persistent state (use with care)
 --   dwarfipelago resetseed          -- clear AP seed lock so this world can join a new slot
 --   dwarfipelago receive <item>     -- manually deliver an item (for testing)
 --   dwarfipelago test <name> [args] -- run a mechanic verification test (e.g. spawn, goblin)
@@ -2711,15 +2711,20 @@ elseif cmd == "stop" then
     stop()
 elseif cmd == "status" then
     state.dump()
-elseif cmd == "reset" then
+elseif cmd == "progress-wipe" then
     stop()
     state.reset()
+elseif cmd == "reset" then
+    -- Renamed to 'progress-wipe' so nobody wipes their run by reflex-typing
+    -- "reset". Guide the user instead of wiping.
+    dfhack.printerr("'dwarfipelago reset' was renamed to 'dwarfipelago progress-wipe' to "
+        .. "prevent accidental wipes. Run 'dwarfipelago progress-wipe' to erase all AP state.")
 elseif cmd == "resetseed" then
     -- Clear the stored AP world identity so this DF save can be reconnected to a
     -- freshly generated AP slot (new seed) without the client rejecting it with
     -- "This saved world does not match this slot." Lets you keep a test world
     -- across regenerations. Other AP state (checks, unlocks, craft counts) is
-    -- left intact - use "dwarfipelago reset" for a full wipe.
+    -- left intact - use "dwarfipelago progress-wipe" for a full wipe.
     local ok = pcall(function()
         dfhack.persistent.deleteWorldData("dwarfipelago/seed")
     end)
@@ -2755,5 +2760,5 @@ elseif cmd == "test" then
     -- Manual mechanic verification: dwarfipelago test <name> [args]
     items.run_test(args[2], { table.unpack(args, 3) })
 else
-    print("Usage: dwarfipelago [start|stop|status|reset|resetseed|panel|call-caravan|dismiss-caravan|deposit-ale [n]|deposit-food [n]|deposit-coins <value>|buy-shop <slot>|summon-beast|receive <item>|test <name>]")
+    print("Usage: dwarfipelago [start|stop|status|progress-wipe|resetseed|panel|call-caravan|dismiss-caravan|deposit-ale [n]|deposit-food [n]|deposit-coins <value>|buy-shop <slot>|summon-beast|receive <item>|test <name>]")
 end
