@@ -2,6 +2,7 @@
 -- Usage (DFHack console):
 --   dwarfipelago start              -- enable and register hooks
 --   dwarfipelago stop               -- disable and unregister hooks
+--   dwarfipelago restart            -- stop then start (reload hooks)
 --   dwarfipelago status             -- show current state
 --   dwarfipelago progress-wipe      -- wipe persistent state (use with care)
 --   dwarfipelago resetseed          -- clear AP seed lock so this world can join a new slot
@@ -2709,6 +2710,9 @@ if cmd == "start" then
     start()
 elseif cmd == "stop" then
     stop()
+elseif cmd == "restart" then
+    stop()
+    start()
 elseif cmd == "status" then
     state.dump()
 elseif cmd == "progress-wipe" then
@@ -2760,5 +2764,5 @@ elseif cmd == "test" then
     -- Manual mechanic verification: dwarfipelago test <name> [args]
     items.run_test(args[2], { table.unpack(args, 3) })
 else
-    print("Usage: dwarfipelago [start|stop|status|progress-wipe|resetseed|panel|call-caravan|dismiss-caravan|deposit-ale [n]|deposit-food [n]|deposit-coins <value>|buy-shop <slot>|summon-beast|receive <item>|test <name>]")
+    print("Usage: dwarfipelago [start|stop|restart|status|progress-wipe|resetseed|panel|call-caravan|dismiss-caravan|deposit-ale [n]|deposit-food [n]|deposit-coins <value>|buy-shop <slot>|summon-beast|receive <item>|test <name>]")
 end
