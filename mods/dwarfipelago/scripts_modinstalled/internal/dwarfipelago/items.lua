@@ -579,9 +579,7 @@ local function recv_artifact_weapon()
             spawn_item("BAR", "INORGANIC:STEEL", 3)
         end
     end
-    dfhack.gui.showAnnouncement(
-        "[AP] An Artifact Weapon has been delivered to your fortress! Your champions stand ready.",
-        COLOR_GREEN, true)
+    announce_at_depot("An Artifact Weapon has been delivered to your fortress! Your champions stand ready.")
     print("[Dwarfipelago] Progression item received: Artifact Weapon")
 end
 
@@ -598,9 +596,7 @@ local function recv_artifact_armor()
     spawn_item("GLOVES:ITEM_GLOVES_GAUNTLETS", mat)
     spawn_item("PANTS:ITEM_PANTS_GREAVES",     mat)
     spawn_item("SHOES:ITEM_SHOES_BOOTS",       mat)
-    dfhack.gui.showAnnouncement(
-        "[AP] Artifact Armor has been delivered to your soldiers! Your defenders are emboldened.",
-        COLOR_GREEN, true)
+    announce_at_depot("Artifact Armor has been delivered to your soldiers! Your defenders are emboldened.")
     print("[Dwarfipelago] Progression item received: Artifact Armor")
 end
 
@@ -667,10 +663,8 @@ local function recv_master_builders_codex()
             if spawn_item("DOOR", m) > 0 then break end
         end
     end
-    dfhack.gui.showAnnouncement(
-        "[AP] A Master Builder's Codex arrives with an artifact door! To build it, raise the " ..
-        "build material list's Max Quality filter to Artifact (it's hidden at Masterful by default).",
-        COLOR_GREEN, true)
+    announce_at_depot("A Master Builder's Codex arrives with an artifact door! To build it, raise the " ..
+        "build material list's Max Quality filter to Artifact (it's hidden at Masterful by default).")
     print("[Dwarfipelago] Progression item received: Master Builder's Codex")
 end
 
@@ -2850,9 +2844,7 @@ M.BLUEPRINT_NAMES = BLUEPRINT_NAMES
 for _, bp_name in ipairs(BLUEPRINT_NAMES) do
     M.handlers[bp_name] = function()
         dfhack.persistent.saveWorldDataString("dwarfipelago/blueprint/" .. bp_name, "1")
-        dfhack.gui.showAnnouncement(
-            ("[AP] Blueprint received: %s"):format(bp_name),
-            COLOR_GREEN, true)
+        announce_at_depot(("Blueprint received: %s"):format(bp_name))
         print(("[Dwarfipelago] Blueprint unlocked: %s"):format(bp_name))
     end
 end
@@ -2891,9 +2883,7 @@ for _, item_name in ipairs(CRAFTING_LOCK_ITEMS) do
     local flag = item_name:lower():gsub(" ", "_")
     M.handlers[item_name .. " Permit"] = function()
         dfhack.persistent.saveWorldDataString("dwarfipelago/craftlock/" .. flag, "1")
-        dfhack.gui.showAnnouncement(
-            ("[AP] Crafting permit received: %s"):format(item_name),
-            COLOR_GREEN, true)
+        announce_at_depot(("Crafting permit received: %s"):format(item_name))
         print(("[Dwarfipelago] Craft unlocked: %s"):format(item_name))
     end
 end

@@ -1707,26 +1707,15 @@ class DwarfFortressContext(CommonContext):
             datatype = args.get("type")
             if datatype == "ItemSend":
                 item = args["item"]
-                if not self.slot_concerns_self(args["receiving"]): # You found someone else's item
-                    if self.slot_concerns_self(item.player):
-                        to_player = self.player_names[args["receiving"]]
-                        item_name = self.item_names.lookup_in_slot(int(args["data"][2]["text"]), args["receiving"])
-                        #COLOR_BROWN is actually Yellow in this DFHack version
-                        self.dfhack.run_command("lua", f'dfhack.gui.showAnnouncement("You found {to_player} their {item_name}.", COLOR_BROWN)')
-                elif self.slot_concerns_self(args["receiving"]): # This is your item
-                    player = self.player_names[int(args["data"][0]["text"])]
+                # Only announce items YOU send to another player. Items you RECEIVE
+                # are announced (with map zoom) by the mod as it spawns them, so
+                # announcing them here too would double up.
+                if not self.slot_concerns_self(args["receiving"]) and self.slot_concerns_self(item.player):
                     to_player = self.player_names[args["receiving"]]
-                    item_name = self.item_names.lookup_in_slot(int(args["data"][2]["text"]))
-                    if player == to_player: # you found your own item
-                        self.dfhack.run_command("lua", f'dfhack.gui.showAnnouncement("You found your {item_name}.", COLOR_GREEN)')
-                    else:
-                        self.dfhack.run_command("lua", f'dfhack.gui.showAnnouncement("{player} found your {item_name}.", COLOR_GREEN)')
-            elif datatype == "ItemCheat":
-                if self.slot_concerns_self(args["receiving"]): # its your item
-                    item = args["item"]
-                    item_name = self.item_names.lookup_in_slot(item.item)
-                    self.dfhack.run_command("lua", f'dfhack.gui.showAnnouncement("You received your {item_name}.", COLOR_GREEN)')
-            elif datatype == "Goal": 
+                    item_name = self.item_names.lookup_in_slot(int(args["data"][2]["text"]), args["receiving"])
+                    #COLOR_BROWN is actually Yellow in this DFHack version
+                    self.dfhack.run_command("lua", f'dfhack.gui.showAnnouncement("You found {to_player} their {item_name}.", COLOR_BROWN)')
+            elif datatype == "Goal":
                 if self.slot_concerns_self(args["slot"]):
                     self.dfhack.run_command("lua", f'dfhack.gui.showPopupAnnouncement("Congratulations! You achieved your goal!", COLOR_BLUE)')
 
