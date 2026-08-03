@@ -1287,9 +1287,9 @@ function DwarfipelagoPanel:init()
                 refresh()
             end,
         }
-        coin_label = widgets.Label{frame={t=3, l=0}, text=coin_text(coffers0, coins0)}
+        coin_label = widgets.Label{frame={t=4, l=0}, text=coin_text(coffers0, coins0)}
         shop_list = widgets.List{
-            frame      = {t=5, b=0},
+            frame      = {t=6, b=0},
             text_pen   = COLOR_WHITE,
             cursor_pen = COLOR_CYAN,
             choices    = build_choices(shop0, pending0, coffers0, coins0, unlocked0),
