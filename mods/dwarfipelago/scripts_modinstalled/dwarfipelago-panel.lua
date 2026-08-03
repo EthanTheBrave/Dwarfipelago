@@ -1202,7 +1202,7 @@ function DwarfipelagoPanel:init()
                 elseif not unlocked then
                     state, pen = "shrine needed", COLOR_DARKGRAY
                 elseif coffers < (e.tier or 1) then
-                    state, pen = ("need %d coffers"):format(e.tier or 1), COLOR_RED
+                    state, pen = ("need %d AP coffers"):format(e.tier or 1), COLOR_RED
                 elseif coins < price then
                     state, pen = "need coins", COLOR_YELLOW
                 else
@@ -1245,7 +1245,7 @@ function DwarfipelagoPanel:init()
             return {
                 "  Value: ",  {text=fmt_num(prog.value or 0).."/"..fmt_num(prog.value_req or 5000), pen=vc},
                 "   Altar: ", chk(prog.altar),
-                "   Box: ",   chk(prog.bin),
+                "   Container: ", chk(prog.bin),
                 "   Bars: ",  {text=("%d/%d"):format(prog.bars or 0, req), pen=bc},
             }
         end
@@ -1253,7 +1253,7 @@ function DwarfipelagoPanel:init()
         local function coin_text(coffers, coins)
             return {
                 "  Coins: ", {text=fmt_num(coins).."*",      pen=COLOR_YELLOW},
-                "   Coffers: ",       {text=tostring(coffers).."/5",  pen=COLOR_CYAN},
+                "   AP Coffers: ",    {text=tostring(coffers).."/5",  pen=COLOR_CYAN},
                 "   (Enter to buy)",
             }
         end
