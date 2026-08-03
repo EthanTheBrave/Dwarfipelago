@@ -1098,23 +1098,21 @@ local function detect_shrine()
             end
         end
 
-        -- 1. Collect the Civzones assigned to a temple location.
+        -- 1. Collect the Civzones assigned to a temple location. Iterate the
+        --    dedicated zone list, not all of buildings.all.
         local zones = {}
-        for _, z in ipairs(df.global.world.buildings.all) do
-            local okt, t = pcall(function() return z:getType() end)
-            if okt and t == df.building_type.Civzone then
-                local loc = -1
-                pcall(function() loc = z.location_id end)
-                if loc and loc >= 0 and temple_locs[loc] then
-                    local zx1, zx2 = math.min(z.x1, z.x2), math.max(z.x1, z.x2)
-                    local zy1, zy2 = math.min(z.y1, z.y2), math.max(z.y1, z.y2)
-                    zones[#zones + 1] = {
-                        id = z.id,
-                        x1 = zx1, x2 = zx2, y1 = zy1, y2 = zy2, z = z.z,
-                        cx = math.floor((zx1 + zx2) / 2), cy = math.floor((zy1 + zy2) / 2),
-                        value = 0, bars = 0, bin = false, altar = false,
-                    }
-                end
+        for _, z in ipairs(df.global.world.buildings.other.ANY_ZONE) do
+            local loc = -1
+            pcall(function() loc = z.location_id end)
+            if loc and loc >= 0 and temple_locs[loc] then
+                local zx1, zx2 = math.min(z.x1, z.x2), math.max(z.x1, z.x2)
+                local zy1, zy2 = math.min(z.y1, z.y2), math.max(z.y1, z.y2)
+                zones[#zones + 1] = {
+                    id = z.id,
+                    x1 = zx1, x2 = zx2, y1 = zy1, y2 = zy2, z = z.z,
+                    cx = math.floor((zx1 + zx2) / 2), cy = math.floor((zy1 + zy2) / 2),
+                    value = 0, bars = 0, bin = false, altar = false,
+                }
             end
         end
         if #zones == 0 then return end

@@ -101,17 +101,15 @@ local function zone_quality_rank(zone)
 end
 
 -- True if at least one Civzone of the given df.civzone_type exists.
+-- Iterate the dedicated civzone list (buildings.other.ANY_ZONE), not the full
+-- buildings.all with a getType() pcall per building - the old form was an every-
+-- poll O(all-buildings) scan (one per unchecked room-zone check).
 local function has_zone_type(zone_type)
     local found = false
     pcall(function()
-        for _, z in ipairs(df.global.world.buildings.all) do
-            if not found then
-                local ok, t = pcall(function() return z:getType() end)
-                if ok and t == df.building_type.Civzone then
-                    local ok2, st = pcall(function() return z:getSubtype() end)
-                    if ok2 and st == zone_type then found = true end
-                end
-            end
+        for _, z in ipairs(df.global.world.buildings.other.ANY_ZONE) do
+            local ok, st = pcall(function() return z:getSubtype() end)
+            if ok and st == zone_type then found = true; break end
         end
     end)
     return found
@@ -128,14 +126,11 @@ local function room_qualities()
     local ct = df.civzone_type
     local q = { [ct.Bedroom] = -1, [ct.Office] = -1, [ct.DiningHall] = -1, [ct.Tomb] = -1 }
     pcall(function()
-        for _, z in ipairs(df.global.world.buildings.all) do
-            local ok, t = pcall(function() return z:getType() end)
-            if ok and t == df.building_type.Civzone then
-                local ok2, st = pcall(function() return z:getSubtype() end)
-                if ok2 and q[st] ~= nil then
-                    local r = zone_quality_rank(z)
-                    if r > q[st] then q[st] = r end
-                end
+        for _, z in ipairs(df.global.world.buildings.other.ANY_ZONE) do
+            local ok2, st = pcall(function() return z:getSubtype() end)
+            if ok2 and q[st] ~= nil then
+                local r = zone_quality_rank(z)
+                if r > q[st] then q[st] = r end
             end
         end
     end)
@@ -150,27 +145,19 @@ end
 
 -- True if any Civzone is assigned to a location whose abstract building passes
 -- the given is_instance check (e.g. df.abstract_building_templest:is_instance).
+-- True if any of the site's locations satisfies check_fn (e.g. a temple, tavern
+-- or library exists). Scans ONLY the site's location list (a handful of entries),
+-- never df.global.world.buildings.all. The old buildings.all + inner site.buildings
+-- version was O(all-buildings x locations): on a busy fort with several
+-- temples/guildhalls it ran every poll (per unchecked location check) and hitched
+-- the frame enough to drop clicks. This matches best_location_tier's cheap scan.
 local function has_location_type(check_fn)
     local found = false
     pcall(function()
         local site = dfhack.world.getCurrentSite()
         if not site then return end
-        for _, z in ipairs(df.global.world.buildings.all) do
-            if found then return end
-            local ok, t = pcall(function() return z:getType() end)
-            if ok and t == df.building_type.Civzone then
-                local loc_id = -1
-                pcall(function() loc_id = z.location_id end)
-                if loc_id and loc_id >= 0 then
-                    pcall(function()
-                        for _, bld in ipairs(site.buildings) do
-                            if bld.id == loc_id and check_fn(bld) then
-                                found = true; break
-                            end
-                        end
-                    end)
-                end
-            end
+        for _, bld in ipairs(site.buildings) do
+            if check_fn(bld) then found = true; break end
         end
     end)
     return found
@@ -894,17 +881,14 @@ function M.best_room_description()
     local best_desc = ""
     pcall(function()
         local ct = df.civzone_type
-        for _, z in ipairs(df.global.world.buildings.all) do
-            local ok, t = pcall(function() return z:getType() end)
-            if ok and t == df.building_type.Civzone then
-                local ok2, st = pcall(function() return z:getSubtype() end)
-                if ok2 and (st == ct.Bedroom or st == ct.Office
-                         or st == ct.DiningHall or st == ct.Tomb) then
-                    local desc = ""
-                    pcall(function() desc = dfhack.buildings.getRoomDescription(z) or "" end)
-                    local r = ROOM_TIER[desc] or -1
-                    if r > best_rank then best_rank = r; best_desc = desc end
-                end
+        for _, z in ipairs(df.global.world.buildings.other.ANY_ZONE) do
+            local ok2, st = pcall(function() return z:getSubtype() end)
+            if ok2 and (st == ct.Bedroom or st == ct.Office
+                     or st == ct.DiningHall or st == ct.Tomb) then
+                local desc = ""
+                pcall(function() desc = dfhack.buildings.getRoomDescription(z) or "" end)
+                local r = ROOM_TIER[desc] or -1
+                if r > best_rank then best_rank = r; best_desc = desc end
             end
         end
     end)
