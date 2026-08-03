@@ -287,6 +287,71 @@ local PROD_FLAGS = {
     {"Minecart",       "minecart",      nil,              nil},
 }
 
+-- ── Goal progress ──────────────────────────────────────────────────────────────
+-- Consolidated view of the selected AP goal and live progress toward it.
+local function build_goal_lines()
+    local lines = {}
+    local function hdr(s) table.insert(lines, {text=s, pen=COLOR_CYAN}) end
+    local function row(s, pen) table.insert(lines, {text=s, pen=pen or COLOR_WHITE}) end
+    local function blank() table.insert(lines, {text=""}) end
+    local function pct(cur, target) return target > 0 and math.min(100, math.floor(cur / target * 100)) or 0 end
+
+    local goal_key = ps("goal", "-1")
+    local complete = ps("goal_complete", "0") == "1"
+
+    hdr("Goal")
+    row("  " .. (GOAL_NAMES[goal_key] or "Not synced"))
+    row(("  Complete:  %s"):format(complete and "YES" or "no"),
+        complete and COLOR_GREEN or COLOR_DARKGRAY)
+    blank()
+
+    hdr("Progress")
+    if goal_key == "1" then
+        local created = checks.treasury_created_wealth()
+        local target  = tonumber(ps("wealth_goal", "100000")) or 100000
+        row(("  AP wealth:  %s / %s  (%d%%)"):format(fmt_num(created), fmt_num(target), pct(created, target)),
+            created >= target and COLOR_GREEN or COLOR_WHITE)
+        row("  Minted coins + cut gems, capped by your Merchant's Coffer tier.", COLOR_DARKGRAY)
+    elseif goal_key == "2" then
+        local pop = 0
+        for _, u in ipairs(df.global.world.units.active) do
+            if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then pop = pop + 1 end
+        end
+        local target = tonumber(ps("pop_goal", "300")) or 300
+        row(("  Population: %d / %d  (%d%%)"):format(pop, target, pct(pop, target)),
+            pop >= target and COLOR_GREEN or COLOR_WHITE)
+    elseif goal_key == "4" then
+        local have   = tonumber(ps("unlock/RotGK", "0")) or 0
+        local target = tonumber(ps("king_remains_goal", "0")) or 0
+        row(("  Remains recovered: %d / %d  (%d%%)"):format(have, target, pct(have, target)),
+            (target > 0 and have >= target) and COLOR_GREEN or COLOR_WHITE)
+    elseif goal_key == "5" then
+        local collected, total = 0, 0
+        for _, bp in ipairs(items.BLUEPRINT_NAMES) do
+            total = total + 1
+            if ps("blueprint/" .. bp, "0") == "1" then collected = collected + 1 end
+        end
+        for _, item_name in pairs(items.CRAFTING_LOCK_ITEMS) do
+            total = total + 1
+            local flag = item_name:lower():gsub(" ", "_")
+            if (tonumber(ps("craftlock/" .. flag, "0")) or 0) >= 1 then collected = collected + 1 end
+        end
+        row(("  Recovered: %d / %d  (%d%%)"):format(collected, total, pct(collected, total)),
+            (total > 0 and collected >= total) and COLOR_GREEN or COLOR_WHITE)
+        row("  Blueprints + permits (see the Unlocks tab for details).", COLOR_DARKGRAY)
+    elseif goal_key == "0" then
+        row("  Muster the war effort, then summon and slay the beast.")
+        row("  See the War tab for war-effort progress.", COLOR_DARKGRAY)
+    elseif goal_key == "3" then
+        row("  Climb the noble ladder until the monarch takes residence.")
+        row("  See the Unlocks tab for charter progression.", COLOR_DARKGRAY)
+    else
+        row("  Not synced to an AP goal yet.", COLOR_DARKGRAY)
+    end
+
+    return lines
+end
+
 local function build_progress_lines()
     local lines = {}
 
@@ -424,15 +489,6 @@ local function build_progress_lines()
     local fw = checks.fortress_wealth()
     row(("  Population:      %d citizens"):format(pop))
     row(("  Fortress wealth: %s"):format(fmt_num(fw)))
-    -- Created wealth (minted coins + cut gems): the counter that drives wealth titles and the Legendary Wealth goal.
-    local created = checks.treasury_created_wealth()
-    if tonumber(ps("goal", 0)) == 1 then
-        local target = tonumber(ps("wealth_goal", "100000")) or 100000
-        row(("  AP wealth:       %s / %s"):format(fmt_num(created), fmt_num(target)),
-            created >= target and COLOR_GREEN or COLOR_WHITE)
-    else
-        row(("  AP wealth:       %s"):format(fmt_num(created)))
-    end
 
     -- Fortress title milestones (id 400-404).
     local TITLES = {
@@ -885,6 +941,14 @@ function DwarfipelagoPanel:init()
         }
     end
 
+    -- ── Tab: Goal ─────────────────────────────────────────────────────
+    local function GoalTab()
+        table.insert(tab_list, "Goal")
+        return widgets.Panel{
+            subviews = { make_list(build_goal_lines()) },
+        }
+    end
+
     -- ── Tab 2: Unlocks ────────────────────────────────────────────────
     local function UnlocksTab()
         table.insert(tab_list, "Unlocks")
@@ -1290,6 +1354,7 @@ function DwarfipelagoPanel:init()
 
     local tabviews = {}
     table.insert(tabviews, StatusTab())
+    table.insert(tabviews, GoalTab())
     if tonumber(ps("goal", "-1")) == 0 then
         table.insert(tabviews, WarTab())
     end
