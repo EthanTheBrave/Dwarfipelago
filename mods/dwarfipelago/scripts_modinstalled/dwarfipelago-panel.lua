@@ -424,6 +424,15 @@ local function build_progress_lines()
     local fw = checks.fortress_wealth()
     row(("  Population:      %d citizens"):format(pop))
     row(("  Fortress wealth: %s"):format(fmt_num(fw)))
+    -- Created wealth (minted coins + cut gems): the counter that drives wealth titles and the Legendary Wealth goal.
+    local created = checks.treasury_created_wealth()
+    if tonumber(ps("goal", 0)) == 1 then
+        local target = tonumber(ps("wealth_goal", "100000")) or 100000
+        row(("  AP wealth:       %s / %s"):format(fmt_num(created), fmt_num(target)),
+            created >= target and COLOR_GREEN or COLOR_WHITE)
+    else
+        row(("  AP wealth:       %s"):format(fmt_num(created)))
+    end
 
     -- Fortress title milestones (id 400-404).
     local TITLES = {
