@@ -105,6 +105,36 @@ class DeathLinkPercentage(Toggle):
     display_name = "Death Link Percentage"
 
 
+class DeathLinkSplit(Toggle):
+    """
+    Split the Death Link amounts. When off, Death Link Threshold governs both directions.
+    When on, use Death Link Receive Amount and Death Link Send Threshold separately.
+    """
+    display_name = "Split Death Link Amounts"
+
+
+class DeathLinkReceiveAmount(Range):
+    """
+    Dwarves killed per incoming DeathLink. Only used when Split Death Link Amounts is on.
+    Treated as a percentage of population when Death Link Percentage is enabled.
+    """
+    display_name = "Death Link Receive Amount"
+    range_start = 1
+    range_end = 50
+    default = 5
+
+
+class DeathLinkSendThreshold(Range):
+    """
+    Dwarves that must die to send one DeathLink. Only used when Split Death Link Amounts is on.
+    Treated as a percentage of population when Death Link Percentage is enabled.
+    """
+    display_name = "Death Link Send Threshold"
+    range_start = 1
+    range_end = 50
+    default = 5
+
+
 # ── Craftsanity ───────────────────────────────────────────────────────────
 
 class EnableCraftsanity(Choice):
@@ -429,6 +459,9 @@ class DwarfFortressOptions(PerGameCommonOptions):
     deathlink: DeathLink
     deathlink_threshold: DeathLinkThreshold
     deathlink_percentage: DeathLinkPercentage
+    deathlink_split: DeathLinkSplit
+    deathlink_receive_amount: DeathLinkReceiveAmount
+    deathlink_send_threshold: DeathLinkSendThreshold
     energy_link: EnergyLink
     goal: DwarfFortressGoal
     wealth_goal_amount: WealthGoalAmount

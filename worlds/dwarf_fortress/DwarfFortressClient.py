@@ -713,6 +713,9 @@ class DwarfFortressContext(CommonContext):
         self._deathlink_enabled = False  # set from slot_data; gates sending + the DeathLink tag
         self._deathlink_threshold = 5    # dwarves (or %) per DeathLink (overridden by slot data)
         self._deathlink_percentage = False  # treat threshold as % of population
+        self._deathlink_split = False    # use separate send/receive amounts below
+        self._deathlink_send_threshold = 5   # effective send threshold (split-aware)
+        self._deathlink_receive_amount = 5   # effective receive amount (split-aware)
         self._pending_recv_deathlinks = 0  # incoming DeathLink bounces waiting to be applied
         self._mod_started = False        # True once dwarfipelago/main start has succeeded
         self._world_loaded = False       # True while DF has an active world loaded
@@ -1053,6 +1056,9 @@ class DwarfFortressContext(CommonContext):
         pop_goal     = slot_data.get("population_goal_amount", 300)
         dl_threshold   = slot_data.get("deathlink_threshold", 5)
         dl_percentage  = slot_data.get("deathlink_percentage", 0)
+        dl_split       = slot_data.get("deathlink_split", 0)
+        dl_receive     = slot_data.get("deathlink_receive_amount", 5)
+        dl_send        = slot_data.get("deathlink_send_threshold", 5)
         self.seed         = slot_data.get("seed", 0)
         self._crafting_locations = slot_data.get("crafting_locations")
         self._craftsanity_max_value = slot_data.get("craftsanity_max_amount")
@@ -1074,6 +1080,10 @@ class DwarfFortressContext(CommonContext):
         seed_is_fresh = current_seed in ("nil", "", "None")
         self._deathlink_threshold  = int(dl_threshold)
         self._deathlink_percentage = bool(int(dl_percentage))
+        self._deathlink_split      = bool(int(dl_split))
+        # When split is off both directions use the single combined threshold.
+        self._deathlink_send_threshold  = int(dl_send) if self._deathlink_split else int(dl_threshold)
+        self._deathlink_receive_amount  = int(dl_receive) if self._deathlink_split else int(dl_threshold)
         if seed_is_fresh or current_seed == str(self.seed):
             script_version = (self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("dwarfipelago/version"))') or "").strip()
             if versions_compatible(self.version, script_version):
@@ -1087,6 +1097,9 @@ class DwarfFortressContext(CommonContext):
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink", "{1 if self._deathlink_enabled else 0}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_threshold", "{dl_threshold}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_percentage", "{int(dl_percentage)}")')
+                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_split", "{int(self._deathlink_split)}")')
+                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_receive_amount", "{self._deathlink_receive_amount}")')
+                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_send_threshold", "{self._deathlink_send_threshold}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/seed", "{self.seed}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/custom_caves", "1")')
                     write()
@@ -1157,7 +1170,7 @@ class DwarfFortressContext(CommonContext):
                 f'dfhack.persistent.saveWorldDataString("dwarfipelago/pending_recv", tostring(c + {n}))',
             ),
         )
-        mode = f"{self._deathlink_threshold}% of population" if self._deathlink_percentage else f"{self._deathlink_threshold} dwarves"
+        mode = f"{self._deathlink_receive_amount}% of population" if self._deathlink_percentage else f"{self._deathlink_receive_amount} dwarves"
         logger.info(f"Queued {n} received DeathLink(s) - Lua will kill {mode} per link")
 
     async def _check_deathlink_send(self):
@@ -1166,7 +1179,7 @@ class DwarfFortressContext(CommonContext):
         already sent. For each new multiple of deathlink_threshold deaths,
         persist the new count then broadcast one DeathLink Bounce to the AP server.
         """
-        if not self._deathlink_enabled or self._deathlink_threshold <= 0:
+        if not self._deathlink_enabled or self._deathlink_send_threshold <= 0:
             return
 
         def read_counts():
@@ -1199,9 +1212,9 @@ class DwarfFortressContext(CommonContext):
                 pop = max(1, int((pop_raw or "0").strip()))
             except ValueError:
                 return
-            threshold = max(1, int(pop * self._deathlink_threshold / 100))
+            threshold = max(1, int(pop * self._deathlink_send_threshold / 100))
         else:
-            threshold = self._deathlink_threshold
+            threshold = self._deathlink_send_threshold
 
         to_send = death_count // threshold - already_sent
         if to_send <= 0:

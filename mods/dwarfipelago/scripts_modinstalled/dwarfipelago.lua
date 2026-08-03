@@ -503,7 +503,13 @@ local function apply_pending_recv_deathlinks()
 
     state.clear_pending_recv()
 
-    local threshold     = goal_setting("deathlink_threshold", 5)
+    -- When split is on, incoming links use their own receive amount; else the combined threshold.
+    local threshold
+    if goal_setting("deathlink_split", 0) == 1 then
+        threshold = goal_setting("deathlink_receive_amount", 5)
+    else
+        threshold = goal_setting("deathlink_threshold", 5)
+    end
     local is_percentage = goal_setting("deathlink_percentage", 0) == 1
 
     local per_link
