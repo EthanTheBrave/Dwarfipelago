@@ -624,12 +624,13 @@ class DFHackConnection:
         ) % lua_ids
         self.run_command("lua", lua)
 
-    def deliver_item(self, item_name: str):
+    def deliver_item(self, item_name: str, sender: str = ""):
         """Deliver a received AP item to the fortress by calling the Lua item handler."""
         safe_name = item_name.replace("\\", "\\\\").replace('"', '\\"')
+        safe_sender = sender.replace("\\", "\\\\").replace('"', '\\"')
         result = self.run_command(
             "lua",
-            f'reqscript("internal/dwarfipelago/items").receive("{safe_name}")',
+            f'reqscript("internal/dwarfipelago/items").receive("{safe_name}", "{safe_sender}")',
         )
         if result is None:
             logger.warning(f"deliver_item: RPC returned None for {item_name!r} - connection lost?")
@@ -997,10 +998,16 @@ class DwarfFortressContext(CommonContext):
                 logger.warning(f"Item name lookup failed for id {network_item.item}: {e}")
                 item_name = str(network_item.item)
 
-            self.debug(f"Delivering item [{i}]: id={network_item.item} → name={item_name!r}")
+            # Sender's name, folded into the announcement. Empty for your own
+            # items or server/start-inventory grants (source slot 0 or yourself).
+            sender = ""
+            if network_item.player and network_item.player != self.slot:
+                sender = self.player_names.get(network_item.player, "")
+
+            self.debug(f"Delivering item [{i}]: id={network_item.item} → name={item_name!r} from={sender!r}")
 
             await asyncio.get_event_loop().run_in_executor(
-                None, self.dfhack.deliver_item, item_name
+                None, self.dfhack.deliver_item, item_name, sender
             )
             self._received_index = i + 1
             # Persist the index so we don't re-deliver on restart.

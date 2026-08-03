@@ -85,19 +85,27 @@ local function spawn_item(item_type, material, quantity)
     return created
 end
 
--- Show an AP announcement. If pos ({x,y,z}) is given, the announcement is
--- clickable in the announcements list and zooms the map to that tile.
--- Falls back to a plain showAnnouncement if zoom fails (e.g. bad pos).
+-- Sender of the item currently being delivered (set by M.receive), appended to
+-- the announcement so you can see who sent it. Empty for your own/server items.
+local _item_sender = nil
+
+-- Show a received-item announcement in the caravan-arrival style. With a pos it
+-- zooms to that tile (physical items at the depot); without one it keeps the
+-- caravan styling but doesn't move the camera (blueprints/permits/unlocks).
+local NO_ZOOM_POS = { x = -30000, y = -30000, z = -30000 }
 local function announce(msg, pos, atype)
+    atype = atype or df.announcement_type.CARAVAN_ARRIVAL
+    if _item_sender and _item_sender ~= "" then msg = msg .. " (from " .. _item_sender .. ")" end
     if pos then
         local ok = pcall(function()
-            dfhack.gui.showZoomAnnouncement(
-                atype or df.announcement_type.CARAVAN_ARRIVAL,
-                pos, "[AP] " .. msg, COLOR_GREEN, true)
+            dfhack.gui.showZoomAnnouncement(atype, pos, "[AP] " .. msg, COLOR_GREEN, true)
         end)
         if ok then return end
     end
-    dfhack.gui.showAnnouncement("[AP] " .. msg, COLOR_GREEN, true)
+    local ok = pcall(function()
+        dfhack.gui.showAutoAnnouncement(atype, NO_ZOOM_POS, "[AP] " .. msg, COLOR_GREEN, true)
+    end)
+    if not ok then dfhack.gui.showAnnouncement("[AP] " .. msg, COLOR_GREEN, true) end
 end
 
 -- Returns the trade depot center as a pos table, or nil if no depot exists.
@@ -331,33 +339,33 @@ end
 -- the primary material/token isn't accepted by this DF version's createitem.
 local function recv_flux_stone()
     spawn_item("BOULDER", "INORGANIC:LIMESTONE", 4)
-    announce("Received: Flux Stone! Limestone for steelmaking.")
+    announce_at_depot("Received: Flux Stone! Limestone for steelmaking.")
 end
 
 local function recv_pig_iron_bar()
     if spawn_item("BAR", "INORGANIC:PIG_IRON", 2) == 0 then
         spawn_item("BAR", "INORGANIC:IRON", 2)
     end
-    announce("Received: Pig Iron Bars!")
+    announce_at_depot("Received: Pig Iron Bars!")
 end
 
 local function recv_charcoal()
     if spawn_item("BAR", "COAL:CHARCOAL", 3) == 0 then
         spawn_item("BAR", "COAL:COKE", 3)
     end
-    announce("Received: Charcoal! Fuel for forges and furnaces.")
+    announce_at_depot("Received: Charcoal! Fuel for forges and furnaces.")
 end
 
 local function recv_cloth_bolt()
     spawn_item("CLOTH", "PLANT_MAT:GRASS_TAIL_PIG:THREAD", 3)
-    announce("Received: Cloth Bolts! Ready for the loom or clothier.")
+    announce_at_depot("Received: Cloth Bolts! Ready for the loom or clothier.")
 end
 
 local function recv_tanned_leather()
     if spawn_item("SKIN_TANNED", "CREATURE_MAT:COW:LEATHER", 3) == 0 then
         spawn_item("CLOTH", "PLANT_MAT:GRASS_TAIL_PIG:THREAD", 3)
     end
-    announce("Received: Tanned Leather!")
+    announce_at_depot("Received: Tanned Leather!")
 end
 
 -- Bag of sand for glassmaking. Sand isn't a free-standing item - it lives inside
@@ -410,10 +418,10 @@ local function recv_bag_of_sand()
     if not ok then
         log.error("bag_of_sand: " .. tostring(err))
         spawn_item("BOULDER", "INORGANIC:LIMESTONE", 3)  -- useful fallback so the gift isn't wasted
-        announce("Received: a Sand shipment (delivered as flux - bag-of-sand spawn unavailable).")
+        announce_at_depot("Received: a Sand shipment (delivered as flux - bag-of-sand spawn unavailable).")
         return
     end
-    announce("Received: Bags of Sand! Ready for the glass furnace.")
+    announce_at_depot("Received: Bags of Sand! Ready for the glass furnace.")
 end
 
 -- Raw clay as mineable clay STONE boulders. Kilns gather earthenware/stoneware
@@ -424,7 +432,7 @@ local function recv_raw_clay()
     local n = spawn_item("BOULDER", "INORGANIC:KAOLINITE", 4)
     if n == 0 then n = spawn_item("BOULDER", "INORGANIC:FIRE_CLAY", 4) end
     if n == 0 then n = spawn_item("BLOCKS", "INORGANIC:FIRE_CLAY", 4) end
-    announce("Received: Raw Clay! Clay stone (kaolinite for porcelain).")
+    announce_at_depot("Received: Raw Clay! Clay stone (kaolinite for porcelain).")
 end
 
 -- Low-grade (copper) tools/gear - useful recovery, intentionally rare.
@@ -432,21 +440,21 @@ local function recv_copper_pick()
     if spawn_item("WEAPON:ITEM_WEAPON_PICK", "INORGANIC:COPPER") == 0 then
         spawn_item("BAR", "INORGANIC:COPPER", 2)
     end
-    announce("Received: a Copper Pick. Crude, but it digs.")
+    announce_at_depot("Received: a Copper Pick. Crude, but it digs.")
 end
 
 local function recv_copper_axe()
     if spawn_item("WEAPON:ITEM_WEAPON_AXE_BATTLE", "INORGANIC:COPPER") == 0 then
         spawn_item("BAR", "INORGANIC:COPPER", 2)
     end
-    announce("Received: a Copper Axe. Good for trees and trouble.")
+    announce_at_depot("Received: a Copper Axe. Good for trees and trouble.")
 end
 
 local function recv_copper_short_sword()
     if spawn_item("WEAPON:ITEM_WEAPON_SWORD_SHORT", "INORGANIC:COPPER") == 0 then
         spawn_item("BAR", "INORGANIC:COPPER", 2)
     end
-    announce("Received: a Copper Short Sword.")
+    announce_at_depot("Received: a Copper Short Sword.")
 end
 
 -- -- Item handlers: useful items -----------------------------------------------
@@ -2844,7 +2852,7 @@ M.BLUEPRINT_NAMES = BLUEPRINT_NAMES
 for _, bp_name in ipairs(BLUEPRINT_NAMES) do
     M.handlers[bp_name] = function()
         dfhack.persistent.saveWorldDataString("dwarfipelago/blueprint/" .. bp_name, "1")
-        announce_at_depot(("Blueprint received: %s"):format(bp_name))
+        announce(("Blueprint received: %s"):format(bp_name))
         print(("[Dwarfipelago] Blueprint unlocked: %s"):format(bp_name))
     end
 end
@@ -2883,7 +2891,7 @@ for _, item_name in ipairs(CRAFTING_LOCK_ITEMS) do
     local flag = item_name:lower():gsub(" ", "_")
     M.handlers[item_name .. " Permit"] = function()
         dfhack.persistent.saveWorldDataString("dwarfipelago/craftlock/" .. flag, "1")
-        announce_at_depot(("Crafting permit received: %s"):format(item_name))
+        announce(("Crafting permit received: %s"):format(item_name))
         print(("[Dwarfipelago] Craft unlocked: %s"):format(item_name))
     end
 end
@@ -3244,14 +3252,18 @@ function M.reembark_batch_spawn(wave_count)
     end
 end
 
--- Called by main.lua when the client delivers an item by name.
-function M.receive(item_name)
+-- Called by main.lua when the client delivers an item by name. `sender` (the
+-- player who sent it, or "" for your own/server items) is folded into the
+-- announcement by announce().
+function M.receive(item_name, sender)
+    _item_sender = sender
     local handler = M.handlers[item_name]
     if handler then
         handler()
     else
         log.error("Unknown item received: " .. tostring(item_name))
     end
+    _item_sender = nil
 end
 
 -- reqscript returns the script's _ENV, not the explicit return value.
