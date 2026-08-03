@@ -23,7 +23,7 @@ local eventful   = require("plugins.eventful")
 local repeatUtil = require("repeat-util")
 
 local SCRIPT_NAME = "dwarfipelago"
-local SCRIPT_VERSION = "1.3.1"
+local SCRIPT_VERSION = "1.3.2"
 local POLL_TICKS  = 100  -- poll wealth/trade/goal checks every N ticks
 
 local function fmt_energy(j)
