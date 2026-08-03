@@ -1338,6 +1338,9 @@ local function poll_manager_orders()
                     pcall(function() pflag = checks.job_to_production_flag(order) end)
                     if pflag and not checks.production_flag(pflag) then
                         checks.set_production_flag(pflag)
+                        if pflag == "steel_bar" then
+                            dfhack.gui.showAnnouncement("[AP] The first steel has been forged!", COLOR_GREEN, true)
+                        end
                     end
                 end
             end
@@ -1949,6 +1952,9 @@ local function on_job_completed(job)
     local prod_flag = checks.job_to_production_flag(job)
     if prod_flag and not checks.production_flag(prod_flag) then
         checks.set_production_flag(prod_flag)
+        if prod_flag == "steel_bar" then
+            dfhack.gui.showAnnouncement("[AP] The first steel has been forged!", COLOR_GREEN, true)
+        end
     end
 
     -- "First Patient Treated": a doctor completes a hospital treatment job.
@@ -2341,9 +2347,10 @@ local function on_item_created(item_id)
                 dfhack.gui.showAnnouncement("[AP] A lavish roast has been prepared!", COLOR_GREEN, true)
             end
         end
-        -- Material-based firsts: steel bar, glass, soap. One decode until all three fire.
-        if not (checks.production_flag("steel_bar") and checks.production_flag("glass")
-                and checks.production_flag("soap")) then
+        -- Material-based firsts: glass, soap. One decode until both fire. (Steel is
+        -- gated on the STEEL_MAKING forging reaction via job_to_production_flag, so
+        -- embark steel bars - created when the wagon unpacks - don't count.)
+        if not (checks.production_flag("glass") and checks.production_flag("soap")) then
             local token
             local ok_mat, mat = pcall(dfhack.matinfo.decode, item)
             if ok_mat and mat then
@@ -2351,10 +2358,6 @@ local function on_item_created(item_id)
                 if ok_tok and tok then token = tok:upper() end
             end
             if token then
-                if t == "BAR" and token:find("STEEL") and not checks.production_flag("steel_bar") then
-                    checks.set_production_flag("steel_bar")
-                    dfhack.gui.showAnnouncement("[AP] The first steel has been forged!", COLOR_GREEN, true)
-                end
                 if token:find("GLASS") and not checks.production_flag("glass") then
                     checks.set_production_flag("glass")
                     dfhack.gui.showAnnouncement("[AP] Glass has been made!", COLOR_GREEN, true)

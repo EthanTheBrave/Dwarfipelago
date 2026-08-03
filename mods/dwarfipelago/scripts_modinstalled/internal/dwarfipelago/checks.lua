@@ -839,6 +839,7 @@ local function rprod(name, flag) REACTION_TO_PROD[name] = flag end
 rprod("BREW_DRINK_FROM_PLANT",        "brew")
 rprod("BREW_DRINK_FROM_PLANT_GROWTH", "brew")
 rprod("TAN_A_HIDE",                   "leather")
+rprod("STEEL_MAKING",                 "steel_bar")  -- gate First Steel Bar on the forging reaction, not embark bars
 
 function M.job_to_production_flag(job)
     if job and job.job_type then
