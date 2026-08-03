@@ -100,10 +100,8 @@ local function zone_quality_rank(zone)
     return value_to_tier(zone_room_value(zone))
 end
 
--- True if at least one Civzone of the given df.civzone_type exists.
--- Iterate the dedicated civzone list (buildings.other.ANY_ZONE), not the full
--- buildings.all with a getType() pcall per building - the old form was an every-
--- poll O(all-buildings) scan (one per unchecked room-zone check).
+-- True if a Civzone of the given type exists. Scans the dedicated zone list, not
+-- all of buildings.all (this runs every poll per unchecked room-zone check).
 local function has_zone_type(zone_type)
     local found = false
     pcall(function()
@@ -115,10 +113,8 @@ local function has_zone_type(zone_type)
     return found
 end
 
--- Best quality tier (0-7) reached by EACH quality-rated room type, as a table
--- keyed by df.civzone_type (Bedroom/Office/DiningHall/Tomb). -1 = no room of
--- that type yet. Computed in a single buildings.all pass and memoized per frame,
--- so the 20 per-room-tier checks that read it share one scan instead of 20.
+-- Best quality tier (0-7) per room type, keyed by civzone_type (-1 = none).
+-- One zone-list pass, memoized per frame so the ~20 tier checks share it.
 local _room_q_cache, _room_q_frame = nil, -1
 local function room_qualities()
     local frame = df.global.world.frame_counter or 0
@@ -143,14 +139,8 @@ local function room_quality(zone_type)
     return room_qualities()[zone_type] or -1
 end
 
--- True if any Civzone is assigned to a location whose abstract building passes
--- the given is_instance check (e.g. df.abstract_building_templest:is_instance).
--- True if any of the site's locations satisfies check_fn (e.g. a temple, tavern
--- or library exists). Scans ONLY the site's location list (a handful of entries),
--- never df.global.world.buildings.all. The old buildings.all + inner site.buildings
--- version was O(all-buildings x locations): on a busy fort with several
--- temples/guildhalls it ran every poll (per unchecked location check) and hitched
--- the frame enough to drop clicks. This matches best_location_tier's cheap scan.
+-- True if any of the site's locations satisfies check_fn (temple/tavern/library).
+-- Scans only the site location list, not buildings.all (runs every poll).
 local function has_location_type(check_fn)
     local found = false
     pcall(function()
@@ -540,9 +530,8 @@ M.checks = {
     { id = 37370795, name = "Slay 100 Enemies",        fn = function() return M.enemies_killed() >= 100 end },
     { id = 37370796, name = "Slay 200 Enemies",        fn = function() return M.enemies_killed() >= 200 end },
 
-    -- Fortress-life & industry milestones. legendary/power/trade/tame are latched
-    -- by poll detectors in dwarfipelago.lua; tavern/library read the live location
-    -- list like the temple checks. Apply to every goal.
+    -- Fortress-life milestones: legendary/power/trade/tame latched by detectors;
+    -- tavern/library read the live location list.
     { id = 37373000, name = "First Legendary Dwarf",   fn = function() return M.production_flag("legendary_dwarf") end },
     { id = 37373001, name = "Tavern Established",       fn = function() return has_location_type(function(b) return df.abstract_building_inn_tavernst:is_instance(b) end) end },
     { id = 37373002, name = "Library Established",      fn = function() return has_location_type(function(b) return df.abstract_building_libraryst:is_instance(b) end) end },
@@ -805,6 +794,7 @@ map("BrewDrink",               "brew")
 -- Materials
 map("SmeltOre",                "metal_bar")
 map("MeltMetalObject",         "metal_bar")
+map("MakeRawGlass",            "glass")   -- gate First Glass Made on the furnace job, not embark glass
 map("CutBlock",                "stone_block")
 map("ConstructBlocks",         "stone_block")  -- DF50+ name for cutting blocks
 map("WeaveCloth",              "cloth")
@@ -839,7 +829,11 @@ local function rprod(name, flag) REACTION_TO_PROD[name] = flag end
 rprod("BREW_DRINK_FROM_PLANT",        "brew")
 rprod("BREW_DRINK_FROM_PLANT_GROWTH", "brew")
 rprod("TAN_A_HIDE",                   "leather")
-rprod("STEEL_MAKING",                 "steel_bar")  -- gate First Steel Bar on the forging reaction, not embark bars
+-- Gate First Steel/Soap on the making reaction (not embark bars). Glass is a
+-- hardcoded job type (MakeRawGlass), mapped in JOB_TO_FLAG below.
+rprod("STEEL_MAKING",                 "steel_bar")
+rprod("MAKE_SOAP_FROM_TALLOW",        "soap")
+rprod("MAKE_SOAP_FROM_OIL",           "soap")
 
 function M.job_to_production_flag(job)
     if job and job.job_type then

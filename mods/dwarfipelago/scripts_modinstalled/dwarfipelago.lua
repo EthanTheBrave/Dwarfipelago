@@ -958,21 +958,10 @@ local function buy_shop(slot)
         ("[AP] Bought %s for %d coins."):format(tostring(entry.item or "item"), price), COLOR_GREEN, true)
 end
 
--- Merchant shrine detector: opens the shop when the player has a temple zone (a
--- Civzone assigned to a location) holding a built altar (OfferingPlace), a
--- container, the chosen bar type/count, and total item/furniture value >= threshold.
--- Bar type (gold/coke/silver) is read from dwarfipelago/shrine_bar_type.
--- Re-runs so the shrine must STAY intact for the shop to remain open.
--- Writes dwarfipelago/shop_unlocked + dwarfipelago/shrine_progress (for the panel).
---
--- Performance: this scans every item in the fort. It used to run that scan once
--- PER location zone (temple/tavern/library/...) EVERY poll, i.e. O(zones × items)
--- every 100 ticks - the single biggest per-poll cost on a large fort. It now:
---   * no-ops entirely when the Merchant's Shop option is off,
---   * makes ONE items.all pass, attributing each item to its zone (the expensive
---     value/type/material lookups run once per item, not once per item per zone),
---   * runs only every SHRINE_POLL_INTERVAL polls (the shop opening a few seconds
---     later is imperceptible, the cost saving is not).
+-- Merchant shrine detector: opens the shop when a temple zone holds a built altar,
+-- a container, the chosen bar type/count, and item value >= threshold. Re-runs so
+-- the shrine must stay intact. No-op when the shop is off; throttled to every
+-- SHRINE_POLL_INTERVAL polls.
 local SHRINE_VALUE_REQ = 5000
 local SHRINE_BAR_REQS  = {gold=5, coke=20, silver=10}
 local SHRINE_BAR_TOKS  = {gold="GOLD", coke="COKE", silver="SILVER"}
@@ -980,12 +969,9 @@ local SHRINE_POLL_INTERVAL = 5   -- run once every 5 polls (~every 500 ticks)
 local _shrine_poll_counter = 0
 
 -- ── Shrine marker ─────────────────────────────────────────────────────────────
--- A single forbidden gold statue placed in the zone the shop has claimed, so the
--- player can tell at a glance which temple is being watched. It is tracked by id
--- (shrine_marker), moved when the claimed zone changes, and garbage-collected
--- when no temple zone exists. The scan excludes it by id so it never counts
--- toward the shrine's own value requirement; it is left low enough in value not
--- to disturb DF's own temple-tier reading.
+-- A forbidden gold statue marking the claimed shrine zone, so the player can see
+-- which temple the shop watches. Tracked by id, moved when the zone changes,
+-- garbage-collected when none; excluded from the value scan by id.
 local SHRINE_MARKER_KEY  = "dwarfipelago/shrine_marker"
 local SHRINE_MARKER_ZONE = "dwarfipelago/shrine_marker_zone"
 
@@ -997,8 +983,7 @@ local function shrine_marker_material()
     end
 end
 
--- First open floor tile in the zone (so the marker never lands in a wall);
--- falls back to the zone centre.
+-- First open floor tile in the zone (marker never lands in a wall); else centre.
 local function shrine_floor_tile(best)
     local ok_shape = {
         [df.tiletype_shape.FLOOR]   = true,
@@ -1098,8 +1083,7 @@ local function detect_shrine()
             end
         end
 
-        -- 1. Collect the Civzones assigned to a temple location. Iterate the
-        --    dedicated zone list, not all of buildings.all.
+        -- 1. Civzones assigned to a temple location (dedicated zone list).
         local zones = {}
         for _, z in ipairs(df.global.world.buildings.other.ANY_ZONE) do
             local loc = -1
@@ -1117,8 +1101,7 @@ local function detect_shrine()
         end
         if #zones == 0 then return end
 
-        -- 2. Altar detection: iterate the dedicated OfferingPlace list, not all of
-        --    buildings.all, flagging any zone an altar overlaps.
+        -- 2. Altar: flag any zone an OfferingPlace overlaps (dedicated list).
         for _, b in ipairs(df.global.world.buildings.other.OFFERING_PLACE) do
             for _, zn in ipairs(zones) do
                 if b.z == zn.z and b.x1 <= zn.x2 and b.x2 >= zn.x1
@@ -1128,14 +1111,9 @@ local function detect_shrine()
             end
         end
 
-        -- 3. Item scan. Place LOOSE items by the cheap raw it.pos - the vast
-        --    majority never land in a zone, so the holder walk, value lookup and
-        --    container walk run only for the few that do. For each in-zone item we
-        --    walk its full container tree, so bars and valuables stored in a bin /
-        --    barrel / bag / coffer still count (what the old per-item getPosition
-        --    walk used to buy for EVERY item - now paid only for the handful in a
-        --    zone). counted[] prevents a double-count when a contained item also
-        --    reports an in-zone pos of its own.
+        -- 3. Item scan: cheap it.pos bbox first; only in-zone items pay the holder
+        --    walk and get their container tree walked (so binned bars/valuables
+        --    count). counted[] guards against double-counting.
         local counted = {}
         local function accrue(it, ity, zn)
             if counted[it.id] then return end
@@ -1292,6 +1270,13 @@ end
 local _order_amounts    = {}     -- order id -> { left=amount_left, total=amount_total }
 local _order_probe_logged = false
 
+-- First-production flags that announce when their gating job/reaction completes.
+local PROD_ANNOUNCE = {
+    steel_bar = "The first steel has been forged!",
+    glass     = "Glass has been made!",
+    soap      = "The first soap has been made!",
+}
+
 local function poll_manager_orders()
     local ok, list = pcall(function()
         local mo = df.global.world.manager_orders
@@ -1338,9 +1323,8 @@ local function poll_manager_orders()
                     pcall(function() pflag = checks.job_to_production_flag(order) end)
                     if pflag and not checks.production_flag(pflag) then
                         checks.set_production_flag(pflag)
-                        if pflag == "steel_bar" then
-                            dfhack.gui.showAnnouncement("[AP] The first steel has been forged!", COLOR_GREEN, true)
-                        end
+                        local msg = PROD_ANNOUNCE[pflag]
+                        if msg then dfhack.gui.showAnnouncement("[AP] " .. msg, COLOR_GREEN, true) end
                     end
                 end
             end
@@ -1766,9 +1750,8 @@ local function detect_harnessed_power()
     end
 end
 
--- Completed a Trade: while a merchant caravan is present, baseline the goods it
--- owns (trader flag); when one of those goods loses the trader flag it has been
--- bought - a completed trade. Baseline resets when no merchant is present.
+-- Completed a Trade: baseline a caravan's trader-flagged goods; fires when one
+-- loses the flag (bought). Baseline resets when no merchant is present.
 local _trade_baseline = nil
 local function detect_completed_trade()
     if checks.production_flag("completed_trade") then return end
@@ -1795,10 +1778,8 @@ local function detect_completed_trade()
     end
 end
 
--- Tamed a Wild Beast: a creature seen wild on the map later becomes tame (animal
--- training). Bought/bred tame animals are tame from first sight, so they are
--- never in the wild-seen set and don't count. In-memory set (rebuilt on reload;
--- the latched flag makes that harmless once it has fired).
+-- Tamed a Wild Beast: fires when a creature first seen wild later becomes tame.
+-- Bought/bred animals are tame from first sight, so they never enter _wild_seen.
 local _wild_seen = {}
 local function detect_tamed_beast()
     if checks.production_flag("tamed_beast") then return end
@@ -1952,9 +1933,8 @@ local function on_job_completed(job)
     local prod_flag = checks.job_to_production_flag(job)
     if prod_flag and not checks.production_flag(prod_flag) then
         checks.set_production_flag(prod_flag)
-        if prod_flag == "steel_bar" then
-            dfhack.gui.showAnnouncement("[AP] The first steel has been forged!", COLOR_GREEN, true)
-        end
+        local msg = PROD_ANNOUNCE[prod_flag]
+        if msg then dfhack.gui.showAnnouncement("[AP] " .. msg, COLOR_GREEN, true) end
     end
 
     -- "First Patient Treated": a doctor completes a hospital treatment job.
@@ -2347,27 +2327,8 @@ local function on_item_created(item_id)
                 dfhack.gui.showAnnouncement("[AP] A lavish roast has been prepared!", COLOR_GREEN, true)
             end
         end
-        -- Material-based firsts: glass, soap. One decode until both fire. (Steel is
-        -- gated on the STEEL_MAKING forging reaction via job_to_production_flag, so
-        -- embark steel bars - created when the wagon unpacks - don't count.)
-        if not (checks.production_flag("glass") and checks.production_flag("soap")) then
-            local token
-            local ok_mat, mat = pcall(dfhack.matinfo.decode, item)
-            if ok_mat and mat then
-                local ok_tok, tok = pcall(function() return mat:getToken() end)
-                if ok_tok and tok then token = tok:upper() end
-            end
-            if token then
-                if token:find("GLASS") and not checks.production_flag("glass") then
-                    checks.set_production_flag("glass")
-                    dfhack.gui.showAnnouncement("[AP] Glass has been made!", COLOR_GREEN, true)
-                end
-                if token:find("SOAP") and not checks.production_flag("soap") then
-                    checks.set_production_flag("soap")
-                    dfhack.gui.showAnnouncement("[AP] The first soap has been made!", COLOR_GREEN, true)
-                end
-            end
-        end
+        -- (First Steel/Glass/Soap are gated on their making job/reaction via
+        -- job_to_production_flag, so embark stock does not fire them.)
 
         -- Adamantine detection: fires the first time raw adamantine is mined (raw
         -- adamantine boulders when mined, or strands/wafers in some DF versions).

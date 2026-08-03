@@ -208,9 +208,7 @@ MOOD_LOCATIONS: list[LocationData] = [
 ]
 
 # ── Fortress-life & industry milestones ───────────────────────────────────────
-# Player-driven checks: master a skill, raise the other major locations, harness
-# power, complete a trade, tame a wild beast. Ids live in the 3000 gap (clear of
-# skillsanity <2200 and craftsanity >=100000).
+# Ids in the 3000 gap (clear of skillsanity <2200 and craftsanity >=100000).
 FORTRESS_LIFE_LOCATIONS: list[LocationData] = [
     LocationData("First Legendary Dwarf", BASE_ID + 3000, "Fortress"),
     LocationData("Tavern Established",     BASE_ID + 3001, "Fortress"),
