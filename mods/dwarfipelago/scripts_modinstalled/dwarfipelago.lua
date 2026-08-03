@@ -1117,44 +1117,57 @@ local function detect_shrine()
         end
         if #zones == 0 then return end
 
-        -- 2. Altar detection: one buildings pass (buildings are few), flagging any
-        --    zone an OfferingPlace overlaps.
-        for _, b in ipairs(df.global.world.buildings.all) do
-            local okb, bt = pcall(function() return b:getType() end)
-            if okb and bt == df.building_type.OfferingPlace then
-                for _, zn in ipairs(zones) do
-                    if b.z == zn.z and b.x1 <= zn.x2 and b.x2 >= zn.x1
-                            and b.y1 <= zn.y2 and b.y2 >= zn.y1 then
-                        zn.altar = true
-                    end
+        -- 2. Altar detection: iterate the dedicated OfferingPlace list, not all of
+        --    buildings.all, flagging any zone an altar overlaps.
+        for _, b in ipairs(df.global.world.buildings.other.OFFERING_PLACE) do
+            for _, zn in ipairs(zones) do
+                if b.z == zn.z and b.x1 <= zn.x2 and b.x2 >= zn.x1
+                        and b.y1 <= zn.y2 and b.y2 >= zn.y1 then
+                    zn.altar = true
                 end
             end
         end
 
-        -- 3. ONE items.all pass. The cheap pos/bbox test runs per item per zone,
-        --    but the expensive value/type/material lookups run only for an item
-        --    that actually lands in a zone (and then only once).
-        --    getPosition (not raw it.pos) resolves an item to its real map tile
-        --    THROUGH its container, so gold bars and valuables stored in a bin/
-        --    coffer count toward the zone; items a unit is carrying are excluded.
+        -- 3. Item scan. Place LOOSE items by the cheap raw it.pos - the vast
+        --    majority never land in a zone, so the holder walk, value lookup and
+        --    container walk run only for the few that do. For each in-zone item we
+        --    walk its full container tree, so bars and valuables stored in a bin /
+        --    barrel / bag / coffer still count (what the old per-item getPosition
+        --    walk used to buy for EVERY item - now paid only for the handful in a
+        --    zone). counted[] prevents a double-count when a contained item also
+        --    reports an in-zone pos of its own.
+        local counted = {}
+        local function accrue(it, ity, zn)
+            if counted[it.id] then return end
+            counted[it.id] = true
+            local ok, v = pcall(dfhack.items.getValue, it); if ok and v then zn.value = zn.value + v end
+            if ity == df.item_type.BAR then
+                local tok = ""
+                pcall(function()
+                    local m = dfhack.matinfo.decode(it.mat_type, it.mat_index)
+                    tok = (m and m:getToken()) or ""
+                end)
+                if tok:find(bar_tok) then zn.bars = zn.bars + (it.stack_size or 1) end
+            end
+        end
+        local function accrue_tree(it, zn)
+            local ity = it:getType()
+            accrue(it, ity, zn)
+            if ity == df.item_type.BIN or ity == df.item_type.BOX then zn.bin = true end
+            local ok, contents = pcall(dfhack.items.getContainedItems, it)
+            if ok and contents then
+                for _, ci in ipairs(contents) do accrue_tree(ci, zn) end
+            end
+        end
+
         for _, it in ipairs(df.global.world.items.all) do
-            local px, py, pz = dfhack.items.getPosition(it)
-            if px and (not marker_id or it.id ~= marker_id) and not checks.held_by_unit(it) then
+            local p = it.pos
+            if p and (not marker_id or it.id ~= marker_id) then
+                local px, py, pz = p.x, p.y, p.z
                 for _, zn in ipairs(zones) do
                     if pz == zn.z and px >= zn.x1 and px <= zn.x2
                             and py >= zn.y1 and py <= zn.y2 then
-                        local v = 0; pcall(function() v = dfhack.items.getValue(it) end)
-                        zn.value = zn.value + v
-                        local ity = it:getType()
-                        if ity == df.item_type.BIN or ity == df.item_type.BOX then zn.bin = true end
-                        if ity == df.item_type.BAR then
-                            local tok = ""
-                            pcall(function()
-                                local m = dfhack.matinfo.decode(it.mat_type, it.mat_index)
-                                tok = (m and m:getToken()) or ""
-                            end)
-                            if tok:find(bar_tok) then zn.bars = zn.bars + (it.stack_size or 1) end
-                        end
+                        if not checks.held_by_unit(it) then accrue_tree(it, zn) end
                         break  -- an item belongs to at most one zone
                     end
                 end
