@@ -89,21 +89,16 @@ end
 -- the announcement so you can see who sent it. Empty for your own/server items.
 local _item_sender = nil
 
--- Show a received-item announcement in the caravan-arrival style. With a pos it
--- zooms to that tile (physical items at the depot); without one it keeps the
--- caravan styling but doesn't move the camera (blueprints/permits/unlocks).
-local NO_ZOOM_POS = { x = -30000, y = -30000, z = -30000 }
+-- Received-item announcement in the caravan-arrival style (a clickable log line,
+-- never the alert/popup that showAutoAnnouncement raises). A pos zooms there on
+-- click; no pos uses an off-map tile (blueprints/permits - nothing to zoom to).
+-- showZoomAnnouncement never moves the camera or pauses on its own.
+local OFFMAP_POS = { x = -30000, y = -30000, z = -30000 }
 local function announce(msg, pos, atype)
     atype = atype or df.announcement_type.CARAVAN_ARRIVAL
     if _item_sender and _item_sender ~= "" then msg = msg .. " (from " .. _item_sender .. ")" end
-    if pos then
-        local ok = pcall(function()
-            dfhack.gui.showZoomAnnouncement(atype, pos, "[AP] " .. msg, COLOR_GREEN, true)
-        end)
-        if ok then return end
-    end
     local ok = pcall(function()
-        dfhack.gui.showAutoAnnouncement(atype, NO_ZOOM_POS, "[AP] " .. msg, COLOR_GREEN, true)
+        dfhack.gui.showZoomAnnouncement(atype, pos or OFFMAP_POS, "[AP] " .. msg, COLOR_GREEN, true)
     end)
     if not ok then dfhack.gui.showAnnouncement("[AP] " .. msg, COLOR_GREEN, true) end
 end
