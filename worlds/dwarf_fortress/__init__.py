@@ -236,10 +236,12 @@ class DwarfFortressWorld(World):
             if d.classification == ItemClassification.progression
         ]
         received_trap_names = {d.name for d in RECEIVED_TRAPS}
+        enabled_traps = set(self.options.enabled_traps.value)
+        all_trap_names = {d.name for d in TRAP_ITEMS} | received_trap_names
         # Traps that don't make sense for the chosen options. With craftpermits=all,
         # brewing is gated behind the Alcohol permit, so an ale-draining thirst trap
         # could leave a fort with no way to make more - exclude it in that mode.
-        excluded_trap_names: set[str] = set()
+        excluded_trap_names: set[str] = all_trap_names - enabled_traps
         if self.options.craftpermits == CraftingPermits.option_all:
             excluded_trap_names.add("Unquenchable Thirst")
         optional: list[ItemData] = [
@@ -326,9 +328,10 @@ class DwarfFortressWorld(World):
         #    Filler is chosen by weight, so useful materials show up far more than
         #    flavor trinkets and the rare low-grade tools.
         filler_weights = [f.weight for f in FILLER_ITEMS]
+        padding_traps = [t for t in TRAP_ITEMS if t.name in enabled_traps]
         while len(item_pool) < location_count:
-            if self.random.random() < trap_weight and TRAP_ITEMS:
-                item_pool.append(self.create_item(self.random.choice(TRAP_ITEMS).name))
+            if self.random.random() < trap_weight and padding_traps:
+                item_pool.append(self.create_item(self.random.choice(padding_traps).name))
             else:
                 choice = self.random.choices(FILLER_ITEMS, weights=filler_weights, k=1)[0]
                 item_pool.append(self.create_item(choice.name))

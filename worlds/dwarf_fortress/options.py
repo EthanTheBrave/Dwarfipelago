@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from Options import Choice, Range, PerGameCommonOptions, DeathLink, OptionList, Toggle, StartInventory, OptionGroup, DefaultOnToggle
+from Options import Choice, Range, PerGameCommonOptions, DeathLink, OptionList, OptionSet, Toggle, StartInventory, OptionGroup, DefaultOnToggle
 
 
 # ── General ────────────────────────────────────────────────────────────────
@@ -32,6 +32,18 @@ class TrapItemWeight(Range):
     range_start = 0
     range_end = 100
     default = 20
+
+
+class EnabledTraps(OptionSet):
+    """Which trap items are allowed in the pool. Uncheck a trap to keep it out of
+    every seed. Trap frequency overall is still governed by Trap Item Weight."""
+    display_name = "Enabled Traps"
+    valid_keys = {
+        "Ensnaring Webs", "Order Sabotage", "Goblin Saboteurs",
+        "Goblin Ambush", "Cave Bear Incursion", "Vermin Infestation",
+        "Unquenchable Thirst", "Lost Caravan", "Catsplosion",
+    }
+    default = valid_keys.copy()
 
 
 class TradesInLogic(Toggle):
@@ -488,6 +500,7 @@ class DwarfFortressOptions(PerGameCommonOptions):
     skillsanity_max_level: SkillsanityMaxLevel
     skillsanity_behaviour: SkillsanityLevelMechanic
     trap_item_weight: TrapItemWeight
+    enabled_traps: EnabledTraps
     exclude_deep_endgame_checks: ExcludeDeepEndgameChecks
     exclude_top_room_checks: ExcludeTopRoomChecks
     exclude_top_fortress_checks: ExcludeTopFortressChecks
@@ -510,6 +523,12 @@ dwarf_fortress_option_groups = [
         DeathLink,
         DeathLinkThreshold,
         DeathLinkPercentage,
+        DeathLinkSplit,
+        DeathLinkReceiveAmount,
+        DeathLinkSendThreshold,
+    ], start_collapsed=True),
+    OptionGroup("Traps", [
+        EnabledTraps,
     ], start_collapsed=True),
     OptionGroup("Craftsanity", [
         EnableCraftsanity,
