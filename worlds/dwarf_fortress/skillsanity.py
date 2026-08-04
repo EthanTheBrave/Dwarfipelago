@@ -661,9 +661,9 @@ class Skillsanity:
     def skill_clothier(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
         if self.world.options.craftpermits == CraftingPermits.option_off:
-            return dynamic_rules.clothier_workshop(state)
+            return dynamic_rules.job_type(state, "Clothworks") or dynamic_rules.job_type(state, "Silkworks")
         else:
-            return dynamic_rules.cloth_products(state)
+            return dynamic_rules.cloth_products(state) or dynamic_rules.silk_products(state)
     
     def skill_glassmaker(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
@@ -732,11 +732,13 @@ class Skillsanity:
     def skill_weaver(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
         if self.world.options.craftpermits != CraftingPermits.option_all:
-            return state.has("Loom Blueprint", self.player) and (state.has("Farm Plot Blueprint", self.player) \
-            or state.has("Farmer's Workshop Blueprint", self.player))
+            return state.has("Loom Blueprint", self.player) #We only need this due to silk cave
+            #and (state.has("Farm Plot Blueprint", self.player) \
+            #or state.has("Farmer's Workshop Blueprint", self.player))
         else:
-            return (state.has("Loom Blueprint", self.player) and (state.has("Farm Plot Blueprint", self.player) \
-            or state.has("Farmer's Workshop Blueprint", self.player))) and dynamic_rules.permit(state, "Cloth")
+            return state.has("Loom Blueprint", self.player) and dynamic_rules.permit(state, "Cloth / Silk") #We only need this due to silk cave
+            #and (state.has("Farm Plot Blueprint", self.player) \
+            #or state.has("Farmer's Workshop Blueprint", self.player))) and dynamic_rules.permit(state, "Cloth / Silk")
         
     def skill_woodcrafter(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)

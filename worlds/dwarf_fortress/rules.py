@@ -212,7 +212,7 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         loc.access_rule = lambda state: (dynamic_rules.metal(state) or dynamic_rules.wood(state))  \
               and dynamic_rules.mechanic_workshop(state)
     else:
-        loc.access_rule = lambda state: dynamic_rules.metal_or_cloth_ropechain(state) \
+        loc.access_rule = lambda state: dynamic_rules.metal_or_cloth_or_silk_ropechain(state) \
         and dynamic_rules.wood_or_stone_or_metal_or_glass_or_ceramic_blocks(state) and dynamic_rules.mechanic_mechanism(state) \
         and dynamic_rules.wood_or_metal_bucket(state)
     
@@ -363,7 +363,7 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         for items in BLUEPRINT_ITEMS:
             required_item_list.append(items.name)
         for items in CRAFT_ITEMS:
-            if items.name in {"Beds Permit", "Charcoal Permit", "Leather Permit", "Cloth Permit",
+            if items.name in {"Beds Permit", "Charcoal Permit", "Leather Permit", "Cloth / Silk Permit",
                 "Alcohol Permit", "Prepared Meal Permit", "Barrel Permit", "Burial Container Permit"} and options.craftpermits == CraftingPermits.option_on:
                 continue
             required_item_list.append(items.name)

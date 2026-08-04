@@ -33,12 +33,13 @@ class DynamicCraftingLocationRules:
             case "Clothworks":
                 return self.process_resource(state, "cloth") and state.has("Clothier's Shop Blueprint", self.player)
             case "Clothcraft":
-                return (self.process_resource(state, "cloth") or self.silk(state)) \
-                and self.craftdwarf_workshop(state)
+                return self.process_resource(state, "cloth") and self.craftdwarf_workshop(state)
             case "Silk":
                 return self.silk(state)
             case "Silkworks":
-                return self.silk(state) and state.has("Clothier's Shop Blueprint", self.player)
+                return self.process_resource(state, "silk") and state.has("Clothier's Shop Blueprint", self.player)
+            case "Silkcraft":
+                return self.process_resource(state, "silk") and self.craftdwarf_workshop(state)
             case "Adamantinecloth":
                 return self.adamantine_cloth(state)
             case "Glass":
@@ -94,11 +95,11 @@ class DynamicCraftingLocationRules:
         self.can_mine_adamantine(state) and state.has("Craftsdwarf's Workshop Blueprint", self.player)
 
     def silk(self, state:CollectionState) -> bool:
-        if self.world.options.trades_inlogic:
-            return True
+        if self.world.options.craftpermits != CraftingPermits.option_all:
+            return state.has("Loom Blueprint", self.player)
         else:
-            return self.process_resource(state, "silk") #silk can be obtained in a AP created cave between the surface and cavern1.
-            
+            return state.has("Loom Blueprint", self.player) and self.permit(state, "Cloth / Silk")
+    
     def silk_thread(self, state:CollectionState) -> bool:
         if self.world.options.trades_inlogic:
             return True
@@ -120,9 +121,6 @@ class DynamicCraftingLocationRules:
 
     def leathercraft(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leathercraft")
-
-    def clothcraftdwarf(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Clothcraft")
 
     def permit(self, state:CollectionState, permit:str) -> bool:
         return state.has(permit + " Permit", self.player)
@@ -169,7 +167,7 @@ class DynamicCraftingLocationRules:
                 and state.has("Loom Blueprint", self.player) 
             else:
                 return self.can_mine_adamantine(state) and state.has("Craftsdwarf's Workshop Blueprint", self.player) \
-                and state.has("Loom Blueprint", self.player) and self.permit(state, "Cloth")
+                and state.has("Loom Blueprint", self.player) and self.permit(state, "Cloth / Silk")
         elif resource == "cloth":
             if self.world.options.trades_inlogic:
                 return True
@@ -177,12 +175,15 @@ class DynamicCraftingLocationRules:
                 if self.world.options.craftpermits != CraftingPermits.option_all:
                     return self.cloth_thread(state) 
                 else:
-                    return self.cloth_thread(state) and self.permit(state, "Cloth")
+                    return self.cloth_thread(state) and self.permit(state, "Cloth / Silk")
         elif resource == "silk":
-            if self.world.options.craftpermits != CraftingPermits.option_all:
-                state.has("Loom Blueprint", self.player) 
+            if self.world.options.trades_inlogic:
+                return True
             else:
-                return state.has("Loom Blueprint", self.player) and self.permit(state, "Cloth")
+                if self.world.options.craftpermits != CraftingPermits.option_all:
+                    return state.has("Loom Blueprint", self.player) 
+                else:
+                    return state.has("Loom Blueprint", self.player) and self.permit(state, "Cloth / Silk")
         elif resource == "coke":
             if self.world.options.craftpermits == CraftingPermits.option_off:
                 return (self.can_fuel_workshops(state) and state.has("Smelter Blueprint", self.player)) \
@@ -248,8 +249,9 @@ class DynamicCraftingLocationRules:
         else:
             return self.process_resource(state, "metal")
         
-    def adamantine_or_cloth(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Clothworks") or self.job_type(state, "Adamantinecloth")
+    def adamantine_or_cloth_or_silk(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Clothworks") or self.job_type(state, "Adamantinecloth") \
+        or self.job_type(state, "Silkworks")
 
     def adamantinecloth_or_leather(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinecloth") or self.job_type(state, "Leatherworks") 
@@ -301,6 +303,12 @@ class DynamicCraftingLocationRules:
     
     def craftdwarf_workshop(self, state:CollectionState) -> bool:
         return state.has("Craftsdwarf's Workshop Blueprint", self.player)
+
+    def cloth_craftdwarf_workshop(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Clothcraft")
+
+    def silk_craftdwarf_workshop(self, state:CollectionState) -> bool:
+            return self.job_type(state, "Silkcraft")
     
     def mechanic_workshop(self, state:CollectionState) -> bool:
         return state.has("Mechanic's Workshop Blueprint", self.player)
@@ -310,6 +318,12 @@ class DynamicCraftingLocationRules:
 
     def clothier_workshop(self, state:CollectionState) -> bool:
         return state.has("Clothier's Shop Blueprint", self.player)
+
+    def cloth_clothier_workshop(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Clothworks")
+
+    def silk_clothier_workshop(self, state:CollectionState) -> bool:
+            return self.job_type(state, "Silkworks")
     
     def famer_workshop(self, state:CollectionState) -> bool:
         return state.has("Farmer's Workshop Blueprint", self.player)
@@ -397,14 +411,15 @@ class DynamicCraftingLocationRules:
     def metal_or_bone(self, state:CollectionState) -> bool:
         return self.job_type(state, "Metal") or self.job_type(state, "Bonecraft")
     
-    def metal_or_cloth(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") or self.job_type(state, "Clothworks")
+    def metal_or_cloth_or_silk(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Metal") or self.job_type(state, "Clothworks") or self.job_type(state, "Silkworks")
 
     def metal_or_bone_or_leather(self, state:CollectionState) -> bool:
         return self.job_type(state, "Metal") or self.job_type(state, "Leatherworks") or self.job_type(state, "Bonecraft")
     
-    def metal_or_cloth_or_leather(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") or self.job_type(state, "Leatherworks") or self.job_type(state, "Clothworks")
+    def metal_or_cloth_or_silk_or_leather(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Metal") or self.job_type(state, "Leatherworks") or self.job_type(state, "Clothworks") \
+        or self.job_type(state, "Silkworks")
     
     def make_paper(self, state:CollectionState) -> bool:
         return self.famer_workshop(state) or self.screw_press(state) or state.has("Tanner's Blueprint", self.player)
@@ -415,11 +430,12 @@ class DynamicCraftingLocationRules:
     def ashery_and_kiln(self, state:CollectionState) -> bool:
         return self.ashery(state) and self.job_type(state, "Ceramics")
     
-    def leather_or_cloth(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Clothworks") or self.job_type(state, "Leatherworks")
+    def leather_or_cloth_or_silk_or_silk(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Clothworks") or self.job_type(state, "Silkworks") or self.job_type(state, "Leatherworks")
     
-    def leather_or_cloth_or_adamantinecloth(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Clothworks") or self.job_type(state, "Leatherworks") or self.job_type(state, "Adamantinecloth")
+    def leather_or_cloth_or_silk_or_adamantinecloth(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Clothworks") or self.job_type(state, "Silkworks") or self.job_type(state, "Leatherworks") \
+        or self.job_type(state, "Adamantinecloth")
     
     def dye(self, state:CollectionState) -> bool:
         if self.world.options.trades_inlogic:
@@ -933,6 +949,8 @@ class DynamicCraftingLocationRules:
         return self.job_type(state, "Ceramics") and self.permit(state, "Crafts")
     def cloth_crafts(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothcraft")
+    def silk_crafts(self, state:CollectionState) -> bool:
+            return self.job_type(state, "Silkcraft")
     def leather_crafts(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leathercraft") and self.permit(state, "Crafts")
     def craftdwarf_or_metal_or_glass_crafts(self, state:CollectionState) -> bool:
@@ -946,23 +964,23 @@ class DynamicCraftingLocationRules:
         return self.mechanic_workshop(state) and self.job_type(state, "Adamantinemetal")
     
     def wood_crafting_tractionbench(self, state:CollectionState) -> bool:
-        return self.wood_table(state) and self.metal_or_cloth_ropechain(state) \
+        return self.wood_table(state) and self.metal_or_cloth_or_silk_ropechain(state) \
             and self.mechanic_mechanism(state) and self.permit(state, "Traction Bench")
     def stone_crafting_tractionbench(self, state:CollectionState) -> bool:
-        return self.stone_table(state) and self.metal_or_cloth_ropechain(state) \
+        return self.stone_table(state) and self.metal_or_cloth_or_silk_ropechain(state) \
             and self.mechanic_mechanism(state) and self.permit(state, "Traction Bench")
     def metal_crafting_tractionbench(self, state:CollectionState) -> bool:
-        return self.metal_table(state) and self.metal_or_cloth_ropechain(state) \
+        return self.metal_table(state) and self.metal_or_cloth_or_silk_ropechain(state) \
             and self.mechanic_mechanism(state) and self.permit(state, "Traction Bench")
     def adamantine_crafting_tractionbench(self, state:CollectionState) -> bool:
-        return self.adamantine_table(state) and self.metal_or_cloth_ropechain(state) \
+        return self.adamantine_table(state) and self.metal_or_cloth_or_silk_ropechain(state) \
             and self.mechanic_mechanism(state) and self.permit(state, "Traction Bench")
     def glass_crafting_tractionbench(self, state:CollectionState) -> bool:
-        return self.glass_table(state) and self.metal_or_cloth_ropechain(state) \
+        return self.glass_table(state) and self.metal_or_cloth_or_silk_ropechain(state) \
             and self.mechanic_mechanism(state) and self.permit(state, "Traction Bench")
     def any_crafting_tractionbench(self, state:CollectionState) -> bool:
         return (self.wood_table(state) or self.stone_table(state) or self.metal_table(state) \
-            or self.glass_table(state)) and self.metal_or_cloth_ropechain(state) \
+            or self.glass_table(state)) and self.metal_or_cloth_or_silk_ropechain(state) \
             and self.mechanic_mechanism(state) and self.permit(state, "Traction Bench")
     
     def glass_liquidcontainer(self, state:CollectionState) -> bool:
@@ -1063,7 +1081,7 @@ class DynamicCraftingLocationRules:
             return state.has("Loom Blueprint", self.player) and state.has("Farm Plot Blueprint", self.player)
         else:
             return state.has("Loom Blueprint", self.player) and state.has("Farm Plot Blueprint", self.player) \
-            and self.permit(state, "Cloth")
+            and self.permit(state, "Cloth / Silk")
 
     def make_alcohol(self, state:CollectionState) -> bool:
         return self.still(state) and self.permit(state, "Alcohol")
@@ -1105,19 +1123,23 @@ class DynamicCraftingLocationRules:
     
     def cloth_bag(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothworks") and self.permit(state, "Bag")
+    def silk_bag(self, state:CollectionState) -> bool:
+            return self.job_type(state, "Silkworks") and self.permit(state, "Bag")
     def leather_bag(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks") and self.permit(state, "Bag")
-    def leather_or_cloth_bag(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Bag")
+    def leather_or_cloth_or_silk_or_silk_bag(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth_or_silk_or_adamantinecloth(state) and self.permit(state, "Bag")
     
     def metal_chain(self, state:CollectionState) -> bool:
         return self.job_type(state, "Metal") and self.permit(state, "Rope/Chain")
     def adamantine_chain(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinemetal") and self.permit(state, "Rope/Chain")
-    def make_rope(self, state:CollectionState) -> bool:
+    def make_cloth_rope(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothworks") and self.permit(state, "Rope/Chain")
-    def metal_or_cloth_ropechain(self, state:CollectionState) -> bool:
-        return self.metal_or_cloth(state) and self.permit(state, "Rope/Chain")
+    def make_silk_rope(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkworks") and self.permit(state, "Rope/Chain")
+    def metal_or_cloth_or_silk_ropechain(self, state:CollectionState) -> bool:
+        return self.metal_or_cloth_or_silk(state) and self.permit(state, "Rope/Chain")
 
     def metal_battleaxe(self, state:CollectionState) -> bool:
         return self.job_type(state, "Metal") and self.permit(state, "Battle Axe")
@@ -1183,6 +1205,10 @@ class DynamicCraftingLocationRules:
     
     def craftdwarf_amulet(self, state:CollectionState) -> bool:
         return self.job_type(state, "Stonecraft") and self.permit(state, "Amulet")
+    def cloth_craftdwarf_amulet(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Clothcraft") and self.permit(state, "Amulet")
+    def silk_craftdwarf_amulet(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkcraft") and self.permit(state, "Amulet")
     def bonecraftdwarf_amulet(self, state:CollectionState) -> bool:
         return self.job_type(state, "Bonecraft") and self.permit(state, "Amulet")
     def leather_amulet(self, state:CollectionState) -> bool:
@@ -1196,6 +1222,10 @@ class DynamicCraftingLocationRules:
     
     def craftdwarf_bracelet(self, state:CollectionState) -> bool:
         return self.job_type(state, "Stonecraft") and self.permit(state, "Bracelet")
+    def cloth_craftdwarf_bracelet(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Clothcraft") and self.permit(state, "Bracelet")
+    def silk_craftdwarf_bracelet(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkcraft") and self.permit(state, "Bracelet")
     def bonecraftdwarf_bracelet(self, state:CollectionState) -> bool:
         return self.job_type(state, "Bonecraft") and self.permit(state, "Bracelet")
     def leather_bracelet(self, state:CollectionState) -> bool:
@@ -1211,8 +1241,10 @@ class DynamicCraftingLocationRules:
         return self.job_type(state, "Stonecraft") and self.permit(state, "Earring")
     def bonecraftdwarf_earring(self, state:CollectionState) -> bool:
         return self.job_type(state, "Bonecraft") and self.permit(state, "Earring")
-    def clothcraftdwarf_earring(self, state:CollectionState) -> bool:
+    def cloth_craftdwarf_earring(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothcraft") and self.permit(state, "Earring")
+    def silk_craftdwarf_earring(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkcraft") and self.permit(state, "Earring")
     def leather_earring(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leathercraft") and self.permit(state, "Earring")
     def metal_earring(self, state:CollectionState) -> bool:
@@ -1317,39 +1349,47 @@ class DynamicCraftingLocationRules:
     
     def cloth_gloves(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothworks") and self.permit(state, "Gloves")
+    def silk_gloves(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkworks") and self.permit(state, "Gloves")
     def adamantine_gloves(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinecloth") and self.permit(state, "Gloves")
     def leather_gloves(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks") and self.permit(state, "Gloves")
-    def leather_or_cloth_or_adamantine_gloves(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Gloves")
+    def leather_or_cloth_or_silk_or_adamantine_gloves(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth_or_silk_or_adamantinecloth(state) and self.permit(state, "Gloves")
     
     def cloth_mittens(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothworks") and self.permit(state, "Mittens")
+    def silk_mittens(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkworks") and self.permit(state, "Mittens")
     def adamantine_mittens(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinecloth") and self.permit(state, "Mittens")
     def leather_mittens(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks") and self.permit(state, "Mittens")
-    def leather_or_cloth_or_adamantine_mittens(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Mittens")
+    def leather_or_cloth_or_silk_or_adamantine_mittens(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth_or_silk_or_adamantinecloth(state) and self.permit(state, "Mittens")
     
     def cloth_loincloth(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothworks") and self.permit(state, "Loincloth")
+    def silk_loincloth(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkworks") and self.permit(state, "Loincloth")
     def adamantine_loincloth(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinecloth") and self.permit(state, "Loincloth")
     def leather_loincloth(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks") and self.permit(state, "Loincloth")
-    def leather_or_cloth_or_adamantine_loincloth(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Loincloth")
+    def leather_or_cloth_or_silk_or_adamantine_loincloth(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth_or_silk_or_adamantinecloth(state) and self.permit(state, "Loincloth")
     
     def cloth_trousers(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothworks") and self.permit(state, "Trousers")
+    def silk_trousers(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkworks") and self.permit(state, "Trousers")
     def adamantine_trousers(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinecloth") and self.permit(state, "Trousers")
     def leather_trousers(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks") and self.permit(state, "Trousers")
-    def leather_or_cloth_or_adamantine_trousers(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Trousers")
+    def leather_or_cloth_or_silk_or_adamantine_trousers(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth_or_silk_or_adamantinecloth(state) and self.permit(state, "Trousers")
     
     def bone_leggings(self, state:CollectionState) -> bool:
         return self.job_type(state, "Bonecraft") and self.permit(state, "Leggings")
@@ -1373,19 +1413,23 @@ class DynamicCraftingLocationRules:
     
     def cloth_socks(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothworks") and self.permit(state, "Socks")
+    def silk_socks(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkworks") and self.permit(state, "Socks")
     def adamantine_socks(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinecloth") and self.permit(state, "Socks")
-    def cloth_or_adamantine_socks(self, state:CollectionState) -> bool:
-        return self.cloth_socks(state) or self.adamantine_socks(state)
+    def cloth_or_silk_or_adamantine_socks(self, state:CollectionState) -> bool:
+        return self.cloth_socks(state) or self.adamantine_socks(state) or self.silk_socks(state)
 
     def cloth_shoes(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothworks") and self.permit(state, "Shoes")
+    def silk_shoes(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkworks") and self.permit(state, "Shoes")
     def adamantine_shoes(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinecloth") and self.permit(state, "Shoes")
     def leather_shoes(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks") and self.permit(state, "Shoes")
-    def leather_or_cloth_or_adamantine_shoes(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Shoes")
+    def leather_or_cloth_or_silk_or_adamantine_shoes(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth_or_silk_or_adamantinecloth(state) and self.permit(state, "Shoes")
 
     def metal_lboots(self, state:CollectionState) -> bool:
         return self.job_type(state, "Metal") and self.permit(state, "Low Boots")
@@ -1431,107 +1475,129 @@ class DynamicCraftingLocationRules:
     
     def cloth_cap(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothworks") and self.permit(state, "Cap")
+    def silk_cap(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkworks") and self.permit(state, "Cap")
     def leather_cap(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks") and self.permit(state, "Cap")
     def metal_cap(self, state:CollectionState) -> bool:
         return self.job_type(state, "Metal") and self.permit(state, "Cap")
     def adamantine_cap(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinemetal") and self.permit(state, "Cap")
-    def metal_or_cloth_or_leather_cap(self, state:CollectionState) -> bool:
-        return self.metal_or_cloth_or_leather(state) and self.permit(state, "Cap")
+    def metal_or_cloth_or_silk_or_leather_cap(self, state:CollectionState) -> bool:
+        return self.metal_or_cloth_or_silk_or_leather(state) and self.permit(state, "Cap")
     
     def cloth_hood(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothworks") and self.permit(state, "Hood")
+    def silk_hood(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkworks") and self.permit(state, "Hood")
     def adamantine_hood(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinecloth") and self.permit(state, "Hood")
     def leather_hood(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks") and self.permit(state, "Hood")
-    def leather_or_cloth_or_adamantine_hood(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Hood")
+    def leather_or_cloth_or_silk_or_adamantine_hood(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth_or_silk_or_adamantinecloth(state) and self.permit(state, "Hood")
     
     def cloth_shirt(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothworks") and self.permit(state, "Shirt")
+    def silk_shirt(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkworks") and self.permit(state, "Shirt")
     def adamantine_shirt(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinecloth") and self.permit(state, "Shirt")
     def leather_shirt(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks") and self.permit(state, "Shirt")
-    def leather_or_cloth_or_adamantine_shirt(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Shirt")
+    def leather_or_cloth_or_silk_or_adamantine_shirt(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth_or_silk_or_adamantinecloth(state) and self.permit(state, "Shirt")
     
     def cloth_vest(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothworks") and self.permit(state, "Vest")
+    def silk_vest(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkworks") and self.permit(state, "Vest")
     def adamantine_vest(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinecloth") and self.permit(state, "Vest")
     def leather_vest(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks") and self.permit(state, "Vest")
-    def leather_or_cloth_or_adamantine_vest(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Vest")
+    def leather_or_cloth_or_silk_or_adamantine_vest(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth_or_silk_or_adamantinecloth(state) and self.permit(state, "Vest")
     
     def cloth_coat(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothworks") and self.permit(state, "Coat")
+    def silk_coat(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkworks") and self.permit(state, "Coat")
     def adamantine_coat(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinecloth") and self.permit(state, "Coat")
     def leather_coat(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks") and self.permit(state, "Coat")
-    def leather_or_cloth_or_adamantine_coat(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Coat")
+    def leather_or_cloth_or_silk_or_adamantine_coat(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth_or_silk_or_adamantinecloth(state) and self.permit(state, "Coat")
     
     def cloth_cloak(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothworks") and self.permit(state, "Cloak")
+    def silk_cloak(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkworks") and self.permit(state, "Cloak")
     def adamantine_cloak(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinecloth") and self.permit(state, "Cloak")
     def leather_cloak(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks") and self.permit(state, "Cloak")
-    def leather_or_cloth_or_adamantine_cloak(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Cloak")
+    def leather_or_cloth_or_silk_or_adamantine_cloak(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth_or_silk_or_adamantinecloth(state) and self.permit(state, "Cloak")
     
     def leather_leatherarmor(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks") and self.permit(state, "Leather Armor")
     
     def cloth_tunic(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothworks") and self.permit(state, "Tunic")
+    def silk_tunic(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkworks") and self.permit(state, "Tunic")
     def adamantine_tunic(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinecloth") and self.permit(state, "Tunic")
     def leather_tunic(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks") and self.permit(state, "Tunic")
-    def leather_or_cloth_or_adamantine_tunic(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Tunic")
+    def leather_or_cloth_or_silk_or_adamantine_tunic(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth_or_silk_or_adamantinecloth(state) and self.permit(state, "Tunic")
     
     def cloth_dress(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothworks") and self.permit(state, "Dress")
+    def silk_dress(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkworks") and self.permit(state, "Dress")
     def adamantine_dress(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinecloth") and self.permit(state, "Dress")
     def leather_dress(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks") and self.permit(state, "Dress")
-    def leather_or_cloth_or_adamantine_dress(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Dress")
+    def leather_or_cloth_or_silk_or_adamantine_dress(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth_or_silk_or_adamantinecloth(state) and self.permit(state, "Dress")
     
     def cloth_toga(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothworks") and self.permit(state, "Toga")
+    def silk_toga(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkworks") and self.permit(state, "Toga")
     def adamantine_toga(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinecloth") and self.permit(state, "Toga")
     def leather_toga(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks") and self.permit(state, "Toga")
-    def leather_or_cloth_or_adamantine_toga(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Toga")
+    def leather_or_cloth_or_silk_or_adamantine_toga(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth_or_silk_or_adamantinecloth(state) and self.permit(state, "Toga")
     
     def cloth_robe(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothworks") and self.permit(state, "Robe")
+    def silk_robe(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkworks") and self.permit(state, "Robe")
     def adamantine_robe(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinecloth") and self.permit(state, "Robe")
     def leather_robe(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks") and self.permit(state, "Robe")
-    def leather_or_cloth_or_adamantine_robe(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Robe")
+    def leather_or_cloth_or_silk_or_adamantine_robe(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth_or_silk_or_adamantinecloth(state) and self.permit(state, "Robe")
     
     def cloth_braies(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothworks") and self.permit(state, "Braies")
+    def silk_braies(self, state:CollectionState) -> bool:
+        return self.job_type(state, "Silkworks") and self.permit(state, "Braies")
     def adamantine_braies(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinecloth") and self.permit(state, "Braies")
     def leather_braies(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks") and self.permit(state, "Braies")
-    def leather_or_cloth_or_adamantine_braies(self, state:CollectionState) -> bool:
-        return self.leather_or_cloth_or_adamantinecloth(state) and self.permit(state, "Braies")
+    def leather_or_cloth_or_silk_or_adamantine_braies(self, state:CollectionState) -> bool:
+        return self.leather_or_cloth_or_silk_or_adamantinecloth(state) and self.permit(state, "Braies")
     
     def leather_products(self, state:CollectionState) -> bool:
         return self.leather_cap(state) or self.leather_hood(state) \
@@ -1592,6 +1658,18 @@ class DynamicCraftingLocationRules:
         or self.cloth_tunic(state) or self.cloth_dress(state) \
         or self.cloth_toga(state) or self.cloth_robe(state) \
         or self.cloth_braies(state)
+
+    def silk_products(self, state:CollectionState) -> bool:
+        return self.silk_bag(state) or self.silk_cap(state) \
+        or self.silk_crafts(state) or self.silk_hood(state) \
+        or self.silk_shirt(state) or self.silk_vest(state) \
+        or self.silk_coat(state) or self.silk_cloak(state) \
+        or self.silk_gloves(state) or self.silk_mittens(state) \
+        or self.silk_loincloth(state) or self.silk_trousers(state) \
+        or self.silk_socks(state) or self.silk_shoes(state) \
+        or self.silk_tunic(state) or self.silk_dress(state) \
+        or self.silk_toga(state) or self.silk_robe(state) \
+        or self.silk_braies(state)
     
     def armor(self, state:CollectionState) -> bool:
         return (self.metal_mailshirt(state) or self.metal_breastplate(state) \
@@ -2757,7 +2835,12 @@ class DynamicCraftingLocationRules:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.cloth_crafts)
                     else:
-                        set_rule(loc, self.clothcraftdwarf)
+                        set_rule(loc, self.cloth_craftdwarf_workshop)
+                elif material_type == "Silk":  
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_crafts)
+                    else:
+                        set_rule(loc, self.silk_craftdwarf_workshop)
                 elif material_type == "Leather":  
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.leather_crafts)
@@ -3022,6 +3105,8 @@ class DynamicCraftingLocationRules:
                     set_rule(loc, self.make_paper)
             case "Cloth":
                 set_rule(loc, self.cloth)
+            case "Silk":
+                set_rule(loc, self.silk)
             case "Alcohol":
                 if self.world.options.craftpermits == CraftingPermits.option_all:
                     set_rule(loc, self.make_alcohol)
@@ -3093,7 +3178,12 @@ class DynamicCraftingLocationRules:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.cloth_bag)
                     else:   
-                        set_rule(loc, self.clothier_workshop)
+                        set_rule(loc, self.cloth_clothier_workshop)
+                if material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_bag)
+                    else:   
+                        set_rule(loc, self.silk_clothier_workshop)
                 elif material_type == "Leather":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.leather_bag)
@@ -3101,15 +3191,20 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_bag)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_silk_bag)
                     else:
-                        set_rule(loc, self.leather_or_cloth)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_silk)
             case "Rope/Chain":
                 if material_type == "Cloth":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.make_rope)
+                        set_rule(loc, self.make_cloth_rope)
                     else:
-                        set_rule(loc, self.clothier_workshop)
+                        set_rule(loc, self.cloth_clothier_workshop)
+                if material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.make_cloth_rope)
+                    else:
+                        set_rule(loc, self.silk_clothier_workshop)
                 elif material_type == "Metal":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.metal_chain)
@@ -3122,9 +3217,9 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.adamantine_metal)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.metal_or_cloth_ropechain)
+                        set_rule(loc, self.metal_or_cloth_or_silk_ropechain)
                     else:
-                        set_rule(loc, self.metal_or_cloth)
+                        set_rule(loc, self.metal_or_cloth_or_silk)
             case "Battle Axe":
                 if material_type == "Adamantine":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
@@ -3261,11 +3356,21 @@ class DynamicCraftingLocationRules:
                 else:
                     set_rule(loc, self.seige_workshop)
             case "Amulet":
-                if material_type in {"Wood", "Stone", "Cloth"}:
+                if material_type in {"Wood", "Stone"}:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.craftdwarf_amulet)
                     else:
                         set_rule(loc, self.craftdwarf_workshop)
+                elif material_type == "Cloth":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.cloth_craftdwarf_amulet)
+                    else:
+                        set_rule(loc, self.cloth_craftdwarf_workshop)
+                elif material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_craftdwarf_amulet)
+                    else:
+                        set_rule(loc, self.silk_craftdwarf_workshop)
                 elif material_type == "Bone":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.bonecraftdwarf_amulet)
@@ -3292,11 +3397,21 @@ class DynamicCraftingLocationRules:
                     else:
                         set_rule(loc, self.craftdwarf_or_metal)
             case "Bracelet":
-                if material_type in {"Wood", "Stone", "Cloth"}:
+                if material_type in {"Wood", "Stone"}:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.craftdwarf_bracelet)
                     else:
                         set_rule(loc, self.craftdwarf_workshop)
+                elif material_type == "Cloth":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.cloth_craftdwarf_bracelet)
+                    else:
+                        set_rule(loc, self.cloth_craftdwarf_workshop)
+                elif material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_craftdwarf_bracelet)
+                    else:
+                        set_rule(loc, self.silk_craftdwarf_workshop)
                 elif material_type == "Bone":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.bonecraftdwarf_bracelet)
@@ -3397,9 +3512,14 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leathercraft)
                 elif material_type == "Cloth":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.clothcraftdwarf_earring)
+                        set_rule(loc, self.cloth_craftdwarf_earring)
                     else:
-                        set_rule(loc, self.clothcraftdwarf)
+                        set_rule(loc, self.cloth_craftdwarf_workshop)
+                elif material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_craftdwarf_earring)
+                    else:
+                        set_rule(loc, self.silk_craftdwarf_workshop)
                 elif material_type == "Metal":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.metal_earring)
@@ -3539,7 +3659,12 @@ class DynamicCraftingLocationRules:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.cloth_cap)
                     else:
-                        set_rule(loc, self.clothier_workshop)
+                        set_rule(loc, self.cloth_clothier_workshop)
+                elif material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_cap)
+                    else:
+                        set_rule(loc, self.silk_clothier_workshop)
                 elif material_type == "Leather":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.leather_cap)
@@ -3557,15 +3682,20 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.adamantine_metal)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.metal_or_cloth_or_leather_cap)
+                        set_rule(loc, self.metal_or_cloth_or_silk_or_leather_cap)
                     else:
-                        set_rule(loc, self.metal_or_cloth_or_leather) 
+                        set_rule(loc, self.metal_or_cloth_or_silk_or_leather) 
             case "Hood":
                 if material_type == "Cloth":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.cloth_hood)
                     else:
-                        set_rule(loc, self.clothier_workshop)
+                        set_rule(loc, self.cloth_clothier_workshop)
+                elif material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_hood)
+                    else:
+                        set_rule(loc, self.silk_clothier_workshop)
                 elif material_type == "Adamantine":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.adamantine_hood)
@@ -3578,15 +3708,20 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_or_adamantine_hood)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantine_hood)
                     else:
-                        set_rule(loc, self.leather_or_cloth_or_adamantinecloth)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantinecloth)
             case "Shirt":
                 if material_type == "Cloth":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.cloth_shirt)
                     else:
-                        set_rule(loc, self.clothier_workshop)
+                        set_rule(loc, self.cloth_clothier_workshop)
+                elif material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_shirt)
+                    else:
+                        set_rule(loc, self.silk_clothier_workshop)
                 elif material_type == "Adamantine":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.adamantine_shirt)
@@ -3599,15 +3734,20 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_or_adamantine_shirt)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantine_shirt)
                     else:
-                        set_rule(loc, self.leather_or_cloth_or_adamantinecloth)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantinecloth)
             case "Vest": 
                 if material_type == "Cloth":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.cloth_vest)
                     else:
-                        set_rule(loc, self.clothier_workshop)
+                        set_rule(loc, self.cloth_clothier_workshop)
+                elif material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_vest)
+                    else:
+                        set_rule(loc, self.silk_clothier_workshop)
                 elif material_type == "Adamantine":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.adamantine_vest)
@@ -3620,15 +3760,20 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_or_adamantine_vest)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantine_vest)
                     else:
-                        set_rule(loc, self.leather_or_cloth_or_adamantinecloth)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantinecloth)
             case "Coat": 
                 if material_type == "Cloth":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.cloth_coat)
                     else:
-                        set_rule(loc, self.clothier_workshop)
+                        set_rule(loc, self.cloth_clothier_workshop)
+                elif material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_coat)
+                    else:
+                        set_rule(loc, self.silk_clothier_workshop)
                 elif material_type == "Adamantine":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.adamantine_coat)
@@ -3641,15 +3786,20 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_or_adamantine_coat)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantine_coat)
                     else:
-                        set_rule(loc, self.leather_or_cloth_or_adamantinecloth)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantinecloth)
             case "Cloak":
                 if material_type == "Cloth":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.cloth_cloak)
                     else:
-                        set_rule(loc, self.clothier_workshop)
+                        set_rule(loc, self.cloth_clothier_workshop)
+                elif material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_cloak)
+                    else:
+                        set_rule(loc, self.silk_clothier_workshop)
                 elif material_type == "Adamantine":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.adamantine_cloak)
@@ -3662,9 +3812,9 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_or_adamantine_cloak)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantine_cloak)
                     else:
-                        set_rule(loc, self.leather_or_cloth_or_adamantinecloth)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantinecloth)
             case "Leather Armor":
                 if self.world.options.craftpermits != CraftingPermits.option_off:
                     set_rule(loc, self.leather_leatherarmor)
@@ -3697,7 +3847,12 @@ class DynamicCraftingLocationRules:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.cloth_gloves)
                     else:
-                        set_rule(loc, self.clothier_workshop)
+                        set_rule(loc, self.cloth_clothier_workshop)
+                elif material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_gloves)
+                    else:
+                        set_rule(loc, self.silk_clothier_workshop)
                 elif material_type == "Adamantine":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.adamantine_gloves)
@@ -3710,15 +3865,20 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_or_adamantine_gloves)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantine_gloves)
                     else:
-                        set_rule(loc, self.leather_or_cloth_or_adamantinecloth)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantinecloth)
             case "Mittens":
                 if material_type == "Cloth":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.cloth_mittens)
                     else:
-                        set_rule(loc, self.clothier_workshop)
+                        set_rule(loc, self.cloth_clothier_workshop)
+                elif material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_mittens)
+                    else:
+                        set_rule(loc, self.silk_clothier_workshop)
                 elif material_type == "Adamantine":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.adamantine_mittens)
@@ -3731,15 +3891,20 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_or_adamantine_mittens)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantine_mittens)
                     else:
-                        set_rule(loc, self.leather_or_cloth_or_adamantinecloth)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantinecloth)
             case "Loincloth":
                 if material_type == "Cloth":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.cloth_loincloth)
                     else:
-                        set_rule(loc, self.clothier_workshop)
+                        set_rule(loc, self.cloth_clothier_workshop)
+                elif material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_loincloth)
+                    else:
+                        set_rule(loc, self.silk_clothier_workshop)
                 elif material_type == "Adamantine":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.adamantine_loincloth)
@@ -3752,15 +3917,20 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_or_adamantine_loincloth)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantine_loincloth)
                     else:
-                        set_rule(loc, self.leather_or_cloth_or_adamantinecloth)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantinecloth)
             case "Trousers":
                 if material_type == "Cloth":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.cloth_trousers)
                     else:
-                        set_rule(loc, self.clothier_workshop)
+                        set_rule(loc, self.cloth_clothier_workshop)
+                elif material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_trousers)
+                    else:
+                        set_rule(loc, self.silk_clothier_workshop)
                 elif material_type == "Adamantine":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.adamantine_trousers)
@@ -3773,9 +3943,9 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_or_adamantine_trousers)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantine_trousers)
                     else:
-                        set_rule(loc, self.leather_or_cloth_or_adamantinecloth)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantinecloth)
             case "Leggings":
                 if material_type == "Metal":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
@@ -3833,18 +4003,28 @@ class DynamicCraftingLocationRules:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.cloth_socks) 
                     else:
-                        set_rule(loc, self.clothier_workshop)
+                        set_rule(loc, self.cloth_clothier_workshop)
+                elif material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_socks)
+                    else:
+                        set_rule(loc, self.silk_clothier_workshop)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.cloth_or_adamantine_socks)
+                        set_rule(loc, self.cloth_or_silk_or_adamantine_socks)
                     else:
-                        set_rule(loc, self.adamantine_or_cloth)
+                        set_rule(loc, self.adamantine_or_cloth_or_silk)
             case "Shoes":
                 if material_type == "Cloth":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.cloth_shoes)
                     else:
-                        set_rule(loc, self.clothier_workshop)
+                        set_rule(loc, self.cloth_clothier_workshop)
+                elif material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_shoes)
+                    else:
+                        set_rule(loc, self.silk_clothier_workshop)
                 elif material_type == "Adamantine":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.adamantine_shoes)
@@ -3857,9 +4037,9 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_or_adamantine_shoes)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantine_shoes)
                     else:
-                        set_rule(loc, self.leather_or_cloth_or_adamantinecloth)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantinecloth)
             case "Low Boots":
                 if material_type == "Leather":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
@@ -3954,7 +4134,12 @@ class DynamicCraftingLocationRules:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.cloth_tunic)
                     else:
-                        set_rule(loc, self.clothier_workshop)
+                        set_rule(loc, self.cloth_clothier_workshop)
+                elif material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_tunic)
+                    else:
+                        set_rule(loc, self.silk_clothier_workshop)
                 elif material_type == "Adamantine":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.adamantine_tunic)
@@ -3967,15 +4152,20 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_or_adamantine_tunic)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantine_tunic)
                     else:
-                        set_rule(loc, self.leather_or_cloth_or_adamantinecloth)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantinecloth)
             case "Dress": 
                 if material_type == "Cloth":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.cloth_dress)
                     else:
-                        set_rule(loc, self.clothier_workshop)
+                        set_rule(loc, self.cloth_clothier_workshop)
+                elif material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_dress)
+                    else:
+                        set_rule(loc, self.silk_clothier_workshop)
                 elif material_type == "Adamantine":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.adamantine_dress)
@@ -3988,15 +4178,20 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_or_adamantine_dress)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantine_dress)
                     else:
-                        set_rule(loc, self.leather_or_cloth_or_adamantinecloth)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantinecloth)
             case "Toga": 
                 if material_type == "Cloth":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.cloth_toga)
                     else:
-                        set_rule(loc, self.clothier_workshop)
+                        set_rule(loc, self.cloth_clothier_workshop)
+                elif material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_toga)
+                    else:
+                        set_rule(loc, self.silk_clothier_workshop)
                 elif material_type == "Adamantine":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.adamantine_toga)
@@ -4009,15 +4204,20 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_or_adamantine_toga)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantine_toga)
                     else:
-                        set_rule(loc, self.leather_or_cloth_or_adamantinecloth)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantinecloth)
             case "Robe": 
                 if material_type == "Cloth":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.cloth_robe)
                     else:
-                        set_rule(loc, self.clothier_workshop)
+                        set_rule(loc, self.cloth_clothier_workshop)
+                elif material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_robe)
+                    else:
+                        set_rule(loc, self.silk_clothier_workshop)
                 elif material_type == "Adamantine":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.adamantine_robe)
@@ -4030,15 +4230,20 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_or_adamantine_robe)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantine_robe)
                     else:
-                        set_rule(loc, self.leather_or_cloth_or_adamantinecloth)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantinecloth)
             case "Braies": 
                 if material_type == "Cloth":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.cloth_braies)
                     else:
-                        set_rule(loc, self.clothier_workshop)
+                        set_rule(loc, self.cloth_clothier_workshop)
+                elif material_type == "Silk":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.silk_braies)
+                    else:
+                        set_rule(loc, self.silk_clothier_workshop)
                 elif material_type == "Adamantine":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.adamantine_braies)
@@ -4051,6 +4256,6 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.leather_works)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.leather_or_cloth_or_adamantine_braies)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantine_braies)
                     else:
-                        set_rule(loc, self.leather_or_cloth_or_adamantinecloth)
+                        set_rule(loc, self.leather_or_cloth_or_silk_or_adamantinecloth)
