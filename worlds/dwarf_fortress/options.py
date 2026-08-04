@@ -466,6 +466,17 @@ class ExcludeCombatChecks(Toggle):
     display_name = "Exclude Difficult Combat Checks"
 
 
+class PerformanceAssist(Toggle):
+    """
+    Help slower machines keep up. When on, the mod periodically cleans map spatter
+    (blood, vomit, dust) - the classic Dwarf Fortress FPS drain - about once a game
+    week, leaving mud and snow. Off by default because it wipes your battle blood.
+    (Regardless of this setting, the mod already auto-throttles its own background
+    scans when it detects the game running slowly.)
+    """
+    display_name = "Performance Assist"
+
+
 @dataclass
 class DwarfFortressOptions(PerGameCommonOptions):
     deathlink: DeathLink
@@ -505,6 +516,7 @@ class DwarfFortressOptions(PerGameCommonOptions):
     exclude_top_room_checks: ExcludeTopRoomChecks
     exclude_top_fortress_checks: ExcludeTopFortressChecks
     exclude_combat_checks: ExcludeCombatChecks
+    performance_assist: PerformanceAssist
     start_inventory: StartingDefaultDFInventory
 
 
@@ -556,5 +568,8 @@ dwarf_fortress_option_groups = [
     ], start_collapsed=True),
     OptionGroup("Item & Location Options", [
         StartingDefaultDFInventory,
+    ], start_collapsed=True),
+    OptionGroup("Performance", [
+        PerformanceAssist,
     ], start_collapsed=True),
 ]

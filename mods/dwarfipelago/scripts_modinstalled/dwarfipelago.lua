@@ -1826,12 +1826,55 @@ local function detect_tamed_beast()
     end
 end
 
+-- ── Adaptive poll backoff ─────────────────────────────────────────────────────
+-- The scan batch below runs every POLL_TICKS - fine on a healthy machine, extra
+-- load on a struggling one. getUnpausedFps() is the live frame rate; when it drops
+-- we run the batch every Nth cycle instead of every cycle so the mod stops
+-- compounding the slowdown. Near the FPS cap it always runs (factor 1). Self-tuning,
+-- no config, and a nil API (older DFHack) just means it never backs off.
+local _poll_skip_remaining = 0
+local function poll_backing_off()
+    if _poll_skip_remaining > 0 then
+        _poll_skip_remaining = _poll_skip_remaining - 1
+        return true
+    end
+    local factor = 1
+    local ok, fps = pcall(dfhack.internal.getUnpausedFps)
+    if ok and type(fps) == "number" and fps > 0 then
+        if     fps < 12 then factor = 4
+        elseif fps < 20 then factor = 3
+        elseif fps < 30 then factor = 2
+        end
+    end
+    _poll_skip_remaining = factor - 1   -- run this cycle, then skip the next (factor-1)
+    return false
+end
+
+-- ── Performance assist (opt-in) ───────────────────────────────────────────────
+-- When enabled (dwarfipelago/perf_assist == "1"), periodically clean map spatter -
+-- the classic FPS drain in an old fort (DFHack's own docs flag it). "clean map"
+-- leaves mud and snow. Off by default: it wipes the glorious blood of your battles.
+local PERF_CLEAN_INTERVAL = 8400  -- ~1 in-game week (1200 ticks/day)
+local function run_perf_assist()
+    if dfhack.persistent.getWorldDataString("dwarfipelago/perf_assist") ~= "1" then return end
+    local now   = df.global.world.frame_counter or 0
+    local last  = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/perf/last_clean")) or 0
+    local delta = now - last
+    if delta >= 0 and delta < PERF_CLEAN_INTERVAL then return end
+    dfhack.persistent.saveWorldDataString("dwarfipelago/perf/last_clean", tostring(now))
+    pcall(function() dfhack.run_command("clean", "map") end)
+    log.info("Performance assist: cleaned map spatter to reduce FPS lag")
+end
+
 local function poll_checks()
     if not state.is_enabled() then return end
     -- repeatUtil fires the callback immediately on registration, and again
     -- during world-loading screens.  Do nothing until the fortress map is
     -- fully live and the simulation is running.
     if not dfhack.isMapLoaded() then return end
+
+    -- On a struggling machine, skip this cycle's scan batch (see poll_backing_off).
+    if poll_backing_off() then return end
 
     -- Capture the surface z-level once, early (before much digging), from a
     -- living citizen's position. Used as the reference for mining-depth checks.
@@ -1908,6 +1951,7 @@ local function poll_checks()
     guard("skills",        checks.update_skill_levels)
     guard("waves",         poll_warband_waves)
     guard("permit_overlay", sync_permit_overlay)
+    guard("perf_assist",   run_perf_assist)
     guard("custom_caves",  function()
         local discovered = caves.check_discoveries()
         for _, info in ipairs(discovered) do
