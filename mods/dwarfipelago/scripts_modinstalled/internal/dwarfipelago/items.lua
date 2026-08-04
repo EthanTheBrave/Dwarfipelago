@@ -685,18 +685,27 @@ end
 local WEB_TICKS = 4000
 
 local function recv_ensnaring_webs()
-    local n = 0
+    local eligible = {}
     for _, u in ipairs(df.global.world.units.active) do
         if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then
-            pcall(function() u.counters.webbed = WEB_TICKS end)
-            n = n + 1
+            table.insert(eligible, u)
         end
     end
-    if n == 0 then
+    local total = #eligible
+    if total == 0 then
         announce("Trap: Ensnaring webs burst forth - but there are no dwarves to catch.")
         return
     end
-    announce(("Trap: Ensnaring Webs! %d dwarves are caught fast in cave-spider silk, struggling to break free!"):format(n))
+    -- Catch a random half of the fort. Fisher-Yates shuffle, then web the first half.
+    for i = total, 2, -1 do
+        local j = math.random(i)
+        eligible[i], eligible[j] = eligible[j], eligible[i]
+    end
+    local caught = math.max(1, math.floor(total / 2))
+    for i = 1, caught do
+        pcall(function() eligible[i].counters.webbed = WEB_TICKS end)
+    end
+    announce(("Trap: Ensnaring Webs! %d of %d dwarves are caught fast in cave-spider silk, struggling to break free!"):format(caught, total))
 end
 
 -- Order Sabotage trap: saboteurs shred the manager's ledger, wiping every current

@@ -23,7 +23,7 @@ local eventful   = require("plugins.eventful")
 local repeatUtil = require("repeat-util")
 
 local SCRIPT_NAME = "dwarfipelago"
-local SCRIPT_VERSION = "1.3.1"
+local SCRIPT_VERSION = "1.3.2"
 local POLL_TICKS  = 100  -- poll wealth/trade/goal checks every N ticks
 
 local function fmt_energy(j)
@@ -2091,12 +2091,43 @@ ensure_trade_depot = function()
     -- Returns the constructed building on success, nil on failure.
     local map = df.global.world.map
 
+    -- Topmost open-air ground z in column (x,y): the true local surface. Scans the
+    -- full column top-down for an `outside` walkable floor/ramp, so a candidate on
+    -- sloped terrain sits on the real ground instead of floating in the air (or
+    -- being buried) at the wagon's z. Nil if the column has no surface.
+    local function column_ground_z(x, y)
+        for z = map.z_count - 1, 0, -1 do
+            local ok = false
+            pcall(function()
+                local blk = dfhack.maps.getTileBlock(x, y, z)
+                if not blk then return end
+                local lx, ly = x % 16, y % 16
+                local des   = blk.designation[lx][ly]
+                local shape = df.tiletype.attrs[blk.tiletype[lx][ly]].shape
+                if des.outside and not des.hidden
+                   and (shape == df.tiletype_shape.FLOOR or shape == df.tiletype_shape.RAMP) then
+                    ok = true
+                end
+            end)
+            if ok then return z end
+        end
+        return nil
+    end
+
+    -- Surface z for the footprint at (tx,ty), from its centre column; falls back to
+    -- the wagon anchor z if the column has no detectable surface.
+    local function footprint_surface_z(tx, ty)
+        tx = math.max(1, math.min(tx, map.x_count - 6))
+        ty = math.max(1, math.min(ty, map.y_count - 6))
+        return column_ground_z(tx + 2, ty + 2) or sz
+    end
+
     -- Count liquid (water/magma) tiles in the clamped 5×5 footprint at (tx,ty).
     -- A tile's liquid is in designation.flow_size (0 = dry, 1-7 = liquid depth),
     -- independent of its shape - a shallow-water tile is still a "floor" shape,
     -- which is why a shape-only check let the depot spawn on water. We use this
     -- to prefer a dry candidate before resorting to draining/filling tiles.
-    local function footprint_liquid_count(tx, ty)
+    local function footprint_liquid_count(tx, ty, z)
         tx = math.max(1, math.min(tx, map.x_count - 6))
         ty = math.max(1, math.min(ty, map.y_count - 6))
         local count = 0
@@ -2104,7 +2135,7 @@ ensure_trade_depot = function()
             for dx = 0, 4 do
                 local bx, by = tx + dx, ty + dy
                 pcall(function()
-                    local block = dfhack.maps.getTileBlock(bx, by, sz)
+                    local block = dfhack.maps.getTileBlock(bx, by, z)
                     if block and block.designation[bx % 16][by % 16].flow_size > 0 then
                         count = count + 1
                     end
@@ -2116,12 +2147,12 @@ ensure_trade_depot = function()
 
     -- Prepare the 5×5 footprint: drain any liquid AND convert every tile to a
     -- solid floor, so the depot never sits on water (or a wall/ramp/tree).
-    local function prepare_footprint(tx, ty)
+    local function prepare_footprint(tx, ty, z)
         for dy = 0, 4 do
             for dx = 0, 4 do
                 pcall(function()
                     local bx, by = tx + dx, ty + dy
-                    local block = dfhack.maps.getTileBlock(bx, by, sz)
+                    local block = dfhack.maps.getTileBlock(bx, by, z)
                     if not block then return end
                     local lx, ly = bx % 16, by % 16
                     local desig = block.designation[lx][ly]
@@ -2146,19 +2177,19 @@ ensure_trade_depot = function()
         end
     end
 
-    local function try_place(tx, ty)
+    local function try_place(tx, ty, z)
         -- Clamp so the full 5×5 footprint stays inside the map.
         tx = math.max(1, math.min(tx, map.x_count - 6))
         ty = math.max(1, math.min(ty, map.y_count - 6))
         local x2, y2 = tx + 4, ty + 4
 
-        prepare_footprint(tx, ty)
+        prepare_footprint(tx, ty, z)
 
         -- Clear buildings overlapping the footprint.
         local blds_to_remove = {}
         for _, b in ipairs(df.global.world.buildings.all) do
-            if b.z == sz and b.x1 <= x2 and b.x2 >= tx and
-                             b.y1 <= y2 and b.y2 >= ty then
+            if b.z == z and b.x1 <= x2 and b.x2 >= tx and
+                            b.y1 <= y2 and b.y2 >= ty then
                 table.insert(blds_to_remove, b)
             end
         end
@@ -2171,7 +2202,7 @@ ensure_trade_depot = function()
         local ok, result = pcall(function()
             return dfhack.buildings.constructBuilding{
                 type   = df.building_type.TradeDepot,
-                pos    = {x = tx, y = ty, z = sz},
+                pos    = {x = tx, y = ty, z = z},
                 width  = 5,
                 height = 5,
             }
@@ -2180,10 +2211,12 @@ ensure_trade_depot = function()
             return nil
         end
 
-        -- Construction succeeded — now clear any debris from the footprint.
+        -- Construction succeeded — now clear any debris from the footprint. Scoped
+        -- to this z and footprint only, so the offset placement never touches the
+        -- wagon (which sits at the anchor tile, outside every candidate footprint).
         local items_to_remove = {}
         for _, item in ipairs(df.global.world.items.all) do
-            if item.pos.z == sz and
+            if item.pos.z == z and
                item.pos.x >= tx and item.pos.x <= x2 and
                item.pos.y >= ty and item.pos.y <= y2 then
                 table.insert(items_to_remove, item)
@@ -2193,7 +2226,7 @@ ensure_trade_depot = function()
             pcall(function() dfhack.items.remove(item) end)
         end
 
-        return result, tx, ty
+        return result, tx, ty, z
     end
 
     -- Candidate placements 7 tiles out in each cardinal direction (west first).
@@ -2207,24 +2240,25 @@ ensure_trade_depot = function()
     }
     for idx, c in ipairs(candidates) do
         c.order  = idx
-        c.liquid = footprint_liquid_count(c[1], c[2])
+        c.z      = footprint_surface_z(c[1], c[2])  -- true surface at this column
+        c.liquid = footprint_liquid_count(c[1], c[2], c.z)
     end
     table.sort(candidates, function(a, b)
         if a.liquid ~= b.liquid then return a.liquid < b.liquid end
         return a.order < b.order
     end)
 
-    local bld, tx, ty
+    local bld, tx, ty, tz
     for _, c in ipairs(candidates) do
-        local b, px, py = try_place(c[1], c[2])
+        local b, px, py, pz = try_place(c[1], c[2], c.z)
         if b then
-            bld, tx, ty = b, px, py
+            bld, tx, ty, tz = b, px, py, pz
             if c.liquid > 0 then
                 log.info(("Trade depot footprint had %d liquid tile(s) - drained and filled before placing"):format(c.liquid))
             end
             break
         end
-        log.warn(("Depot placement failed at %d,%d - trying next candidate"):format(c[1], c[2]))
+        log.warn(("Depot placement failed at %d,%d,%d - trying next candidate"):format(c[1], c[2], c.z))
     end
 
     if not bld then
@@ -2255,11 +2289,11 @@ ensure_trade_depot = function()
     pcall(function()
         dfhack.gui.showZoomAnnouncement(
             df.announcement_type.CARAVAN_ARRIVAL,
-            {x=tx, y=ty, z=sz},
+            {x=tx, y=ty, z=tz},
             "[AP] A Trading Post has been established near your starting wagon!",
             COLOR_GREEN, true)
     end)
-    print(("[Dwarfipelago] Trade depot placed at %d,%d,%d"):format(tx, ty, sz))
+    print(("[Dwarfipelago] Trade depot placed at %d,%d,%d"):format(tx, ty, tz))
 end
 
 -- ── World validation ──────────────────────────────────────────────────────────
