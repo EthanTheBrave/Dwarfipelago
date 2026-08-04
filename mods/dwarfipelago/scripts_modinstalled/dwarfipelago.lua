@@ -1522,7 +1522,10 @@ local function detect_sold_artifact()
                     end)
                     pcall(function() trader = item.flags.trader end)
                 end
-                local gone  = (not exists) or removed
+                -- Off-map also counts as gone: when a caravan carries a sold artifact
+                -- off the map edge, DF leaves item.flags.removed unset but getPosition
+                -- can no longer resolve it to a fort tile (onmap = false).
+                local gone  = (not exists) or removed or (not onmap)
                 local state = seen[skey]
 
                 if (not gone) and trader then
