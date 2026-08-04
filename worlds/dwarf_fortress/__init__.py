@@ -403,6 +403,7 @@ class DwarfFortressWorld(World):
             "shop_enabled": self.options.merchant_shop.value,
             "shop": shop_data,
             "performance_assist": self.options.performance_assist.value,
+            "timestream": self.options.timestream.value,
             "version": f"{self.world_version.as_simple_string()}",
         }
 

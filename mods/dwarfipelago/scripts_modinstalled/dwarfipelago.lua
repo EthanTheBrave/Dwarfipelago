@@ -1851,19 +1851,52 @@ local function poll_backing_off()
 end
 
 -- ── Performance assist (opt-in) ───────────────────────────────────────────────
--- When enabled (dwarfipelago/perf_assist == "1"), periodically clean map spatter -
--- the classic FPS drain in an old fort (DFHack's own docs flag it). "clean map"
--- leaves mud and snow. Off by default: it wipes the glorious blood of your battles.
+-- When enabled (dwarfipelago/perf_assist == "1") the mod attacks the classic DF FPS
+-- drains: the fast-heat tweak (faster temperature calc, no gameplay change) and
+-- clothing deterioration stay enabled, and ~weekly it cleans map spatter and
+-- confiscates heavily-worn owned junk. Off by default; it changes the fort's look
+-- and rots stray tattered gear. (Deliberately avoids deteriorating corpses/food.)
 local PERF_CLEAN_INTERVAL = 8400  -- ~1 in-game week (1200 ticks/day)
+local _perf_active   -- nil until first applied; true/false = last state we set
 local function run_perf_assist()
-    if dfhack.persistent.getWorldDataString("dwarfipelago/perf_assist") ~= "1" then return end
+    local on = dfhack.persistent.getWorldDataString("dwarfipelago/perf_assist") == "1"
+    -- Apply the persistent enables/disables once per state change. fast-heat is a
+    -- session tweak; deteriorate persists in the save, so re-applying is harmless.
+    if on and _perf_active ~= true then
+        _perf_active = true
+        pcall(function() dfhack.run_command("tweak", "fast-heat", "quiet") end)
+        pcall(function() dfhack.run_command("deteriorate", "enable", "clothes") end)
+    elseif (not on) and _perf_active ~= false then
+        _perf_active = false
+        pcall(function() dfhack.run_command("tweak", "fast-heat", "disable", "quiet") end)
+        pcall(function() dfhack.run_command("deteriorate", "disable", "clothes") end)
+    end
+    if not on then return end
+    -- Periodic (~weekly) cleanup: map spatter + heavily-worn owned items.
     local now   = df.global.world.frame_counter or 0
     local last  = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/perf/last_clean")) or 0
     local delta = now - last
     if delta >= 0 and delta < PERF_CLEAN_INTERVAL then return end
     dfhack.persistent.saveWorldDataString("dwarfipelago/perf/last_clean", tostring(now))
     pcall(function() dfhack.run_command("clean", "map") end)
-    log.info("Performance assist: cleaned map spatter to reduce FPS lag")
+    pcall(function() dfhack.run_command("cleanowned", "X") end)
+    log.info("Performance assist: cleaned spatter + worn junk to reduce FPS lag")
+end
+
+-- ── Timestream (opt-in) ───────────────────────────────────────────────────────
+-- "Fix FPS death": DFHack scales the simulation to the FPS the machine can manage
+-- so a laggy fort still feels responsive. A genuine gameplay-timing tweak, so it is
+-- its own toggle (dwarfipelago/timestream), separate from the cleanup assist.
+local _timestream_active
+local function run_timestream()
+    local on = dfhack.persistent.getWorldDataString("dwarfipelago/timestream") == "1"
+    if on and _timestream_active ~= true then
+        _timestream_active = true
+        pcall(function() dfhack.run_command("enable", "timestream") end)
+    elseif (not on) and _timestream_active ~= false then
+        _timestream_active = false
+        pcall(function() dfhack.run_command("disable", "timestream") end)
+    end
 end
 
 local function poll_checks()
@@ -1872,6 +1905,10 @@ local function poll_checks()
     -- during world-loading screens.  Do nothing until the fortress map is
     -- fully live and the simulation is running.
     if not dfhack.isMapLoaded() then return end
+
+    -- Timestream (opt-in) is the anti-lag tool, so engage it promptly - before the
+    -- backoff gate - as soon as the map is live.
+    pcall(run_timestream)
 
     -- On a struggling machine, skip this cycle's scan batch (see poll_backing_off).
     if poll_backing_off() then return end

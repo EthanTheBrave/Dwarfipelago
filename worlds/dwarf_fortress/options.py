@@ -477,6 +477,16 @@ class PerformanceAssist(Toggle):
     display_name = "Performance Assist"
 
 
+class Timestream(Toggle):
+    """
+    "Fix FPS death" for slow machines. When on, DFHack scales the simulation to the
+    frame rate your computer can manage, so a big, laggy fort still feels responsive
+    (dwarves get things done in the same in-game time, you just wait less). This is a
+    genuine gameplay-timing tweak - kept separate from Performance Assist. Off by default.
+    """
+    display_name = "Timestream (smooth low FPS)"
+
+
 @dataclass
 class DwarfFortressOptions(PerGameCommonOptions):
     deathlink: DeathLink
@@ -517,6 +527,7 @@ class DwarfFortressOptions(PerGameCommonOptions):
     exclude_top_fortress_checks: ExcludeTopFortressChecks
     exclude_combat_checks: ExcludeCombatChecks
     performance_assist: PerformanceAssist
+    timestream: Timestream
     start_inventory: StartingDefaultDFInventory
 
 
@@ -571,5 +582,6 @@ dwarf_fortress_option_groups = [
     ], start_collapsed=True),
     OptionGroup("Performance", [
         PerformanceAssist,
+        Timestream,
     ], start_collapsed=True),
 ]

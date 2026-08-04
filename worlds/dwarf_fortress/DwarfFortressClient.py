@@ -1115,6 +1115,9 @@ class DwarfFortressContext(CommonContext):
                 # Performance Assist flag - Lua reads this to periodically clean map spatter.
                 perf_assist = slot_data.get("performance_assist", 0)
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/perf_assist", "{1 if perf_assist else 0}")')
+                # Timestream flag - Lua enables/disables DFHack timestream from this.
+                timestream = slot_data.get("timestream", 0)
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/timestream", "{1 if timestream else 0}")')
                 # Always re-sync these flags so Lua uses the correct key format
                 # even on reconnects or if the initial write was interrupted.
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_enabled", "{craftsanity_enabled}")')
