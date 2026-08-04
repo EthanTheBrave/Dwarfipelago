@@ -2900,6 +2900,17 @@ for _, item_name in ipairs(CRAFTING_LOCK_ITEMS) do
     end
 end
 
+-- Cloth and Silk share one AP permit ("Cloth / Silk Permit"), so replace their
+-- auto-generated single-item handlers with a combined one unlocking both craftlocks.
+M.handlers["Cloth Permit"] = nil
+M.handlers["Silk Permit"]  = nil
+M.handlers["Cloth / Silk Permit"] = function()
+    dfhack.persistent.saveWorldDataString("dwarfipelago/craftlock/cloth", "1")
+    dfhack.persistent.saveWorldDataString("dwarfipelago/craftlock/silk", "1")
+    announce("Crafting permit received: Cloth / Silk")
+    print("[Dwarfipelago] Craft unlocked: Cloth / Silk")
+end
+
 -- -- Test harness (dwarfipelago test <name>) ----------------------------------
 -- Manual in-game verification of the spawn / effect mechanics. Each test prints
 -- what happened so a failure is obvious in the console.

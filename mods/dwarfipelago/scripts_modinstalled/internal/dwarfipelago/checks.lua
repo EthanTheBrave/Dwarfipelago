@@ -1208,7 +1208,7 @@ local MATCAT_TO_FLAG = {
     stone = "stone", rock = "stone",
     glass = "glass", glass2 = "glass", glass3 = "glass",
     leather = "leather",
-    cloth = "cloth", yarn = "cloth", silk = "cloth", plant_cloth = "cloth",
+    cloth = "cloth", yarn = "cloth", silk = "silk", plant_cloth = "cloth",
     bone = "bone",
 }
 
@@ -1244,7 +1244,7 @@ local function classify_mat(mat_type, mat_index)
             return "cloth"  -- plant fiber / thread
         elseif mat.mode == "creature" then
             if up:find("LEATHER") then return "leather" end
-            if up:find(":SILK") then return "cloth" end
+            if up:find(":SILK") then return "silk" end
             return "bone"
         end
 
@@ -1341,6 +1341,9 @@ local function _job_flag_dispatch(job)
         return LARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
     elseif flag == "FARMOR_SUBTYPE" then
         return FARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+    elseif flag == "cloth" then
+        -- WeaveCloth covers plant/yarn/silk thread; silk cloth is its own check.
+        if mat_craft_flag(job) == "silk" then return "silk" end
     end
     return flag
 end
@@ -1350,7 +1353,7 @@ end
 local NON_MATERIAL = {
     beds=true, ash=true, charcoal=true, metal_bars=true, coke_bars=true,
     pearlash=true, gypsum_plaster=true, quicklime=true, glass=true,
-    leather=true, sheet=true, cloth=true, alcohol=true,
+    leather=true, sheet=true, cloth=true, silk=true, alcohol=true,
     lye=true, potash=true, milk_of_lime=true, prepared_meal=true,
     tallow=true, oil=true, press_cake=true, honey=true,
     bee_wax=true, dye=true, soap=true, training_axe=true,
