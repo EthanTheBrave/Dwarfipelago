@@ -199,7 +199,7 @@ class CraftsanityMaterials(OptionList):
     """
     display_name = "Craftsanity Items Materials"
     valid_keys = {
-        "Stone", "Wood", "Metal", "Glass", "Leather", "Cloth", "Bone", "Ceramic", "Adamantine"
+        "Stone", "Wood", "Metal", "Glass", "Leather", "Cloth", "Bone", "Ceramic", "Adamantine", "Silk"
     }
     default = valid_keys.copy()
 
