@@ -199,7 +199,7 @@ CRAFT_ITEMS: list[ItemData] = [ #commented items people should get when getting 
     ItemData("Scroll Roller Permit", BASE_ID + 1065, ItemClassification.progression),
     ItemData("Leather Permit", BASE_ID + 1066, ItemClassification.progression),
     ItemData("Sheet Permit", BASE_ID + 1067, ItemClassification.progression),
-    ItemData("Cloth Permit", BASE_ID + 1068, ItemClassification.progression),
+    ItemData("Cloth / Silk Permit", BASE_ID + 1068, ItemClassification.progression),
     ItemData("Alcohol Permit", BASE_ID + 1069, ItemClassification.progression),
     ItemData("Lye Permit", BASE_ID + 1070, ItemClassification.progression),
     ItemData("Potash Permit", BASE_ID + 1071, ItemClassification.progression),

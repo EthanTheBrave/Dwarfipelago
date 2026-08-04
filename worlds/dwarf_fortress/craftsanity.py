@@ -38,7 +38,8 @@ MATERIAL_SLOTS: dict[str, int] = {
     "Cloth":   6,
     "Bone":    7,
     "Ceramic": 8,
-    "Adamantine": 9
+    "Adamantine": 9,
+    "Silk": 10
 }
 
 
@@ -173,13 +174,13 @@ def valid_materialitem(material: str, item: str) -> bool:
         return True
     if material in {"Wood", "Stone", "Metal", "Glass", "Ceramic", "Adamantine"} and item in {"Blocks", "Jug", "Large Pot", "Hive"}:
         return True
-    if material in {"Wood", "Stone", "Bone", "Cloth", "Leather", "Metal", "Adamantine"} and item in {"Amulet", "Bracelet", "Earring"}:
+    if material in {"Wood", "Stone", "Bone", "Cloth", "Leather", "Metal", "Adamantine", "Silk"} and item in {"Amulet", "Bracelet", "Earring"}:
         return True
     if material in {"Wood", "Stone", "Bone", "Metal", "Adamantine"} and item in {"Crown", "Figurine", "Ring", "Scepter"}:
         return True
     if material in {"Wood", "Stone", "Bone", "Metal", "Glass", "Adamantine"} and item in {"Die", "Nest Box"}:
         return True
-    if material in {"Wood", "Stone", "Metal", "Glass", "Bone", "Cloth", "Ceramic", "Leather", "Adamantine"} and item in {"Crafts"}:
+    if material in {"Wood", "Stone", "Metal", "Glass", "Bone", "Cloth", "Ceramic", "Leather", "Adamantine", "Silk"} and item in {"Crafts"}:
         return True
     if material in {"Wood", "Bone", "Metal", "Adamantine"} and item in {"Crossbow", "Bolt"}:
         return True
@@ -195,21 +196,21 @@ def valid_materialitem(material: str, item: str) -> bool:
         return True
     if material in {"Leather", "Bone", "Metal", "Adamantine"} and item in {"Helm", "Leggings"}:
         return True
-    if material in {"Leather", "Cloth"} and item in {"Bag"}:
+    if material in {"Leather", "Cloth", "Silk"} and item in {"Bag"}:
         return True
-    if material in {"Leather", "Cloth", "Adamantine"} and item in {"Bag", "Hood", "Shirt", "Gloves", "Mittens", "Loincloth", "Trousers", "Shoes", "Tunic", "Dress", "Toga", "Robe", "Braies", "Cloak", "Coat", "Vest"}:
+    if material in {"Leather", "Cloth", "Adamantine", "Silk"} and item in {"Hood", "Shirt", "Gloves", "Mittens", "Loincloth", "Trousers", "Shoes", "Tunic", "Dress", "Toga", "Robe", "Braies", "Cloak", "Coat", "Vest"}:
         return True
     if material in {"Leather", "Adamantine"} and item in {"Backpack", "Quiver"}:
         return True
     if material in {"Leather", "Metal", "Adamantine"} and item in {"Low Boots", "High Boots"}:
         return True
-    if material in {"Leather", "Cloth", "Metal", "Adamantine"} and item in {"Cap"}:
+    if material in {"Leather", "Cloth", "Metal", "Adamantine", "Silk"} and item in {"Cap"}:
         return True
-    if material in {"Cloth", "Metal", "Adamantine"} and item == "Rope/Chain":
+    if material in {"Cloth", "Metal", "Adamantine", "Silk"} and item == "Rope/Chain":
         return True
     if material in {"Metal", "Adamantine"} and item in {"Mail Shirt", "Breastplate", "Battle Axe", "Mace", "Pick", "Short Sword", "Spear", "War Hammer", "Anvil", "Coins",}:
         return True
-    if material in {"Cloth", "Adamantine"} and item in {"Socks", "Breastplate"}:
+    if material in {"Cloth", "Adamantine", "Silk"} and item in {"Socks"}:
         return True
     return False
 
@@ -218,7 +219,7 @@ def non_material_items(item: str) -> bool:
         "Glass", "Leather", "Sheet", "Cloth", "Alcohol", "Lye", "Potash", "Milk of Lime", "Prepared Meal", "Tallow",
         "Oil", "Press Cake", "Honey", "Bee Wax", "Dye", "Soap", "Training Axe", "Training Spear", "Training Sword",
         "Cup", "Ballista Parts", "Catapult Parts", "Millstone", "Quern", "Slab", "Mug", "Totem", "Window", 
-         "Display Case", "Bolt Thrower Parts", "Codex", "Quire", "Scroll", "Leather Armor"}:
+         "Display Case", "Bolt Thrower Parts", "Codex", "Quire", "Scroll", "Leather Armor", "Silk"}:
         return True
     return False
 
@@ -360,5 +361,6 @@ def assign_locationid_block(item: str) -> int:
         case "Toga": return 368000
         case "Robe": return 370000
         case "Braies": return 372000
+        case "Silk": return 374000
     print("Missing entry: "+item)
     return 0
