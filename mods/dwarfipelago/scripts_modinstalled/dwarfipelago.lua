@@ -1514,10 +1514,11 @@ local function detect_sold_artifact()
                     pcall(function() removed = item.flags.removed end)
                     -- getPosition follows containers/inventory, so a fort artifact
                     -- stored in a bin or carried by a dwarf still counts as ours
-                    -- (raw item.pos.x is -30000 for contained/carried items).
+                    -- (raw item.pos.x is -30000 for contained/carried items). It
+                    -- returns x, y, z (or nil for an unresolvable item), not a table.
                     pcall(function()
-                        local p = dfhack.items.getPosition(item)
-                        onmap = p ~= nil and p.x >= 0 and p.z >= 0
+                        local x, _, z = dfhack.items.getPosition(item)
+                        onmap = x ~= nil and z ~= nil and x >= 0 and z >= 0
                     end)
                     pcall(function() trader = item.flags.trader end)
                 end
