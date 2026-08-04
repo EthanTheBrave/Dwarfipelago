@@ -1300,19 +1300,31 @@ local function suppress_cave_adaptation()
 end
 
 -- ── Caged hostile beast detection ────────────────────────────────────────────
+-- Hostile = dangerous to the fort. (dfhack.units.isEnemy is nil in this DFHack
+-- build, which silently broke the check; isDanger + creature-type checks work and
+-- survive caging, which can clear a unit's active-invader flag.)
+local function is_hostile_unit(unit)
+    local function chk(name)
+        local f = dfhack.units[name]
+        if not f then return false end
+        local ok, r = pcall(f, unit)
+        return ok and r
+    end
+    return chk("isDanger") or chk("isInvader") or chk("isSemiMegabeast")
+        or chk("isMegabeast") or chk("isForgottenBeast") or chk("isTitan")
+        or chk("isNightCreature") or chk("isCrazed")
+end
+
 local function detect_caged_hostile_beast()
     if checks.production_flag("caged_hostile_beast") then return end
     pcall(function()
         for _, unit in ipairs(df.global.world.units.active) do
-            local ok, is_enemy = pcall(dfhack.units.isEnemy, unit)
-            if ok and is_enemy then
-                local caged = false
-                pcall(function() caged = unit.flags1.caged end)
-                if caged then
-                    checks.set_production_flag("caged_hostile_beast")
-                    dfhack.gui.showAnnouncement("[AP] A hostile beast has been caged!", COLOR_GREEN, true)
-                    return
-                end
+            local caged = false
+            pcall(function() caged = unit.flags1.caged end)
+            if caged and is_hostile_unit(unit) then
+                checks.set_production_flag("caged_hostile_beast")
+                dfhack.gui.showAnnouncement("[AP] A hostile beast has been caged!", COLOR_GREEN, true)
+                return
             end
         end
     end)
@@ -1356,10 +1368,20 @@ local function detect_sold_artifact()
                 if item then
                     exists = true
                     pcall(function() removed = item.flags.removed end)
-                    pcall(function() onmap  = (item.pos.x >= 0) end)
+                    -- getPosition follows containers/inventory, so a fort artifact
+                    -- stored in a bin or carried by a dwarf still counts as ours
+                    -- (raw item.pos.x is -30000 for contained/carried items). It
+                    -- returns x, y, z (or nil for an unresolvable item), not a table.
+                    pcall(function()
+                        local x, _, z = dfhack.items.getPosition(item)
+                        onmap = x ~= nil and z ~= nil and x >= 0 and z >= 0
+                    end)
                     pcall(function() trader = item.flags.trader end)
                 end
-                local gone  = (not exists) or removed
+                -- Off-map also counts as gone: when a caravan carries a sold artifact
+                -- off the map edge, DF leaves item.flags.removed unset but getPosition
+                -- can no longer resolve it to a fort tile (onmap = false).
+                local gone  = (not exists) or removed or (not onmap)
                 local state = seen[skey]
 
                 if (not gone) and trader then
