@@ -468,23 +468,16 @@ class ExcludeCombatChecks(Toggle):
 
 class PerformanceAssist(Toggle):
     """
-    Help slower machines keep up. When on, the mod periodically cleans map spatter
-    (blood, vomit, dust) - the classic Dwarf Fortress FPS drain - about once a game
-    week, leaving mud and snow. Off by default because it wipes your battle blood.
-    (Regardless of this setting, the mod already auto-throttles its own background
-    scans when it detects the game running slowly.)
+    Help slower machines keep up. When on, the mod applies several DFHack FPS aids:
+    - fast-heat: quicker temperature calculations (no gameplay change)
+    - deteriorate: stray damaged clothing rots away instead of piling up
+    - periodic cleanup: clean map spatter and confiscate heavily-worn owned junk
+    - timestream: scale the simulation to your frame rate so a laggy fort still feels
+      responsive (dwarves do the same work in the same in-game time, you just wait less)
+    Off by default: it changes the fort's look and its timing. Regardless of this setting,
+    the mod also auto-throttles its own background scans whenever it detects low FPS.
     """
     display_name = "Performance Assist"
-
-
-class Timestream(Toggle):
-    """
-    "Fix FPS death" for slow machines. When on, DFHack scales the simulation to the
-    frame rate your computer can manage, so a big, laggy fort still feels responsive
-    (dwarves get things done in the same in-game time, you just wait less). This is a
-    genuine gameplay-timing tweak - kept separate from Performance Assist. Off by default.
-    """
-    display_name = "Timestream (smooth low FPS)"
 
 
 @dataclass
@@ -527,7 +520,6 @@ class DwarfFortressOptions(PerGameCommonOptions):
     exclude_top_fortress_checks: ExcludeTopFortressChecks
     exclude_combat_checks: ExcludeCombatChecks
     performance_assist: PerformanceAssist
-    timestream: Timestream
     start_inventory: StartingDefaultDFInventory
 
 
@@ -582,6 +574,5 @@ dwarf_fortress_option_groups = [
     ], start_collapsed=True),
     OptionGroup("Performance", [
         PerformanceAssist,
-        Timestream,
     ], start_collapsed=True),
 ]

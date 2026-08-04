@@ -1883,13 +1883,13 @@ local function run_perf_assist()
     log.info("Performance assist: cleaned spatter + worn junk to reduce FPS lag")
 end
 
--- ── Timestream (opt-in) ───────────────────────────────────────────────────────
--- "Fix FPS death": DFHack scales the simulation to the FPS the machine can manage
--- so a laggy fort still feels responsive. A genuine gameplay-timing tweak, so it is
--- its own toggle (dwarfipelago/timestream), separate from the cleanup assist.
+-- ── Timestream ────────────────────────────────────────────────────────────────
+-- "Fix FPS death": DFHack scales the simulation to the FPS the machine can manage so
+-- a laggy fort still feels responsive. Driven by the same Performance Assist flag as
+-- the rest; kept a separate function so it can engage before the backoff gate.
 local _timestream_active
 local function run_timestream()
-    local on = dfhack.persistent.getWorldDataString("dwarfipelago/timestream") == "1"
+    local on = dfhack.persistent.getWorldDataString("dwarfipelago/perf_assist") == "1"
     if on and _timestream_active ~= true then
         _timestream_active = true
         pcall(function() dfhack.run_command("enable", "timestream") end)
