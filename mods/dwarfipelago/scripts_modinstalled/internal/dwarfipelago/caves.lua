@@ -25,6 +25,7 @@ local TICKS_PER_MONTH = 33600
 local TICKS_PER_YEAR  = 403200
 local SILK_INTERVAL   = 2 * TICKS_PER_MONTH   -- every 2 in-game months
 local SILK_PER_SPAWN  = 20                     -- skeins of raw cave silk per drop
+local SILK_HINT_COUNT = 6                      -- one-time surface breadcrumb over cave 1
 
 -- Tiletype IDs resolved at load time by scanning the enum, so we never depend on
 -- a hardcoded number or a name that may differ between DF/DFHack versions.
@@ -624,6 +625,49 @@ end
 --   Secret 2 - Karl's Coffin Cave (cavern 1 -> cavern 2 gap, slot 4 / NE quadrant):
 --     Standard organic oval.  Contains a gold coffin registered as the artifact
 --     "Karl" - displayed in-game as "Karl the Gold Coffin".  Stupid, but valuable.
+-- One-time surface breadcrumb: a little raw cave silk webbing on the surface
+-- directly above secret cave 1, to hint roughly where the Spider Silk Cave is.
+-- Purely cosmetic signage - the player still has to find/dig the cave itself.
+local function spawn_surface_silk_hint(cx, cy)
+    local map = df.global.world.map
+    local function outside_floor(x, y, z)
+        local blk = dfhack.maps.getTileBlock(x, y, z)
+        if not blk then return false end
+        local lx, ly = x % 16, y % 16
+        local ok = false
+        pcall(function()
+            local des = blk.designation[lx][ly]
+            local sh  = df.tiletype.attrs[blk.tiletype[lx][ly]].shape
+            ok = des.outside and not des.hidden
+                 and (sh == df.tiletype_shape.FLOOR or sh == df.tiletype_shape.RAMP)
+        end)
+        return ok
+    end
+    -- topmost open-air floor in the column above the cave = the local surface
+    local sz
+    for z = map.z_count - 1, 0, -1 do
+        if outside_floor(cx, cy, z) then sz = z; break end
+    end
+    if not sz then return end
+    -- a small cluster of nearby surface tiles
+    local tiles = {}
+    for ddx = -2, 2 do for ddy = -2, 2 do
+        if outside_floor(cx + ddx, cy + ddy, sz) then tiles[#tiles + 1] = { x = cx + ddx, y = cy + ddy } end
+    end end
+    if #tiles == 0 then tiles = { { x = cx, y = cy } } end
+    local first_id = df.global.item_next_id
+    for i = 1, SILK_HINT_COUNT do
+        local t = tiles[((i - 1) % #tiles) + 1]
+        place_item_at(t.x, t.y, sz, "THREAD", "CREATURE_MAT:SPIDER_CAVE:SILK", 1)
+    end
+    for _, it in ipairs(df.global.world.items.all) do
+        if it.id >= first_id and it:getType() == df.item_type.THREAD then
+            pcall(function() it.flags.spider_web = true end)
+        end
+    end
+    log.info(("Secret cave 1: surface silk breadcrumb at (%d,%d,%d)"):format(cx, cy, sz))
+end
+
 function M.generate_secret_caves()
     if dfhack.persistent.getWorldDataString(KEY_SECRETS_DONE) == "1" then return end
     if dfhack.persistent.getWorldDataString("dwarfipelago/mining/ceilings_done") ~= "1" then return end
@@ -643,6 +687,8 @@ function M.generate_secret_caves()
             dfhack.persistent.saveWorldDataString(KEY_SECRET1 .. "y", tostring(y))
             dfhack.persistent.saveWorldDataString(KEY_SECRET1 .. "z", tostring(z))
             log.info(("Secret cave 1 (cave silk) at (%d,%d,%d)"):format(x, y, z))
+            -- one-time surface breadcrumb hinting where the cave is
+            spawn_surface_silk_hint(x, y)
         else
             log.warn("Secret cave 1 (cave silk): no suitable site found in surface->C1 gap")
         end
