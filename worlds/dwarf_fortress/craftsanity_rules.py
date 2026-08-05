@@ -197,7 +197,7 @@ class DynamicCraftingLocationRules:
                 self.magma_processing(state, "glass")
             else:
                 return ((self.can_fuel_workshops(state) and state.has("Glass Furnace Blueprint", self.player)) or \
-                self.magma_processing(state, "glass")) and self.permit(state, "Glass") 
+                self.magma_processing(state, "glass"))
         elif resource == "ceramic":
                 return (self.can_fuel_workshops(state) and state.has("Kiln Blueprint", self.player)) or \
                 self.magma_processing(state, "ceramic")
@@ -1091,7 +1091,7 @@ class DynamicCraftingLocationRules:
     def ashery_and_wood_furnace_potash(self, state:CollectionState) -> bool:
         return (self.ash(state) or self.ashery_and_wood_furnace_lye(state)) and self.permit(state, "Potash")
     def ashery_and_kiln_milklime(self, state:CollectionState) -> bool:
-        return self.ashery_and_kiln(state) and self.permit(state, "Milk of Lime")
+        return self.ashery_and_kiln(state) and self.permit(state, "Milk of Lime") and self.permit(state, "Quicklime")
     
     def make_meal(self, state:CollectionState) -> bool:
         return self.job_type(state, "Prepare Food") and self.permit(state, "Prepared Meal")
