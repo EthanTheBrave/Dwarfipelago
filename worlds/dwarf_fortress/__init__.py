@@ -9,7 +9,7 @@ from .options import DwarfFortressOptions, DwarfFortressGoal, CraftingPermits, d
 from .settings import DwarfFortressSettings
 from .items import (
     ItemData, ITEM_TABLE, AP_ITEM_POOL, FILLER_ITEMS, TRAP_ITEMS,
-    PROGRESSION_ITEMS, USEFUL_ITEMS, CRAFT_ITEMS, RECEIVED_TRAPS,
+    PROGRESSION_ITEMS, USEFUL_ITEMS, CRAFT_ITEMS,
 )
 from .locations import (
     LocationData, LOCATION_TABLE, ALL_LOCATIONS, SHOP_LOCATIONS, SHOP_SLOTS,
@@ -235,9 +235,8 @@ class DwarfFortressWorld(World):
             d for d in self.ap_item_pool
             if d.classification == ItemClassification.progression
         ]
-        received_trap_names = {d.name for d in RECEIVED_TRAPS}
         enabled_traps = set(self.options.enabled_traps.value)
-        all_trap_names = {d.name for d in TRAP_ITEMS} | received_trap_names
+        all_trap_names = {d.name for d in TRAP_ITEMS}
         # Traps that don't make sense for the chosen options. With craftpermits=all,
         # brewing is gated behind the Alcohol permit, so an ale-draining thirst trap
         # could leave a fort with no way to make more - exclude it in that mode.
@@ -248,7 +247,7 @@ class DwarfFortressWorld(World):
             d for d in self.ap_item_pool
             for _ in range(d.quantity)
             if d.classification != ItemClassification.progression
-            and (trap_weight > 0 or d.name not in received_trap_names)
+            and (trap_weight > 0 or d.name not in all_trap_names)
             and d.name not in excluded_trap_names
         ]
 
