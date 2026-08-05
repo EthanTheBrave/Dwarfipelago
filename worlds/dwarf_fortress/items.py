@@ -99,6 +99,7 @@ USEFUL_ITEMS: list[ItemData] = [
     ItemData("Breeding Sheep",         BASE_ID + 519, ItemClassification.useful),
     ItemData("Breeding Yaks",          BASE_ID + 538, ItemClassification.useful),
     ItemData("Cave Map Fragment",      BASE_ID + 2306, ItemClassification.useful, quantity=6),
+    ItemData("Miracle Cure",           BASE_ID + 570, ItemClassification.useful, quantity=3),
 ]
 CAVE_MAP_FRAGMENT = USEFUL_ITEMS[-1]
 

@@ -2720,6 +2720,33 @@ M.UNLOCK_DEFS = {
     { key = "mining_depth",          label = "Progressive Mining Depth", max = 4 },
 }
 
+-- Restore: fully heal a random injured citizen back to perfect health (via DFHack
+-- full-heal). "Injured" = has active wounds or is knocked unconscious.
+local function recv_miracle_cure()
+    local injured = {}
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then
+            local hurt = false
+            pcall(function() hurt = (#u.body.wounds > 0) or (u.counters.unconscious > 0) end)
+            if hurt then table.insert(injured, u) end
+        end
+    end
+    if #injured == 0 then
+        announce("Received: Miracle Cure - but no dwarf is hurt right now, so its magic goes unspent.")
+        return
+    end
+    local u    = injured[math.random(#injured)]
+    local name = unit_display_name(u)
+    if name == "" then name = "A wounded dwarf" end
+    local ok = pcall(function() dfhack.run_command("full-heal", "--unit", tostring(u.id)) end)
+    if ok then
+        announce(("Received: Miracle Cure! %s has been restored to perfect health."):format(name),
+                 { x = u.pos.x, y = u.pos.y, z = u.pos.z })
+    else
+        announce(("Received: Miracle Cure! (the healing of %s fizzled)"):format(name))
+    end
+end
+
 -- -- Dispatch table ------------------------------------------------------------
 -- Maps AP item name -> handler function.
 -- Names must match items.py exactly.
@@ -2749,6 +2776,7 @@ M.handlers = {
     ["Fine Cloth"]           = recv_fine_cloth,
     ["Raw Adamantine"]       = recv_raw_adamantine,
     ["Sunlight Tonic"]       = recv_sunlight_tonic,
+    ["Miracle Cure"]         = recv_miracle_cure,
 
     -- Livestock
     ["Breeding Pigs"]        = recv_breeding_pigs,
