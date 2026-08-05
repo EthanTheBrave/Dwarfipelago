@@ -99,7 +99,6 @@ USEFUL_ITEMS: list[ItemData] = [
     ItemData("Breeding Sheep",         BASE_ID + 519, ItemClassification.useful),
     ItemData("Breeding Yaks",          BASE_ID + 538, ItemClassification.useful),
     ItemData("Cave Map Fragment",      BASE_ID + 2306, ItemClassification.useful, quantity=6),
-    ItemData("Miracle Cure",           BASE_ID + 570, ItemClassification.useful, quantity=3),
 ]
 CAVE_MAP_FRAGMENT = USEFUL_ITEMS[-1]
 
@@ -123,12 +122,13 @@ FILLER_ITEMS: list[ItemData] = [
     ItemData("Copper Pick",            BASE_ID + 533, ItemClassification.filler, weight=3),
     ItemData("Copper Axe",             BASE_ID + 534, ItemClassification.filler, weight=3),
     ItemData("Copper Short Sword",     BASE_ID + 535, ItemClassification.filler, weight=2),
+    ItemData("Miracle Cure",           BASE_ID + 570, ItemClassification.filler, weight=8),
 ]
 
 TRAP_ITEMS: list[ItemData] = [
-    ItemData("Ensnaring Webs",         BASE_ID + 530, ItemClassification.trap),
-    ItemData("Order Sabotage",         BASE_ID + 531, ItemClassification.trap),
-    ItemData("Goblin Saboteurs",       BASE_ID + 532, ItemClassification.trap),
+    ItemData("Ensnaring Webs",         BASE_ID + 530, ItemClassification.trap, weight=10),
+    ItemData("Order Sabotage",         BASE_ID + 531, ItemClassification.trap, weight=10),
+    ItemData("Goblin Saboteurs",       BASE_ID + 532, ItemClassification.trap, weight=10),
 ]
 
 CRAFT_ITEMS: list[ItemData] = [ #commented items people should get when getting the blueprints

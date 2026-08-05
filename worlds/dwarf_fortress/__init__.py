@@ -329,9 +329,11 @@ class DwarfFortressWorld(World):
         #    flavor trinkets and the rare low-grade tools.
         filler_weights = [f.weight for f in FILLER_ITEMS]
         padding_traps = [t for t in TRAP_ITEMS if t.name in enabled_traps]
+        padding_trap_weights = [t.weight for t in padding_traps]
         while len(item_pool) < location_count:
             if self.random.random() < trap_weight and padding_traps:
-                item_pool.append(self.create_item(self.random.choice(padding_traps).name))
+                trap = self.random.choices(padding_traps, weights=padding_trap_weights, k=1)[0]
+                item_pool.append(self.create_item(trap.name))
             else:
                 choice = self.random.choices(FILLER_ITEMS, weights=filler_weights, k=1)[0]
                 item_pool.append(self.create_item(choice.name))
