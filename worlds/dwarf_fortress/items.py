@@ -123,14 +123,14 @@ FILLER_ITEMS: list[ItemData] = [
 ]
 
 TRAP_ITEMS: list[ItemData] = [
-    ItemData("Ensnaring Webs",         BASE_ID + 530, ItemClassification.trap, weight=10),
-    ItemData("Order Sabotage",         BASE_ID + 531, ItemClassification.trap, weight=10),
-    ItemData("Goblin Saboteurs",       BASE_ID + 532, ItemClassification.trap, weight=10),
-    ItemData("Goblin Ambush",          BASE_ID + 620, ItemClassification.trap, weight=10),
+    ItemData("Ensnaring Webs",         BASE_ID + 530, ItemClassification.trap, weight=5),
+    ItemData("Order Sabotage",         BASE_ID + 531, ItemClassification.trap, weight=3),
+    ItemData("Goblin Saboteurs",       BASE_ID + 532, ItemClassification.trap, weight=8),
+    ItemData("Goblin Ambush",          BASE_ID + 620, ItemClassification.trap, weight=8),
     ItemData("Cave Bear Incursion",    BASE_ID + 621, ItemClassification.trap, weight=10),
     ItemData("Vermin Infestation",     BASE_ID + 622, ItemClassification.trap, weight=10),
     ItemData("Unquenchable Thirst",    BASE_ID + 623, ItemClassification.trap, weight=10),
-    ItemData("Lost Caravan",           BASE_ID + 624, ItemClassification.trap, weight=10),
+    ItemData("Lost Caravan",           BASE_ID + 624, ItemClassification.trap, weight=4),
     ItemData("Catsplosion",            BASE_ID + 625, ItemClassification.trap, weight=10),
 ]
 
