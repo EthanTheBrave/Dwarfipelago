@@ -4,7 +4,7 @@ from typing import List, Set, Union, TYPE_CHECKING
 from dataclasses import dataclass
 from BaseClasses import ItemClassification, Location, LocationProgressType, CollectionState
 from worlds.generic.Rules import set_rule
-from .options import EnableCraftsanity, CraftsanityDifficulty, CraftsanityItems, CraftsanityMaterials
+from .options import EnableCraftsanity, CraftsanityDifficulty, CraftsanityItems, CraftsanityMaterials, ExcludeDeepEndgameChecks
 from .locations import BASE_ID, LocationData
 
 if TYPE_CHECKING:
@@ -150,6 +150,9 @@ def loop_locations(world: "DwarfFortressWorld", new_location: DynamicCraftingDat
 
     if world.options.craftsanity_enable_materials and not non_material_items(item):
         for material in world.options.craftsanity_materials:  # player-selected materials
+            if world.options.exclude_deep_endgame_checks == ExcludeDeepEndgameChecks.option_yes_and_sanity \
+            and material == "Adamantine":
+                continue
             if material in MATERIAL_SLOTS and valid_materialitem(material, item):
                 emit(material)
     else:  # material doesn't matter
