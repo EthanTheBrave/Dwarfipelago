@@ -954,8 +954,8 @@ class DynamicCraftingLocationRules:
             return self.job_type(state, "Silkcraft")
     def leather_crafts(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leathercraft") and self.permit(state, "Crafts")
-    def craftdwarf_or_metal_or_glass_crafts(self, state:CollectionState) -> bool:
-        return self.craftdwarf_or_metal_or_glass(state) and self.permit(state, "Crafts")
+    def craftdwarf_or_metal_crafts(self, state:CollectionState) -> bool:
+        return self.craftdwarf_or_metal(state) and self.permit(state, "Crafts")
     
     def mechanic_mechanism(self, state:CollectionState) -> bool:
         return self.mechanic_workshop(state) and self.permit(state, "Mechanism")
@@ -2824,11 +2824,6 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.bone_crafts)
                     else:
                         set_rule(loc, self.glass)
-                elif material_type == "Glass":  
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.glass_crafts)
-                    else:
-                        set_rule(loc, self.glass)
                 elif material_type == "Ceramic":  
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.ceramic_crafts)
@@ -2861,9 +2856,9 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.adamantine_metal)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.craftdwarf_or_metal_or_glass_crafts)
+                        set_rule(loc, self.craftdwarf_or_metal_crafts)
                     else:
-                        set_rule(loc, self.craftdwarf_or_metal_or_glass)
+                        set_rule(loc, self.craftdwarf_or_metal)
             case "Mechanism": #done in job manager, only needs Mechanic Shop
                 if material_type == "Adamantine":
                     if self.world.options.craftpermits != CraftingPermits.option_off:

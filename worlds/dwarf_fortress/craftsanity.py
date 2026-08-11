@@ -183,7 +183,7 @@ def valid_materialitem(material: str, item: str) -> bool:
         return True
     if material in {"Wood", "Stone", "Bone", "Metal", "Glass", "Adamantine"} and item in {"Die", "Nest Box"}:
         return True
-    if material in {"Wood", "Stone", "Metal", "Glass", "Bone", "Cloth", "Ceramic", "Leather", "Adamantine", "Silk"} and item in {"Crafts"}:
+    if material in {"Wood", "Stone", "Metal", "Bone", "Cloth", "Ceramic", "Leather", "Adamantine", "Silk"} and item in {"Crafts"}:
         return True
     if material in {"Wood", "Bone", "Metal", "Adamantine"} and item in {"Crossbow", "Bolt"}:
         return True
