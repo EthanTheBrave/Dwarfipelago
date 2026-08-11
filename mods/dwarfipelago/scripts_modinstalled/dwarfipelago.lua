@@ -397,6 +397,11 @@ local function was_citizen(unit)
         return unit.civ_id == df.global.plotinfo.civ_id
     end)
     if not (ok and civ_ok) then return false end
+    -- Owned livestock share the fort's civ_id, so butchering (or any animal death)
+    -- would otherwise count as a citizen death and fire a spurious DeathLink.
+    local anim = false
+    pcall(function() anim = dfhack.units.isAnimal(unit) end)
+    if anim then return false end
     if unit.flags1.merchant or unit.flags1.diplomat then return false end
     if unit.flags2.visitor or unit.flags2.visitor_uninvited then return false end
     if unit.flags2.resident then return false end
