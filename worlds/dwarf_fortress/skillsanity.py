@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from BaseClasses import ItemClassification, Location, LocationProgressType, CollectionState
 from worlds.dwarf_fortress.craftsanity_rules import DynamicCraftingLocationRules
 from worlds.generic.Rules import set_rule
-from .options import CraftingPermits, SkillsanitySkillGroup, SkillsanityCombatSkillGroup
+from .options import CraftingPermits, ExcludeDeepEndgameChecks, SkillsanitySkillGroup, SkillsanityCombatSkillGroup
 from .locations import COMBAT_SKILLS, JOB_SKILLS, LocationData
 
 if TYPE_CHECKING:
@@ -96,6 +96,12 @@ class Skillsanity:
                 for skill in JOB_SKILLS:
                     compare = [s for s in self.SKILLSANITY_HARD if s in skill.name]
                     if len(compare) == 0:
+                        remove_skills.append(skill)
+                        skill_locations.remove(skill)
+                    if "Strand Extractor" in skill.name:
+                        print("hi")
+                    if self.world.options.exclude_deep_endgame_checks == ExcludeDeepEndgameChecks.option_yes_and_sanity \
+                    and "Strand Extractor" in skill.name:
                         remove_skills.append(skill)
                         skill_locations.remove(skill)
             else: #Manually selected
@@ -553,12 +559,7 @@ class Skillsanity:
             or dynamic_rules.metal_battleaxe(state) or dynamic_rules.metal_sword(state) \
             or dynamic_rules.metal_pick(state) or dynamic_rules.metal_bolt(state) \
             or dynamic_rules.metal_ball(state) or dynamic_rules.metal_spike(state) \
-            or dynamic_rules.metal_mace(state) \
-            or dynamic_rules.adamantine_crossbow(state) or dynamic_rules.adamantine_spear(state) \
-            or dynamic_rules.adamantine_battleaxe(state) or dynamic_rules.adamantine_sword(state) \
-            or dynamic_rules.adamantine_pick(state) or dynamic_rules.adamantine_bolt(state) \
-            or dynamic_rules.adamantine_ball(state) or dynamic_rules.adamantine_spike(state) \
-            or dynamic_rules.adamantine_mace(state)
+            or dynamic_rules.metal_mace(state) 
     
     def skill_furnaceoperator(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
@@ -581,16 +582,7 @@ class Skillsanity:
             or dynamic_rules.metal_bracelet(state) or dynamic_rules.metal_earring(state) \
             or dynamic_rules.metal_die(state) or dynamic_rules.metal_crown(state) \
             or dynamic_rules.metal_ring(state) or dynamic_rules.metal_scepter(state) \
-            or dynamic_rules.metal_figurine(state) or dynamic_rules.metal_nestbox(state) \
-            or dynamic_rules.adamantine_crafts(state) or dynamic_rules.adamantine_cup(state) \
-            or dynamic_rules.adamantine_liquidcontainer(state) or dynamic_rules.adamantine_toy(state) \
-            or dynamic_rules.adamantine_hive(state) or dynamic_rules.adamantine_jug(state) \
-            or dynamic_rules.adamantine_minecart(state) or dynamic_rules.adamantine_coins(state) \
-            or dynamic_rules.adamantine_chain(state) or dynamic_rules.adamantine_amulet(state) \
-            or dynamic_rules.adamantine_bracelet(state) or dynamic_rules.adamantine_earring(state) \
-            or dynamic_rules.adamantine_die(state) or dynamic_rules.adamantine_crown(state) \
-            or dynamic_rules.adamantine_ring(state) or dynamic_rules.adamantine_scepter(state) \
-            or dynamic_rules.adamantine_figurine(state) or dynamic_rules.adamantine_nestbox(state)
+            or dynamic_rules.metal_figurine(state) or dynamic_rules.metal_nestbox(state) 
         
     def skill_blacksmith(self, state:CollectionState) -> bool:
         dynamic_rules = DynamicCraftingLocationRules(self.world)
@@ -604,15 +596,7 @@ class Skillsanity:
             or dynamic_rules.metal_cabinet(state) or dynamic_rules.metal_cage(state) or dynamic_rules.metal_chair(state) \
             or dynamic_rules.metal_crutch(state) or dynamic_rules.metal_door(state) or dynamic_rules.metal_floodgate(state) \
             or dynamic_rules.metal_grate(state) or dynamic_rules.metal_hatchcover(state) or dynamic_rules.metal_weaponrack(state) \
-            or dynamic_rules.metal_anvil(state) or dynamic_rules.metal_bucket(state) or dynamic_rules.metal_pot(state) \
-            or dynamic_rules.adamantine_pedestal(state) or dynamic_rules.adamantine_altar(state) \
-            or dynamic_rules.adamantine_armorstand(state) \
-            or dynamic_rules.adamantine_bin(state) or dynamic_rules.adamantine_blocks(state) or dynamic_rules.adamantine_bookcase(state) \
-            or dynamic_rules.adamantine_bucket(state) or dynamic_rules.adamantine_burial(state) \
-            or dynamic_rules.adamantine_cabinet(state) or dynamic_rules.adamantine_cage(state) or dynamic_rules.adamantine_chair(state) \
-            or dynamic_rules.adamantine_crutch(state) or dynamic_rules.adamantine_door(state) or dynamic_rules.adamantine_floodgate(state) \
-            or dynamic_rules.adamantine_grate(state) or dynamic_rules.adamantine_hatchcover(state) or dynamic_rules.adamantine_weaponrack(state) \
-            or dynamic_rules.adamantine_anvil(state) or dynamic_rules.adamantine_bucket(state) or dynamic_rules.adamantine_pot(state)
+            or dynamic_rules.metal_anvil(state) or dynamic_rules.metal_bucket(state) or dynamic_rules.metal_pot(state) 
         elif self.world.options.craftpermits == CraftingPermits.option_all:
             return dynamic_rules.metal_pedestal(state) or dynamic_rules.metal_altar(state) \
             or dynamic_rules.metal_armorstand(state) \
@@ -622,16 +606,7 @@ class Skillsanity:
             or dynamic_rules.metal_crutch(state) or dynamic_rules.metal_door(state) or dynamic_rules.metal_floodgate(state) \
             or dynamic_rules.metal_grate(state) or dynamic_rules.metal_hatchcover(state) or dynamic_rules.metal_weaponrack(state) \
             or dynamic_rules.metal_barrel(state) or dynamic_rules.metal_bucket(state) or dynamic_rules.metal_pot(state) \
-            or dynamic_rules.metal_anvil(state) \
-            or dynamic_rules.adamantine_pedestal(state) or dynamic_rules.adamantine_altar(state) \
-            or dynamic_rules.adamantine_armorstand(state) \
-            or dynamic_rules.adamantine_bin(state) or dynamic_rules.adamantine_blocks(state) or dynamic_rules.adamantine_bookcase(state) \
-            or dynamic_rules.adamantine_bucket(state) or dynamic_rules.adamantine_burial(state) \
-            or dynamic_rules.adamantine_cabinet(state) or dynamic_rules.adamantine_cage(state) or dynamic_rules.adamantine_chair(state) \
-            or dynamic_rules.adamantine_crutch(state) or dynamic_rules.adamantine_door(state) or dynamic_rules.adamantine_floodgate(state) \
-            or dynamic_rules.adamantine_grate(state) or dynamic_rules.adamantine_hatchcover(state) or dynamic_rules.adamantine_weaponrack(state) \
-            or dynamic_rules.adamantine_barrel(state) or dynamic_rules.adamantine_bucket(state) or dynamic_rules.adamantine_pot(state) \
-            or dynamic_rules.adamantine_anvil(state)
+            or dynamic_rules.metal_anvil(state) 
         
     def skill_gemcutter(self, state:CollectionState) -> bool:
         return state.has("Jeweler's Workshop Blueprint", self.player)

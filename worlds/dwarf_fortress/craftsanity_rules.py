@@ -2,7 +2,7 @@ from typing import List, Set, Union, TYPE_CHECKING
 from dataclasses import dataclass
 from BaseClasses import ItemClassification, Location, LocationProgressType, CollectionState
 from worlds.generic.Rules import set_rule
-from .options import CraftingPermits
+from .options import CraftingPermits, ExcludeDeepEndgameChecks
 
 if TYPE_CHECKING:
     from . import DwarfFortressWorld
@@ -254,7 +254,8 @@ class DynamicCraftingLocationRules:
         or self.job_type(state, "Silkworks")
 
     def adamantinecloth_or_leather(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Adamantinecloth") or self.job_type(state, "Leatherworks") 
+        return (self.job_type(state, "Adamantinecloth") and self.world.options.exclude_deep_endgame_checks != ExcludeDeepEndgameChecks.option_yes_and_sanity) \
+        or self.job_type(state, "Leatherworks") 
     
     def any_thread(self, state:CollectionState) -> bool:
         if self.world.options.trades_inlogic:
@@ -435,7 +436,7 @@ class DynamicCraftingLocationRules:
     
     def leather_or_cloth_or_silk_or_adamantinecloth(self, state:CollectionState) -> bool:
         return self.job_type(state, "Clothworks") or self.job_type(state, "Silkworks") or self.job_type(state, "Leatherworks") \
-        or self.job_type(state, "Adamantinecloth")
+        or (self.job_type(state, "Adamantinecloth") and self.world.options.exclude_deep_endgame_checks != ExcludeDeepEndgameChecks.option_yes_and_sanity)
     
     def dye(self, state:CollectionState) -> bool:
         if self.world.options.trades_inlogic:
@@ -953,8 +954,8 @@ class DynamicCraftingLocationRules:
             return self.job_type(state, "Silkcraft")
     def leather_crafts(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leathercraft") and self.permit(state, "Crafts")
-    def craftdwarf_or_metal_or_glass_crafts(self, state:CollectionState) -> bool:
-        return self.craftdwarf_or_metal_or_glass(state) and self.permit(state, "Crafts")
+    def craftdwarf_or_metal_crafts(self, state:CollectionState) -> bool:
+        return self.craftdwarf_or_metal(state) and self.permit(state, "Crafts")
     
     def mechanic_mechanism(self, state:CollectionState) -> bool:
         return self.mechanic_workshop(state) and self.permit(state, "Mechanism")
@@ -1194,14 +1195,16 @@ class DynamicCraftingLocationRules:
     def leather_backpack(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks") and self.permit(state, "Backpack") 
     def adamantinecloth_or_leather_backpack(self, state:CollectionState) -> bool:
-        return self.adamantine_backpack(state) or self.leather_backpack(state) 
+        return (self.adamantine_backpack(state) and self.world.options.exclude_deep_endgame_checks != ExcludeDeepEndgameChecks.option_yes_and_sanity) \
+            or self.leather_backpack(state) 
     
     def adamantine_quiver(self, state:CollectionState) -> bool:
         return self.job_type(state, "Adamantinecloth") and self.permit(state, "Quiver") 
     def leather_quiver(self, state:CollectionState) -> bool:
         return self.job_type(state, "Leatherworks") and self.permit(state, "Quiver") 
     def adamantinecloth_or_leather_quiver(self, state:CollectionState) -> bool:
-        return self.adamantine_quiver(state) or self.leather_quiver(state)
+        return (self.adamantine_quiver(state) and self.world.options.exclude_deep_endgame_checks != ExcludeDeepEndgameChecks.option_yes_and_sanity) \
+        or self.leather_quiver(state)
     
     def craftdwarf_amulet(self, state:CollectionState) -> bool:
         return self.job_type(state, "Stonecraft") and self.permit(state, "Amulet")
@@ -2821,11 +2824,6 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.bone_crafts)
                     else:
                         set_rule(loc, self.glass)
-                elif material_type == "Glass":  
-                    if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.glass_crafts)
-                    else:
-                        set_rule(loc, self.glass)
                 elif material_type == "Ceramic":  
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.ceramic_crafts)
@@ -2858,9 +2856,9 @@ class DynamicCraftingLocationRules:
                         set_rule(loc, self.adamantine_metal)
                 else:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.craftdwarf_or_metal_or_glass_crafts)
+                        set_rule(loc, self.craftdwarf_or_metal_crafts)
                     else:
-                        set_rule(loc, self.craftdwarf_or_metal_or_glass)
+                        set_rule(loc, self.craftdwarf_or_metal)
             case "Mechanism": #done in job manager, only needs Mechanic Shop
                 if material_type == "Adamantine":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
