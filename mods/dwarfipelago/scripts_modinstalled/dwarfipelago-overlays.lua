@@ -10,7 +10,9 @@
 -- Both are enabled/disabled by dwarfipelago.lua's start()/stop().
 
 local overlay = require('plugins.overlay')
+local widgets = require('gui.widgets')
 local to_pen  = dfhack.pen.parse
+local trade   = reqscript('internal/dwarfipelago/trade')
 
 -- ── Shared keyword matching ───────────────────────────────────────────────────
 
@@ -547,10 +549,40 @@ function CraftsanityOverlay:onRenderBody(dc)
     end
 end
 
+-- ── Merchant trade overlay ────────────────────────────────────────────────────
+-- On the shrine altar's building sheet, offer a hotkey to open the caravan-style
+-- merchant trade window - but only once the shop is unlocked. The window and the
+-- shrine-altar test live in internal/dwarfipelago/trade.lua.
+MerchantTradeOverlay = defclass(MerchantTradeOverlay, overlay.OverlayWidget)
+MerchantTradeOverlay.ATTRS{
+    desc            = "Dwarfipelago: opens the merchant trade window at the shrine altar",
+    default_pos     = {x = -34, y = -7},
+    default_enabled = true,
+    viewscreens     = {'dwarfmode/ViewSheets/BUILDING'},
+    frame           = {w = 34, h = 1},
+}
+
+function MerchantTradeOverlay:init()
+    self:addviews{
+        widgets.HotkeyLabel{
+            view_id     = 'open',
+            frame       = {t = 0, l = 0},
+            key         = 'CUSTOM_CTRL_T',
+            label       = 'Open Merchant Trade',
+            visible     = function()
+                return trade.shop_unlocked()
+                    and trade.is_shrine_altar(dfhack.gui.getSelectedBuilding())
+            end,
+            on_activate = function() trade.open() end,
+        },
+    }
+end
+
 -- Auto-discovery table - DFHack registers these when the script is loaded.
 -- Widget names: "dwarfipelago-overlays.permits", "dwarfipelago-overlays.buildmenu".
 OVERLAY_WIDGETS = {
     permits   = PermitOverlay,
     buildmenu = BuildMenuOverlay,
     craftsanity = CraftsanityOverlay,
+    merchanttrade = MerchantTradeOverlay,
 }

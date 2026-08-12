@@ -1222,8 +1222,9 @@ function DwarfipelagoPanel:init()
     end
 
     -- ── Tab 9: Shop ───────────────────────────────────────────────────
-    -- Coffer-gated merchant shop. Select a slot and press Enter to spend minted
-    -- coins on its item. Slot data is written by the AP client (dwarfipelago/shop).
+    -- Coffer-gated merchant shop status + goods browser. Buying now happens in the
+    -- caravan-style trade window opened at the shrine altar (select it, Ctrl+T);
+    -- this tab is read-only. Slot data is written by the AP client (dwarfipelago/shop).
     function ShopTab()
         table.insert(tab_list, "Shop")
         local sjson = require('json')
@@ -1315,7 +1316,7 @@ function DwarfipelagoPanel:init()
             return {
                 "  Coins: ", {text=fmt_num(coins).."*",      pen=COLOR_YELLOW},
                 "   AP Coffers: ",    {text=tostring(coffers).."/5",  pen=COLOR_CYAN},
-                "   (Enter to buy)",
+                "   (Trade at the shrine altar)",
             }
         end
 
@@ -1354,11 +1355,10 @@ function DwarfipelagoPanel:init()
             text_pen   = COLOR_WHITE,
             cursor_pen = COLOR_CYAN,
             choices    = build_choices(shop0, pending0, coffers0, coins0, unlocked0),
-            on_submit  = function(_, choice)
-                if choice and choice.buyable and choice.slot then
-                    dfhack.run_command("dwarfipelago", "buy-shop", tostring(choice.slot))
-                    refresh()
-                end
+            on_submit  = function()
+                dfhack.gui.showAnnouncement(
+                    "[AP] Buying moved to the shrine: select the altar and press Ctrl+T to trade.",
+                    COLOR_YELLOW, true)
             end,
         }
         self._shop_refresh = refresh   -- onRenderFrame calls this to live-update
