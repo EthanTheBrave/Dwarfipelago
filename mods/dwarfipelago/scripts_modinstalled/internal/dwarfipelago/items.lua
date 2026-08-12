@@ -2999,7 +2999,127 @@ local function test_find(substr)
 end
 
 -- Ordered so 'dwarfipelago test' lists them predictably.
+-- Stock a coffer in the temple zone with coins/gem/goods + a dummy shop, then
+-- open the trade window. Forces shop_unlocked; unpausing lets the shrine detector
+-- re-lock it (the shrine is otherwise incomplete).
+local function test_trade()
+    local trade = reqscript('internal/dwarfipelago/trade')
+    local json  = require('json')
+
+    local temple_locs, site = {}, dfhack.world.getCurrentSite()
+    if site then
+        for _, b in ipairs(site.buildings) do
+            if df.abstract_building_templest:is_instance(b) then temple_locs[b.id] = true end
+        end
+    end
+    local zone
+    for _, z in ipairs(df.global.world.buildings.other.ANY_ZONE) do
+        local loc = -1; pcall(function() loc = z.location_id end)
+        if loc and loc >= 0 and temple_locs[loc] then zone = z; break end
+    end
+    if not zone then
+        dfhack.printerr("[test] No temple zone found - assign a zone to a temple first."); return
+    end
+    local x1, x2 = math.min(zone.x1, zone.x2), math.max(zone.x1, zone.x2)
+    local y1, y2 = math.min(zone.y1, zone.y2), math.max(zone.y1, zone.y2)
+    local zz = zone.z
+    local tx, ty = math.floor((x1 + x2) / 2), math.floor((y1 + y2) / 2)
+
+    -- Offering places build instantly (no materials); add one so the shop-button
+    -- overlay (which binds to the altar's panel) has something to attach to.
+    local have_altar = false
+    for _, b in ipairs(df.global.world.buildings.other.OFFERING_PLACE) do
+        if b.z == zz and b.x1 <= x2 and b.x2 >= x1 and b.y1 <= y2 and b.y2 >= y1 then
+            have_altar = true; break
+        end
+    end
+    if not have_altar then
+        pcall(function()
+            dfhack.buildings.constructBuilding{type = df.building_type.OfferingPlace, pos = {x = tx, y = ty, z = zz}}
+        end)
+    end
+
+    local unit
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then unit = u; break end
+    end
+    if not unit then dfhack.printerr("[test] No living citizen to create items."); return end
+
+    local function mat(...)
+        for _, tok in ipairs({...}) do
+            local m = dfhack.matinfo.find(tok); if m then return m.type, m.index end
+        end
+    end
+
+    -- A coffer (BOX) on the ground in the zone.
+    local st, si = mat("INORGANIC:GRANITE", "INORGANIC:MICROCLINE", "INORGANIC:GABBRO")
+    local ok, made = pcall(dfhack.items.createItem, unit, df.item_type.BOX, -1, st, si, false)
+    local box = ok and made and made[1]
+    if not box then dfhack.printerr("[test] Could not create the coffer."); return end
+    pcall(function() box.flags.forbid = false; dfhack.items.moveToGround(box, {x = tx, y = ty, z = zz}) end)
+
+    local placed = 0
+    local function into_box(items)
+        local it = items and items[1]; if not it then return end
+        pcall(function() it.flags.forbid = false end)
+        if pcall(function() return dfhack.items.moveToContainer(it, box) end) then placed = placed + 1
+        else pcall(function() dfhack.items.moveToGround(it, {x = tx, y = ty, z = zz}) end) end
+    end
+    local function make(itype, ...)
+        local mt, mi = mat(...); if not mt then return end
+        local o, m = pcall(dfhack.items.createItem, unit, itype, -1, mt, mi, false)
+        if o then return m end
+    end
+
+    -- Coins + gem = full value; goblet/figurine/toy = 50%.
+    local coins = make(df.item_type.COIN, "INORGANIC:GOLD", "INORGANIC:COPPER")
+    if coins and coins[1] then pcall(function() coins[1].stack_size = 500 end) end
+    into_box(coins)
+    into_box(make(df.item_type.SMALLGEM, "INORGANIC:MICROCLINE", "INORGANIC:AMETHYST"))
+    into_box(make(df.item_type.GOBLET,   "INORGANIC:GRANITE", "INORGANIC:GABBRO"))
+    into_box(make(df.item_type.FIGURINE, "INORGANIC:GRANITE", "INORGANIC:GABBRO"))
+    into_box(make(df.item_type.TOY,      "INORGANIC:GRANITE", "INORGANIC:GABBRO"))
+
+    -- 5 gold bars (the shrine's bar requirement) loose in the zone so the shrine
+    -- genuinely completes. offer_items excludes the required bar type, so they
+    -- won't appear as payment.
+    do
+        local bars = make(df.item_type.BAR, "INORGANIC:GOLD")
+        if bars and bars[1] then
+            pcall(function() bars[1].stack_size = 5; bars[1].flags.forbid = false end)
+            pcall(function() dfhack.items.moveToGround(bars[1], {x = tx, y = ty, z = zz}) end)
+        end
+    end
+
+    local shop = {
+        ["1"]={slot=1,tier=1,price=120, item="Steel Battle Axe",         player="Alice", bought=0, id=37380101},
+        ["2"]={slot=2,tier=1,price=300, item="Masterwork Coffer",        player="Bob",   bought=0, id=37380102},
+        ["3"]={slot=3,tier=2,price=650, item="Adamantine Wafers",        player="Carol", bought=0, id=37380103},
+        ["4"]={slot=4,tier=2,price=900, item="Cave Spider Silk Cloth",   player="Dave",  bought=0, id=37380104},
+        ["5"]={slot=5,tier=3,price=1500,item="Artifact Warhammer",       player="Erin",  bought=0, id=37380105},
+        ["6"]={slot=6,tier=4,price=3000,item="Divine Steel Breastplate", player="Frank", bought=0, id=37380106},
+    }
+    local P = "dwarfipelago/"
+    dfhack.persistent.saveWorldDataString(P.."shop", json.encode(shop))
+    dfhack.persistent.saveWorldDataString(P.."shop_pending", "{}")
+    dfhack.persistent.saveWorldDataString(P.."shop_buy", "[]")
+    dfhack.persistent.saveWorldDataString(P.."unlock/wealth_coffers", "3")
+    dfhack.persistent.saveWorldDataString(P.."shrine_progress", json.encode({
+        zone = zone.id, x = tx, y = ty, z = zz, value = 9999, value_req = 5000,
+        bars = 5, bars_req = 5, altar = true, bin = true, ok = true }))
+    dfhack.persistent.saveWorldDataString(P.."shop_unlocked", "1")
+
+    local offerable = #trade.offer_items()
+    print(("[test] Zone %d: altar + coffer + 5 gold bars placed; %d payment item(s), %d offerable.")
+        :format(zone.id, placed, offerable))
+    print("[test] 6 dummy goods loaded (coffers=3, tier 4 locked); shop unlocked.")
+    print("[test] Select the altar for the 'Open Merchant Shop' button - and it's already open now.")
+    trade.open()
+end
+
 local TEST_LIST = {
+    { "trade",     "Stock a coffer in your temple zone + dummy shop, then open the trade window",
+                   function() test_trade() end },
     { "spawn",     "Spawn 1 unit via dfhack.units API + report status (arg: RACE, default DWARF)",
                    function(rest) test_spawn(rest[1]) end },
     { "find",      "List creature tokens matching a substring (arg: SUBSTR, e.g. BEAR)",
