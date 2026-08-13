@@ -2459,6 +2459,15 @@ local function make_outfit()
     if feet then spawn_item("SHOES:" .. feet, cloth) end
 end
 
+-- Freshly created citizens have every labor off, so they idle until the player
+-- toggles labors by hand. Turn them all on so migrants start working immediately.
+local function enable_labors(unit)
+    pcall(function()
+        local labors = unit.status.labors
+        for i = 0, df.unit_labor._last_item do labors[i] = true end
+    end)
+end
+
 local function spawn_citizen_dwarves(count)
     local race_idx
     for i, cr in ipairs(df.global.world.raws.creatures.all) do
@@ -2493,6 +2502,7 @@ local function spawn_citizen_dwarves(count)
             end
             df.global.world.units.active:insert('#', unit)
             dfhack.units.makeown(unit)   -- enlist as a fortress member
+            enable_labors(unit)          -- turn on labors so they work without manual toggling
             set_dwarf_name(unit, dwarf_name())
             pcall(make_outfit)           -- cloth outfit at the depot to dress with
             made = made + 1
