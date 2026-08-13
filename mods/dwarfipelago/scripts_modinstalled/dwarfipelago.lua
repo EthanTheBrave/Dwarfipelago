@@ -1064,6 +1064,57 @@ local function sync_shrine_marker(best, marker_id)
     end
 end
 
+-- ── Shrine floor marker ───────────────────────────────────────────────────────
+-- Replaces the old forbidden statue: instantly lay a constructed floor across the
+-- claimed temple zone's floor tiles, rotating four bright materials so it reads as
+-- an Archipelago-branded floor. Idempotent per zone.
+local SHRINE_FLOOR_ZONE = "dwarfipelago/shrine_floor_zone"
+local AP_FLOOR_TOKENS = { "INORGANIC:GOLD", "INORGANIC:MICROCLINE", "INORGANIC:CINNABAR", "INORGANIC:MALACHITE" }
+
+local function place_shrine_floor(best, marker_id)
+    -- Retire any legacy gold-statue marker from older saves.
+    if marker_id then
+        local m = df.item.find(marker_id)
+        if m then pcall(function() m.flags.forbid = true; m.flags.hidden = true; m.flags.garbage_collect = true end) end
+        dfhack.persistent.saveWorldDataString(SHRINE_MARKER_KEY, "")
+    end
+    if not best.zone_id then return end
+    -- Lay the floor only once per claimed zone.
+    if dfhack.persistent.getWorldDataString(SHRINE_FLOOR_ZONE) == tostring(best.zone_id) then return end
+
+    local mats = {}
+    for _, tok in ipairs(AP_FLOOR_TOKENS) do
+        local mi = dfhack.matinfo.find(tok)
+        if mi then mats[#mats + 1] = { t = mi.type, i = mi.index } end
+    end
+    if #mats == 0 then return end
+
+    local z = best.cz or best.z
+    for x = best.x1, best.x2 do
+        for y = best.y1, best.y2 do
+            local tt = dfhack.maps.getTileType(x, y, z)
+            if tt and df.tiletype.attrs[tt].shape == df.tiletype_shape.FLOOR
+                    and tt ~= df.tiletype.ConstructedFloor
+                    and not dfhack.buildings.findAtTile(x, y, z) then
+                local m = mats[((x + y) % #mats) + 1]
+                pcall(function()
+                    local c = df.construction:new()
+                    c.pos.x, c.pos.y, c.pos.z = x, y, z
+                    c.item_type    = df.item_type.BOULDER
+                    c.item_subtype = -1
+                    c.mat_type     = m.t
+                    c.mat_index    = m.i
+                    c.original_tile = tt
+                    dfhack.constructions.insert(c)
+                    local blk = dfhack.maps.getTileBlock(x, y, z)
+                    blk.tiletype[x % 16][y % 16] = df.tiletype.ConstructedFloor
+                end)
+            end
+        end
+    end
+    dfhack.persistent.saveWorldDataString(SHRINE_FLOOR_ZONE, tostring(best.zone_id))
+end
+
 local function detect_shrine()
     -- Shop disabled for this seed => never scan (shop_enabled written by the AP
     -- client). Absent/blank means an older seed with no flag: treat as enabled.
@@ -1180,7 +1231,7 @@ local function detect_shrine()
     end)
 
     -- Mark the claimed zone in-world so it is identifiable at a glance.
-    sync_shrine_marker(best, marker_id)
+    place_shrine_floor(best, marker_id)
 
     dfhack.persistent.saveWorldDataString("dwarfipelago/shop_unlocked", best.ok and "1" or "0")
     dfhack.persistent.saveWorldDataString("dwarfipelago/shrine_progress", json.encode({
