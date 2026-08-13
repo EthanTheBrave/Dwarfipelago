@@ -3135,6 +3135,9 @@ local function test_trade()
         zone = zone.id, x = tx, y = ty, z = zz, value = 9999, value_req = 5000,
         bars = 5, bars_req = 5, altar = true, bin = true, ok = true }))
     dfhack.persistent.saveWorldDataString(P.."shop_unlocked", "1")
+    -- dock an AP caravan too, so the trade-depot button is testable
+    dfhack.persistent.saveWorldDataString(P.."ap_caravan_active", "1")
+    dfhack.persistent.saveWorldDataString(P.."ap_caravan_arrive", tostring(df.global.cur_year * 403200 + df.global.cur_year_tick))
 
     local offerable = #trade.offer_items()
     print(("[test] Zone %d: altar + 5 gold bars + stockpile coins/gem + pedestal crafts; %d placed, %d offerable.")

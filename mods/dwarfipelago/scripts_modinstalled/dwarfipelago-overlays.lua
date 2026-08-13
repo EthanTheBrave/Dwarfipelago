@@ -578,6 +578,35 @@ function MerchantTradeOverlay:init()
     }
 end
 
+-- ── Caravan trade overlay ─────────────────────────────────────────────────────
+-- While an Archipelago caravan is docked (spring visit), a button on the trade
+-- depot opens the same merchant shop window. Complements the always-open altar
+-- button above; both need the shop unlocked (an active shrine).
+DepotTradeOverlay = defclass(DepotTradeOverlay, overlay.OverlayWidget)
+DepotTradeOverlay.ATTRS{
+    desc            = "Dwarfipelago: button on the trade depot to shop a visiting Archipelago caravan",
+    default_pos     = {x = 58, y = 9},
+    default_enabled = true,
+    viewscreens     = {'dwarfmode/ViewSheets/BUILDING'},
+    frame           = {w = 40, h = 1},
+}
+
+function DepotTradeOverlay:init()
+    self:addviews{
+        widgets.TextButton{
+            view_id     = 'open',
+            frame       = {t = 0, l = 0, h = 1},
+            label       = 'Trade with Archipelago Caravan',
+            key         = 'CUSTOM_CTRL_T',
+            visible     = function()
+                return trade.shop_unlocked() and trade.ap_caravan_docked()
+                    and trade.is_trade_depot(dfhack.gui.getSelectedBuilding())
+            end,
+            on_activate = function() trade.open() end,
+        },
+    }
+end
+
 -- Auto-discovery table - DFHack registers these when the script is loaded.
 -- Widget names: "dwarfipelago-overlays.permits", "dwarfipelago-overlays.buildmenu".
 OVERLAY_WIDGETS = {
@@ -585,4 +614,5 @@ OVERLAY_WIDGETS = {
     buildmenu = BuildMenuOverlay,
     craftsanity = CraftsanityOverlay,
     merchanttrade = MerchantTradeOverlay,
+    depottrade = DepotTradeOverlay,
 }

@@ -72,6 +72,15 @@ function M.shop_unlocked()
     return ps("shop_unlocked", "0") == "1"
 end
 
+-- True while an Archipelago caravan is currently docked at the trade depot.
+function M.ap_caravan_docked()
+    return ps("ap_caravan_active", "0") == "1"
+end
+
+function M.is_trade_depot(bld)
+    return (bld and df.building_tradedepotst:is_instance(bld)) and true or false
+end
+
 -- Adjusted ☼ value of an offer item: coins/gems at full, else half (floored).
 local function item_offer_value(it, itype)
     local ok, v = pcall(dfhack.items.getValue, it)

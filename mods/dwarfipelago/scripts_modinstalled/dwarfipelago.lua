@@ -1581,6 +1581,39 @@ local function abs_tick()
     return df.global.cur_year * TICKS_PER_YEAR + df.global.cur_year_tick
 end
 
+-- ── Archipelago caravan: seasonal (spring) visit while the shrine is active ────
+-- The AP shop is always reachable at the shrine altar; on top of that, each
+-- spring an Archipelago caravan visits the trade depot and stays a while,
+-- exposing the same shop from a depot button (dwarfipelago-overlays). This is
+-- just a persistent-state lifecycle - no units are spawned yet, keeping it
+-- lightweight while the idea is proven out.
+local AP_CARAVAN_STAY_TICKS = 24000  -- ~20 days docked before it departs
+local function detect_ap_caravan()
+    local unlocked = dfhack.persistent.getWorldDataString("dwarfipelago/shop_unlocked") == "1"
+    local active   = dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_active") == "1"
+    local now = abs_tick()
+    if active then
+        local arrive = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_arrive")) or 0
+        if not unlocked or now - arrive >= AP_CARAVAN_STAY_TICKS then
+            dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "0")
+            dfhack.gui.showAnnouncement("[AP] The Archipelago caravan packs up and departs.", COLOR_YELLOW, true)
+        end
+        return
+    end
+    if not unlocked then return end
+    -- Arrive once per year, in spring (season 0).
+    if _cur_season() == 0 then
+        local last = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_year")) or -1
+        if df.global.cur_year > last then
+            dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_year", tostring(df.global.cur_year))
+            dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "1")
+            dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_arrive", tostring(now))
+            dfhack.gui.showAnnouncement(
+                "[AP] An Archipelago caravan has arrived at your trade depot!", COLOR_GREEN, true)
+        end
+    end
+end
+
 -- War Readiness = Military Training items received, capped by fortress military
 -- milestones: 1-4 free, 5-6 need a set-up barracks, 7-9 need 4 soldiers at combat
 -- skill 10+. (Readiness 10 - the breach - is gated on the full war effort and
@@ -1989,6 +2022,7 @@ local function poll_checks()
     guard("completed_trade", detect_completed_trade)
     guard("tamed_beast",     detect_tamed_beast)
     guard("shrine",        detect_shrine)
+    guard("apcaravan",     detect_ap_caravan)
     guard("spawn_caravan", _check_spawn_caravan_approved)
     guard("skills",        checks.update_skill_levels)
     guard("waves",         poll_warband_waves)
