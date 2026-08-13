@@ -1013,6 +1013,37 @@ local function create_unit(race_token, pos, opts)
     return result
 end
 
+-- Create and equip a basic leather outfit (body/legs/feet) so the merchant
+-- isn't naked - it has no AI to pick up dropped clothes like a citizen would.
+local function dress_merchant(unit)
+    local idefs = df.global.world.raws.itemdefs
+    local mi = dfhack.matinfo.find("CREATURE_MAT:COW:LEATHER")
+            or dfhack.matinfo.find("PLANT_MAT:GRASS_TAIL_PIG:THREAD")
+    if not mi then return end
+    local function clothing_idx(defs)
+        local fb
+        for _, d in ipairs(defs) do
+            fb = fb or d.subtype
+            local lvl; pcall(function() lvl = d.armorlevel end)
+            if lvl == 0 then return d.subtype end
+        end
+        return fb
+    end
+    local function wear(itype, defs)
+        local sub = clothing_idx(defs); if not sub then return end
+        local ok, made = pcall(dfhack.items.createItem, unit, itype, sub, mi.type, mi.index, false)
+        if ok and made and made[1] then
+            pcall(function()
+                made[1].flags.forbid = false
+                dfhack.items.moveToInventory(made[1], unit, 2, -1)  -- 2 = Worn
+            end)
+        end
+    end
+    wear(df.item_type.ARMOR, idefs.armor)
+    wear(df.item_type.PANTS, idefs.pants)
+    wear(df.item_type.SHOES, idefs.shoes)
+end
+
 -- ── Archipelago caravan merchant NPC ──────────────────────────────────────────
 -- A neutral dwarf that stands at the trade depot while the AP caravan is docked;
 -- its presence is what gates the depot shop button. No real caravan is spawned.
@@ -1029,6 +1060,12 @@ function M.spawn_ap_merchant()
     local unit = create_unit("DWARF", { x = dx, y = dy, z = dz }, {})  -- neutral: just stands there
     if not unit then return false end
     pcall(function() dfhack.units.setNickname(unit, "Archipelago Merchant") end)
+    -- Proper title + clothes so it isn't a naked "Peasant".
+    pcall(function()
+        unit.profession = df.profession.TRADER
+        unit.custom_profession = "Merchant"
+    end)
+    dress_merchant(unit)
     dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_unit", tostring(unit.id))
     return true
 end
