@@ -1029,19 +1029,21 @@ local function dress_merchant(unit)
         end
         return fb
     end
-    local function wear(itype, defs)
+    local function wear(itype, defs, count)
         local sub = clothing_idx(defs); if not sub then return end
-        local ok, made = pcall(dfhack.items.createItem, unit, itype, sub, mi.type, mi.index, false)
-        if ok and made and made[1] then
-            pcall(function()
-                made[1].flags.forbid = false
-                dfhack.items.moveToInventory(made[1], unit, 2, -1)  -- 2 = Worn
-            end)
+        for _ = 1, (count or 1) do
+            local ok, made = pcall(dfhack.items.createItem, unit, itype, sub, mi.type, mi.index, false)
+            if ok and made and made[1] then
+                pcall(function()
+                    made[1].flags.forbid = false
+                    dfhack.items.moveToInventory(made[1], unit, 2, -1)  -- 2 = Worn
+                end)
+            end
         end
     end
     wear(df.item_type.ARMOR, idefs.armor)
     wear(df.item_type.PANTS, idefs.pants)
-    wear(df.item_type.SHOES, idefs.shoes)
+    wear(df.item_type.SHOES, idefs.shoes, 2)  -- one for each foot
 end
 
 -- ── Archipelago caravan merchant NPC ──────────────────────────────────────────
