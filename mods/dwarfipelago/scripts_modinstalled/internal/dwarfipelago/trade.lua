@@ -203,8 +203,22 @@ function M.confirm(slots, offer_ids)
         return false, ("Not enough offered value: need %d, offered %d."):format(total_price, offered)
     end
 
-    -- Consume the offered items.
+    -- Consume the offered items. Detach any pedestal-displayed item from its
+    -- building first (erase from displayed_items + drop to the ground) so no
+    -- dangling reference is left behind.
     for _, it in ipairs(items) do
+        local iid = it.id
+        pcall(function()
+            for _, b in ipairs(df.global.world.buildings.all) do
+                if df.building_display_furniturest:is_instance(b) then
+                    for i = #b.displayed_items - 1, 0, -1 do
+                        if b.displayed_items[i] == iid then b.displayed_items:erase(i) end
+                    end
+                end
+            end
+            local p = it.pos
+            if p then dfhack.items.moveToGround(it, {x = p.x, y = p.y, z = p.z}) end
+        end)
         pcall(function() dfhack.items.remove(it) end)
     end
 
