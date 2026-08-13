@@ -235,7 +235,7 @@ function MerchantTradeScreen:init()
     self.sel_offer = {}   -- [item id]=true
     self.sort_key  = "price"
 
-    local W, H = 84, 40
+    local W, H = 120, 44
     self:addviews{
         widgets.Window{
             frame_title = "Merchant Trade",
@@ -250,13 +250,13 @@ function MerchantTradeScreen:init()
                     on_change = function(v) self.sort_key = v; self:refresh() end,
                 },
                 widgets.Label{ frame = { t = 2, l = 0 }, text = "Goods (Enter to add/remove)", text_pen = COLOR_CYAN },
-                widgets.Label{ frame = { t = 2, r = 0, w = 34 }, text = "Your offer  (Enter to add/remove)", text_pen = COLOR_CYAN },
+                widgets.Label{ frame = { t = 2, r = 0, w = 48 }, text = "Your offer  (Enter to add/remove)", text_pen = COLOR_CYAN },
                 widgets.List{
-                    view_id = "goods", frame = { t = 3, b = 3, l = 0, w = 44 },
+                    view_id = "goods", frame = { t = 3, b = 3, l = 0, w = 66 },
                     on_submit = function(_, c) if c and c.slot then self:toggle_good(c.slot) end end,
                 },
                 widgets.List{
-                    view_id = "offer", frame = { t = 3, b = 3, r = 0, w = 36 },
+                    view_id = "offer", frame = { t = 3, b = 3, r = 0, w = 48 },
                     on_submit = function(_, c) if c and c.id then self:toggle_offer(c.id) end end,
                 },
                 widgets.HotkeyLabel{
@@ -301,7 +301,7 @@ function MerchantTradeScreen:refresh()
         elseif marked      then pen = COLOR_LIGHTGREEN end
         local tag = g.buyable and "" or ("  ("..g.state..")")
         gchoices[#gchoices + 1] = {
-            text = ("%s%-22.22s %6d* T%d%s"):format(box, g.item, g.price, g.tier, tag),
+            text = ("%s%-30.30s %6d* T%d%s"):format(box, g.item, g.price, g.tier, tag),
             pen = pen, slot = g.buyable and g.slot or nil,
         }
     end
@@ -317,7 +317,7 @@ function MerchantTradeScreen:refresh()
         local box = marked and "[x] " or "[ ] "
         local vpen = o.coingem and COLOR_YELLOW or COLOR_GRAY
         ochoices[#ochoices + 1] = {
-            text = ("%s%-22.22s %6d*"):format(box, o.name or "?", o.value),
+            text = ("%s%-34.34s %6d*"):format(box, o.name or "?", o.value),
             pen = marked and COLOR_LIGHTGREEN or vpen, id = o.id,
         }
     end
