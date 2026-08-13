@@ -3120,8 +3120,9 @@ local function test_trade()
                 local it = items and items[1]; if not it then return end
                 pcall(function()
                     it.flags.forbid = false
+                    -- fortress goods staged for trade: on the depot (TEMP role),
+                    -- but NOT flagged trader (that would be the caravan's side).
                     dfhack.items.moveToBuilding(it, depot, df.building_item_role_type.TEMP)
-                    it.flags.trader = true
                 end)
                 placed = placed + 1
             end
@@ -3163,6 +3164,25 @@ local function test_trade()
     -- dock an AP caravan too, so the trade-depot button is testable
     dfhack.persistent.saveWorldDataString(P.."ap_caravan_active", "1")
     dfhack.persistent.saveWorldDataString(P.."ap_caravan_arrive", tostring(df.global.cur_year * 403200 + df.global.cur_year_tick))
+    -- spawn a real dwarven caravan so the depot's "move goods to depot" flow is
+    -- active (arrives over the next few days); skip if one is already scheduled.
+    do
+        local pending = false
+        for _, ev in ipairs(df.global.timed_events) do
+            if ev.type == df.timed_event_type.Caravan then pending = true; break end
+        end
+        if not pending then
+            local civ = df.historical_entity.find(df.global.plotinfo.civ_id)
+            if civ then
+                df.global.timed_events:insert('#', {
+                    new = true, type = df.timed_event_type.Caravan,
+                    season = df.global.cur_season, season_ticks = df.global.cur_season_tick,
+                    entity = civ, feature_ind = -1,
+                })
+                print("[test] Dwarven caravan summoned - it will arrive at the depot shortly.")
+            end
+        end
+    end
 
     local offerable = #trade.offer_items()
     print(("[test] Zone %d: altar + 5 gold bars + stockpile coins/gem + pedestal crafts; %d placed, %d offerable.")

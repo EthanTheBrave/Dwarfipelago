@@ -115,7 +115,12 @@ function M.offer_items(context)
         for _, b in ipairs(df.global.world.buildings.all) do
             if df.building_tradedepotst:is_instance(b) then
                 for _, ci in ipairs(b.contained_items) do
-                    if ci.use_mode == df.building_item_role_type.TEMP then collect(ci.item) end
+                    -- fortress goods staged for trade: TEMP role, and NOT the
+                    -- caravan's own merchandise (which carries the trader flag).
+                    local it = ci.item
+                    if ci.use_mode == df.building_item_role_type.TEMP and it and not it.flags.trader then
+                        collect(it)
+                    end
                 end
             end
         end
