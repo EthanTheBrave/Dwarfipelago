@@ -555,20 +555,20 @@ end
 -- shrine-altar test live in internal/dwarfipelago/trade.lua.
 MerchantTradeOverlay = defclass(MerchantTradeOverlay, overlay.OverlayWidget)
 MerchantTradeOverlay.ATTRS{
-    desc            = "Dwarfipelago: opens the merchant trade window at the shrine altar",
-    default_pos     = {x = -34, y = -7},
+    desc            = "Dwarfipelago: button on the shrine altar to open the merchant shop",
+    default_pos     = {x = 58, y = 9},
     default_enabled = true,
     viewscreens     = {'dwarfmode/ViewSheets/BUILDING'},
-    frame           = {w = 34, h = 1},
+    frame           = {w = 30, h = 1},
 }
 
 function MerchantTradeOverlay:init()
     self:addviews{
-        widgets.HotkeyLabel{
+        widgets.TextButton{
             view_id     = 'open',
-            frame       = {t = 0, l = 0},
+            frame       = {t = 0, l = 0, h = 1},
+            label       = 'Open Merchant Shop',
             key         = 'CUSTOM_CTRL_T',
-            label       = 'Open Merchant Trade',
             visible     = function()
                 return trade.shop_unlocked()
                     and trade.is_shrine_altar(dfhack.gui.getSelectedBuilding())
