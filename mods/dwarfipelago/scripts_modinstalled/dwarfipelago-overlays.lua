@@ -585,7 +585,7 @@ end
 DepotTradeOverlay = defclass(DepotTradeOverlay, overlay.OverlayWidget)
 DepotTradeOverlay.ATTRS{
     desc            = "Dwarfipelago: button on the trade depot to shop a visiting Archipelago caravan",
-    default_pos     = {x = 58, y = 9},
+    default_pos     = {x = 58, y = 18},
     default_enabled = true,
     viewscreens     = {'dwarfmode/ViewSheets/BUILDING'},
     frame           = {w = 40, h = 1},
