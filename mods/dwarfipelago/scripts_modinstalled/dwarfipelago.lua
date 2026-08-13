@@ -1583,33 +1583,38 @@ end
 
 -- ── Archipelago caravan: seasonal (spring) visit while the shrine is active ────
 -- The AP shop is always reachable at the shrine altar; on top of that, each
--- spring an Archipelago caravan visits the trade depot and stays a while,
--- exposing the same shop from a depot button (dwarfipelago-overlays). This is
--- just a persistent-state lifecycle - no units are spawned yet, keeping it
--- lightweight while the idea is proven out.
-local AP_CARAVAN_STAY_TICKS = 24000  -- ~20 days docked before it departs
+-- spring a neutral "Archipelago Merchant" dwarf stands at the trade depot for a
+-- while, exposing the same shop from a depot button (dwarfipelago-overlays). No
+-- real caravan is spawned - just the one NPC, whose presence gates the button.
+local AP_CARAVAN_STAY_TICKS = 24000  -- ~20 days at the depot before it departs
 local function detect_ap_caravan()
     local unlocked = dfhack.persistent.getWorldDataString("dwarfipelago/shop_unlocked") == "1"
     local active   = dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_active") == "1"
     local now = abs_tick()
     if active then
-        local arrive = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_arrive")) or 0
-        if not unlocked or now - arrive >= AP_CARAVAN_STAY_TICKS then
+        local arrive  = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_arrive")) or 0
+        local present = items.ap_merchant_present()
+        -- Depart when the stay is up, the shrine goes inactive, or the merchant
+        -- is gone (e.g. killed).
+        if not unlocked or not present or now - arrive >= AP_CARAVAN_STAY_TICKS then
+            items.despawn_ap_merchant()
             dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "0")
-            dfhack.gui.showAnnouncement("[AP] The Archipelago caravan packs up and departs.", COLOR_YELLOW, true)
+            if present then
+                dfhack.gui.showAnnouncement("[AP] The Archipelago merchant packs up and departs.", COLOR_YELLOW, true)
+            end
         end
         return
     end
     if not unlocked then return end
-    -- Arrive once per year, in spring (season 0).
+    -- Arrive once per year, in spring (season 0): stand a merchant at the depot.
     if _cur_season() == 0 then
         local last = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_year")) or -1
-        if df.global.cur_year > last then
+        if df.global.cur_year > last and items.spawn_ap_merchant() then
             dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_year", tostring(df.global.cur_year))
             dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "1")
             dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_arrive", tostring(now))
             dfhack.gui.showAnnouncement(
-                "[AP] An Archipelago caravan has arrived at your trade depot!", COLOR_GREEN, true)
+                "[AP] An Archipelago merchant has set up at your trade depot!", COLOR_GREEN, true)
         end
     end
 end

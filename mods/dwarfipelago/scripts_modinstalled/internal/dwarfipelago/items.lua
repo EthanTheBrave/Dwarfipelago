@@ -1013,6 +1013,40 @@ local function create_unit(race_token, pos, opts)
     return result
 end
 
+-- ── Archipelago caravan merchant NPC ──────────────────────────────────────────
+-- A neutral dwarf that stands at the trade depot while the AP caravan is docked;
+-- its presence is what gates the depot shop button. No real caravan is spawned.
+function M.ap_merchant_present()
+    local id = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_unit") or "")
+    local u = id and df.unit.find(id)
+    return (u and dfhack.units.isActive(u) and not u.flags1.inactive) and true or false
+end
+
+function M.spawn_ap_merchant()
+    if M.ap_merchant_present() then return true end
+    local dx, dy, dz = find_trade_depot_center()
+    if not dx then return false end
+    local unit = create_unit("DWARF", { x = dx, y = dy, z = dz }, {})  -- neutral: just stands there
+    if not unit then return false end
+    pcall(function() dfhack.units.setNickname(unit, "Archipelago Merchant") end)
+    dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_unit", tostring(unit.id))
+    return true
+end
+
+-- Retire the merchant without a corpse: mark inactive + drop from the active list.
+function M.despawn_ap_merchant()
+    local id = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_unit") or "")
+    local u = id and df.unit.find(id)
+    if u then
+        pcall(function()
+            u.flags1.inactive = true
+            local act = df.global.world.units.active
+            for i = #act - 1, 0, -1 do if act[i] == u then act:erase(i); break end end
+        end)
+    end
+    dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_unit", "")
+end
+
 -- Add `amount` stress to up to `count` random living citizens (all if count nil).
 -- Returns how many were affected.
 local function stress_citizens(amount, count)
@@ -3164,25 +3198,8 @@ local function test_trade()
     -- dock an AP caravan too, so the trade-depot button is testable
     dfhack.persistent.saveWorldDataString(P.."ap_caravan_active", "1")
     dfhack.persistent.saveWorldDataString(P.."ap_caravan_arrive", tostring(df.global.cur_year * 403200 + df.global.cur_year_tick))
-    -- spawn a real dwarven caravan so the depot's "move goods to depot" flow is
-    -- active (arrives over the next few days); skip if one is already scheduled.
-    do
-        local pending = false
-        for _, ev in ipairs(df.global.timed_events) do
-            if ev.type == df.timed_event_type.Caravan then pending = true; break end
-        end
-        if not pending then
-            local civ = df.historical_entity.find(df.global.plotinfo.civ_id)
-            if civ then
-                df.global.timed_events:insert('#', {
-                    new = true, type = df.timed_event_type.Caravan,
-                    season = df.global.cur_season, season_ticks = df.global.cur_season_tick,
-                    entity = civ, feature_ind = -1,
-                })
-                print("[test] Dwarven caravan summoned - it will arrive at the depot shortly.")
-            end
-        end
-    end
+    -- stand the Archipelago merchant NPC at the depot (its presence gates the button)
+    if M.spawn_ap_merchant() then print("[test] Archipelago merchant is standing at the depot.") end
 
     local offerable = #trade.offer_items()
     print(("[test] Zone %d: altar + 5 gold bars + stockpile coins/gem + pedestal crafts; %d placed, %d offerable.")
