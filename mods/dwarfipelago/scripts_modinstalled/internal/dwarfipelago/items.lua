@@ -1047,6 +1047,46 @@ function M.despawn_ap_merchant()
     dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_unit", "")
 end
 
+-- EXPERIMENTAL: DF only unlocks "move goods to depot" when plotinfo.caravans has
+-- an entry in the Approaching/AtDepot state. While the AP merchant is docked we
+-- fake one (entity = our civ, no real merchants) - but ONLY when nothing is
+-- already AtDepot, so we never spam duplicates and never disturb a real caravan.
+-- DF adopts it and gives it a normal stay; if its clock runs out we recreate on
+-- the next poll. On departure we send our AtDepot entries to Leaving so DF
+-- retires them gracefully.
+function M.ensure_trade_session()
+    return pcall(function()
+        local caravans = df.global.plotinfo.caravans
+        for _, c in ipairs(caravans) do
+            local ts = c.trade_state
+            if ts == df.caravan_state.T_trade_state.AtDepot
+                    or ts == df.caravan_state.T_trade_state.Approaching then
+                return  -- a caravan is already enabling move-goods
+            end
+        end
+        local civ = df.historical_entity.find(df.global.plotinfo.civ_id)
+        if not civ then return end
+        local cs = df.caravan_state:new()
+        cs.entity = civ.id
+        cs.trade_state = df.caravan_state.T_trade_state.AtDepot
+        cs.time_remaining = 20000   -- int16; DF resets it to a normal stay on tick
+        caravans:insert('#', cs)
+    end)
+end
+
+function M.remove_trade_session()
+    pcall(function()
+        for _, c in ipairs(df.global.plotinfo.caravans) do
+            local ts = c.trade_state
+            if c.entity == df.global.plotinfo.civ_id
+                    and (ts == df.caravan_state.T_trade_state.AtDepot
+                         or ts == df.caravan_state.T_trade_state.Approaching) then
+                c.trade_state = df.caravan_state.T_trade_state.Leaving
+            end
+        end
+    end)
+end
+
 -- Add `amount` stress to up to `count` random living citizens (all if count nil).
 -- Returns how many were affected.
 local function stress_citizens(amount, count)
@@ -3210,6 +3250,8 @@ local function test_trade()
     dfhack.persistent.saveWorldDataString(P.."ap_caravan_arrive", tostring(df.global.cur_year * 403200 + df.global.cur_year_tick))
     -- stand the Archipelago merchant NPC at the depot (its presence gates the button)
     if M.spawn_ap_merchant() then print("[test] Archipelago merchant is standing at the depot.") end
+    -- fake a caravan trade session so DF unlocks "move goods to depot"
+    if M.ensure_trade_session() then print("[test] Trade session pinned - 'move goods to depot' should be available.") end
 
     local offerable = #trade.offer_items()
     print(("[test] Zone %d: altar + 5 gold bars + stockpile coins/gem + pedestal crafts; %d placed, %d offerable.")

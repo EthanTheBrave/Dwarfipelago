@@ -1598,10 +1598,13 @@ local function detect_ap_caravan()
         -- is gone (e.g. killed).
         if not unlocked or not present or now - arrive >= AP_CARAVAN_STAY_TICKS then
             items.despawn_ap_merchant()
+            items.remove_trade_session()
             dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "0")
             if present then
                 dfhack.gui.showAnnouncement("[AP] The Archipelago merchant packs up and departs.", COLOR_YELLOW, true)
             end
+        else
+            items.ensure_trade_session()  -- keep DF's "move goods to depot" enabled
         end
         return
     end
@@ -1610,6 +1613,7 @@ local function detect_ap_caravan()
     if _cur_season() == 0 then
         local last = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_year")) or -1
         if df.global.cur_year > last and items.spawn_ap_merchant() then
+            items.ensure_trade_session()
             dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_year", tostring(df.global.cur_year))
             dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "1")
             dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_arrive", tostring(now))
