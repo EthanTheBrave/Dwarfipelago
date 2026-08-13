@@ -597,7 +597,7 @@ function DepotTradeOverlay:init()
             view_id     = 'open',
             frame       = {t = 0, l = 0, h = 1},
             label       = 'Trade with Archipelago Caravan',
-            key         = 'CUSTOM_CTRL_T',
+            key         = 'CUSTOM_CTRL_A',
             visible     = function()
                 return trade.shop_unlocked() and trade.ap_caravan_docked()
                     and trade.is_trade_depot(dfhack.gui.getSelectedBuilding())
