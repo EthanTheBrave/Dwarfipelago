@@ -573,7 +573,7 @@ function MerchantTradeOverlay:init()
                 return trade.shop_unlocked()
                     and trade.is_shrine_altar(dfhack.gui.getSelectedBuilding())
             end,
-            on_activate = function() trade.open() end,
+            on_activate = function() trade.open("altar") end,
         },
     }
 end
@@ -602,7 +602,7 @@ function DepotTradeOverlay:init()
                 return trade.shop_unlocked() and trade.ap_caravan_docked()
                     and trade.is_trade_depot(dfhack.gui.getSelectedBuilding())
             end,
-            on_activate = function() trade.open() end,
+            on_activate = function() trade.open("depot") end,
         },
     }
 end

@@ -90,12 +90,12 @@ local function item_offer_value(it, itype)
     return math.floor(v * OFFER_NONCOIN_MULT), false
 end
 
--- Offer candidates (fort-wide, independent of the shrine zone):
---   1. anything displayed on a pedestal / display case (any type, value adjusted)
---   2. coins and cut gems sitting in a stockpile (loose, or inside a bin on a
---      stockpile tile)
--- coins/gems count full; everything else at half.
-function M.offer_items()
+-- Offer candidates, by entry point. coins/gems count full, everything else half.
+--   context "depot" (caravan): items slated for trade at the trade depot.
+--   context "altar" (shrine, default): pedestal/display-case items, plus coins
+--     and cut gems sitting in a stockpile (loose, or inside a bin on a stockpile
+--     tile).
+function M.offer_items(context)
     local marker_id = tonumber(ps("shrine_marker", "")) or -1
     local out, counted = {}, {}
     local function collect(it)
@@ -109,29 +109,40 @@ function M.offer_items()
         end
     end
 
-    -- 1. Displayed items (pedestals + display cases).
-    for _, b in ipairs(df.global.world.buildings.all) do
-        if df.building_display_furniturest:is_instance(b) then
-            for _, entry in ipairs(b.displayed_items) do
-                collect(type(entry) == "number" and df.item.find(entry) or entry)
+    if context == "depot" then
+        -- Items brought to the trade depot for trade (TEMP role; PERM entries are
+        -- the depot's own construction materials).
+        for _, b in ipairs(df.global.world.buildings.all) do
+            if df.building_tradedepotst:is_instance(b) then
+                for _, ci in ipairs(b.contained_items) do
+                    if ci.use_mode == df.building_item_role_type.TEMP then collect(ci.item) end
+                end
             end
         end
-    end
-
-    -- 2. Coins + cut gems on stockpile tiles (climb out of any containing bin).
-    local function on_stockpile(it)
-        local ground, c = it, dfhack.items.getContainer(it)
-        while c do ground = c; c = dfhack.items.getContainer(ground) end
-        local p = ground.pos
-        if not p then return false end
-        local bld = dfhack.buildings.findAtTile(p.x, p.y, p.z)
-        return bld and df.building_stockpilest:is_instance(bld)
-    end
-    for _, it in ipairs(df.global.world.items.all) do
-        local itype = it:getType()
-        if (itype == df.item_type.COIN or itype == df.item_type.SMALLGEM)
-                and not counted[it.id] and on_stockpile(it) then
-            collect(it)
+    else
+        -- Altar: displayed items (pedestals + display cases) ...
+        for _, b in ipairs(df.global.world.buildings.all) do
+            if df.building_display_furniturest:is_instance(b) then
+                for _, entry in ipairs(b.displayed_items) do
+                    collect(type(entry) == "number" and df.item.find(entry) or entry)
+                end
+            end
+        end
+        -- ... plus coins + cut gems on stockpile tiles (climb out of any bin).
+        local function on_stockpile(it)
+            local ground, c = it, dfhack.items.getContainer(it)
+            while c do ground = c; c = dfhack.items.getContainer(ground) end
+            local p = ground.pos
+            if not p then return false end
+            local bld = dfhack.buildings.findAtTile(p.x, p.y, p.z)
+            return bld and df.building_stockpilest:is_instance(bld)
+        end
+        for _, it in ipairs(df.global.world.items.all) do
+            local itype = it:getType()
+            if (itype == df.item_type.COIN or itype == df.item_type.SMALLGEM)
+                    and not counted[it.id] and on_stockpile(it) then
+                collect(it)
+            end
         end
     end
 
@@ -250,7 +261,7 @@ local SORTS = {
 }
 
 MerchantTradeScreen = defclass(MerchantTradeScreen, gui.ZScreen)
-MerchantTradeScreen.ATTRS{ focus_path = "dwarfipelago/trade" }
+MerchantTradeScreen.ATTRS{ focus_path = "dwarfipelago/trade", context = "altar" }
 
 function MerchantTradeScreen:init()
     self.sel_goods = {}   -- [slot]=true
@@ -260,7 +271,7 @@ function MerchantTradeScreen:init()
     local W, H = 120, 44
     self:addviews{
         widgets.Window{
-            frame_title = "Merchant Trade",
+            frame_title = self.context == "depot" and "Archipelago Caravan" or "Merchant Shop",
             frame       = { w = W, h = H },
             resizable   = true,
             subviews    = {
@@ -310,7 +321,7 @@ function MerchantTradeScreen:refresh()
         if k == "tier"   then return a.tier  < b.tier end
         return a.player:lower() < b.player:lower()
     end)
-    local offer = M.offer_items()
+    local offer = M.offer_items(self.context)
 
     -- Goods list.
     local gchoices, required = {}, 0
@@ -379,15 +390,17 @@ end
 local _trade_instance = nil
 function MerchantTradeScreen:onDismiss() _trade_instance = nil end
 
--- Open the trade window (no-op if the shop is closed).
-function M.open()
+-- Open the trade window (no-op if the shop is closed). context "depot" offers
+-- items slated for trade at the depot; "altar" (default) offers pedestal +
+-- stockpiled coins/gems.
+function M.open(context)
     if not M.shop_unlocked() then
         pcall(function() dfhack.gui.showAnnouncement(
             "[AP] The shop is closed - build the merchant's shrine.", COLOR_YELLOW, true) end)
         return
     end
     if _trade_instance then _trade_instance:dismiss() end
-    _trade_instance = MerchantTradeScreen{}
+    _trade_instance = MerchantTradeScreen{context = context or "altar"}
     _trade_instance:show()
 end
 

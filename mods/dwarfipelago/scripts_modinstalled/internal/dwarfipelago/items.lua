@@ -3108,6 +3108,31 @@ local function test_trade()
         end
     end
 
+    -- Depot/caravan path: stage a few items as trade goods on the trade depot
+    -- (TEMP role + trader flag = "slated for trade").
+    do
+        local depot
+        for _, b in ipairs(df.global.world.buildings.all) do
+            if df.building_tradedepotst:is_instance(b) then depot = b; break end
+        end
+        if depot then
+            local function to_depot(items)
+                local it = items and items[1]; if not it then return end
+                pcall(function()
+                    it.flags.forbid = false
+                    dfhack.items.moveToBuilding(it, depot, df.building_item_role_type.TEMP)
+                    it.flags.trader = true
+                end)
+                placed = placed + 1
+            end
+            local dcoins = make(df.item_type.COIN, "INORGANIC:GOLD", "INORGANIC:COPPER")
+            if dcoins and dcoins[1] then pcall(function() dcoins[1].stack_size = 500 end) end
+            to_depot(dcoins)
+            to_depot(make(df.item_type.GOBLET,   "INORGANIC:SILVER", "INORGANIC:COPPER"))
+            to_depot(make(df.item_type.FIGURINE, "INORGANIC:SILVER", "INORGANIC:COPPER"))
+        end
+    end
+
     -- 5 gold bars in the zone so the shrine's bar requirement is met (loose, not
     -- on a pedestal or stockpile, so they don't show as payment).
     do
