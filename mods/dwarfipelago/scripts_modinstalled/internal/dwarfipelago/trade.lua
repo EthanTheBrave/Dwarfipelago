@@ -81,52 +81,51 @@ local function item_offer_value(it, itype)
     return math.floor(v * OFFER_NONCOIN_MULT), false
 end
 
--- Items the player has stored in the shrine's container(s), as offer candidates.
--- Walks BIN/BOX container trees inside the zone; excludes the required shrine
--- bars (spending them would close the shop) and the gold-statue marker.
+-- Offer candidates (fort-wide, independent of the shrine zone):
+--   1. anything displayed on a pedestal / display case (any type, value adjusted)
+--   2. coins and cut gems sitting in a stockpile (loose, or inside a bin on a
+--      stockpile tile)
+-- coins/gems count full; everything else at half.
 function M.offer_items()
-    local zn = M.shrine_zone()
-    if not zn then return {} end
-    local bar_type = ps("shrine_bar_type", "gold")
-    local bar_tok  = SHRINE_BAR_TOKS[bar_type] or "GOLD"
     local marker_id = tonumber(ps("shrine_marker", "")) or -1
-
     local out, counted = {}, {}
-    local function is_required_bar(it, itype)
-        if itype ~= df.item_type.BAR then return false end
-        local tok = ""
-        pcall(function()
-            local mi = dfhack.matinfo.decode(it.mat_type, it.mat_index)
-            tok = (mi and mi:getToken()) or ""
-        end)
-        return tok:find(bar_tok) ~= nil
-    end
     local function collect(it)
-        if counted[it.id] then return end
+        if not it or counted[it.id] then return end
         counted[it.id] = true
-        local itype = it:getType()
-        if it.id ~= marker_id and not is_required_bar(it, itype) then
-            local val, coingem = item_offer_value(it, itype)
-            if val > 0 then
-                local name = dfhack.items.getDescription(it, 0, true)
-                out[#out + 1] = { id = it.id, name = name, value = val, coingem = coingem }
+        if it.id == marker_id then return end
+        local val, coingem = item_offer_value(it, it:getType())
+        if val > 0 then
+            local ok, name = pcall(dfhack.items.getDescription, it, 0, true)
+            out[#out + 1] = { id = it.id, name = ok and name or "?", value = val, coingem = coingem }
+        end
+    end
+
+    -- 1. Displayed items (pedestals + display cases).
+    for _, b in ipairs(df.global.world.buildings.all) do
+        if df.building_display_furniturest:is_instance(b) then
+            for _, entry in ipairs(b.displayed_items) do
+                collect(type(entry) == "number" and df.item.find(entry) or entry)
             end
         end
     end
-    -- Only containers (BIN/BOX) in the zone; walk their contents.
+
+    -- 2. Coins + cut gems on stockpile tiles (climb out of any containing bin).
+    local function on_stockpile(it)
+        local ground, c = it, dfhack.items.getContainer(it)
+        while c do ground = c; c = dfhack.items.getContainer(ground) end
+        local p = ground.pos
+        if not p then return false end
+        local bld = dfhack.buildings.findAtTile(p.x, p.y, p.z)
+        return bld and df.building_stockpilest:is_instance(bld)
+    end
     for _, it in ipairs(df.global.world.items.all) do
-        local p = it.pos
-        if p and p.z == zn.z and p.x >= zn.x1 and p.x <= zn.x2
-                and p.y >= zn.y1 and p.y <= zn.y2 then
-            local itype = it:getType()
-            if itype == df.item_type.BIN or itype == df.item_type.BOX then
-                local ok, contents = pcall(dfhack.items.getContainedItems, it)
-                if ok and contents then
-                    for _, ci in ipairs(contents) do collect(ci) end
-                end
-            end
+        local itype = it:getType()
+        if (itype == df.item_type.COIN or itype == df.item_type.SMALLGEM)
+                and not counted[it.id] and on_stockpile(it) then
+            collect(it)
         end
     end
+
     table.sort(out, function(a, b) return a.value > b.value end)
     return out
 end

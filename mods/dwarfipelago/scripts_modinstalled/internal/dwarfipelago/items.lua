@@ -3051,38 +3051,65 @@ local function test_trade()
         end
     end
 
-    -- A coffer (BOX) on the ground in the zone.
-    local st, si = mat("INORGANIC:GRANITE", "INORGANIC:MICROCLINE", "INORGANIC:GABBRO")
-    local ok, made = pcall(dfhack.items.createItem, unit, df.item_type.BOX, -1, st, si, false)
-    local box = ok and made and made[1]
-    if not box then dfhack.printerr("[test] Could not create the coffer."); return end
-    pcall(function() box.flags.forbid = false; dfhack.items.moveToGround(box, {x = tx, y = ty, z = zz}) end)
-
     local placed = 0
-    local function into_box(items)
-        local it = items and items[1]; if not it then return end
-        pcall(function() it.flags.forbid = false end)
-        if pcall(function() return dfhack.items.moveToContainer(it, box) end) then placed = placed + 1
-        else pcall(function() dfhack.items.moveToGround(it, {x = tx, y = ty, z = zz}) end) end
-    end
     local function make(itype, ...)
         local mt, mi = mat(...); if not mt then return end
         local o, m = pcall(dfhack.items.createItem, unit, itype, -1, mt, mi, false)
         if o then return m end
     end
 
-    -- Coins + gem = full value; goblet/figurine/toy = 50%.
-    local coins = make(df.item_type.COIN, "INORGANIC:GOLD", "INORGANIC:COPPER")
-    if coins and coins[1] then pcall(function() coins[1].stack_size = 500 end) end
-    into_box(coins)
-    into_box(make(df.item_type.SMALLGEM, "INORGANIC:MICROCLINE", "INORGANIC:AMETHYST"))
-    into_box(make(df.item_type.GOBLET,   "INORGANIC:GRANITE", "INORGANIC:GABBRO"))
-    into_box(make(df.item_type.FIGURINE, "INORGANIC:GRANITE", "INORGANIC:GABBRO"))
-    into_box(make(df.item_type.TOY,      "INORGANIC:GRANITE", "INORGANIC:GABBRO"))
+    -- Full-value path: drop a gold-coin stack + a cut gem onto an existing
+    -- stockpile (offer_items pulls coins/gems sitting on stockpile tiles).
+    do
+        local sp
+        for _, b in ipairs(df.global.world.buildings.all) do
+            if df.building_stockpilest:is_instance(b) then sp = b; break end
+        end
+        if sp then
+            local sx, sy, sz = sp.x1, sp.y1, sp.z
+            local coins = make(df.item_type.COIN, "INORGANIC:GOLD", "INORGANIC:COPPER")
+            if coins and coins[1] then
+                pcall(function()
+                    coins[1].stack_size = 500; coins[1].flags.forbid = false
+                    dfhack.items.moveToGround(coins[1], {x = sx, y = sy, z = sz})
+                end)
+                placed = placed + 1
+            end
+            local gem = make(df.item_type.SMALLGEM, "INORGANIC:MICROCLINE", "INORGANIC:AMETHYST")
+            if gem and gem[1] then
+                pcall(function()
+                    gem[1].flags.forbid = false
+                    dfhack.items.moveToGround(gem[1], {x = sx, y = sy, z = sz})
+                end)
+                placed = placed + 1
+            end
+        end
+    end
 
-    -- 5 gold bars (the shrine's bar requirement) loose in the zone so the shrine
-    -- genuinely completes. offer_items excludes the required bar type, so they
-    -- won't appear as payment.
+    -- Half-value path: assign a couple of granite crafts to a display pedestal
+    -- (the first display furniture in the fort, if any).
+    do
+        local ped
+        for _, b in ipairs(df.global.world.buildings.all) do
+            if df.building_display_furniturest:is_instance(b) then ped = b; break end
+        end
+        if ped then
+            local function display(items)
+                local it = items and items[1]; if not it then return end
+                pcall(function()
+                    it.flags.forbid = false
+                    dfhack.items.moveToGround(it, {x = ped.x1, y = ped.y1, z = ped.z})
+                    ped.displayed_items:insert('#', it.id)
+                end)
+                placed = placed + 1
+            end
+            display(make(df.item_type.GOBLET,   "INORGANIC:GRANITE", "INORGANIC:GABBRO"))
+            display(make(df.item_type.FIGURINE, "INORGANIC:GRANITE", "INORGANIC:GABBRO"))
+        end
+    end
+
+    -- 5 gold bars in the zone so the shrine's bar requirement is met (loose, not
+    -- on a pedestal or stockpile, so they don't show as payment).
     do
         local bars = make(df.item_type.BAR, "INORGANIC:GOLD")
         if bars and bars[1] then
@@ -3110,7 +3137,7 @@ local function test_trade()
     dfhack.persistent.saveWorldDataString(P.."shop_unlocked", "1")
 
     local offerable = #trade.offer_items()
-    print(("[test] Zone %d: altar + coffer + 5 gold bars placed; %d payment item(s), %d offerable.")
+    print(("[test] Zone %d: altar + 5 gold bars + stockpile coins/gem + pedestal crafts; %d placed, %d offerable.")
         :format(zone.id, placed, offerable))
     print("[test] 6 dummy goods loaded (coffers=3, tier 4 locked); shop unlocked.")
     print("[test] Select the altar for the 'Open Merchant Shop' button - and it's already open now.")
