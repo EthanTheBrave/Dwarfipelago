@@ -2920,6 +2920,13 @@ local function start()
 
     check_civilization_diversity()
 
+    -- Add Dwarfipelagius to the fort's worshippable deities (the "create temple"
+    -- deity list is built from a citizen's worship link).
+    pcall(function()
+        local deity_id = checks.ensure_merchant_deity()
+        if deity_id then checks.register_deity_with_citizens(deity_id) end
+    end)
+
     print("[Dwarfipelago] Started. Listening for fortress milestones.")
     print("[Dwarfipelago] Make sure DwarfFortressClient.py is running.")
 end

@@ -1813,6 +1813,102 @@ function M.barracks_is_set_up()
     return ok and result == true
 end
 
+-- ── Merchant deity: Dwarfipelagius ────────────────────────────────────────────
+-- Adds Dwarfipelagius to the deities the fort can dedicate a temple to. DF builds
+-- the "create temple" deity list from citizens' worship links, so we create the
+-- deity historical figure and link a citizen to it. (Ported from feat/shopCreatives
+-- without the religion entity, temple auto-assignment, or shrine building.)
+local KEY_DEITY_ID = "dwarfipelago/deity_id"
+
+local function find_dwarf_race()
+    for i, raw in ipairs(df.global.world.raws.creatures.all) do
+        if raw.creature_id == "DWARF" then return i end
+    end
+    return 0
+end
+
+-- Create the Dwarfipelagius deity historical figure. Idempotent (checks history
+-- first so it never duplicates). Returns the new HF id.
+local function create_merchant_deity()
+    for _, fig in ipairs(df.global.world.history.figures) do
+        if fig.name.first_name == "Dwarfipelagius" and fig.flags.deity then
+            return fig.id
+        end
+    end
+    local hf = df.historical_figure:new()
+    hf.race          = find_dwarf_race()
+    hf.caste         = 0
+    hf.sex           = -1
+    hf.appeared_year = -1
+    hf.born_year     = -1
+    hf.born_seconds  = -1
+    hf.curse_year    = -1
+    hf.curse_seconds = -1
+    hf.old_year      = -1
+    hf.old_seconds   = -1
+    hf.died_year     = -1
+    hf.died_seconds  = -1
+    hf.breed_id      = -1
+    hf.name.has_name   = true
+    hf.name.first_name = "Dwarfipelagius"
+    hf.flags.deity        = true
+    hf.flags.brag_on_kill = true
+    hf.flags.kill_quest   = true
+    hf.flags.chatworthy   = true
+    hf.flags.flashes      = true
+    hf.flags.never_cull   = true
+    hf.info = df.historical_figure_info:new()
+    hf.info.metaphysical = {new = true}
+    hf.info.known_info   = {new = true}
+    for _, sphere in ipairs({df.sphere_type.TRADE, df.sphere_type.WEALTH, df.sphere_type.JEWELS}) do
+        hf.info.metaphysical.spheres:insert('#', sphere)
+    end
+    hf.pool_id = -1
+    hf.id      = df.global.hist_figure_next_id
+    df.global.hist_figure_next_id = df.global.hist_figure_next_id + 1
+    df.global.world.history.figures:insert('#', hf)
+    return hf.id
+end
+
+-- Ensure Dwarfipelagius exists; returns the deity HF id (or nil on failure).
+function M.ensure_merchant_deity()
+    local stored = tonumber(dfhack.persistent.getWorldDataString(KEY_DEITY_ID))
+    if stored and stored >= 0 then return stored end
+    local id
+    pcall(function() id = create_merchant_deity() end)
+    if id then dfhack.persistent.saveWorldDataString(KEY_DEITY_ID, tostring(id)) end
+    return id
+end
+
+-- Link a living citizen's historical figure to the deity so DF lists it in the
+-- "create temple" selection. Idempotent; re-links a fresh citizen if needed.
+function M.register_deity_with_citizens(deity_id)
+    if not deity_id or deity_id < 0 then return end
+    pcall(function()
+        for _, unit in ipairs(df.global.world.units.active) do
+            if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit)
+                    and unit.hist_figure_id >= 0 then
+                local hf = df.historical_figure.find(unit.hist_figure_id)
+                if hf then
+                    local already = false
+                    for _, lnk in ipairs(hf.histfig_links) do
+                        if df.histfig_hf_link_deityst:is_instance(lnk) and lnk.target_hf == deity_id then
+                            already = true; break
+                        end
+                    end
+                    if not already then
+                        local lnk = df.histfig_hf_link_deityst:new()
+                        lnk.target_hf     = deity_id
+                        lnk.link_strength = 50
+                        hf.histfig_links:insert('#', lnk)
+                    end
+                    return  -- one worshipping citizen is enough for the temple list
+                end
+            end
+        end
+    end)
+end
+
 -- reqscript returns the script's _ENV, not the explicit return value.
 -- Copy all module exports into _ENV so callers can access them as globals.
 for k, v in pairs(M) do _ENV[k] = v end
