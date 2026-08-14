@@ -296,7 +296,7 @@ function MerchantTradeScreen:init()
                     options = SORTS, initial_option = "price",
                     on_change = function(v) self.sort_key = v; self:refresh() end,
                 },
-                widgets.Label{ frame = { t = 2, l = 0 }, text = "Goods (Enter to add/remove)", text_pen = COLOR_CYAN },
+                widgets.Label{ view_id = "goods_hdr", frame = { t = 2, l = 0 }, text = "Goods (Enter to add/remove)", text_pen = COLOR_CYAN },
                 widgets.Label{ frame = { t = 2, r = 0, w = 48 }, text = "Your offer  (Enter to add/remove)", text_pen = COLOR_CYAN },
                 widgets.List{
                     view_id = "goods", frame = { t = 3, b = 3, l = 0, w = 66 },
@@ -328,7 +328,7 @@ function MerchantTradeScreen:toggle_offer(id)
 end
 
 function MerchantTradeScreen:refresh()
-    local goods = M.goods()
+    local goods, coffers = M.goods()
     table.sort(goods, function(a, b)
         local k = self.sort_key
         if k == "price"  then return a.price < b.price end
@@ -337,24 +337,29 @@ function MerchantTradeScreen:refresh()
     end)
     local offer = M.offer_items(self.context)
 
-    -- Goods list.
+    -- Goods list - only what the player's coffers unlock (no tier / need-coffers
+    -- clutter). Coffer count lives in the header instead.
     local gchoices, required = {}, 0
     for _, g in ipairs(goods) do
-        local marked = self.sel_goods[g.slot] and true or false
-        if marked and g.buyable then required = required + g.price end
-        local box = g.buyable and (marked and "[x] " or "[ ] ") or "    "
-        local pen = COLOR_WHITE
-        if not g.buyable then pen = COLOR_DARKGRAY
-        elseif marked      then pen = COLOR_LIGHTGREEN end
-        local tag = g.buyable and "" or ("  ("..g.state..")")
-        gchoices[#gchoices + 1] = {
-            text = ("%s%-30.30s %6d* T%d%s"):format(box, g.item, g.price, g.tier, tag),
-            pen = pen, slot = g.buyable and g.slot or nil,
-        }
+        if g.tier <= coffers then
+            local marked = self.sel_goods[g.slot] and true or false
+            if marked and g.buyable then required = required + g.price end
+            local box = g.buyable and (marked and "[x] " or "[ ] ") or "    "
+            local pen = COLOR_WHITE
+            if not g.buyable then pen = COLOR_DARKGRAY
+            elseif marked      then pen = COLOR_LIGHTGREEN end
+            local tag = g.buyable and "" or ("  ("..g.state..")")
+            gchoices[#gchoices + 1] = {
+                text = ("%s%-34.34s %6d*%s"):format(box, g.item, g.price, tag),
+                pen = pen, slot = g.buyable and g.slot or nil,
+            }
+        end
     end
     if #gchoices == 0 then
-        gchoices[1] = { text = "(waiting for the AP client to load shop items)", pen = COLOR_DARKGRAY }
+        gchoices[1] = { text = "(nothing unlocked yet - receive Merchant's Coffers)", pen = COLOR_DARKGRAY }
     end
+    self.subviews.goods_hdr:setText(("Goods  (%d coffer%s unlocked)  Enter to add/remove")
+        :format(coffers, coffers == 1 and "" or "s"))
 
     -- Offer list.
     local ochoices, offered = {}, 0
