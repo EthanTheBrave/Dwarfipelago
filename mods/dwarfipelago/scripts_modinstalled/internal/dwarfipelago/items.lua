@@ -2538,12 +2538,32 @@ local function make_outfit()
     if feet then spawn_item("SHOES:" .. feet, cloth) end
 end
 
--- Freshly created citizens have every labor off, so they idle until the player
--- toggles labors by hand. Turn them all on so migrants start working immediately.
+-- Freshly created citizens have no work-detail labor assignment, so they idle
+-- until the player toggles labors. Mirror the game's computation: enable every
+-- labor (v50's everybody-does-everything default), then turn OFF any labor a
+-- restricted work detail reserves for others - "only selected" (mode 3) or
+-- "nobody" (mode 2) - unless this dwarf is one of the selected. So migrants pick
+-- up the "anyone can do this" labors but not e.g. fishing gated to one dwarf.
 local function enable_labors(unit)
     pcall(function()
         local labors = unit.status.labors
         for i = 0, df.unit_labor._last_item do labors[i] = true end
+        local wd = df.global.plotinfo.labor_info.work_details
+        for i = 0, #wd - 1 do
+            local d = wd[i]
+            local mode = d.flags.mode
+            if mode == 2 or mode == 3 then
+                local assigned = false
+                for _, uid in ipairs(d.assigned_units) do
+                    if uid == unit.id then assigned = true; break end
+                end
+                if not assigned then
+                    for L = 0, df.unit_labor._last_item do
+                        if d.allowed_labors[L] then labors[L] = false end
+                    end
+                end
+            end
+        end
     end)
 end
 
