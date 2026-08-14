@@ -558,7 +558,7 @@ MerchantTradeOverlay.ATTRS{
     desc            = "Dwarfipelago: button on the shrine altar to open the merchant shop",
     default_pos     = {x = 58, y = 9},
     default_enabled = true,
-    viewscreens     = {'dwarfmode/ViewSheets/BUILDING'},
+    viewscreens     = {'dwarfmode/ViewSheets/BUILDING/OfferingPlace'},
     frame           = {w = 30, h = 1},
 }
 
@@ -587,7 +587,7 @@ DepotTradeOverlay.ATTRS{
     desc            = "Dwarfipelago: button on the trade depot to shop a visiting Archipelago caravan",
     default_pos     = {x = 58, y = 18},
     default_enabled = true,
-    viewscreens     = {'dwarfmode/ViewSheets/BUILDING'},
+    viewscreens     = {'dwarfmode/ViewSheets/BUILDING/TradeDepot'},
     frame           = {w = 40, h = 1},
 }
 

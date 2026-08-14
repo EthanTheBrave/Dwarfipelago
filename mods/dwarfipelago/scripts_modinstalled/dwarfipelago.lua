@@ -1674,6 +1674,21 @@ local function detect_ap_caravan()
     end
 end
 
+-- Crash-diagnosis breadcrumb: note the building sheet the player is viewing (on
+-- change) so the log's tail shows the last screen before an overlay/DF crash.
+-- (Full DF/DFHack crashes are captured separately in <DF>/crashlog/.)
+local _last_bld_focus
+local function log_building_focus()
+    local ok, foci = pcall(dfhack.gui.getCurFocus, true)
+    if ok and type(foci) == "table" then
+        local top = foci[1]
+        if top and top:find("ViewSheets/BUILDING", 1, true) and top ~= _last_bld_focus then
+            _last_bld_focus = top
+            log.info("Viewing building sheet: " .. top)
+        end
+    end
+end
+
 -- War Readiness = Military Training items received, capped by fortress military
 -- milestones: 1-4 free, 5-6 need a set-up barracks, 7-9 need 4 soldiers at combat
 -- skill 10+. (Readiness 10 - the breach - is gated on the full war effort and
@@ -2083,6 +2098,7 @@ local function poll_checks()
     guard("tamed_beast",     detect_tamed_beast)
     guard("shrine",        detect_shrine)
     guard("apcaravan",     detect_ap_caravan)
+    guard("focus_log",     log_building_focus)
     guard("spawn_caravan", _check_spawn_caravan_approved)
     guard("skills",        checks.update_skill_levels)
     guard("waves",         poll_warband_waves)
