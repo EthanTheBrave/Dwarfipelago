@@ -2482,6 +2482,16 @@ local ADAMANTINE_ARTIFACT_TYPES = {
     SHIELD = true, GLOVES = true, PANTS = true, SHOES = true,
 }
 
+-- True only when a fortress member crafted the item. Visitor belongings (a
+-- visiting bard's instrument, a mercenary's gear) and worldgen artifacts have no
+-- fort maker (maker == -1), so this keeps them from firing "first X made"
+-- milestones - e.g. a bard arriving with their own instrument.
+local function made_by_fort(item)
+    local maker = -1
+    pcall(function() maker = item.maker end)
+    return maker ~= -1
+end
+
 local function on_item_created(item_id)
     if not state.is_enabled() then return end
     local item = df.item.find(item_id)
@@ -2517,7 +2527,7 @@ local function on_item_created(item_id)
         -- Capped, not blocked - minting/cutting itself always keeps working so the
         -- shop never runs dry, but value past the current coffer tier's ceiling
         -- doesn't count toward wealth progress until the next coffer raises it.
-        if t == "COIN" or t == "SMALLGEM" then
+        if (t == "COIN" or t == "SMALLGEM") and made_by_fort(item) then
             local ok_type, itype = pcall(function() return item:getType() end)
             if ok_type then
                 local cap     = treasury_created_cap()
@@ -2536,11 +2546,11 @@ local function on_item_created(item_id)
 
         -- New "first" production milestones. Item-based so manager-order output
         -- counts too (those jobs don't reach on_job_completed).
-        if t == "INSTRUMENT" and not checks.production_flag("instrument") then
+        if t == "INSTRUMENT" and not checks.production_flag("instrument") and made_by_fort(item) then
             checks.set_production_flag("instrument")
             dfhack.gui.showAnnouncement("[AP] Your first instrument has been crafted!", COLOR_GREEN, true)
         end
-        if t == "COIN" and not checks.production_flag("coins") then
+        if t == "COIN" and not checks.production_flag("coins") and made_by_fort(item) then
             checks.set_production_flag("coins")
             dfhack.gui.showAnnouncement("[AP] Your first coins have been minted!", COLOR_GREEN, true)
         end
