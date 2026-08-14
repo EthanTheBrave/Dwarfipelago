@@ -735,6 +735,7 @@ class DwarfFortressContext(CommonContext):
         self._skill_max_level = 15       # max level
         self._skill_behaviour = 0        # 0 = don't touch levels 1 = lower to next check
         self._shop_scout_sent = False    # sent LocationScouts for shop slots this AP session
+        self._coffers_hinted = 0         # highest coffer tier whose shop items we've hinted
         self._shop_last_sig = None       # last shop table written to Lua (skip redundant writes)
         self._is_reembark = False        # True during re-embark item re-delivery
 
@@ -816,6 +817,7 @@ class DwarfFortressContext(CommonContext):
                     await self._apply_received_deathlinks()
                     await self._check_deathlink_send()
                     await self._check_goal_complete()
+                    await self._hint_unlocked_shop()
 
                     # Location checks and item delivery are held until the trade
                     # depot is established - either auto-placed by the mod or
@@ -1335,6 +1337,33 @@ class DwarfFortressContext(CommonContext):
         }])
         self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/spawn_caravan_approved", "1")')
         logger.debug(f"EnergyLink: Caravan approved, deducted {format_SI_prefix(cost)}*")
+
+    _MERCHANT_COFFER_ID = 37370630   # BASE_ID + 630; one received per unlocked tier
+
+    async def _hint_unlocked_shop(self):
+        """
+        When a Merchant's Coffer unlocks a new shop tier, hint that tier's shop
+        items so their recipients learn the goods are now purchasable here. Uses
+        create_as_hint=2 (free hints, only new ones notified), so re-running is
+        idempotent.
+        """
+        shop = self.slot_data.get("shop", {})
+        if not shop:
+            return
+        coffers = min(5, sum(1 for it in self.items_received if it.item == self._MERCHANT_COFFER_ID))
+        if coffers <= self._coffers_hinted:
+            return
+        hint_ids = [
+            int(k) for k, meta in shop.items()
+            if self._coffers_hinted < int(meta.get("tier", 1)) <= coffers
+        ]
+        if hint_ids:
+            await self.send_msgs([{
+                "cmd": "LocationScouts", "locations": hint_ids, "create_as_hint": 2,
+            }])
+            logger.info(f"Hinted {len(hint_ids)} shop item(s) for coffer tiers "
+                        f"{self._coffers_hinted + 1}-{coffers}")
+        self._coffers_hinted = coffers
 
     async def _sync_shop(self):
         """
