@@ -330,6 +330,11 @@ local function carve(cx, cy, cz, rx_in, ry_in)
             end
         end
     end
+    -- Carving writes tiletypes directly, which leaves DF's passability cache stale
+    -- (dwarves see the new floor as solid until a dig forces a rebuild). Reindex
+    -- pathfinding so the carved tiles become genuinely walkable - same fix the
+    -- tile-delete/zlevel-delete scripts use after editing tiles.
+    pcall(function() df.global.world.reindex_pathfinding = true end)
     return floor_tiles
 end
 
@@ -711,6 +716,17 @@ function M.generate_secret_caves()
 
     dfhack.persistent.saveWorldDataString(KEY_SECRETS_DONE, "1")
     log.info("Secret cave generation complete")
+end
+
+-- One-time repair for saves whose caves were carved before the reindex fix:
+-- those tiles never rebuilt DF's passability cache, so dwarves still see the
+-- floor as solid. Reindex once (gated by a persistent flag) to make old caves
+-- walkable without a manual dig. New carves self-reindex in carve().
+local KEY_PASS_REPAIR = "dwarfipelago/caves/passability_repaired"
+function M.repair_passability()
+    if dfhack.persistent.getWorldDataString(KEY_PASS_REPAIR) == "1" then return end
+    pcall(function() df.global.world.reindex_pathfinding = true end)
+    dfhack.persistent.saveWorldDataString(KEY_PASS_REPAIR, "1")
 end
 
 -- Copy all module exports into _ENV so reqscript callers can access them.

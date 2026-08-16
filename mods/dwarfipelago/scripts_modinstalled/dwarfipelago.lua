@@ -2052,6 +2052,8 @@ local function poll_checks()
     caves.generate_secret_caves()
     -- AP custom caves: conditional on the custom_caves option, no-op if disabled.
     caves.generate()
+    -- One-time: repair passability of caves carved before the reindex fix.
+    pcall(caves.repair_passability)
     -- Secret cave 1: passive raw cave silk drop (self-rate-limited to ~2 months).
     pcall(caves.poll_cave_silk)
 
