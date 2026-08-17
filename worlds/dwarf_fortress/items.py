@@ -120,6 +120,7 @@ FILLER_ITEMS: list[ItemData] = [
     ItemData("Copper Axe",             BASE_ID + 534, ItemClassification.filler, weight=3),
     ItemData("Copper Short Sword",     BASE_ID + 535, ItemClassification.filler, weight=2),
     ItemData("Miracle Cure",           BASE_ID + 570, ItemClassification.filler, weight=8),
+    ItemData("Happy Pills",            BASE_ID + 571, ItemClassification.filler, weight=8),
 ]
 
 TRAP_ITEMS: list[ItemData] = [

@@ -2890,6 +2890,58 @@ local function recv_miracle_cure()
     end
 end
 
+-- Cheer up: find the unhappiest living citizen (highest stress) and restore a
+-- perfect mental state - ecstatic stress plus ending any active mental break
+-- (melancholy / raving / berserk) and the crazed flag. Productive strange moods
+-- (Fey, Possessed, etc.) are left intact. No-op if there are no citizens.
+local function recv_happy_pills()
+    local worst, worst_stress
+    for _, u in ipairs(df.global.world.units.active) do
+        -- Any living fort dwarf, adults AND children (isCitizen excludes children,
+        -- but a berserk/miserable child is exactly when you'd want this).
+        if dfhack.units.isOwnGroup(u) and dfhack.units.isAlive(u) and dfhack.units.isDwarf(u)
+                and u.status.current_soul then
+            local s
+            pcall(function() s = u.status.current_soul.personality.stress end)
+            if s and (worst_stress == nil or s > worst_stress) then worst, worst_stress = u, s end
+        end
+    end
+    if not worst then
+        announce("Received: Happy Pills - but there are no dwarves here to cheer up.")
+        return
+    end
+    local name = unit_display_name(worst)
+    if name == "" then name = "A dwarf" end
+    -- Ecstatic now AND at baseline (longterm_stress), so it doesn't creep back up -
+    -- the same two fields DFHack's remove-stress sets.
+    local ok = pcall(function()
+        local p = worst.status.current_soul.personality
+        p.stress          = -100000
+        p.longterm_stress = -100000
+    end)
+    -- Reset an enraged/martial-trance soldier mood (also handled by remove-stress).
+    pcall(function()
+        if worst.counters.soldier_mood > df.soldier_mood_type.Enraged then
+            worst.counters.soldier_mood = df.soldier_mood_type.None
+        end
+    end)
+    -- End an active mental break - melancholy, stark raving mad, or berserk (all
+    -- df.mood_type values); remove-stress does NOT do this. Leave productive
+    -- strange moods (artifact) alone.
+    pcall(function()
+        local m = worst.mood
+        if m == df.mood_type.Melancholy or m == df.mood_type.Raving or m == df.mood_type.Berserk then
+            worst.mood = df.mood_type.None
+        end
+    end)
+    if ok then
+        announce(("Received: Happy Pills! %s pops one and is restored to perfect peace of mind."):format(name),
+                 { x = worst.pos.x, y = worst.pos.y, z = worst.pos.z })
+    else
+        announce(("Received: Happy Pills! (but %s's troubled mind resisted)"):format(name))
+    end
+end
+
 -- -- Dispatch table ------------------------------------------------------------
 -- Maps AP item name -> handler function.
 -- Names must match items.py exactly.
@@ -2920,6 +2972,7 @@ M.handlers = {
     ["Raw Adamantine"]       = recv_raw_adamantine,
     ["Sunlight Tonic"]       = recv_sunlight_tonic,
     ["Miracle Cure"]         = recv_miracle_cure,
+    ["Happy Pills"]          = recv_happy_pills,
 
     -- Livestock
     ["Breeding Pigs"]        = recv_breeding_pigs,
