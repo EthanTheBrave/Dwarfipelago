@@ -151,6 +151,58 @@ local function make_list(lines)
     }
 end
 
+-- ── Checks list (in-fort milestone tracker) ──────────────────────────────────
+-- The static milestone checks (checks.checks) grouped by category, each marked
+-- done (sent) or open, so players can see progress without the AP tracker.
+-- Per-item craft/skill checks are dynamic + client-side, so they are not listed.
+local CHECK_CATEGORIES = {
+    { name = "Rooms",                   lo = 0,    hi = 99   },
+    { name = "First Production",        lo = 100,  hi = 199  },
+    { name = "Trade & Diplomacy",       lo = 200,  hi = 299  },
+    { name = "Nobles",                  lo = 300,  hi = 399  },
+    { name = "Settlement Size",         lo = 400,  hi = 699  },
+    { name = "Mining & Caverns",        lo = 700,  hi = 729  },
+    { name = "Farming",                 lo = 730,  hi = 739  },
+    { name = "Infrastructure & Health", lo = 740,  hi = 759  },
+    { name = "Endgame",                 lo = 760,  hi = 769  },
+    { name = "Military & Combat",       lo = 770,  hi = 799  },
+    { name = "Fortress Life",           lo = 3000, hi = 3999 },
+}
+local function build_checks_lines()
+    local BASE = 37370000
+    local by_cat, other = {}, {}
+    for _, c in ipairs(checks.checks) do
+        local off, placed = c.id - BASE, false
+        for i, cat in ipairs(CHECK_CATEGORIES) do
+            if off >= cat.lo and off <= cat.hi then
+                by_cat[i] = by_cat[i] or {}; table.insert(by_cat[i], c); placed = true; break
+            end
+        end
+        if not placed then table.insert(other, c) end
+    end
+    local lines, tdone, ttotal = {""}, 0, 0   -- lines[1] is the summary, filled below
+    local function emit(catname, list)
+        if not list or #list == 0 then return end
+        table.sort(list, function(a, b) return a.id < b.id end)
+        local done, buf = 0, {}
+        for _, c in ipairs(list) do
+            ttotal = ttotal + 1
+            local sent = state.is_location_checked(c.id)
+            if sent then done = done + 1; tdone = tdone + 1 end
+            table.insert(buf, {text = ("  %s %s"):format(sent and "[x]" or "[ ]", c.name),
+                               pen  = sent and COLOR_GREEN or COLOR_WHITE})
+        end
+        table.insert(lines, {text = ("%s  (%d/%d)"):format(catname, done, #list), pen = COLOR_CYAN})
+        for _, l in ipairs(buf) do table.insert(lines, l) end
+        table.insert(lines, "")
+    end
+    for i, cat in ipairs(CHECK_CATEGORIES) do emit(cat.name, by_cat[i]) end
+    emit("Other", other)
+    lines[1] = {text = ("Milestones sent: %d / %d      [x] done   [ ] open"):format(tdone, ttotal), pen = COLOR_YELLOW}
+    table.insert(lines, {text = "Per-item craft/skill checks are client-side (see the AP tracker).", pen = COLOR_DARKGRAY})
+    return lines
+end
+
 -- ── Unlocks list ──────────────────────────────────────────────────────────────
 
 local function build_unlocks_lines()
@@ -1021,6 +1073,13 @@ function DwarfipelagoPanel:init()
         }
     end
 
+    local function ChecksTab()
+        table.insert(tab_list, "Checks")
+        return widgets.Panel{
+            subviews = { make_list(build_checks_lines()) },
+        }
+    end
+
     local function CavesTab()
         table.insert(tab_list, "Caves")
         return widgets.Panel{
@@ -1378,6 +1437,7 @@ function DwarfipelagoPanel:init()
     end
     table.insert(tabviews, UnlocksTab())
     table.insert(tabviews, ProgressTab())
+    table.insert(tabviews, ChecksTab())
     table.insert(tabviews, CavesTab())
     if ps("craftsanity_enabled", "0") ~= "0" then
         table.insert(tabviews, CraftsanityTab())

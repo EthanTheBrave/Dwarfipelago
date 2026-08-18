@@ -345,6 +345,7 @@ Full order:
 | **Status** | always | enabled state, goal, completion, depot status |
 | **Unlocks** | always | progression unlock counts/flags — **built dynamically** from `items.UNLOCK_DEFS` |
 | **Progress** | always | goal progress (wealth/population/remains toward target) |
+| **Checks** | always | the 122 static milestone checks grouped by category, each done/open with per-category counts — an in-fort tracker so you don't need the AP tracker (per-item craft/skill checks are client-side and not listed) |
 | **Caves** | custom caves on | custom-cave discovery and hint status |
 | **Crafts** | craftsanity on | craftsanity craft counts vs thresholds |
 | **Controls** | always | Restart/Start (`Shift+S`), Reset all AP state (`Shift+R`), Reset seed (`Shift+D`) |
