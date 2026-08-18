@@ -1653,15 +1653,14 @@ end
 -- real caravan is spawned - just the one NPC, whose presence gates the button.
 local AP_CARAVAN_STAY_TICKS = 24000  -- ~20 days at the depot before it departs
 local function detect_ap_caravan()
-    local unlocked = dfhack.persistent.getWorldDataString("dwarfipelago/shop_unlocked") == "1"
-    local active   = dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_active") == "1"
+    local coffers = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/unlock/wealth_coffers")) or 0
+    local active  = dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_active") == "1"
     local now = abs_tick()
     if active then
         local arrive  = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_arrive")) or 0
         local present = items.ap_merchant_present()
-        -- Depart when the stay is up, the shrine goes inactive, or the merchant
-        -- is gone (e.g. killed).
-        if not unlocked or not present or now - arrive >= AP_CARAVAN_STAY_TICKS then
+        -- Depart when the stay is up or the merchant is gone (e.g. killed).
+        if not present or now - arrive >= AP_CARAVAN_STAY_TICKS then
             items.despawn_ap_merchant()
             items.remove_trade_session()
             dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "0")
@@ -1673,17 +1672,26 @@ local function detect_ap_caravan()
         end
         return
     end
-    if not unlocked then return end
-    -- Arrive once per year, in spring (season 0): stand a merchant at the depot.
+    -- Arrive once per year in spring (season 0), independent of the shrine. The
+    -- caravan only stops if the fort has at least one Merchant's Coffer to trade
+    -- against; with none it passes by (announced once, so the year is marked
+    -- either way). Goods offered stay limited to the unlocked coffer tiers.
     if _cur_season() == 0 then
         local last = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_year")) or -1
-        if df.global.cur_year > last and items.spawn_ap_merchant() then
-            items.ensure_trade_session()
-            dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_year", tostring(df.global.cur_year))
-            dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "1")
-            dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_arrive", tostring(now))
-            announce_caravan(
-                "[AP] An Archipelago caravan has arrived at your trade depot!", COLOR_GREEN)
+        if df.global.cur_year > last then
+            if coffers >= 1 and items.spawn_ap_merchant() then
+                items.ensure_trade_session()
+                dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_year", tostring(df.global.cur_year))
+                dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "1")
+                dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_arrive", tostring(now))
+                announce_caravan(
+                    "[AP] An Archipelago caravan has arrived at your trade depot!", COLOR_GREEN)
+            elseif coffers < 1 then
+                dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_year", tostring(df.global.cur_year))
+                dfhack.gui.showAnnouncement(
+                    "[AP] An Archipelago caravan passes by - with no Merchant's Coffer to trade against, they deem your fortress unworthy of a stop.",
+                    COLOR_YELLOW, true)
+            end
         end
     end
 end

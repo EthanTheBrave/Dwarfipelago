@@ -77,6 +77,12 @@ function M.ap_caravan_docked()
     return ps("ap_caravan_active", "0") == "1"
 end
 
+-- The shop can be reached through the temple shrine (altar) OR a docked
+-- Archipelago caravan (depot). Either one unlocks buying; goods stay coffer-tiered.
+function M.shop_accessible()
+    return M.shop_unlocked() or M.ap_caravan_docked()
+end
+
 function M.is_trade_depot(bld)
     return (bld and df.building_tradedepotst:is_instance(bld)) and true or false
 end
@@ -160,7 +166,7 @@ function M.goods()
     local shop     = decode_or(ps("shop", ""), {})
     local pending  = decode_or(ps("shop_pending", ""), {})
     local coffers  = tonumber(ps("unlock/wealth_coffers", "0")) or 0
-    local unlocked = M.shop_unlocked()
+    local unlocked = M.shop_accessible()
 
     local slots = {}
     for k in pairs(shop) do slots[#slots + 1] = tonumber(k) end
@@ -177,7 +183,7 @@ function M.goods()
         elseif pending[tostring(sn)] then
             state = "PENDING"
         elseif not unlocked then
-            state = "shrine needed"
+            state = "shop closed"
         elseif coffers < tier then
             state = ("need %d coffers"):format(tier)
         else
@@ -195,7 +201,7 @@ end
 -- the offered items and queue the purchases. Returns ok(bool), message(string).
 function M.confirm(slots, offer_ids)
     if not slots or #slots == 0 then return false, "Select at least one item to buy." end
-    if not M.shop_unlocked() then return false, "The shop is closed - build the shrine." end
+    if not M.shop_accessible() then return false, "The shop is closed - no shrine or docked caravan." end
 
     local shop    = decode_or(ps("shop", ""), {})
     local pending = decode_or(ps("shop_pending", ""), {})
@@ -413,9 +419,9 @@ function MerchantTradeScreen:onDismiss() _trade_instance = nil end
 -- items slated for trade at the depot; "altar" (default) offers pedestal +
 -- stockpiled coins/gems.
 function M.open(context)
-    if not M.shop_unlocked() then
+    if not M.shop_accessible() then
         pcall(function() dfhack.gui.showAnnouncement(
-            "[AP] The shop is closed - build the merchant's shrine.", COLOR_YELLOW, true) end)
+            "[AP] The shop is closed - visit the shrine or a docked Archipelago caravan.", COLOR_YELLOW, true) end)
         return
     end
     if _trade_instance then _trade_instance:dismiss() end
