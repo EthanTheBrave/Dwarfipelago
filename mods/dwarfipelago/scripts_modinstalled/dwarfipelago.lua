@@ -925,9 +925,9 @@ local function buy_shop(slot)
         dfhack.gui.showAnnouncement("[AP] The shop is not available yet.", COLOR_YELLOW, true)
         return
     end
-    if dfhack.persistent.getWorldDataString("dwarfipelago/shop_unlocked") ~= "1" then
+    if dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_active") ~= "1" then
         dfhack.gui.showAnnouncement(
-            "[AP] The shop is closed -- build the merchant's shrine to open it.", COLOR_YELLOW, true)
+            "[AP] The shop is closed -- wait for an Archipelago caravan to dock.", COLOR_YELLOW, true)
         return
     end
     local shop = json.decode(raw) or {}
@@ -1255,15 +1255,8 @@ local function detect_shrine()
         zone=best.zone_id, x=best.cx, y=best.cy, z=best.cz,
     }))
 
-    if best.ok then
-        if dfhack.persistent.getWorldDataString("dwarfipelago/shop_unlocked_announced") ~= "1" then
-            dfhack.persistent.saveWorldDataString("dwarfipelago/shop_unlocked_announced", "1")
-            dfhack.gui.showAnnouncement(
-                "[AP] The merchant god accepts your shrine -- the shop is open!", COLOR_GREEN, true)
-        end
-    else
-        dfhack.persistent.saveWorldDataString("dwarfipelago/shop_unlocked_announced", "0")
-    end
+    -- The shop no longer opens from the shrine (it is caravan-only now), so there
+    -- is no shrine-unlock announcement here; detect_shrine only marks the temple.
 end
 
 

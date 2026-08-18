@@ -549,39 +549,10 @@ function CraftsanityOverlay:onRenderBody(dc)
     end
 end
 
--- ── Merchant trade overlay ────────────────────────────────────────────────────
--- On the shrine altar's building sheet, offer a hotkey to open the caravan-style
--- merchant trade window - but only once the shop is unlocked. The window and the
--- shrine-altar test live in internal/dwarfipelago/trade.lua.
-MerchantTradeOverlay = defclass(MerchantTradeOverlay, overlay.OverlayWidget)
-MerchantTradeOverlay.ATTRS{
-    desc            = "Dwarfipelago: button on the shrine altar to open the merchant shop",
-    default_pos     = {x = 58, y = 9},
-    default_enabled = true,
-    viewscreens     = {'dwarfmode/ViewSheets/BUILDING/OfferingPlace'},
-    frame           = {w = 30, h = 1},
-}
-
-function MerchantTradeOverlay:init()
-    self:addviews{
-        widgets.TextButton{
-            view_id     = 'open',
-            frame       = {t = 0, l = 0, h = 1},
-            label       = 'Open Merchant Shop',
-            key         = 'CUSTOM_CTRL_T',
-            visible     = function()
-                return trade.shop_unlocked()
-                    and trade.is_shrine_altar(dfhack.gui.getSelectedBuilding())
-            end,
-            on_activate = function() trade.open("altar") end,
-        },
-    }
-end
-
 -- ── Caravan trade overlay ─────────────────────────────────────────────────────
--- While an Archipelago caravan is docked (spring visit), a button on the trade
--- depot opens the same merchant shop window. Complements the always-open altar
--- button above; both need the shop unlocked (an active shrine).
+-- The AP shop is caravan-only: while an Archipelago caravan is docked (spring
+-- visit), a button on the trade depot opens the merchant shop window. There is
+-- no shop button on the temple altar. The window lives in trade.lua.
 DepotTradeOverlay = defclass(DepotTradeOverlay, overlay.OverlayWidget)
 DepotTradeOverlay.ATTRS{
     desc            = "Dwarfipelago: button on the trade depot to shop a visiting Archipelago caravan",
@@ -613,6 +584,5 @@ OVERLAY_WIDGETS = {
     permits   = PermitOverlay,
     buildmenu = BuildMenuOverlay,
     craftsanity = CraftsanityOverlay,
-    merchanttrade = MerchantTradeOverlay,
     depottrade = DepotTradeOverlay,
 }

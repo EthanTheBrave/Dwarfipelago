@@ -1238,7 +1238,7 @@ function DwarfipelagoPanel:init()
             local _, total_j = nil, 0
             pcall(function() _, total_j = checks.find_fortress_coins_energy() end)
             local coins = math.floor((total_j or 0) / 1000)
-            local unlocked = ps("shop_unlocked", "0") == "1"
+            local unlocked = ps("ap_caravan_active", "0") == "1"
             local prograw = ps("shrine_progress", "")
             local prog = (prograw ~= "" and sjson.decode(prograw)) or {}
             return shop, pending, coffers, coins, unlocked, prog
@@ -1257,7 +1257,7 @@ function DwarfipelagoPanel:init()
                 elseif pending[tostring(sn)] then
                     state, pen = "PENDING", COLOR_LIGHTBLUE
                 elseif not unlocked then
-                    state, pen = "shrine needed", COLOR_DARKGRAY
+                    state, pen = "no caravan", COLOR_DARKGRAY
                 elseif coffers < (e.tier or 1) then
                     state, pen = ("need %d AP coffers"):format(e.tier or 1), COLOR_RED
                 elseif coins < price then
@@ -1287,17 +1287,14 @@ function DwarfipelagoPanel:init()
             {label="Silver (10 req)",  value="silver"},
         }
 
-        local function head_text(unlocked, prog)
-            local has_target = prog and prog.x ~= nil
-            local at = has_target and ("  @ (%d, %d, %d)"):format(prog.x, prog.y, prog.z) or ""
+        -- The shop is caravan-only now; this shows whether one is docked (the
+        -- temple/shrine progress below is decorative - it no longer opens the shop).
+        local function head_text(unlocked)
             if unlocked then
-                return {{text="Shrine: DETECTED", pen=COLOR_GREEN}, "  (shop is open)"..at}
-            elseif has_target then
-                return {{text="Shrine: TARGETED", pen=COLOR_YELLOW},
-                        "  - a gold statue marks it"..at}
+                return {{text="Shop: OPEN", pen=COLOR_GREEN}, "  - an Archipelago caravan is docked"}
             end
-            return {{text="Shrine: NOT DETECTED", pen=COLOR_RED},
-                    "  - build/repair the temple to open the shop"}
+            return {{text="Shop: CLOSED", pen=COLOR_RED},
+                    "  - trades only while a caravan is docked (needs a Merchant's Coffer)"}
         end
 
         local function req_text(prog, btype)
@@ -1316,7 +1313,7 @@ function DwarfipelagoPanel:init()
             return {
                 "  Coins: ", {text=fmt_num(coins).."*",      pen=COLOR_YELLOW},
                 "   AP Coffers: ",    {text=tostring(coffers).."/5",  pen=COLOR_CYAN},
-                "   (Trade at the shrine altar)",
+                "   (Trade at the depot with a docked caravan)",
             }
         end
 
@@ -1357,7 +1354,7 @@ function DwarfipelagoPanel:init()
             choices    = build_choices(shop0, pending0, coffers0, coins0, unlocked0),
             on_submit  = function()
                 dfhack.gui.showAnnouncement(
-                    "[AP] Buying moved to the shrine: select the altar and press Ctrl+T to trade.",
+                    "[AP] Buying is at the trade depot: select the depot and press Ctrl+A while an Archipelago caravan is docked.",
                     COLOR_YELLOW, true)
             end,
         }

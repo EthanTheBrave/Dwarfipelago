@@ -77,10 +77,10 @@ function M.ap_caravan_docked()
     return ps("ap_caravan_active", "0") == "1"
 end
 
--- The shop can be reached through the temple shrine (altar) OR a docked
--- Archipelago caravan (depot). Either one unlocks buying; goods stay coffer-tiered.
+-- The AP shop is caravan-only: buying is possible only while an Archipelago
+-- caravan is docked at the depot. Goods stay limited to the unlocked coffer tiers.
 function M.shop_accessible()
-    return M.shop_unlocked() or M.ap_caravan_docked()
+    return M.ap_caravan_docked()
 end
 
 function M.is_trade_depot(bld)
