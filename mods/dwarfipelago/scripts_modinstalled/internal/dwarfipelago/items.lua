@@ -1046,6 +1046,26 @@ local function dress_merchant(unit)
     wear(df.item_type.SHOES, idefs.shoes, 2)  -- one for each foot
 end
 
+-- Put a plain metal weapon in a guard's hand so the escort reads as armed.
+local function equip_weapon(unit)
+    local mi = dfhack.matinfo.find("INORGANIC:IRON") or dfhack.matinfo.find("INORGANIC:COPPER")
+    if not mi then return end
+    local sub
+    for _, d in ipairs(df.global.world.raws.itemdefs.weapons) do
+        local ok, id = pcall(function() return d.id end)
+        if ok and id and id:find("AXE") then sub = d.subtype; break end
+        sub = sub or d.subtype
+    end
+    if not sub then return end
+    local ok, made = pcall(dfhack.items.createItem, unit, df.item_type.WEAPON, sub, mi.type, mi.index, false)
+    if ok and made and made[1] then
+        pcall(function()
+            made[1].flags.forbid = false
+            dfhack.items.moveToInventory(made[1], unit, 1, -1)  -- 1 = Weapon (held)
+        end)
+    end
+end
+
 -- ── Archipelago caravan merchant NPC ──────────────────────────────────────────
 -- A neutral dwarf that stands at the trade depot while the AP caravan is docked;
 -- its presence is what gates the depot shop button. No real caravan is spawned.
@@ -1059,32 +1079,60 @@ function M.spawn_ap_merchant()
     if M.ap_merchant_present() then return true end
     local dx, dy, dz = find_trade_depot_center()
     if not dx then return false end
-    local unit = create_unit("DWARF", { x = dx, y = dy, z = dz }, {})  -- neutral: just stands there
-    if not unit then return false end
-    pcall(function() dfhack.units.setNickname(unit, "Archipelago Merchant") end)
-    -- Proper title + clothes so it isn't a naked "Peasant".
-    pcall(function()
-        unit.profession = df.profession.TRADER
-        unit.custom_profession = "Merchant"
-    end)
-    dress_merchant(unit)
-    dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_unit", tostring(unit.id))
+    local ids = {}
+    -- Spawn a dressed, neutral dwarf near the depot (just stands there); guards
+    -- also get a weapon in hand.
+    local function spawn_dwarf(ox, oy, nick, prof, armed)
+        local u = create_unit("DWARF", { x = dx + ox, y = dy + oy, z = dz }, {})
+        if not u then return nil end
+        pcall(function() dfhack.units.setNickname(u, nick) end)
+        pcall(function() u.profession = df.profession.TRADER; u.custom_profession = prof end)
+        dress_merchant(u)
+        if armed then equip_weapon(u) end
+        ids[#ids + 1] = u.id
+        return u
+    end
+    -- Lead merchant - its id gates the depot shop button via ap_merchant_present().
+    local lead = spawn_dwarf(0, 0, "Archipelago Merchant", "Merchant", false)
+    if not lead then return false end
+    -- A modest entourage: another trader + two guards.
+    spawn_dwarf(1, 0, "Archipelago Trader", "Trader", false)
+    spawn_dwarf(-1, 0, "Caravan Guard", "Guard", true)
+    spawn_dwarf(0, 1, "Caravan Guard", "Guard", true)
+    -- A couple of pack animals (first token that exists in this world's raws).
+    for _, off in ipairs({ { 1, 1 }, { -1, -1 } }) do
+        local a = create_unit({ "MULE", "DONKEY", "YAK", "CAMEL", "HORSE" },
+            { x = dx + off[1], y = dy + off[2], z = dz }, {})
+        if a then ids[#ids + 1] = a.id end
+    end
+    -- Persist the lead id (gating) and the whole group (departure cleanup).
+    dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_unit", tostring(lead.id))
+    dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_units", table.concat(ids, ","))
     return true
 end
 
--- Retire the merchant without a corpse: mark inactive + drop from the active list.
+-- Retire the whole caravan (merchants, guards, pack animals) without corpses:
+-- mark each inactive + drop it from the active list.
 function M.despawn_ap_merchant()
-    local id = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_unit") or "")
-    local u = id and df.unit.find(id)
-    if u then
+    local function retire(u)
+        if not u then return end
         pcall(function()
             u.flags1.inactive = true
             local act = df.global.world.units.active
             for i = #act - 1, 0, -1 do if act[i] == u then act:erase(i); break end end
         end)
     end
+    local raw = dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_units") or ""
+    for s in raw:gmatch("%d+") do retire(df.unit.find(tonumber(s))) end
+    -- Legacy single-id fallback (pre-entourage saves).
+    local id = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_unit") or "")
+    if id then retire(df.unit.find(id)) end
     dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_unit", "")
+    dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_units", "")
 end
+
+-- Exposed so the poll can zoom arrival/departure announcements to the depot.
+M.find_trade_depot_center = find_trade_depot_center
 
 -- EXPERIMENTAL: DF only unlocks "move goods to depot" when plotinfo.caravans has
 -- an entry in the Approaching/AtDepot state. While the AP merchant is docked we

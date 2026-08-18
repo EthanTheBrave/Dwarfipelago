@@ -697,6 +697,20 @@ local function get_season_name()
     return SEASON_NAMES[_cur_season()] or "Unknown"
 end
 
+-- Announce zoomed to the trade depot (caravan-arrival style); falls back to a
+-- plain announcement if the depot can't be located.
+local function announce_caravan(msg, color)
+    local zx, zy, zz = items.find_trade_depot_center()
+    if zx then
+        local ok = pcall(function()
+            dfhack.gui.showZoomAnnouncement(df.announcement_type.CARAVAN_ARRIVAL,
+                { x = zx, y = zy, z = zz }, msg, color, true)
+        end)
+        if ok then return end
+    end
+    dfhack.gui.showAnnouncement(msg, color, true)
+end
+
 local function call_ap_caravan()
     if dfhack.persistent.getWorldDataString("dwarfipelago/energy_enabled") ~= "1" then
         dfhack.gui.showAnnouncement("[AP] Energy Link is not enabled for this slot.", COLOR_YELLOW, true)
@@ -748,9 +762,9 @@ local function _check_spawn_caravan_approved()
     end
     dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "1")
     local cost = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/caravan_energy_cost") or "0") or 0
-    dfhack.gui.showAnnouncement(
-        ("[AP] The AP caravan has arrived! (%s spent)"):format(fmt_energy(cost)),
-        COLOR_GREEN, true)
+    announce_caravan(
+        ("[AP] The Archipelago caravan has arrived! (%s spent)"):format(fmt_energy(cost)),
+        COLOR_GREEN)
     print("[Dwarfipelago] AP caravan spawned.")
 end
 
@@ -1652,7 +1666,7 @@ local function detect_ap_caravan()
             items.remove_trade_session()
             dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "0")
             if present then
-                dfhack.gui.showAnnouncement("[AP] The Archipelago merchant packs up and departs.", COLOR_YELLOW, true)
+                announce_caravan("[AP] The Archipelago caravan packs up and departs.", COLOR_YELLOW)
             end
         else
             items.ensure_trade_session()  -- keep DF's "move goods to depot" enabled
@@ -1668,8 +1682,8 @@ local function detect_ap_caravan()
             dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_year", tostring(df.global.cur_year))
             dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "1")
             dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_arrive", tostring(now))
-            dfhack.gui.showAnnouncement(
-                "[AP] An Archipelago merchant has set up at your trade depot!", COLOR_GREEN, true)
+            announce_caravan(
+                "[AP] An Archipelago caravan has arrived at your trade depot!", COLOR_GREEN)
         end
     end
 end
