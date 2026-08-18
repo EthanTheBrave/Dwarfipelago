@@ -2966,7 +2966,7 @@ end
 -- perfect mental state - ecstatic stress plus ending any active mental break
 -- (melancholy / raving / berserk) and the crazed flag. Productive strange moods
 -- (Fey, Possessed, etc.) are left intact. No-op if there are no citizens.
-local function recv_happy_pills()
+local function recv_stress_blockers()
     local worst, worst_stress
     for _, u in ipairs(df.global.world.units.active) do
         -- Any living fort dwarf, adults AND children (isCitizen excludes children,
@@ -2979,7 +2979,7 @@ local function recv_happy_pills()
         end
     end
     if not worst then
-        announce("Received: Happy Pills - but there are no dwarves here to cheer up.")
+        announce("Received: Stress Blockers - but there are no dwarves here to cheer up.")
         return
     end
     local name = unit_display_name(worst)
@@ -3007,10 +3007,10 @@ local function recv_happy_pills()
         end
     end)
     if ok then
-        announce(("Received: Happy Pills! %s pops one and is restored to perfect peace of mind."):format(name),
+        announce(("Received: Stress Blockers! %s pops one and is restored to perfect peace of mind."):format(name),
                  { x = worst.pos.x, y = worst.pos.y, z = worst.pos.z })
     else
-        announce(("Received: Happy Pills! (but %s's troubled mind resisted)"):format(name))
+        announce(("Received: Stress Blockers! (but %s's troubled mind resisted)"):format(name))
     end
 end
 
@@ -3044,7 +3044,7 @@ M.handlers = {
     ["Raw Adamantine"]       = recv_raw_adamantine,
     ["Sunlight Tonic"]       = recv_sunlight_tonic,
     ["Miracle Cure"]         = recv_miracle_cure,
-    ["Happy Pills"]          = recv_happy_pills,
+    ["Stress Blockers"]          = recv_stress_blockers,
 
     -- Livestock
     ["Breeding Pigs"]        = recv_breeding_pigs,
