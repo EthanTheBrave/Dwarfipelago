@@ -2567,6 +2567,29 @@ local function enable_labors(unit)
     end)
 end
 
+-- Labor/craft/domestic skills a normal DF migrant might arrive already trained
+-- in (no combat skills - those come from the fort's own military training).
+-- Real migrants are drawn from the parent civ's population and often carry a
+-- trade; dfhack.units.create() makes a blank unit with zero skills, so without
+-- this they'd all show up as skill-less peasants.
+local MIGRANT_SKILL_POOL = {
+    "MINING", "WOODCUTTING", "CARPENTRY", "MASONRY", "ANIMALTRAIN", "PLANT",
+    "HERBALISM", "FISH", "COOK", "BREWING", "WEAVING", "TANNER", "LEATHERWORK",
+    "CLOTHESMAKING", "STONECRAFT", "WOODCRAFT", "MECHANICS", "MILLING",
+    "CHEESEMAKING", "MILK", "SHEARING", "SOAP_MAKING", "DYER", "POTTERY",
+}
+
+-- Give a freshly created migrant a small, random set of low-level skills so
+-- they read like an actual DF migrant instead of a blank slate.
+local function give_migrant_skills(unit)
+    local num_skills = math.random(0, 3)
+    for _ = 1, num_skills do
+        local sname = MIGRANT_SKILL_POOL[math.random(#MIGRANT_SKILL_POOL)]
+        local id = df.job_skill[sname]
+        if id then set_skill(unit, id, math.random(1, 5)) end
+    end
+end
+
 local function spawn_citizen_dwarves(count)
     local race_idx
     for i, cr in ipairs(df.global.world.raws.creatures.all) do
@@ -2604,6 +2627,7 @@ local function spawn_citizen_dwarves(count)
             enable_labors(unit)          -- turn on labors so they work without manual toggling
             set_dwarf_name(unit, dwarf_name())
             pcall(make_outfit)           -- cloth outfit at the depot to dress with
+            pcall(give_migrant_skills, unit)
             made = made + 1
         end)
     end

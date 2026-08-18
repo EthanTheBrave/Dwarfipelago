@@ -5,7 +5,7 @@ from Options import OptionError
 from worlds.LauncherComponents import Component, icon_paths, components, Type, launch_subprocess
 from worlds.dwarf_fortress.skillsanity import Skillsanity
 
-from .options import DwarfFortressOptions, DwarfFortressGoal, CraftingPermits, dwarf_fortress_option_groups
+from .options import DwarfFortressOptions, DwarfFortressGoal, CraftingPermits, ExcludeDeepEndgameChecks, dwarf_fortress_option_groups
 from .settings import DwarfFortressSettings
 from .items import (
     ItemData, ITEM_TABLE, AP_ITEM_POOL, FILLER_ITEMS, TRAP_ITEMS,
@@ -194,7 +194,7 @@ class DwarfFortressWorld(World):
         # Each opted-in category holds filler only, so no partner's progression is
         # ever gated behind a hard DF milestone this player may never reach.
         excluded_names: set[str] = set()
-        if self.options.exclude_deep_endgame_checks:
+        if self.options.exclude_deep_endgame_checks != ExcludeDeepEndgameChecks.option_no:
             excluded_names |= EXCLUDE_DEEP_ENDGAME
         if self.options.exclude_top_room_checks:
             excluded_names |= EXCLUDE_TOP_ROOMS

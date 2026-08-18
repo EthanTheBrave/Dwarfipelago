@@ -432,12 +432,17 @@ class ShopPriceMultiplier(Range):
 # completing them, just never someone else's progression. (Skill checks aren't
 # covered - Skillsanity is already opt-in and configurable.)
 
-class ExcludeDeepEndgameChecks(Toggle):
+class ExcludeDeepEndgameChecks(Choice):
     """
     Keep progression out of the deep / endgame checks (filler only):
     Reached the Magma Sea, Welcome to the Circus, Mined Adamantine.
+    if "yes and sanity" is selected, Adamantine like crafts and skills will not be in logic / available
     """
     display_name = "Exclude Deep & Endgame Checks"
+    option_no = 0
+    option_yes = 1
+    option_yes_and_sanity = 2
+    default = 0
 
 
 class ExcludeTopRoomChecks(Toggle):
