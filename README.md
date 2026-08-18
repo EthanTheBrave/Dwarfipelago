@@ -240,6 +240,8 @@ Five coffers gate the five treasury milestone checks. These thresholds measure t
 
 The **Legendary Wealth** goal also requires all 5 coffers and a treasury value at or above your configured `wealth_goal_amount` to complete.
 
+Coffers also gate the **Merchant's Shop**: the Archipelago caravan only stops if you hold at least one, and each coffer unlocks 10 more of the shop's 50 slots (see Merchant's Shop).
+
 #### Immigration Wave (x5) - Population Growth
 
 Five waves gate the five fortress title checks (Hamlet through Metropolis) and scale up the population requirement for every goal's completion condition. Each Immigration Wave received also brings a small group of dwarves into your fortress as new citizens (arriving named and in basic clothing at the depot), so receiving them genuinely grows your population.
@@ -296,6 +298,7 @@ Throughout the Multiworld will contain this item. Collect all of them to reach y
 | Industry materials | Flux stone, pig iron, charcoal, cloth bolts, tanned leather, **bags of sand** (glassmaking), raw clay (kaolinite for porcelain), plus rare low-grade copper tools (pick/axe/sword) |
 | Livestock | Breeding pairs - pigs, chickens, alpacas, cows, sheep, yaks - delivered to the depot to grow your herds |
 | Fortress unlocks | **Progressive Mining Depth** (x4 - each lets you dig one cavern tier deeper), **Sunlight Tonic** (your dwarves may walk freely in sunlight - no cave-adaptation nausea) |
+| Curatives | **Miracle Cure** (fully heals a random injured dwarf), **Stress Blockers** (resets your unhappiest dwarf - adult or child - to a perfect mental state: ecstatic, and clears any active mental break) |
 | Traps | Goblin ambush, cave bear incursion, vermin infestation, unquenchable thirst, lost caravan (the next caravan's cargo arrives rotten and worthless), catsplosion, goblin saboteurs, ensnaring webs, **order sabotage** (shreds every current manager work order) |
 | Crafting Permits | When `craftpermits` is enabled, each permit item unlocks the ability to craft one item type (e.g. you can't make a table until the Table permit arrives). See the Crafting Permits section. |
 | Cave Map Fragment | Reveals a hint about the next undiscovered custom cave — coordinate hint for treasure caves, directional warning for trap caves. Up to 6 per slot; extra fragments beyond 6 are acknowledged but produce no new hint. |
@@ -484,22 +487,20 @@ The thresholds are based on your own world's cavern/magma z-levels as they're di
 
 The Merchant's Shop lets you **spend minted coins to buy multiworld items** — a way to turn your economy into progress when the checks dry up. It's on by default; disable it with `merchant_shop: false`.
 
-### Opening the shop — the Merchant's Shrine
+### The Archipelago caravan
 
-The shop is closed until you build a **Merchant's Shrine** and keep it standing. A shrine is a **dedicated temple zone** (a Civzone assigned to a temple location) that contains:
+The shop is **caravan-only**. An Archipelago caravan visits your **trade depot** once a year (in spring) and, while it is docked, the shop is open. The caravan only stops if your fortress has **at least one Merchant's Coffer** to trade against - with none, it passes your fortress by and deems you "unworthy of a stop." (There is no longer a Merchant's Shrine to build; any temple you raise to Dwarfipelagius is now purely decorative.)
 
-- a built **altar** (Offering Place),
-- a **container** (bin/coffer),
-- **bars of the chosen type** — **5 gold**, **10 silver**, or **20 coke** (the accepted bar type is configurable), and
-- total zone value **≥ 5,000☼**.
+The caravan arrives as a small entourage - a lead merchant, a second trader, a couple of armed guards, and two pack mules - that stands at the depot for its stay and then packs up and departs as a group. If Energy Link is enabled you can also **call a caravan early** by spending energy (see Energy Link).
 
-The shop opens a few seconds after the shrine qualifies, and **closes again if the shrine is dismantled** — it must stay intact. The panel's **Shop** tab shows your progress toward these requirements.
+**Dwarfipelagius**, the merchant god, is added to your civilization's worshippable deities, so you can dedicate a temple to them like any other god (purely for flavor and the decorative shrine floor marker).
 
 ### Buying
 
-- The shop has **50 slots**; **10 unlock per Merchant's Coffer** you've received (so all 50 need all 5 coffers).
+- Select the **trade depot** and press **Ctrl+A** (or use the panel's **Shop** tab) while a caravan is docked.
+- The shop has **50 slots**; **10 unlock per Merchant's Coffer** you've received (so all 50 need all 5 coffers). Goods stay limited to the coffer tiers you have unlocked.
 - Each slot holds **one multiworld item at a coin price** (a value banded by tier). Buying deducts that value from your minted coins and sends the item's location check; each slot is bought once.
-- Buy from the panel's **Shop** tab, or from the console: `dwarfipelago buy-shop <slot>`.
+- Console: `dwarfipelago buy-shop <slot>` (only works while a caravan is docked).
 
 ### Options
 
