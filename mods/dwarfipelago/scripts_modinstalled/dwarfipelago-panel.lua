@@ -134,18 +134,26 @@ local function check_status(id)
     return ok and r or false
 end
 
-local function make_list(lines)
+-- widgets.List ignores a top-level `pen` on a string choice — it draws every
+-- row in text_pen — so per-row colors must live in a text token. Wrap each
+-- line's text+pen into a token so green/red/cyan actually show.
+local function lines_to_choices(lines)
     local choices = {}
     for _, line in ipairs(lines) do
         if type(line) == "string" then
-            table.insert(choices, {text=line, pen=COLOR_WHITE})
+            table.insert(choices, {text = {{text = line, pen = COLOR_WHITE}}})
+        elseif type(line.text) == "table" then
+            table.insert(choices, line)   -- already tokenized; leave as-is
         else
-            table.insert(choices, line)
+            table.insert(choices, {text = {{text = line.text or "", pen = line.pen or COLOR_WHITE}}})
         end
     end
+    return choices
+end
+local function make_list(lines, frame)
     return widgets.List{
-        frame      = {t=0, b=0},
-        choices    = choices,
+        frame      = frame or {t=0, b=0},
+        choices    = lines_to_choices(lines),
         text_pen   = COLOR_WHITE,
         cursor_pen = COLOR_CYAN,
     }
@@ -168,8 +176,55 @@ local CHECK_CATEGORIES = {
     { name = "Military & Combat",       lo = 770,  hi = 799  },
     { name = "Fortress Life",           lo = 3000, hi = 3999 },
 }
+-- AP-logic gate written by the client (dwarfipelago/accessible_checks, JSON
+-- {accessible=[ids], locked=[ids]}). The client evaluates the real rules.py
+-- against received items, so a check is "locked" only if it is explicitly in
+-- the locked list; anything else (ungated, or reachable) counts as open.
+-- Returns a {id=true} set of locked ids, or nil if the client hasn't pushed yet.
+local function read_locked_set()
+    local raw = dfhack.persistent.getWorldDataString("dwarfipelago/accessible_checks")
+    if not raw or raw == "" then return nil end
+    local ok, data = pcall(function() return require('json').decode(raw) end)
+    if not ok or type(data) ~= "table" or type(data.locked) ~= "table" then return nil end
+    local set = {}
+    for _, id in ipairs(data.locked) do set[id] = true end
+    return set
+end
+-- Checks-tab sort mode: false = category id order; true = actionable (open)
+-- first, then locked, then done. Toggled by the Sort button (persists per session).
+local checks_sort = false
+
+-- Milestone checks a victory goal drops from the seed (mirrors the goal filter
+-- in worlds/dwarf_fortress/__init__.py). Excluded ones are hidden entirely.
+local GOAL_NOBLE_LADDER = {37370301, 37370302, 37370303, 37370304}  -- active: mountainhome (3) only
+local GOAL_SIEGE        = {37370770, 37370771, 37370792, 37370793, 37370794, 37370795, 37370796}  -- active: slay_megabeast (0) only
+local GOAL_BEAST_SLAIN  = {37370782, 37370783, 37370784, 37370785}  -- excluded on slay_megabeast (0)
+local function goal_excluded_set()
+    local goal = tonumber(ps("goal", "-1")) or -1
+    local ex = {}
+    if goal < 0 then return ex end   -- goal not synced yet -> exclude nothing
+    if goal ~= 3 then for _, id in ipairs(GOAL_NOBLE_LADDER) do ex[id] = true end end
+    if goal ~= 0 then for _, id in ipairs(GOAL_SIEGE)        do ex[id] = true end end
+    if goal == 0 then for _, id in ipairs(GOAL_BEAST_SLAIN)  do ex[id] = true end end
+    return ex
+end
 local function build_checks_lines()
     local BASE = 37370000
+    local locked_set = read_locked_set()   -- nil until the client pushes AP logic
+    local excluded = goal_excluded_set()   -- checks not active for the current goal
+    -- Sort rank when "actionable first" is on: open (do now) < locked < done.
+    local function check_rank(id)
+        if state.is_location_checked(id) then return 2 end   -- done -> bottom
+        if locked_set and locked_set[id] then return 1 end   -- can't do yet -> middle
+        return 0                                             -- actionable -> top
+    end
+    local function order(a, b)
+        if checks_sort then
+            local ra, rb = check_rank(a.id), check_rank(b.id)
+            if ra ~= rb then return ra < rb end
+        end
+        return a.id < b.id
+    end
     local by_cat, other = {}, {}
     for _, c in ipairs(checks.checks) do
         local off, placed = c.id - BASE, false
@@ -180,25 +235,47 @@ local function build_checks_lines()
         end
         if not placed then table.insert(other, c) end
     end
-    local lines, tdone, ttotal = {""}, 0, 0   -- lines[1] is the summary, filled below
+    local lines, tdone, tlocked, texcluded, tactive = {""}, 0, 0, 0, 0   -- lines[1] is the summary
     local function emit(catname, list)
         if not list or #list == 0 then return end
-        table.sort(list, function(a, b) return a.id < b.id end)
-        local done, buf = 0, {}
+        table.sort(list, order)
+        local done, active, buf = 0, 0, {}
         for _, c in ipairs(list) do
-            ttotal = ttotal + 1
-            local sent = state.is_location_checked(c.id)
-            if sent then done = done + 1; tdone = tdone + 1 end
-            table.insert(buf, {text = ("  %s %s"):format(sent and "[x]" or "[ ]", c.name),
-                               pen  = sent and COLOR_GREEN or COLOR_WHITE})
+            if excluded[c.id] then
+                texcluded = texcluded + 1   -- not active for this goal: hidden entirely
+            else
+                active = active + 1; tactive = tactive + 1
+                local sent = state.is_location_checked(c.id)
+                local locked = (not sent) and locked_set and locked_set[c.id]
+                local mark, pen
+                if sent then
+                    done = done + 1; tdone = tdone + 1; mark, pen = "[x]", COLOR_GREEN
+                elseif locked then
+                    tlocked = tlocked + 1; mark, pen = "[ ]", COLOR_LIGHTRED   -- red = can't do it yet
+                else
+                    mark, pen = "[ ]", COLOR_WHITE
+                end
+                table.insert(buf, {text = ("  %s %s"):format(mark, c.name), pen = pen})
+            end
         end
-        table.insert(lines, {text = ("%s  (%d/%d)"):format(catname, done, #list), pen = COLOR_CYAN})
+        if #buf == 0 then return end   -- entire category is inactive for this goal
+        table.insert(lines, {text = ("%s  (%d/%d)"):format(catname, done, active), pen = COLOR_CYAN})
         for _, l in ipairs(buf) do table.insert(lines, l) end
         table.insert(lines, "")
     end
     for i, cat in ipairs(CHECK_CATEGORIES) do emit(cat.name, by_cat[i]) end
     emit("Other", other)
-    lines[1] = {text = ("Milestones sent: %d / %d      [x] done   [ ] open"):format(tdone, ttotal), pen = COLOR_YELLOW}
+    if locked_set then
+        lines[1] = {text = ("Milestones sent: %d / %d    reachable: %d    locked: %d")
+            :format(tdone, tactive, tactive - tdone - tlocked, tlocked), pen = COLOR_YELLOW}
+        table.insert(lines, {text = "[x] done   [ ] open   red = can't do yet", pen = COLOR_DARKGRAY})
+    else
+        lines[1] = {text = ("Milestones sent: %d / %d      [x] done   [ ] open"):format(tdone, tactive), pen = COLOR_YELLOW}
+        table.insert(lines, {text = "Connect the AP client to see which locked checks AP logic is gating.", pen = COLOR_DARKGRAY})
+    end
+    if texcluded > 0 then
+        table.insert(lines, {text = ("%d checks not applicable to the current goal are hidden."):format(texcluded), pen = COLOR_DARKGRAY})
+    end
     table.insert(lines, {text = "Per-item craft/skill checks are client-side (see the AP tracker).", pen = COLOR_DARKGRAY})
     return lines
 end
@@ -319,29 +396,6 @@ end
 
 local TILES_THRESHOLDS  = {100, 500, 2000, 5000, 10000}
 local DEPTH_TIER_LABELS = { "Cavern 1 ceiling", "Cavern 2 ceiling", "Cavern 3 ceiling", "Magma Sea" }
-local CROPS_THRESHOLDS  = {50, 100, 250, 500, 1000}
-
--- {threshold, name_at_or_above_threshold}; first entry is the base (value >= 0) name.
-local TEMPLE_TIERS    = {{0, "Shrine"}, {2000, "Temple"}, {10000, "Temple Complex"}}
-local GUILDHALL_TIERS = {{2000, "Guildhall"}, {10000, "Grand Guildhall"}}
-
-local PROD_FLAGS = {
-    {"Crafted item",   "crafted_item",  "Weapon forged",  "weapon"},
-    {"Armor crafted",  "armor",         "Furniture made", "furniture"},
-    {"Meal prepared",  "meal",          "Brew complete",  "brew"},
-    {"Metal bar",      "metal_bar",     "Stone block",    "stone_block"},
-    {"Cloth woven",    "cloth",         "Leather tanned", "leather"},
-    {"Gem cut",        "gem",           "Mechanism",      "mechanism"},
-    {"Trap built",     "trap",          "Cage built",     "cage"},
-    {"Barrel made",    "barrel",        "Chest made",     "chest"},
-    {"Table made",     "table",         "Bed made",       "bed"},
-    {"Anvil forged",   "anvil",         "Millstone",      "millstone"},
-    {"Minecart",       "minecart",      "Steel bar",      "steel_bar"},
-    {"Glass made",     "glass",         "Soap made",      "soap"},
-    {"Instrument",     "instrument",    "Coins minted",   "coins"},
-    {"Roast",          "roast",         "Patient treated", "patient_treated"},
-    {"First birth",    "first_birth",   nil,              nil},
-}
 
 -- ── Goal progress ──────────────────────────────────────────────────────────────
 -- Consolidated view of the selected AP goal and live progress toward it.
@@ -404,245 +458,6 @@ local function build_goal_lines()
     else
         row("  Not synced to an AP goal yet.", COLOR_DARKGRAY)
     end
-
-    return lines
-end
-
-local function build_progress_lines()
-    local lines = {}
-
-    local function hdr(s)
-        table.insert(lines, {text=s, pen=COLOR_CYAN})
-    end
-    local function row(s, pen)
-        table.insert(lines, {text=s, pen=pen or COLOR_WHITE})
-    end
-    local function blank()
-        table.insert(lines, {text=""})
-    end
-
-    -- Farming
-    hdr("Farming")
-    local crops = checks.crops_harvested()
-    local nc = next_thresh(crops, CROPS_THRESHOLDS)
-    row(("  Crops harvested: %s%s"):format(
-        fmt_num(crops), nc and ("  (next: %s)"):format(fmt_num(nc)) or "  (all done!)"))
-
-    -- Rooms
-    blank()
-    hdr("Rooms")
-    local has_bed   = checks.has_zone_type(df.civzone_type.Bedroom)
-    local has_off   = checks.has_zone_type(df.civzone_type.Office)
-    local has_tomb  = checks.has_zone_type(df.civzone_type.Tomb)
-    local has_dine  = checks.has_zone_type(df.civzone_type.DiningHall)
-    row(("  Bedroom: %-3s  Office: %-3s  Tomb: %-3s  Dining Hall: %-3s"):format(
-        has_bed  and "YES" or "no",
-        has_off  and "YES" or "no",
-        has_tomb and "YES" or "no",
-        has_dine and "YES" or "no"),
-        (has_bed or has_off or has_tomb or has_dine) and COLOR_WHITE or COLOR_DARKGRAY)
-
-    local best_desc = checks.best_room_description()
-    row(("  Best quality: %s"):format(best_desc ~= "" and best_desc or "none"),
-        best_desc ~= "" and COLOR_WHITE or COLOR_DARKGRAY)
-
-    -- Per-room quality tier reached (checks fire at Decent=3 .. Royal=7 per type).
-    local GENERIC_TIER = { [3]="Decent", [4]="Fine", [5]="Great", [6]="Grand", [7]="Royal" }
-    local function qlabel(zt)
-        local r = checks.room_quality(zt)
-        if r < 3 then return r >= 0 and "basic" or "-" end
-        return GENERIC_TIER[r] or "-"
-    end
-    row(("  Quality:  Bedroom: %-6s Office: %-6s Dining: %-6s Tomb: %-6s"):format(
-        qlabel(df.civzone_type.Bedroom), qlabel(df.civzone_type.Office),
-        qlabel(df.civzone_type.DiningHall), qlabel(df.civzone_type.Tomb)))
-
-    local function location_row(label, value, has_zone, tiers)
-        local tier_name, next_val, next_name
-        for _, t in ipairs(tiers) do
-            if value >= t[1] then
-                tier_name = t[2]
-            else
-                next_val  = t[1]
-                next_name = t[2]
-                break
-            end
-        end
-        if not tier_name then
-            -- zone exists (or not) but hasn't reached the first threshold
-            row(("  %s: none"):format(label), COLOR_DARKGRAY)
-        elseif next_val then
-            row(("  %s: %s (%s / %s for %s)"):format(
-                label, tier_name, fmt_num(value), fmt_num(next_val), next_name))
-        else
-            row(("  %s: %s (%s)"):format(label, tier_name, fmt_num(value)), COLOR_GREEN)
-        end
-    end
-
-    location_row("Temple",    checks.best_location_value(function(b) return df.abstract_building_templest:is_instance(b)    end), nil, TEMPLE_TIERS)
-    location_row("Guildhall", checks.best_location_value(function(b) return df.abstract_building_guildhallst:is_instance(b) end), nil, GUILDHALL_TIERS)
-
-    -- Production
-    blank()
-    hdr("Production  (first completed)")
-    for _, pair in ipairs(PROD_FLAGS) do
-        local a_lbl, a_key, b_lbl, b_key = pair[1], pair[2], pair[3], pair[4]
-        local a_val = checks.production_flag(a_key)
-        if b_lbl then
-            local b_val = checks.production_flag(b_key)
-            local pen = (a_val or b_val) and COLOR_WHITE or COLOR_DARKGRAY
-            row(("  %-16s %-4s  %-16s %-4s"):format(
-                a_lbl .. ":", a_val and "YES" or "no",
-                b_lbl .. ":", b_val and "YES" or "no"), pen)
-        else
-            row(("  %-16s %-4s"):format(a_lbl .. ":", a_val and "YES" or "no"),
-                a_val and COLOR_WHITE or COLOR_DARKGRAY)
-        end
-    end
-
-    -- Trade & diplomacy
-    blank()
-    hdr("Trade & Diplomacy")
-    local function tf(key) return checks.trade_flag(key) end
-    row(("  Dwarven caravan: %-3s  Liaison: %-3s"):format(
-        tf("dwarven_caravan") and "YES" or "no",
-        tf("liaison_met") and "YES" or "no"))
-    row(("  Elven caravan:  %-3s  Human caravan: %-3s"):format(
-        tf("elven_caravan") and "YES" or "no",
-        tf("human_caravan") and "YES" or "no"))
-    row(("  Raid: %-3s  Recovery: %-3s  Diplomacy: %-3s"):format(
-        tf("first_raid") and "YES" or "no",
-        tf("first_recovery") and "YES" or "no",
-        tf("first_diplomacy") and "YES" or "no"))
-
-    -- Nobles
-    blank()
-    hdr("Nobles")
-    local function noble(code)
-        local ok, units = pcall(dfhack.units.getUnitsByNobleRole, code)
-        return ok and units ~= nil and #units > 0
-    end
-    local mayor   = noble("MAYOR")
-    local baron   = noble("BARON")   and ps("unlock/baron_charter",      "0") == "1"
-    local count   = noble("COUNT")   and ps("unlock/count_charter",      "0") == "1"
-    local duke    = noble("DUKE")    and ps("unlock/duke_charter",       "0") == "1"
-    local monarch = (noble("KING") or noble("QUEEN"))
-                    and ps("unlock/monarch_invitation", "0") == "1"
-    row(("  Mayor: %-3s   Baron: %-3s   Count: %-3s"):format(
-        mayor and "YES" or "no", baron and "YES" or "no", count and "YES" or "no"))
-    row(("  Duke:  %-3s   Monarch: %-3s"):format(
-        duke and "YES" or "no", monarch and "YES" or "no"))
-
-    -- Fortress
-    blank()
-    hdr("Fortress")
-    local pop = 0
-    for _, unit in ipairs(df.global.world.units.active) do
-        if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit) then
-            pop = pop + 1
-        end
-    end
-    local fw = checks.fortress_wealth()
-    row(("  Population:      %d citizens"):format(pop))
-    row(("  Fortress wealth: %s"):format(fmt_num(fw)))
-
-    -- Fortress title milestones (id 400-404).
-    local TITLES = {
-        {400, "Hamlet"}, {401, "Village"}, {402, "Town"},
-        {403, "City"}, {404, "Metropolis"},
-    }
-    local title_cells = {}
-    local any_title = false
-    for _, t in ipairs(TITLES) do
-        local got = check_status(37370000 + t[1])
-        if got then any_title = true end
-        table.insert(title_cells, ("%s: %s"):format(t[2], got and "YES" or "no"))
-    end
-    row("  " .. table.concat(title_cells, "  "), any_title and COLOR_WHITE or COLOR_DARKGRAY)
-
-    -- Infrastructure (id 740-742): well + screw pumps.
-    blank()
-    hdr("Infrastructure")
-    local well  = check_status(37370740)
-    local pumpw = check_status(37370741)
-    local pumpm = check_status(37370742)
-    row(("  Built a Well: %-4s  Pumped Water: %-4s  Pumped Magma: %-4s"):format(
-        well and "YES" or "no", pumpw and "YES" or "no", pumpm and "YES" or "no"),
-        (well or pumpw or pumpm) and COLOR_WHITE or COLOR_DARKGRAY)
-
-    -- Biology (id 751) + Endgame (id 760-761).
-    blank()
-    hdr("Biology & Endgame")
-    local caged = check_status(37370751)
-    local adam  = check_status(37370760)
-    local sold  = check_status(37370761)
-    row(("  Caged a Hostile Beast: %-4s"):format(caged and "YES" or "no"),
-        caged and COLOR_WHITE or COLOR_DARKGRAY)
-    row(("  Mined Adamantine: %-4s   Sold an Artifact: %-4s"):format(
-        adam and "YES" or "no", sold and "YES" or "no"),
-        (adam or sold) and COLOR_WHITE or COLOR_DARKGRAY)
-
-    -- Military / Siege (id 770-771): only meaningful for the slay_megabeast goal,
-    -- but shown always so the milestones are visible.
-    blank()
-    hdr("Military")
-    local barracks = check_status(37370770)
-    local training = check_status(37370771)
-    row(("  Barracks Established: %-4s  Training Completed: %-4s"):format(
-        barracks and "YES" or "no", training and "YES" or "no"),
-        (barracks or training) and COLOR_WHITE or COLOR_DARKGRAY)
-
-    -- Combat (id 780-785): first kill, siege survival, and slain great beasts.
-    blank()
-    hdr("Combat")
-    local first_kill = check_status(37370780)
-    local siege_surv = check_status(37370781)
-    row(("  First Kill: %-4s  First Siege: %-4s"):format(
-        first_kill and "YES" or "no", siege_surv and "YES" or "no"),
-        (first_kill or siege_surv) and COLOR_WHITE or COLOR_DARKGRAY)
-    if tonumber(ps("goal", 0)) == 0 then
-        -- Slay Megabeast: show the enemy kill tally (drives the Slay N Enemies checks).
-        local kills = checks.enemies_killed()
-        row(("  Enemies slain: %s"):format(fmt_num(kills)),
-            kills > 0 and COLOR_WHITE or COLOR_DARKGRAY)
-    else
-        -- Great-beast kills are deactivated on Slay Megabeast; show them elsewhere.
-        local slew_fb  = check_status(37370782)
-        local slew_ttn = check_status(37370783)
-        local slew_smb = check_status(37370784)
-        local slew_mb  = check_status(37370785)
-        row(("  Forgotten Beast: %-4s  Titan: %-4s"):format(
-            slew_fb and "YES" or "no", slew_ttn and "YES" or "no"),
-            (slew_fb or slew_ttn) and COLOR_WHITE or COLOR_DARKGRAY)
-        row(("  Semi-megabeast: %-4s   Megabeast: %-4s"):format(
-            slew_smb and "YES" or "no", slew_mb and "YES" or "no"),
-            (slew_smb or slew_mb) and COLOR_WHITE or COLOR_DARKGRAY)
-    end
-
-    -- Moods & Artifacts (id 790-791).
-    blank()
-    hdr("Moods & Artifacts")
-    local mood = check_status(37370790)
-    local arti = check_status(37370791)
-    row(("  First Strange Mood: %-4s  First Artifact: %-4s"):format(
-        mood and "YES" or "no", arti and "YES" or "no"),
-        (mood or arti) and COLOR_WHITE or COLOR_DARKGRAY)
-
-    -- Fortress life & industry (id 3000-3005).
-    blank()
-    hdr("Fortress Life")
-    local legend = check_status(37373000)
-    local tavern = check_status(37373001)
-    local libry  = check_status(37373002)
-    local power  = check_status(37373003)
-    local trade  = check_status(37373004)
-    local tamed  = check_status(37373005)
-    row(("  Legendary Dwarf: %-4s  Tavern: %-4s  Library: %-4s"):format(
-        legend and "YES" or "no", tavern and "YES" or "no", libry and "YES" or "no"),
-        (legend or tavern or libry) and COLOR_WHITE or COLOR_DARKGRAY)
-    row(("  Harnessed Power: %-4s  Completed a Trade: %-4s  Tamed a Beast: %-4s"):format(
-        power and "YES" or "no", trade and "YES" or "no", tamed and "YES" or "no"),
-        (power or trade or tamed) and COLOR_WHITE or COLOR_DARKGRAY)
 
     return lines
 end
@@ -757,6 +572,17 @@ local function build_crafts_lines()
     local labels_raw = ps("craftsanity_labels", "{}")
     local labels     = json.decode(labels_raw) or {}
 
+    -- AP-logic gate: flags the client evaluated as not yet craftable (missing
+    -- workshop/material). Those rows show red. Empty until the client pushes.
+    local locked_set = {}
+    local locked_raw = ps("craftsanity_locked", "")
+    if locked_raw ~= "" then
+        local ok, arr = pcall(function() return json.decode(locked_raw) end)
+        if ok and type(arr) == "table" then
+            for _, f in ipairs(arr) do locked_set[f] = true end
+        end
+    end
+
     if max_val == 0 or next(labels) == nil then
         row("  Waiting for AP client to sync craftsanity data...", COLOR_DARKGRAY)
         return lines
@@ -781,6 +607,7 @@ local function build_crafts_lines()
             count   = count,
             done_n  = done_n,
             is_done = done_n >= checks_per_item,
+            locked  = locked_set[flag] or false,
         })
     end
     -- Sort: in-progress (count desc) → not-started (alpha) → done (alpha)
@@ -791,13 +618,16 @@ local function build_crafts_lines()
         return a.label < b.label
     end)
 
-    local n_done = 0
+    local n_done, n_locked = 0, 0
     for _, e in ipairs(list) do
         if e.is_done then
             n_done = n_done + 1
             row(("  %-26s  %6s   DONE (%d/%d)"):format(
                 e.label, fmt_num(e.count), checks_per_item, checks_per_item),
                 COLOR_GREEN)
+        elseif e.locked then
+            n_locked = n_locked + 1
+            row(("  %-26s  %6s   locked"):format(e.label, fmt_num(e.count)), COLOR_LIGHTRED)
         elseif e.count == 0 then
             row(("  %-26s  %6s   --"):format(e.label, "0"), COLOR_DARKGRAY)
         else
@@ -814,6 +644,10 @@ local function build_crafts_lines()
     row("  " .. string.rep("-", 52), COLOR_DARKGRAY)
     row(("  Items complete: %d / %d"):format(n_done, #list),
         n_done >= #list and COLOR_GREEN or COLOR_WHITE)
+    if n_locked > 0 then
+        row(("  %d not craftable yet (red = missing workshop/material)"):format(n_locked),
+            COLOR_DARKGRAY)
+    end
 
     return lines
 end
@@ -1065,18 +899,26 @@ function DwarfipelagoPanel:init()
         }
     end
 
-    -- ── Tab 3: Progress ───────────────────────────────────────────────
-    local function ProgressTab()
-        table.insert(tab_list, "Progress")
-        return widgets.Panel{
-            subviews = { make_list(build_progress_lines()) },
-        }
-    end
-
     local function ChecksTab()
         table.insert(tab_list, "Checks")
+        local list = make_list(build_checks_lines(), {t=2, b=0})
+        local function refresh() list:setChoices(lines_to_choices(build_checks_lines())) end
         return widgets.Panel{
-            subviews = { make_list(build_checks_lines()) },
+            subviews = {
+                widgets.HotkeyLabel{
+                    frame       = {t=0, l=0},
+                    key         = "CUSTOM_SHIFT_O",
+                    label       = function()
+                        return checks_sort and "Sort: actionable first (ON)"
+                                            or  "Sort: by category (OFF)"
+                    end,
+                    on_activate = function()
+                        checks_sort = not checks_sort
+                        refresh()
+                    end,
+                },
+                list,
+            },
         }
     end
 
@@ -1436,7 +1278,6 @@ function DwarfipelagoPanel:init()
         table.insert(tabviews, WarTab())
     end
     table.insert(tabviews, UnlocksTab())
-    table.insert(tabviews, ProgressTab())
     table.insert(tabviews, ChecksTab())
     table.insert(tabviews, CavesTab())
     if ps("craftsanity_enabled", "0") ~= "0" then

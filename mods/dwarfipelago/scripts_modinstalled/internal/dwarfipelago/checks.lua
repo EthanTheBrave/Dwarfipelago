@@ -1360,6 +1360,12 @@ local NON_MATERIAL = {
     training_spear=true, training_sword=true, cup=true, ballista_parts=true,
     catapult_parts=true, millstone=true, quern=true, slab=true,
     mug=true, totem=true, window=true,
+    -- Inherently single-material items the AP registers as non-material (must
+    -- match craftsanity.non_material_items). Without these the mod appended a
+    -- material suffix (e.g. leather_armor_leather) that the client never
+    -- initialized, so the craft was silently dropped and no check fired.
+    display_case=true, bolt_thrower_parts=true, codex=true, quire=true,
+    scroll=true, leather_armor=true,
 }
 
 -- Returns the base item flag for a job (no material suffix). Used by the

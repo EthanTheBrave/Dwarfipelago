@@ -738,6 +738,7 @@ class DwarfFortressContext(CommonContext):
         self._coffers_hinted = 0         # highest coffer tier whose shop items we've hinted
         self._shop_last_sig = None       # last shop table written to Lua (skip redundant writes)
         self._is_reembark = False        # True during re-embark item re-delivery
+        self._accessible_sig = None      # last accessible-checks set written to Lua (skip redundant writes)
 
     def debug(self, msg: str):
         """Log only when debug mode is enabled (toggle with /dfdebug)."""
@@ -1124,6 +1125,102 @@ class DwarfFortressContext(CommonContext):
                 f"[Dwarfipelago] Re-embark recovery complete"
                 + (f" — {skipped_traps} trap(s) skipped" if skipped_traps else "")
             )
+
+        # Refresh the panel's "which checks are reachable" view from real AP logic.
+        # Cheap and guarded: only re-evaluates + writes when the received item set
+        # actually changed, and never lets a logic error disrupt item delivery.
+        await asyncio.get_event_loop().run_in_executor(
+            None, self._push_accessible_checks
+        )
+
+    def _push_accessible_checks(self):
+        """Evaluate the real rules.py against the items received so far and store
+        the reachable milestone-check ids in world data for the panel's Checks
+        tab. Best-effort — any failure is logged and swallowed."""
+        received = self.items_received
+        if not received:
+            return
+        # Resolve received item ids -> names, same lookup order as delivery.
+        names = []
+        for ni in received:
+            try:
+                if hasattr(self, "item_names") and hasattr(self.item_names, "lookup_in_game"):
+                    names.append(self.item_names.lookup_in_game(ni.item))
+                elif hasattr(self, "item_names"):
+                    names.append(self.item_names.get(ni.item, str(ni.item)))
+                else:
+                    names.append(str(ni.item))
+            except Exception:
+                continue
+        # Fold the rule-relevant options into the signature so the first
+        # slot_data arrival (options {} -> populated) forces one recompute.
+        sd = getattr(self, "slot_data", {}) or {}
+        opts_sig = tuple(
+            (k, sd.get(k)) for k in
+            ("goal", "crafting_permits", "craftsanity_enabled",
+             "skillsanity_enabled", "craftsanity_materials")
+        )
+        # Count-sensitive: a new stackable item (e.g. Immigration Wave) bumps a
+        # count without adding a name, so key on (name,count) pairs, not names.
+        from collections import Counter
+        sig = hash((frozenset(Counter(names).items()), opts_sig))
+        if sig == self._accessible_sig:
+            return
+        # Build one representative dynamic craft location per unique flag so the
+        # craftsanity rows can be gated too. flag = item[_material] lowercased,
+        # matching init_crafting_locations' craft_count keys and the panel labels.
+        from types import SimpleNamespace
+        craft = getattr(self, "_crafting_locations", None) or {}
+        dynlocs, id_to_flag, seen = [], {}, set()
+        for cid, d in craft.items():
+            try:
+                ap_id = int(cid)
+            except (TypeError, ValueError):
+                continue
+            item = d.get("item", "") or ""
+            mat = d.get("material", "") or ""
+            flag = (item.replace(" ", "_") + (("_" + mat) if mat else "")).lower()
+            if flag in seen:
+                continue
+            seen.add(flag)
+            dynlocs.append(SimpleNamespace(
+                name=d.get("location_name", f"craft_{ap_id}"),
+                df_item=item, material_type=mat, ap_id=ap_id))
+            id_to_flag[ap_id] = flag
+        try:
+            from .logic_probe import accessible_location_ids
+            result = accessible_location_ids(names, sd, dynamic_locations=dynlocs)
+        except Exception as e:
+            logger.warning(f"[Dwarfipelago] accessible-checks eval failed: {e}")
+            return
+
+        def _push(key, obj):
+            js = json.dumps(obj)
+            # Splice as a Lua double-quoted literal (same escaping as deliver_item);
+            # JSON has no backslashes, so escaping '"' yields valid Lua source.
+            lua_str = '"' + js.replace("\\", "\\\\").replace('"', '\\"') + '"'
+            self.dfhack.run_command(
+                "lua",
+                f'dfhack.persistent.saveWorldDataString("dwarfipelago/{key}", {lua_str})',
+            )
+
+        # Milestone Checks tab: keep accessible_checks purely milestone ids.
+        craft_ids = set(id_to_flag)
+        acc_ms = [i for i in result["accessible"] if i not in craft_ids]
+        lck_ms = [i for i in result["locked"] if i not in craft_ids]
+        _push("accessible_checks", {"accessible": acc_ms, "locked": lck_ms})
+
+        # Craftsanity tab: which craft flags are logically locked (shown red).
+        if id_to_flag:
+            locked_ids = set(result["locked"])
+            locked_flags = sorted({f for aid, f in id_to_flag.items() if aid in locked_ids})
+            _push("craftsanity_locked", locked_flags)
+
+        self._accessible_sig = sig
+        self.debug(
+            f"accessible-checks pushed: {len(acc_ms)} reachable, {len(lck_ms)} locked; "
+            f"craft flags: {len(id_to_flag)} ({sum(1 for a in id_to_flag if a in set(result['locked']))} locked)"
+        )
 
     async def _sync_slot_data(self):
         """
