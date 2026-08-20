@@ -1,0 +1,8 @@
+tile_page_dwarfipelago
+
+[OBJECT:TILE_PAGE]
+
+[TILE_PAGE:DWARFIPELAGO_ITEMS]
+	[FILE:images/ap_items.png]
+	[TILE_DIM:32:32]
+	[PAGE_DIM:1:1]
