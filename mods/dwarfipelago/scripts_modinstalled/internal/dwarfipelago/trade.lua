@@ -288,35 +288,78 @@ function MerchantTradeScreen:init()
     self.sel_offer = {}   -- [item id]=true
     self.sort_key  = "price"
 
-    local W, H = 120, 44
+    -- Big two-column layout that mirrors the vanilla caravan trade screen:
+    -- a greeting header, "Caravan goods" | "Your fortress" boxes with the value
+    -- and check box on the right of each row, and a bottom action bar.
+    local W, H = 128, 46
     self:addviews{
         widgets.Window{
             frame_title = self.context == "depot" and "Archipelago Caravan" or "Merchant Shop",
             frame       = { w = W, h = H },
             resizable   = true,
+            resize_min  = { w = 96, h = 34 },
             subviews    = {
-                widgets.Label{ view_id = "totals", frame = { t = 0, l = 0 } },
-                widgets.CycleHotkeyLabel{
-                    view_id = "sort", frame = { t = 0, r = 0, w = 22 },
-                    key = "CUSTOM_S", label = "Sort goods: ",
-                    options = SORTS, initial_option = "price",
-                    on_change = function(v) self.sort_key = v; self:refresh() end,
+                -- Greeting header, in the style of the merchant's intro banner.
+                widgets.Panel{
+                    frame       = { t = 0, l = 0, r = 0, h = 5 },
+                    frame_style = gui.FRAME_INTERIOR,
+                    subviews    = {
+                        widgets.Label{ view_id = "greet_name", frame = { t = 0, l = 0 } },
+                        widgets.Label{ view_id = "greet_line", frame = { t = 1, l = 0 } },
+                        widgets.Label{ view_id = "greet_mood", frame = { t = 2, l = 0 } },
+                    },
                 },
-                widgets.Label{ view_id = "goods_hdr", frame = { t = 2, l = 0 }, text = "Goods (Enter to add/remove)", text_pen = COLOR_CYAN },
-                widgets.Label{ frame = { t = 2, r = 0, w = 48 }, text = "Your offer  (Enter to add/remove)", text_pen = COLOR_CYAN },
-                widgets.List{
-                    view_id = "goods", frame = { t = 3, b = 3, l = 0, w = 66 },
-                    on_submit = function(_, c) if c and c.slot then self:toggle_good(c.slot) end end,
+                -- Left column: search field over the caravan's goods, grouped by
+                -- coffer tier. The List draws its own scrollbar when it overflows.
+                widgets.Panel{
+                    frame       = { t = 5, b = 4, l = 0, w = 64 },
+                    frame_style = gui.FRAME_INTERIOR,
+                    frame_title = "Caravan goods",
+                    subviews    = {
+                        widgets.EditField{
+                            view_id = "goods_search", frame = { t = 0, l = 0, r = 0 },
+                            label_text = "Search: ",
+                            on_change = function(text) self.goods_query = text; self:refresh() end,
+                        },
+                        widgets.List{
+                            view_id = "goods", frame = { t = 2, b = 0, l = 0, r = 0 },
+                            on_submit = function(_, c) if c and c.slot then self:toggle_good(c.slot) end end,
+                        },
+                    },
                 },
-                widgets.List{
-                    view_id = "offer", frame = { t = 3, b = 3, r = 0, w = 48 },
-                    on_submit = function(_, c) if c and c.id then self:toggle_offer(c.id) end end,
+                -- Right column: search field over the fort's offered goods.
+                widgets.Panel{
+                    frame       = { t = 5, b = 4, l = 64, r = 0 },
+                    frame_style = gui.FRAME_INTERIOR,
+                    frame_title = "Your fortress",
+                    subviews    = {
+                        widgets.EditField{
+                            view_id = "offer_search", frame = { t = 0, l = 0, r = 0 },
+                            label_text = "Search: ",
+                            on_change = function(text) self.offer_query = text; self:refresh() end,
+                        },
+                        widgets.List{
+                            view_id = "offer", frame = { t = 2, b = 0, l = 0, r = 0 },
+                            on_submit = function(_, c) if c and c.id then self:toggle_offer(c.id) end end,
+                        },
+                    },
+                },
+                -- Bottom action bar: per-side totals then the buttons.
+                widgets.Label{ view_id = "lfoot", frame = { b = 2, l = 1 } },
+                widgets.Label{ view_id = "rfoot", frame = { b = 2, l = 66 } },
+                widgets.HotkeyLabel{
+                    frame = { b = 0, l = 1 }, key = "CUSTOM_A", label = "Mark all",
+                    on_activate = function() self:mark_all(true) end,
                 },
                 widgets.HotkeyLabel{
-                    frame = { b = 1, l = 0 }, key = "CUSTOM_C", label = "Confirm trade",
+                    frame = { b = 0, l = 16 }, key = "CUSTOM_SHIFT_A", label = "Unmark all",
+                    on_activate = function() self:mark_all(false) end,
+                },
+                widgets.HotkeyLabel{
+                    frame = { b = 0, l = 33 }, key = "CUSTOM_C", label = "Trade",
                     on_activate = function() self:do_confirm() end,
                 },
-                widgets.Label{ view_id = "msg", frame = { b = 0, l = 0 } },
+                widgets.Label{ view_id = "msg", frame = { b = 0, l = 46 } },
             },
         },
     }
@@ -333,64 +376,117 @@ function MerchantTradeScreen:toggle_offer(id)
     self:refresh()
 end
 
+-- Mark or unmark every buyable good at once (the bar's Mark all / Unmark all).
+function MerchantTradeScreen:mark_all(select)
+    self.sel_goods = {}
+    if select then
+        local goods = M.goods()
+        for _, g in ipairs(goods) do
+            if g.buyable then self.sel_goods[g.slot] = true end
+        end
+    end
+    self:refresh()
+end
+
 function MerchantTradeScreen:refresh()
     local goods, coffers = M.goods()
-    table.sort(goods, function(a, b)
-        local k = self.sort_key
-        if k == "price"  then return a.price < b.price end
-        if k == "tier"   then return a.tier  < b.tier end
-        return a.player:lower() < b.player:lower()
-    end)
     local offer = M.offer_items(self.context)
+    local gq = (self.goods_query or ""):lower()
+    local oq = (self.offer_query or ""):lower()
 
-    -- Goods list - only what the player's coffers unlock (no tier / need-coffers
-    -- clutter). Coffer count lives in the header instead.
-    local gchoices, required = {}, 0
+    -- Selection totals span every item, not just what the search currently shows.
+    local required = 0
     for _, g in ipairs(goods) do
-        if g.tier <= coffers then
+        if self.sel_goods[g.slot] and g.buyable then required = required + g.price end
+    end
+    local offered = 0
+    for _, o in ipairs(offer) do
+        if self.sel_offer[o.id] then offered = offered + o.value end
+    end
+
+    -- Goods list: filtered by the search box, grouped into coffer-tier tiles
+    -- (a grey full-width bar per tier). The List draws its own scrollbar.
+    local by_tier, tiers = {}, {}
+    for _, g in ipairs(goods) do
+        if gq == "" or g.item:lower():find(gq, 1, true) then
+            if not by_tier[g.tier] then by_tier[g.tier] = {}; tiers[#tiers + 1] = g.tier end
+            table.insert(by_tier[g.tier], g)
+        end
+    end
+    table.sort(tiers)
+
+    local BAR_W = 60
+    local gchoices = {}
+    for _, t in ipairs(tiers) do
+        local list = by_tier[t]
+        table.sort(list, function(a, b) return a.price < b.price end)
+        local label = ("Tier %d  %s"):format(t, t <= coffers and "(unlocked)"
+            or ("(need %d coffer%s)"):format(t, t == 1 and "" or "s"))
+        gchoices[#gchoices + 1] = { text = {{
+            text = ("%-" .. BAR_W .. "s"):format(label),
+            pen  = { fg = COLOR_BLACK, bg = COLOR_GREY },
+        }} }
+        for _, g in ipairs(list) do
             local marked = self.sel_goods[g.slot] and true or false
-            if marked and g.buyable then required = required + g.price end
-            local box = g.buyable and (marked and "[x] " or "[ ] ") or "    "
             local pen = COLOR_WHITE
             if not g.buyable then pen = COLOR_DARKGRAY
             elseif marked      then pen = COLOR_LIGHTGREEN end
-            local tag = g.buyable and "" or ("  ("..g.state..")")
+            local right = g.buyable and ("[%s]"):format(marked and "x" or " ")
+                                     or  ("(%s)"):format(g.state)
             gchoices[#gchoices + 1] = {
-                text = ("%s%-34.34s %6d*%s"):format(box, g.item, g.price, tag),
+                text = ("  %-36.36s Value:%5d*  %s"):format(g.item, g.price, right),
                 pen = pen, slot = g.buyable and g.slot or nil,
             }
         end
     end
     if #gchoices == 0 then
-        gchoices[1] = { text = "(nothing unlocked yet - receive Merchant's Coffers)", pen = COLOR_DARKGRAY }
+        gchoices[1] = { text = gq ~= "" and "  (no goods match your search)"
+                                        or  "  (the caravan has no goods yet)", pen = COLOR_DARKGRAY }
     end
-    self.subviews.goods_hdr:setText(("Goods  (%d coffer%s unlocked)  Enter to add/remove")
-        :format(coffers, coffers == 1 and "" or "s"))
 
-    -- Offer list.
-    local ochoices, offered = {}, 0
+    -- Offer list: fort goods, filtered by its own search box.
+    local ochoices = {}
     for _, o in ipairs(offer) do
-        local marked = self.sel_offer[o.id] and true or false
-        if marked then offered = offered + o.value end
-        local box = marked and "[x] " or "[ ] "
-        local vpen = o.coingem and COLOR_YELLOW or COLOR_GRAY
-        ochoices[#ochoices + 1] = {
-            text = ("%s%-34.34s %6d*"):format(box, o.name or "?", o.value),
-            pen = marked and COLOR_LIGHTGREEN or vpen, id = o.id,
-        }
+        if oq == "" or (o.name or ""):lower():find(oq, 1, true) then
+            local marked = self.sel_offer[o.id] and true or false
+            local vpen = o.coingem and COLOR_YELLOW or COLOR_GRAY
+            ochoices[#ochoices + 1] = {
+                text = ("  %-36.36s Value:%5d*  [%s]"):format(o.name or "?", o.value, marked and "x" or " "),
+                pen = marked and COLOR_LIGHTGREEN or vpen, id = o.id,
+            }
+        end
     end
     if #ochoices == 0 then
-        ochoices[1] = { text = "(store coins/goods in the shrine's container)", pen = COLOR_DARKGRAY }
+        ochoices[1] = { text = oq ~= "" and "  (no goods match your search)"
+            or (self.context == "depot"
+                and "  (mark fort goods for trade at the depot to offer them)"
+                or  "  (store coins/goods in the shrine's container)"), pen = COLOR_DARKGRAY }
     end
 
     self.subviews.goods:setChoices(gchoices, self.subviews.goods:getSelected())
     self.subviews.offer:setChoices(ochoices, self.subviews.offer:getSelected())
 
-    local bal_pen = offered >= required and required > 0 and COLOR_LIGHTGREEN or COLOR_YELLOW
-    self.subviews.totals:setText({
-        "Offer: ", { text = ("%d*"):format(offered), pen = COLOR_LIGHTGREEN },
+    -- Greeting banner.
+    self.subviews.greet_name:setText({{ text = "The Archipelago Caravan", pen = COLOR_YELLOW }})
+    self.subviews.greet_line:setText({{
+        text = '"Wonders from across the multiworld - what catches your eye?"', pen = COLOR_CYAN }})
+    self.subviews.greet_mood:setText({
+        ("%d coffer%s unlocked."):format(coffers, coffers == 1 and "" or "s"),
+        { text = "   Enter: mark/unmark", pen = COLOR_GRAY },
+    })
+
+    -- Bottom totals, one per side.
+    self.subviews.lfoot:setText({
+        { text = "Archipelago Caravan", pen = COLOR_YELLOW },
         "   Required: ", { text = ("%d*"):format(required), pen = COLOR_CYAN },
-        "   Balance: ", { text = ("%d*"):format(offered - required), pen = bal_pen },
+    })
+    local balance = offered - required
+    local bal_pen = COLOR_GRAY
+    if required > 0 then bal_pen = offered >= required and COLOR_LIGHTGREEN or COLOR_LIGHTRED end
+    self.subviews.rfoot:setText({
+        { text = "Your fortress", pen = COLOR_YELLOW },
+        "   Offered: ", { text = ("%d*"):format(offered), pen = COLOR_LIGHTGREEN },
+        "   Balance: ", { text = ("%d*"):format(balance), pen = bal_pen },
     })
 end
 
