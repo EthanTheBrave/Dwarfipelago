@@ -13,6 +13,7 @@ import copy
 import json
 import logging
 import os
+import shutil
 import socket
 import struct
 import argparse
@@ -356,6 +357,49 @@ def install_worldgen_preset() -> str:
             f"Restart Dwarf Fortress for 'DwarfipelagoWorld' to appear in the preset list.")
 
 
+def install_mod_for_worldgen() -> str:
+    """Wipe every stale/duplicate dwarfipelago install and copy a fresh raws
+    build into <DF>/data/installed_mods so world-gen always reads the current
+    files -- no NUMERIC_VERSION bump needed. Scripts are intentionally left out
+    (they load from <DF>/mods) so this can't double-load them.
+
+    Source is <DF>/mods/dwarfipelago (the working mod copy). Returns a status
+    message for the AP client console.
+    """
+    exe = _get_df_executable()
+    if not exe:
+        return ("Could not locate the DF install - set 'game_path' in host.yaml to "
+                "your Dwarf Fortress executable and try again.")
+    df_dir = os.path.dirname(exe)
+    src = os.path.join(df_dir, "mods", "dwarfipelago")
+    if not os.path.isdir(src):
+        return f"dwarfipelago mod not found at {src} - install the mod there first."
+
+    installed = os.path.join(df_dir, "data", "installed_mods")
+    os.makedirs(installed, exist_ok=True)
+
+    # Remove any existing dwarfipelago install(s) so DF can't "use the first
+    # encountered" stale copy or warn about duplicate id+version.
+    removed = []
+    for name in os.listdir(installed):
+        if name.lower().startswith("dwarfipelago"):
+            shutil.rmtree(os.path.join(installed, name), ignore_errors=True)
+            removed.append(name)
+
+    # Copy a fresh raws-only install (info + objects + graphics; no scripts).
+    dst = os.path.join(installed, "dwarfipelago")
+    os.makedirs(dst, exist_ok=True)
+    shutil.copy2(os.path.join(src, "info.txt"), dst)
+    for sub in ("objects", "graphics"):
+        s = os.path.join(src, sub)
+        if os.path.isdir(s):
+            shutil.copytree(s, os.path.join(dst, sub))
+
+    return (f"Installed dwarfipelago raws for world-gen -> {dst}\n"
+            f"(cleared {len(removed)} old install(s): {', '.join(removed) or 'none'})\n"
+            f"Restart DF, then enable 'Dwarfipelago' in the mod list when you generate a world.")
+
+
 # ── DFHack connection ─────────────────────────────────────────────────────────
 
 class DFHackConnection:
@@ -661,9 +705,12 @@ class DwarfFortressCommandProcessor(ClientCommandProcessor):
 
     def _cmd_dfinstall(self):
         """Install the Dwarfipelago world generation preset into your Dwarf
-        Fortress prefs/world_gen.txt. Run this once before generating a new
-        world. Usage: /dfinstall"""
+        Fortress prefs/world_gen.txt, and (re)install the Dwarfipelago mod raws
+        into installed_mods so world-gen picks up the current files. Run before
+        generating a new world. Usage: /dfinstall"""
         for line in install_worldgen_preset().splitlines():
+            self.output(line)
+        for line in install_mod_for_worldgen().splitlines():
             self.output(line)
 
     # def _cmd_send_energy_link(self, amount: str = ""):
