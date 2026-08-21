@@ -386,8 +386,21 @@ def install_mod_for_worldgen() -> str:
             shutil.rmtree(os.path.join(installed, name), ignore_errors=True)
             removed.append(name)
 
+    # DF's mod manager only recognizes installed mods whose folder is named
+    # "<id> (<numeric_version>)"; a plain "dwarfipelago" folder is ignored. Read
+    # the version from the source info.txt and name the install to match.
+    version = "0"
+    try:
+        with open(os.path.join(src, "info.txt"), encoding="latin-1") as f:
+            for ln in f:
+                if "NUMERIC_VERSION:" in ln:
+                    version = ln.split("NUMERIC_VERSION:")[1].split("]")[0].strip()
+                    break
+    except OSError:
+        pass
+
     # Copy a fresh raws-only install (info + objects + graphics; no scripts).
-    dst = os.path.join(installed, "dwarfipelago")
+    dst = os.path.join(installed, f"dwarfipelago ({version})")
     os.makedirs(dst, exist_ok=True)
     shutil.copy2(os.path.join(src, "info.txt"), dst)
     for sub in ("objects", "graphics"):
