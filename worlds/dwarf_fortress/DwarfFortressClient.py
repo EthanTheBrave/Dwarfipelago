@@ -2006,6 +2006,16 @@ def main():
             return
 
         cwd = os.path.dirname(exe)
+        # Make sure the world-gen preset and the current Dwarfipelago mod raws
+        # are installed BEFORE launching DF, so a freshly generated world always
+        # picks up the latest files (no manual /dfinstall, no version bump).
+        try:
+            for line in install_worldgen_preset().splitlines():
+                logger.info(line)
+            for line in install_mod_for_worldgen().splitlines():
+                logger.info(line)
+        except Exception as e:
+            logger.warning(f"Pre-launch install step failed (continuing): {e}")
         try:
             subprocess.Popen([exe], cwd=cwd)
         except OSError as e:
