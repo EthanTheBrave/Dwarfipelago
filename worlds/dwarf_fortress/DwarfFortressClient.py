@@ -1618,6 +1618,13 @@ class DwarfFortressContext(CommonContext):
         if payload == self._shop_last_sig:
             return
         self._shop_last_sig = payload
+        # Native caravan: bake one AP-logo item raw per shop good into the mod so
+        # a freshly generated world renders their real names. Best-effort; preps
+        # the *next* world-gen.
+        try:
+            self._write_shop_item_raws(entries)
+        except Exception as e:
+            logger.debug(f"shop item raw generation skipped: {e}")
         escaped = payload.replace("\\", "\\\\").replace('"', '\\"')
         await asyncio.get_event_loop().run_in_executor(
             None,
@@ -1627,6 +1634,26 @@ class DwarfFortressContext(CommonContext):
             ),
         )
         logger.info(f"Shop: wrote {len(entries)} slot(s) to DFHack storage")
+
+    def _write_shop_item_raws(self, entries):
+        """Generate one AP-logo tool raw per scouted shop good into the mod
+        (<DF>/mods/dwarfipelago), so the next world-gen bakes their real names.
+        The auto-install on client launch (or /dfinstall) copies them into
+        installed_mods; apcaravan.lua then spawns them onto the caravan."""
+        from . import apraws
+        exe = _get_df_executable()
+        if not exe:
+            return
+        mod = os.path.join(os.path.dirname(exe), "mods", "dwarfipelago")
+        if not os.path.isdir(mod):
+            return
+        shop_list = [
+            {"slot": e["slot"], "item": e.get("item", ""), "player": e.get("player", "")}
+            for e in entries.values()
+        ]
+        apraws.generate(shop_list, os.path.join(mod, "objects"), os.path.join(mod, "graphics"))
+        logger.info(f"Native caravan: generated {len(shop_list)} AP item raw(s) into {mod}; "
+                    f"restart the client and re-gen the world to bake them in.")
 
     async def _check_shop_purchase(self, status: dict):
         """

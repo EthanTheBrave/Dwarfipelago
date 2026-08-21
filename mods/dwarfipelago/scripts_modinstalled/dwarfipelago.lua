@@ -645,6 +645,22 @@ local function detect_caravans()
     end
 end
 
+-- Native AP shop: put the AP goods on a docked caravan as real items and detect
+-- purchases. Piggybacks any caravan for now; will gate to the Archipelago civ
+-- once that caravan is wired up.
+local apcaravan = reqscript('internal/dwarfipelago/apcaravan')
+local _ap_caravan_was_docked = false
+local function poll_ap_caravan()
+    local docked = apcaravan.caravan_docked()
+    if docked then
+        apcaravan.inject_ap_goods()
+        apcaravan.detect_ap_trades()
+    elseif _ap_caravan_was_docked then
+        apcaravan.clear_ap_goods()   -- caravan left: pull back any unbought AP goods
+    end
+    _ap_caravan_was_docked = docked
+end
+
 -- ability to force a caravan
 local function getCiv(civ)
     civ = string.lower(tostring(civ))
@@ -2099,6 +2115,7 @@ local function poll_checks()
     guard("goal",          check_goal_by_poll)
     guard("locked_notify", check_locked_notifications)
     guard("caravans",      detect_caravans)
+    guard("ap_caravan",    poll_ap_caravan)
     guard("missions",      checks.detect_mission_checks)
     guard("pump",          detect_pump_activity)
     -- detect_egg_hatch()  -- disabled: hatch detection unreliable on DF v50
