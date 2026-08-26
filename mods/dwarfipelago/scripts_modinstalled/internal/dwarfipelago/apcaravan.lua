@@ -7,7 +7,7 @@
 --
 -- Data it reads/writes (dfhack persistent world data):
 --   dwarfipelago/shop            {slot: {item,player,price,tier,bought}}  (AP client)
---   dwarfipelago/ap_slot_tool    {slot: "ITEM_TOOL_AP_SHOP_<n>"}          (AP client)
+--   (goods are ITEM_TOOL_AP_TIER<tier> of material INORGANIC:AP_SHOP_<slot>)
 --   dwarfipelago/ap_caravan_items {item_id: slot}   injected items, this module
 --   dwarfipelago/shop_buy        [slot,...]         purchase queue (AP client reads)
 --   dwarfipelago/shop_pending    {slot: true}       awaiting AP confirmation
@@ -42,6 +42,24 @@ local function tool_subtype(tool_id)
     return nil
 end
 
+-- The df tool subtypes of our AP tier tools (ITEM_TOOL_AP_TIER<n>), so we can
+-- recognise our own injected goods among the caravan's items.
+local function ap_tool_subtypes()
+    local set = {}
+    for _, td in ipairs(df.global.world.raws.itemdefs.tools) do
+        if td.id:match("^ITEM_TOOL_AP_TIER%d") then set[td.subtype] = true end
+    end
+    return set
+end
+
+-- True if an item is one of our injected AP goods. Uses getSubtype() (numeric);
+-- item.subtype is the itemdef object, not the subtype index.
+local function is_ap_tool(it, subset)
+    if it:getType() ~= df.item_type.TOOL then return false end
+    subset = subset or ap_tool_subtypes()
+    return subset[it:getSubtype()] == true
+end
+
 local function a_merchant()
     for _, u in ipairs(df.global.world.units.active) do
         local m = false
@@ -51,23 +69,93 @@ local function a_merchant()
     return nil
 end
 
+-- The civ that owns this caravan's goods. The docked merchants ARE the caravan,
+-- so their civ_id is the owner (a gorlak caravan's civ is the gorlak civ). AP
+-- goods need a matching ENTITY_ITEMOWNER ref or DF will not list them as this
+-- caravan's merchandise. Prefer the merchant civ over scanning depot items, which
+-- may hold leftover goods or our own AP tools carrying a stale owner.
+local function caravan_owner_entity(depot)
+    local m = a_merchant()
+    if m and m.civ_id and m.civ_id >= 0 then return m.civ_id end
+    -- Fallback: read the owner off a real (non-AP) trader good.
+    local subset = ap_tool_subtypes()
+    for _, ci in ipairs(depot.contained_items) do
+        local it = ci.item
+        if not is_ap_tool(it, subset) then
+            for _, r in ipairs(it.general_refs) do
+                if r:getType() == df.general_ref_type.ENTITY_ITEMOWNER then return r.entity_id end
+            end
+        end
+    end
+    return nil
+end
+
+-- Resolve a material token (e.g. "INORGANIC:AP_SHOP_7") to type/index. Each shop
+-- slot has its own inorganic whose name is the good; falls back to iron.
+local function material_for(mat_token)
+    local mi = dfhack.matinfo.find(mat_token)
+    if mi then return mi.type, mi.index end
+    mi = dfhack.matinfo.find("INORGANIC:IRON")
+    if mi then return mi.type, mi.index end
+    return 0, 0
+end
+
 -- A real caravan is docked when merchant units and a depot both exist.
 function M.caravan_docked()
     return find_depot() ~= nil and a_merchant() ~= nil
 end
 
+-- True when the docked caravan is the Archipelago (gorlak) civ, i.e. the AP shop
+-- caravan. AP goods and good-hiding apply only to this caravan; normal dwarf/elf/
+-- human caravans are left untouched.
+local function is_ap_caravan()
+    local m = a_merchant()
+    if not m or not m.civ_id or m.civ_id < 0 then return false end
+    local e = df.historical_entity.find(m.civ_id)
+    return e ~= nil and e.entity_raw.code == "ARCHIPELAGO"
+end
+M.is_ap_caravan = is_ap_caravan
+
+-- Hide the caravan's own (non-AP) merchandise so only AP goods show on the trade
+-- screen. Clears the trader flag: immediate and non-destructive (caged livestock
+-- is only un-flagged, never removed, so no animals are loosed). Runs each poll
+-- tick because the caravan unloads its goods from the wagons gradually. Only acts
+-- on the AP (gorlak) caravan.
+function M.hide_caravan_goods()
+    if not is_ap_caravan() then return 0 end
+    local subset = ap_tool_subtypes()
+    local n = 0
+    for _, it in ipairs(df.global.world.items.all) do
+        local t = false
+        pcall(function() t = it.flags.trader end)
+        if t and not is_ap_tool(it, subset) then
+            pcall(function() it.flags.trader = false end)
+            n = n + 1
+        end
+    end
+    return n
+end
+
 -- Create one AP good as a trader-flagged tool item at the depot.
 -- Returns the item, or nil.
-local function spawn_good(tool_id, depot)
+local function spawn_good(tool_id, mat_token, depot, owner_ent)
     local sub = tool_subtype(tool_id)
     if not sub then return nil end
     local merchant = a_merchant()
-    local res = dfhack.items.createItem(merchant, df.item_type.TOOL, sub, 0, 0)
+    local mt, mi = material_for(mat_token)
+    local res = dfhack.items.createItem(merchant, df.item_type.TOOL, sub, mt, mi)
     local it = (type(res) == "table" and res[1]) or res
     if not it then return nil end
     pcall(function() it.flags.trader = true end)
     -- Put it in the depot as caravan merchandise so the trade screen lists it.
     pcall(function() dfhack.items.moveToBuilding(it, depot, 0) end)
+    pcall(function() it.flags.in_building = true end)
+    -- Register as caravan merchandise; without this DF omits it from the trade list.
+    if owner_ent then
+        local ref = df.general_ref_entity_itemownerst:new()
+        ref.entity_id = owner_ent
+        it.general_refs:insert("#", ref)
+    end
     return it
 end
 
@@ -75,7 +163,9 @@ end
 -- Coffer-gated: only slots whose tier <= current coffers are offered.
 function M.inject_ap_goods()
     if not M.caravan_docked() then return 0 end
+    if not is_ap_caravan() then return 0 end   -- AP goods only on the gorlak caravan
     local depot = find_depot()
+    local owner_ent = caravan_owner_entity(depot)
     local shop = decode(ps("shop"), {})
     local pending = decode(ps("shop_pending"), {})
     local injected = decode(ps("ap_caravan_items"), {})   -- item_id(str) -> slot
@@ -87,12 +177,14 @@ function M.inject_ap_goods()
 
     local n = 0
     for slot_str, e in pairs(shop) do
-        local tier = tonumber(e.tier) or 1
-        -- deterministic id, matching apraws.py's ITEM_TOOL_AP_SHOP_<slot>
-        local tool = "ITEM_TOOL_AP_SHOP_" .. slot_str
+        local tier = math.max(1, math.min(5, tonumber(e.tier) or 1))
+        -- shared per-tier tool (grouping header) + per-slot material (the name),
+        -- matching apraws.py's ITEM_TOOL_AP_TIER<n> and INORGANIC:AP_SHOP_<slot>.
+        local tool = "ITEM_TOOL_AP_TIER" .. tier
+        local mat = "INORGANIC:AP_SHOP_" .. slot_str
         if tool_subtype(tool) and (tonumber(e.bought) or 0) == 0 and not pending[slot_str]
                 and not live[slot_str] and tier <= coffers then
-            local it = spawn_good(tool, depot)
+            local it = spawn_good(tool, mat, depot, owner_ent)
             if it then
                 injected[tostring(it.id)] = tonumber(slot_str)
                 n = n + 1

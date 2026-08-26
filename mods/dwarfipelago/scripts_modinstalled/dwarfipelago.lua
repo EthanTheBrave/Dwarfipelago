@@ -654,6 +654,7 @@ local function poll_ap_caravan()
     local docked = apcaravan.caravan_docked()
     if docked then
         apcaravan.inject_ap_goods()
+        apcaravan.hide_caravan_goods()   -- gorlak caravan: show only AP goods
         apcaravan.detect_ap_trades()
     elseif _ap_caravan_was_docked then
         apcaravan.clear_ap_goods()   -- caravan left: pull back any unbought AP goods

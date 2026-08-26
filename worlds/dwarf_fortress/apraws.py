@@ -1,26 +1,33 @@
 """Generate DF item raws for the shop goods of a specific AP seed.
 
 The AP shop sells arbitrary multiworld items whose names are only known once the
-client scouts them. DF can only render an item name that exists in the raws, so
-before the DF world is generated we turn the scouted shop list into one
-"orphan" AP-logo tool per slot (named exactly per the good) plus its graphics
-mapping. World-gen then bakes those items in with real names, and the caravan
-can carry them on the native trade screen with no overlay.
+client scouts them. DF can only render names that exist in the raws, so before
+the world is generated we bake the scouted shop list into raws the native trade
+screen can show with no overlay.
 
-No entity is ever granted these tools, so no civilization crafts or trades them
--- they only exist when the mod DFHack-creates one for the Archipelago caravan.
+Layout (chosen so DF's own trade screen groups the goods under one header per
+tier): every good is a copy of a shared per-tier AP-logo tool, so DF files them
+all under a single "AP Items (Tier N)" category. The good's individual name rides
+in a custom inorganic material (one per slot), so the trade row reads
+"<good name> AP Items (Tier N)". Five tier tools are static; the materials are
+per-seed.
+
+No entity is granted these tools, so no civilization crafts or trades them -- they
+only exist when the mod DFHack-creates one for the Archipelago caravan.
 """
 import json
 import os
 import re
 
-TOOL_PREFIX = "ITEM_TOOL_AP_SHOP_"
-TILE_PAGE = "DWARFIPELAGO_ITEMS"   # shared AP-logo tile page (tile_page_dwarfipelago.txt)
-_MAX_NAME = 48                     # keep DF [NAME] tokens sane
+TOOL_PREFIX = "ITEM_TOOL_AP_TIER"      # shared per-tier grouping tool
+MAT_PREFIX = "AP_SHOP_"                # per-slot inorganic carrying the good name
+TILE_PAGE = "DWARFIPELAGO_ITEMS"       # shared AP-logo tile page (tile_page_dwarfipelago.txt)
+MAX_TIER = 5
+_MAX_NAME = 48                         # keep DF name tokens sane
 
 
 def sanitize_name(text: str) -> str:
-    """Make an arbitrary multiworld item name safe for a DF [NAME:...] token:
+    """Make an arbitrary multiworld item name safe for a DF name token:
     drop the token delimiters [ ] :, collapse whitespace, and cap the length."""
     text = re.sub(r"[\[\]:|]", " ", str(text))
     text = re.sub(r"\s+", " ", text).strip()
@@ -29,45 +36,47 @@ def sanitize_name(text: str) -> str:
     return text[:_MAX_NAME]
 
 
-def build_shop_tools(shop_entries):
-    """shop_entries: iterable of dicts with slot, item, player (as _sync_shop
-    builds). Returns [{slot, tool_id, name, item, player}] with a stable tool id
-    per slot."""
-    tools = []
+def _clamp_tier(v) -> int:
+    try:
+        t = int(v)
+    except (TypeError, ValueError):
+        t = 1
+    return max(1, min(MAX_TIER, t))
+
+
+def build_shop_goods(shop_entries):
+    """shop_entries: iterable of dicts with slot, item, player, tier. Returns
+    [{slot, tier, mat_id, name}] -- one custom inorganic per slot, named after
+    the good (tagged with the recipient so identical goods stay distinct)."""
+    goods = []
     for e in shop_entries:
         slot = int(e["slot"])
-        # Name the good, tagging the recipient so identical items on different
-        # slots stay distinguishable, e.g. "Forge Blueprint (Alice)".
         base = sanitize_name(e.get("item", "Archipelago Item"))
         player = str(e.get("player", "")).strip()
         name = f"{base} ({player})" if player else base
         name = name[:_MAX_NAME]
-        tools.append({
+        goods.append({
             "slot": slot,
-            "tool_id": f"{TOOL_PREFIX}{slot}",
+            "tier": _clamp_tier(e.get("tier", 1)),
+            "mat_id": f"{MAT_PREFIX}{slot}",
             "name": name,
-            "item": e.get("item", ""),
-            "player": player,
         })
-    tools.sort(key=lambda t: t["slot"])
-    return tools
+    goods.sort(key=lambda g: g["slot"])
+    return goods
 
 
-def _plural(name: str) -> str:
-    # These are unique display-only trade goods (one per slot), so a plural is
-    # never actually shown; reuse the singular to avoid odd "...(You)s" forms.
-    return name
-
-
-def render_item_raws(tools) -> str:
+def render_item_raws() -> str:
+    """The five static per-tier grouping tools. Every good is a copy of one of
+    these, so DF groups them under "AP Items (Tier N)"."""
     out = ["item_dwarfipelago_shop", "", "[OBJECT:ITEM]", ""]
-    out.append("\tGenerated per AP seed by apraws.py -- one orphan AP-logo tool")
-    out.append("\tper shop slot, named after the good it stands for.")
+    out.append("\tShared per-tier AP-logo tools. The good's real name lives in a")
+    out.append("\tper-slot inorganic material (inorganic_dwarfipelago_shop.txt).")
     out.append("")
-    for t in tools:
+    for tier in range(1, MAX_TIER + 1):
+        name = f"AP Items (Tier {tier})"
         out += [
-            f"[ITEM_TOOL:{t['tool_id']}]",
-            f"\t[NAME:{t['name']}:{_plural(t['name'])}]",
+            f"[ITEM_TOOL:{TOOL_PREFIX}{tier}]",
+            f"\t[NAME:{name}:{name}]",
             "\t[VALUE:100]",
             "\t[TILE:15]",
             "\t[HARD_MAT]",
@@ -79,38 +88,59 @@ def render_item_raws(tools) -> str:
     return "\n".join(out) + "\n"
 
 
-def render_graphics_raws(tools) -> str:
-    out = ["graphics_dwarfipelago_shop", "", "[OBJECT:GRAPHICS]", ""]
-    out.append("\tEvery shop good renders with the shared AP-logo tile.")
+def render_inorganic_raws(goods) -> str:
+    """One inorganic per slot; its solid-state name is the good's display name,
+    so the trade row reads "<good name> AP Items (Tier N)"."""
+    out = ["inorganic_dwarfipelago_shop", "", "[OBJECT:INORGANIC]", ""]
+    out.append("\tOne stone per shop slot, named after the good it stands for.")
     out.append("")
-    for t in tools:
-        out.append(f"[TOOL_GRAPHICS:{TILE_PAGE}:0:0:{t['tool_id']}]")
+    for g in goods:
+        out += [
+            f"[INORGANIC:{g['mat_id']}]",
+            "\t[USE_MATERIAL_TEMPLATE:STONE_TEMPLATE]",
+            f"\t[STATE_NAME_ADJ:ALL_SOLID:{g['name']}]",
+            "\t[DISPLAY_COLOR:7:0:0]",
+            "\t[IS_STONE]",
+            "",
+        ]
+    return "\n".join(out) + "\n"
+
+
+def render_graphics_raws() -> str:
+    out = ["graphics_dwarfipelago_shop", "", "[OBJECT:GRAPHICS]", ""]
+    out.append("\tEvery tier tool renders with the shared AP-logo tile.")
+    out.append("")
+    for tier in range(1, MAX_TIER + 1):
+        out.append(f"[TOOL_GRAPHICS:{TILE_PAGE}:0:0:{TOOL_PREFIX}{tier}]")
     return "\n".join(out) + "\n"
 
 
 def generate(shop_entries, objects_dir, graphics_dir):
-    """Write the per-seed shop item + graphics raws and return the slot->tool_id
-    map (which the in-game side uses to inject the right tool per slot)."""
-    tools = build_shop_tools(shop_entries)
+    """Write the per-seed shop raws and return the slot -> {tier, mat_id} map the
+    in-game side uses to create the right tool+material per slot."""
+    goods = build_shop_goods(shop_entries)
     os.makedirs(objects_dir, exist_ok=True)
     os.makedirs(graphics_dir, exist_ok=True)
     with open(os.path.join(objects_dir, "item_dwarfipelago_shop.txt"), "w", encoding="latin-1") as f:
-        f.write(render_item_raws(tools))
+        f.write(render_item_raws())
+    with open(os.path.join(objects_dir, "inorganic_dwarfipelago_shop.txt"), "w", encoding="latin-1") as f:
+        f.write(render_inorganic_raws(goods))
     with open(os.path.join(graphics_dir, "graphics_dwarfipelago_shop.txt"), "w", encoding="latin-1") as f:
-        f.write(render_graphics_raws(tools))
-    return {str(t["slot"]): t["tool_id"] for t in tools}
+        f.write(render_graphics_raws())
+    return {str(g["slot"]): {"tier": g["tier"], "mat_id": g["mat_id"]} for g in goods}
 
 
 if __name__ == "__main__":
-    # quick self-test with a couple of fake shop entries
     import tempfile
     sample = [
-        {"slot": 1, "item": "Forge Blueprint", "player": "You"},
-        {"slot": 2, "item": "Progressive Sword: Tier [3]", "player": "Alice"},
-        {"slot": 3, "item": "50 Rupees", "player": "Bob"},
+        {"slot": 1, "item": "Forge Blueprint", "player": "You", "tier": 1},
+        {"slot": 2, "item": "Progressive Sword: Tier [3]", "player": "Alice", "tier": 2},
+        {"slot": 3, "item": "50 Rupees", "player": "Bob", "tier": 5},
     ]
     d = tempfile.mkdtemp()
     m = generate(sample, d, d)
-    print("slot->tool:", m)
+    print("slot->good:", m)
     print("--- item raws ---")
     print(open(os.path.join(d, "item_dwarfipelago_shop.txt")).read())
+    print("--- inorganic raws ---")
+    print(open(os.path.join(d, "inorganic_dwarfipelago_shop.txt")).read())

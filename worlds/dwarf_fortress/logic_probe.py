@@ -140,6 +140,11 @@ def _options_from_slot_data(slot_data: Optional[dict]) -> MockOptions:
         for slot_key, option_name in SLOT_DATA_TO_OPTION.items():
             if slot_key in slot_data:
                 values[option_name] = slot_data[slot_key]
+        # The merchant shop is enabled when slot_data carries its shop table.
+        # rules.py gates the Shop Slot locations on options.merchant_shop, so the
+        # probe must set it for the coffer gate to be evaluated.
+        if slot_data.get("shop"):
+            values["merchant_shop"] = 1
     return MockOptions(values)
 
 

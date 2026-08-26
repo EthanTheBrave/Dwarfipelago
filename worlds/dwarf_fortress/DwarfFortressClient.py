@@ -799,6 +799,7 @@ class DwarfFortressContext(CommonContext):
         self._shop_last_sig = None       # last shop table written to Lua (skip redundant writes)
         self._is_reembark = False        # True during re-embark item re-delivery
         self._accessible_sig = None      # last accessible-checks set written to Lua (skip redundant writes)
+        self._df_launch_started = False  # True once we've installed the mod + launched DF this session
 
     def debug(self, msg: str):
         """Log only when debug mode is enabled (toggle with /dfdebug)."""
@@ -1578,6 +1579,74 @@ class DwarfFortressContext(CommonContext):
                         f"{self._coffers_hinted + 1}-{coffers}")
         self._coffers_hinted = coffers
 
+    def _build_shop_entries(self) -> dict:
+        """Assemble the shop table from scouted location info. Slots whose scout
+        reply hasn't arrived yet are omitted. Shared by the pre-launch raw bake
+        and the in-game shop sync. AP data only (no DFHack)."""
+        shop = self.slot_data.get("shop", {})
+        if not shop:
+            return {}
+        entries: dict[str, Any] = {}
+        for k in shop.keys():
+            sid = int(k)
+            info = self.locations_info.get(sid)
+            if not info:
+                continue  # scout reply not in yet for this slot
+            meta = shop[str(sid)]
+            try:
+                item_name = self.item_names.lookup_in_slot(info.item, info.player)
+            except Exception:
+                item_name = str(info.item)
+            player_name = self.player_names.get(info.player, str(info.player))
+            entries[str(meta["slot"])] = {
+                "id": sid,
+                "slot": meta["slot"],
+                "tier": meta["tier"],
+                "price": meta["price"],
+                "item": item_name,
+                "player": player_name,
+                "flags": int(getattr(info, "flags", 0) or 0),
+                "bought": 1 if sid in self.checked_locations else 0,
+            }
+        return entries
+
+    async def _scout_and_bake_shop_raws(self, timeout: float = 12.0):
+        """Before launching DF: scout the shop locations from the AP server and
+        bake each good's name into the mod raws, so the world about to be
+        generated shows this seed's shop items (not a prior session's). AP-only
+        (no DFHack), so it runs before DF starts. Best-effort: bakes whatever
+        scout replies arrive within the timeout."""
+        shop = self.slot_data.get("shop", {})
+        if not shop:
+            return
+        shop_ids = [int(k) for k in shop.keys()]
+        if not self._shop_scout_sent:
+            logger.info(f"Shop: scouting {len(shop_ids)} shop slots before launch")
+            await self.send_msgs([{
+                "cmd": "LocationScouts", "locations": shop_ids, "create_as_hint": 0,
+            }])
+            self._shop_scout_sent = True
+        # Wait for the scout replies (LocationInfo) to populate locations_info.
+        loop = asyncio.get_event_loop()
+        deadline = loop.time() + timeout
+        while loop.time() < deadline:
+            if all(sid in self.locations_info for sid in shop_ids):
+                break
+            await asyncio.sleep(0.2)
+        entries = self._build_shop_entries()
+        want, have = len(shop_ids), len(entries)
+        if not entries:
+            logger.warning("Shop: no scout replies arrived before launch; skipping raw "
+                           "bake (the generated world may show prior shop names).")
+            return
+        if have < want:
+            logger.warning(f"Shop: only {have}/{want} scout replies in before launch; "
+                           f"baking what we have.")
+        try:
+            self._write_shop_item_raws(entries)
+        except Exception as e:
+            logger.warning(f"Shop raw bake before launch failed: {e}")
+
     async def _sync_shop(self):
         """
         Scout the shop-slot locations and write each slot's contents to DFHack
@@ -1601,27 +1670,7 @@ class DwarfFortressContext(CommonContext):
             }])
             self._shop_scout_sent = True
 
-        entries: dict[str, Any] = {}
-        for sid in shop_ids:
-            info = self.locations_info.get(sid)
-            if not info:
-                continue  # scout reply not in yet for this slot
-            meta = shop[str(sid)]
-            try:
-                item_name = self.item_names.lookup_in_slot(info.item, info.player)
-            except Exception:
-                item_name = str(info.item)
-            player_name = self.player_names.get(info.player, str(info.player))
-            entries[str(meta["slot"])] = {
-                "id": sid,
-                "slot": meta["slot"],
-                "tier": meta["tier"],
-                "price": meta["price"],
-                "item": item_name,
-                "player": player_name,
-                "flags": int(getattr(info, "flags", 0) or 0),
-                "bought": 1 if sid in self.checked_locations else 0,
-            }
+        entries = self._build_shop_entries()
         if not entries:
             return
 
@@ -1661,12 +1710,12 @@ class DwarfFortressContext(CommonContext):
         if not os.path.isdir(mod):
             return
         shop_list = [
-            {"slot": e["slot"], "item": e.get("item", ""), "player": e.get("player", "")}
+            {"slot": e["slot"], "item": e.get("item", ""), "player": e.get("player", ""),
+             "tier": e.get("tier", 1)}
             for e in entries.values()
         ]
         apraws.generate(shop_list, os.path.join(mod, "objects"), os.path.join(mod, "graphics"))
-        logger.info(f"Native caravan: generated {len(shop_list)} AP item raw(s) into {mod}; "
-                    f"restart the client and re-gen the world to bake them in.")
+        logger.info(f"Native caravan: generated {len(shop_list)} AP item raw(s) into {mod}.")
 
     async def _check_shop_purchase(self, status: dict):
         """
@@ -1882,6 +1931,42 @@ class DwarfFortressContext(CommonContext):
         }])
     # ── CommonClient overrides ────────────────────────────────────────────────
 
+    async def _install_and_launch_df(self):
+        """Once connected to the AP server, refresh the world-gen preset and the
+        Dwarfipelago mod raws (wiping stale/duplicate installs so world-gen reads
+        the current files), then open Dwarf Fortress. Runs once per session; the
+        DFHack poll loop then connects as soon as DF/DFHack come up."""
+        if self._df_launch_started:
+            return
+        self._df_launch_started = True
+        exe = _get_df_executable()
+        if not exe:
+            logger.error("Could not locate the Dwarf Fortress executable; set 'game_path' "
+                         "in host.yaml. DF was not launched.")
+            return
+        loop = asyncio.get_event_loop()
+        # Scout the AP shop and bake this seed's good names into the mod raws
+        # BEFORE the install copy, so world-gen picks up the current shop.
+        try:
+            await self._scout_and_bake_shop_raws()
+        except Exception as e:
+            logger.warning(f"Shop scout/bake before launch failed (continuing): {e}")
+        # Install steps touch the filesystem; run off the event loop so the UI
+        # stays responsive. Each returns a status message for the console.
+        try:
+            for fn in (install_worldgen_preset, install_mod_for_worldgen):
+                msg = await loop.run_in_executor(None, fn)
+                for line in (msg or "").splitlines():
+                    logger.info(line)
+        except Exception as e:
+            logger.warning(f"Mod install step failed (launching anyway): {e}")
+        # Files are verified and cleaned; open the game.
+        try:
+            subprocess.Popen([exe], cwd=os.path.dirname(exe))
+            logger.info("Launching Dwarf Fortress...")
+        except OSError as e:
+            logger.error(f"Failed to launch Dwarf Fortress: {e}")
+
     async def server_auth(self, password_requested: bool = False):
         if password_requested and not self.password:
             await super().server_auth(password_requested)
@@ -1917,6 +2002,8 @@ class DwarfFortressContext(CommonContext):
                     "cmd": "SetNotify", "keys": [self.energylink_key]
                 }]))
             self.dfhack_task = asyncio.create_task(self.dfhack_poll_loop(), name="DFHack poll")
+            # Now that we're connected, install/clean the mod raws and open DF.
+            asyncio.create_task(self._install_and_launch_df())
         elif cmd == "Retrieved":
             key = "Dwarfipelago/"+str(self.seed)+"/completed_locations"
             if key in args['keys']:
@@ -2040,37 +2127,17 @@ def main():
         if args.name:
             ctx.auth = args.name
 
-        exe = _get_df_executable()
-        if not exe:
-            subprocess.Popen([exe], cwd=cwd)
-            return
-
-        cwd = os.path.dirname(exe)
-        # Make sure the world-gen preset and the current Dwarfipelago mod raws
-        # are installed BEFORE launching DF, so a freshly generated world always
-        # picks up the latest files (no manual /dfinstall, no version bump).
-        try:
-            for line in install_worldgen_preset().splitlines():
-                logger.info(line)
-            for line in install_mod_for_worldgen().splitlines():
-                logger.info(line)
-        except Exception as e:
-            logger.warning(f"Pre-launch install step failed (continuing): {e}")
-        try:
-            subprocess.Popen([exe], cwd=cwd)
-        except OSError as e:
-            logger.error("Failed to launch Dwarf Fortress", str(e))
-
-        # Start DFHack polling and (when inside AP) the server connection as
-        # concurrent asyncio tasks so neither blocks the other.
-        # ctx.dfhack_task = asyncio.create_task(ctx.dfhack_poll_loop(), name="DFHack poll")
-        # ctx.server_task = asyncio.create_task(server_loop(ctx), name="server loop")
-        # Show the AP client GUI window (kivy-based console).
-        # run_gui() schedules the UI as an asyncio task and returns immediately.
+        # DF is no longer launched here. The player connects to the AP server
+        # first; the "Connected" handler then installs/cleans the mod raws and
+        # opens the game (see _install_and_launch_df). This guarantees the mod
+        # files are refreshed for the session before DF reads them at world-gen.
+        # Show the AP client GUI window (kivy-based console). run_gui() schedules
+        # the UI as an asyncio task and returns immediately.
         ctx.run_gui()
         # Block until the user closes the window or the client disconnects.
         await ctx.exit_event.wait()
-        ctx.dfhack_task.cancel()
+        if ctx.dfhack_task:
+            ctx.dfhack_task.cancel()
         await ctx.shutdown()
 
     asyncio.run(run())

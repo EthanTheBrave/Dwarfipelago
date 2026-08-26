@@ -1,0 +1,52 @@
+item_dwarfipelago_shop
+
+[OBJECT:ITEM]
+
+	Shared per-tier AP-logo tools. The good's real name lives in a
+	per-slot inorganic material (inorganic_dwarfipelago_shop.txt).
+
+[ITEM_TOOL:ITEM_TOOL_AP_TIER1]
+	[NAME:AP Items (Tier 1):AP Items (Tier 1)]
+	[VALUE:100]
+	[TILE:15]
+	[HARD_MAT]
+	[SIZE:200]
+	[MATERIAL_SIZE:1]
+	[NO_DEFAULT_JOB]
+
+[ITEM_TOOL:ITEM_TOOL_AP_TIER2]
+	[NAME:AP Items (Tier 2):AP Items (Tier 2)]
+	[VALUE:100]
+	[TILE:15]
+	[HARD_MAT]
+	[SIZE:200]
+	[MATERIAL_SIZE:1]
+	[NO_DEFAULT_JOB]
+
+[ITEM_TOOL:ITEM_TOOL_AP_TIER3]
+	[NAME:AP Items (Tier 3):AP Items (Tier 3)]
+	[VALUE:100]
+	[TILE:15]
+	[HARD_MAT]
+	[SIZE:200]
+	[MATERIAL_SIZE:1]
+	[NO_DEFAULT_JOB]
+
+[ITEM_TOOL:ITEM_TOOL_AP_TIER4]
+	[NAME:AP Items (Tier 4):AP Items (Tier 4)]
+	[VALUE:100]
+	[TILE:15]
+	[HARD_MAT]
+	[SIZE:200]
+	[MATERIAL_SIZE:1]
+	[NO_DEFAULT_JOB]
+
+[ITEM_TOOL:ITEM_TOOL_AP_TIER5]
+	[NAME:AP Items (Tier 5):AP Items (Tier 5)]
+	[VALUE:100]
+	[TILE:15]
+	[HARD_MAT]
+	[SIZE:200]
+	[MATERIAL_SIZE:1]
+	[NO_DEFAULT_JOB]
+

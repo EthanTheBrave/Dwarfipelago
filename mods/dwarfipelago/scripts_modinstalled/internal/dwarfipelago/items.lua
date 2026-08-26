@@ -2509,11 +2509,35 @@ M.spawn_warband = spawn_warband
 
 -- -- Item handlers: progression locks -----------------------------------------
 
+-- Establish contact with the Archipelago (gorlak) civ and force its caravan, so
+-- the AP shop becomes reachable. Merchants are natively gorlak because the
+-- sending civ is gorlak. No-op if no gorlak civ exists in this world.
+local function contact_gorlak_caravan()
+    dfhack.persistent.saveWorldDataString("dwarfipelago/gorlak_contacted", "1")
+    local id = find_civ_id("GORLAK")
+    if not id then
+        log.warn("contact_gorlak_caravan: no GORLAK/ARCHIPELAGO civ in this world")
+        return false
+    end
+    local ok = pcall(function() dfhack.run_command("force", "Caravan", tostring(id)) end)
+    if ok then
+        announce("The Archipelago has heard of your fortress - a gorlak caravan is on its way!")
+    end
+    return ok
+end
+M.contact_gorlak_caravan = contact_gorlak_caravan
+
 local function recv_merchants_coffer()
     local key = "dwarfipelago/unlock/wealth_coffers"
     local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
     dfhack.persistent.saveWorldDataString(key, tostring(n))
     announce(("Merchant's Coffer received! Wealth tier %d/5 unlocked"):format(n))
+    -- The first coffer establishes contact with the Archipelago (gorlak) civ and
+    -- summons their caravan, which carries the AP shop. Later coffers only raise
+    -- the tier cap.
+    if n == 1 then
+        contact_gorlak_caravan()
+    end
 end
 
 -- Create `count` adult dwarves and enlist them as fortress citizens. Used for the
@@ -3577,10 +3601,30 @@ local TEST_LIST = {
                            print(("[worldcheck] %d issue(s) found - see above. Consider rerolling if critical."):format(issues))
                        end
                    end },
-    { "caravan",   "Force a caravan (arg: dwarf|elf|human|goblin; default = parent civ)",
+    { "caravan",   "Force a caravan (arg: dwarf|elf|human|goblin|gorlak; default = parent civ)",
                    function(rest)
                        local token = ({ dwarf = "DWARF", elf = "ELF",
-                                        human = "HUMAN", goblin = "GOBLIN" })[(rest[1] or ""):lower()]
+                                        human = "HUMAN", goblin = "GOBLIN",
+                                        gorlak = "GORLAK", ap = "GORLAK",
+                                        archipelago = "GORLAK" })[(rest[1] or ""):lower()]
+                       -- Gorlak = the Archipelago caravan. It only carries AP goods
+                       -- once you hold a Merchant's Coffer, and receiving the FIRST
+                       -- coffer is what establishes contact and summons the caravan.
+                       -- So exercise the real flow: with no coffer yet, grant one
+                       -- (recv_merchants_coffer fires the contact + forces the caravan)
+                       -- instead of force-spawning a caravan that would carry nothing.
+                       if token == "GORLAK" then
+                           local coffers = tonumber(dfhack.persistent.getWorldDataString(
+                               "dwarfipelago/unlock/wealth_coffers")) or 0
+                           if coffers < 1 then
+                               recv_merchants_coffer()   -- coffer #1 -> contact -> gorlak caravan
+                               print("[test] No Merchant's Coffer yet: granted one, which "
+                                     .. "established contact and summoned the gorlak caravan.")
+                               return
+                           end
+                           -- Already have a coffer (contact established): fall through
+                           -- and force another gorlak caravan directly.
+                       end
                        local ok
                        if token then
                            local id = find_civ_id(token)
@@ -3588,6 +3632,9 @@ local TEST_LIST = {
                                print("[test] No " .. token .. " civilization exists in this world.")
                                return
                            end
+                           -- Forcing a foreign civ's caravan also establishes contact:
+                           -- the merchants that arrive are that civ's own race (a GORLAK
+                           -- civ sends gorlak merchants), so no runtime race change needed.
                            ok = pcall(function() dfhack.run_command("force", "Caravan", tostring(id)) end)
                            print(ok and ("[test] Forced a " .. token .. " caravan (civ id " .. id .. ").")
                                      or  "[test] force Caravan failed.")
