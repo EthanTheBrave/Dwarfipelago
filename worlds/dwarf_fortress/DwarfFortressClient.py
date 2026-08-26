@@ -13,6 +13,7 @@ import copy
 import json
 import logging
 import os
+import shutil
 import socket
 import struct
 import argparse
@@ -356,6 +357,62 @@ def install_worldgen_preset() -> str:
             f"Restart Dwarf Fortress for 'DwarfipelagoWorld' to appear in the preset list.")
 
 
+def install_mod_for_worldgen() -> str:
+    """Wipe every stale/duplicate dwarfipelago install and copy a fresh raws
+    build into <DF>/data/installed_mods so world-gen always reads the current
+    files -- no NUMERIC_VERSION bump needed. Scripts are intentionally left out
+    (they load from <DF>/mods) so this can't double-load them.
+
+    Source is <DF>/mods/dwarfipelago (the working mod copy). Returns a status
+    message for the AP client console.
+    """
+    exe = _get_df_executable()
+    if not exe:
+        return ("Could not locate the DF install - set 'game_path' in host.yaml to "
+                "your Dwarf Fortress executable and try again.")
+    df_dir = os.path.dirname(exe)
+    src = os.path.join(df_dir, "mods", "dwarfipelago")
+    if not os.path.isdir(src):
+        return f"dwarfipelago mod not found at {src} - install the mod there first."
+
+    installed = os.path.join(df_dir, "data", "installed_mods")
+    os.makedirs(installed, exist_ok=True)
+
+    # Remove any existing dwarfipelago install(s) so DF can't "use the first
+    # encountered" stale copy or warn about duplicate id+version.
+    removed = []
+    for name in os.listdir(installed):
+        if name.lower().startswith("dwarfipelago"):
+            shutil.rmtree(os.path.join(installed, name), ignore_errors=True)
+            removed.append(name)
+
+    # DF's mod manager only recognizes installed mods whose folder is named
+    # "<id> (<numeric_version>)"; a plain "dwarfipelago" folder is ignored. Read
+    # the version from the source info.txt and name the install to match.
+    version = "0"
+    try:
+        with open(os.path.join(src, "info.txt"), encoding="latin-1") as f:
+            for ln in f:
+                if "NUMERIC_VERSION:" in ln:
+                    version = ln.split("NUMERIC_VERSION:")[1].split("]")[0].strip()
+                    break
+    except OSError:
+        pass
+
+    # Copy a fresh raws-only install (info + objects + graphics; no scripts).
+    dst = os.path.join(installed, f"dwarfipelago ({version})")
+    os.makedirs(dst, exist_ok=True)
+    shutil.copy2(os.path.join(src, "info.txt"), dst)
+    for sub in ("objects", "graphics"):
+        s = os.path.join(src, sub)
+        if os.path.isdir(s):
+            shutil.copytree(s, os.path.join(dst, sub))
+
+    return (f"Installed dwarfipelago raws for world-gen -> {dst}\n"
+            f"(cleared {len(removed)} old install(s): {', '.join(removed) or 'none'})\n"
+            f"Restart DF, then enable 'Dwarfipelago' in the mod list when you generate a world.")
+
+
 # ── DFHack connection ─────────────────────────────────────────────────────────
 
 class DFHackConnection:
@@ -624,12 +681,13 @@ class DFHackConnection:
         ) % lua_ids
         self.run_command("lua", lua)
 
-    def deliver_item(self, item_name: str):
+    def deliver_item(self, item_name: str, sender: str = ""):
         """Deliver a received AP item to the fortress by calling the Lua item handler."""
         safe_name = item_name.replace("\\", "\\\\").replace('"', '\\"')
+        safe_sender = sender.replace("\\", "\\\\").replace('"', '\\"')
         result = self.run_command(
             "lua",
-            f'reqscript("internal/dwarfipelago/items").receive("{safe_name}")',
+            f'reqscript("internal/dwarfipelago/items").receive("{safe_name}", "{safe_sender}")',
         )
         if result is None:
             logger.warning(f"deliver_item: RPC returned None for {item_name!r} - connection lost?")
@@ -660,9 +718,12 @@ class DwarfFortressCommandProcessor(ClientCommandProcessor):
 
     def _cmd_dfinstall(self):
         """Install the Dwarfipelago world generation preset into your Dwarf
-        Fortress prefs/world_gen.txt. Run this once before generating a new
-        world. Usage: /dfinstall"""
+        Fortress prefs/world_gen.txt, and (re)install the Dwarfipelago mod raws
+        into installed_mods so world-gen picks up the current files. Run before
+        generating a new world. Usage: /dfinstall"""
         for line in install_worldgen_preset().splitlines():
+            self.output(line)
+        for line in install_mod_for_worldgen().splitlines():
             self.output(line)
 
     # def _cmd_send_energy_link(self, amount: str = ""):
@@ -712,6 +773,9 @@ class DwarfFortressContext(CommonContext):
         self._deathlink_enabled = False  # set from slot_data; gates sending + the DeathLink tag
         self._deathlink_threshold = 5    # dwarves (or %) per DeathLink (overridden by slot data)
         self._deathlink_percentage = False  # treat threshold as % of population
+        self._deathlink_split = False    # use separate send/receive amounts below
+        self._deathlink_send_threshold = 5   # effective send threshold (split-aware)
+        self._deathlink_receive_amount = 5   # effective receive amount (split-aware)
         self._pending_recv_deathlinks = 0  # incoming DeathLink bounces waiting to be applied
         self._mod_started = False        # True once dwarfipelago/main start has succeeded
         self._world_loaded = False       # True while DF has an active world loaded
@@ -731,15 +795,115 @@ class DwarfFortressContext(CommonContext):
         self._skill_max_level = 15       # max level
         self._skill_behaviour = 0        # 0 = don't touch levels 1 = lower to next check
         self._shop_scout_sent = False    # sent LocationScouts for shop slots this AP session
+        self._coffers_hinted = 0         # highest coffer tier whose shop items we've hinted
         self._shop_last_sig = None       # last shop table written to Lua (skip redundant writes)
         self._is_reembark = False        # True during re-embark item re-delivery
+        self._accessible_sig = None      # last accessible-checks set written to Lua (skip redundant writes)
+        self._df_launch_started = False  # True once we've installed the mod + launched DF this session
 
     def debug(self, msg: str):
         """Log only when debug mode is enabled (toggle with /dfdebug)."""
         if self.debug_mode:
             logger.info(f"[debug] {msg}")
 
+    def make_gui(self):
+        """Title the client window to match its launcher entry, not the default
+        'Archipelago Text Client'."""
+        ui = super().make_gui()
+        ui.base_title = "Dwarf Fortress Client"
+        return ui
+
     # ── DFHack polling ────────────────────────────────────────────────────────
+
+    def _craft_status_keys(self) -> list[str]:
+        """Deduped craft_count storage keys for the aggregated status read."""
+        locs = getattr(self, "_crafting_locations", None)
+        if not locs:
+            return []
+        keys, seen = [], set()
+        for loc in locs.values():
+            item, material = loc["item"], loc["material"]
+            if material == "":
+                k = "dwarfipelago/craft_count/" + item.replace(" ", "_").lower()
+            else:
+                k = "dwarfipelago/craft_count/" + (item.replace(" ", "_") + "_" + material).lower()
+            if k not in seen:
+                seen.add(k); keys.append(k)
+        return keys
+
+    def _skill_status_keys(self) -> list[str]:
+        """Deduped skill storage keys for the aggregated status read."""
+        locs = getattr(self, "_skill_locations", None)
+        if not locs:
+            return []
+        keys, seen = [], set()
+        for sk in locs.values():
+            k = "dwarfipelago/skill/" + sk["skill"].lower()
+            if k not in seen:
+                seen.add(k); keys.append(k)
+        return keys
+
+    def _build_status_lua(self) -> str:
+        """
+        Build the single aggregated status Lua chunk (github #176). Collapses the
+        ~11 per-poll persistent reads (map/depot/death counts/goal/checks/craft/
+        skill/energy/caravan/shop) into ONE RPC so the client stays responsive on
+        laggy forts instead of stalling and flushing checks+deathlinks in a burst.
+        Only reads keys for enabled features, so the chunk stays lean.
+        """
+        lines = [
+            'if not dfhack.isMapLoaded() then print([[{"map":0}]]) return end',
+            "local g = dfhack.persistent.getWorldDataString",
+            "local o = {}",
+            "o.map = 1",
+            'o.depot = g("dwarfipelago/depot_built") or ""',
+            'o.death_count = g("dwarfipelago/death_count") or "0"',
+            'o.deathlinks_sent = g("dwarfipelago/deathlinks_sent") or "0"',
+            'o.goal_complete = g("dwarfipelago/goal_complete") or ""',
+            'o.pending_checks = g("dwarfipelago/pending_checks") or "[]"',
+        ]
+        if getattr(self, "_deathlink_enabled", False) and getattr(self, "_deathlink_percentage", False):
+            lines.append(
+                "local c=0 for _,u in ipairs(df.global.world.units.active) do "
+                "if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then c=c+1 end end "
+                "o.pop=tostring(c)"
+            )
+        if getattr(self, "energy_link_enabled", False):
+            lines += [
+                'o.use_energy = g("dwarfipelago/use_energy_link") or "N"',
+                'o.energy_deposit = g("dwarfipelago/energy_deposit") or "0"',
+                'o.request_caravan = g("dwarfipelago/request_caravan") or "0"',
+                'o.caravan_cost = g("dwarfipelago/caravan_energy_cost") or "0"',
+            ]
+        shop = self.slot_data.get("shop", {}) if getattr(self, "slot_data", None) else {}
+        if shop:
+            lines.append('o.shop_buy = g("dwarfipelago/shop_buy") or ""')
+        craft_keys = self._craft_status_keys()
+        if craft_keys:
+            keys_lua = "{" + ",".join(f'"{k}"' for k in craft_keys) + "}"
+            lines.append(f'local ck={keys_lua} local cr={{}} for _,k in ipairs(ck) do cr[k]=g(k) or "0" end o.craft=cr')
+        skill_keys = self._skill_status_keys()
+        if skill_keys:
+            keys_lua = "{" + ",".join(f'"{k}"' for k in skill_keys) + "}"
+            lines.append(f'local sk={keys_lua} local sl={{}} for _,k in ipairs(sk) do sl[k]=g(k) or "0" end o.skill=sl')
+        lines.append("print(require('json').encode(o))")
+        return "\n".join(lines)
+
+    async def _read_status(self) -> dict:
+        """Run the aggregated status chunk and return the parsed dict.
+        Returns {"map": 0} when no map is loaded or the read/parse fails."""
+        lua = self._build_status_lua()
+        raw = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: self.dfhack.run_command("lua", lua)
+        )
+        if not raw or not raw.strip():
+            return {"map": 0}
+        try:
+            data = json.loads(raw.strip())
+        except json.JSONDecodeError:
+            logger.warning(f"_read_status: failed to parse status blob: {raw!r}")
+            return {"map": 0}
+        return data if isinstance(data, dict) else {"map": 0}
 
     async def dfhack_poll_loop(self):
         """
@@ -760,18 +924,16 @@ class DwarfFortressContext(CommonContext):
                     continue
 
             try:
-                # ── Map-loaded guard ──────────────────────────────────────────
-                # saveWorldDataString / getWorldDataString require an active map.
-                # isMapLoaded() is stricter than isWorldLoaded() - it returns true
-                # only once fortress/adventure mode is fully live, not during world
-                # generation or loading screens.
-                result = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    lambda: self.dfhack.run_command(
-                        "lua", "print(dfhack.isMapLoaded() and '1' or '0')"
-                    ),
-                )
-                world_loaded = bool(result and result.strip() == "1")
+                # ── Single aggregated status read (github #176) ───────────────
+                # One RPC gathers map/depot/death-counts/goal/checks/craft/skill/
+                # energy/caravan/shop instead of ~11 separate reads, so a laggy
+                # fort can't stall the loop into a burst-send. status["map"] also
+                # serves as the map-loaded guard: getWorldDataString requires an
+                # active map, and the chunk short-circuits to {"map":0} otherwise
+                # (isMapLoaded() is stricter than isWorldLoaded() - true only once
+                # fortress mode is fully live, not during worldgen/loading).
+                status = await self._read_status()
+                world_loaded = bool(status.get("map"))
                 if not world_loaded:
                     if self._world_loaded:
                         # Transition: player returned to the main menu / world gen.
@@ -803,31 +965,24 @@ class DwarfFortressContext(CommonContext):
                 if self._slot_data_synced:
                     # DeathLink and goal checks are safe to run at any time.
                     await self._apply_received_deathlinks()
-                    await self._check_deathlink_send()
-                    await self._check_goal_complete()
+                    await self._check_deathlink_send(status)
+                    await self._check_goal_complete(status)
+                    await self._hint_unlocked_shop()
 
                     # Location checks and item delivery are held until the trade
                     # depot is established - either auto-placed by the mod or
-                    # manually built by the player.
-                    depot_result = await asyncio.get_event_loop().run_in_executor(
-                        None,
-                        lambda: self.dfhack.run_command(
-                            "lua",
-                            'print(dfhack.persistent.getWorldDataString'
-                            '("dwarfipelago/depot_built") or "")',
-                        ),
-                    )
-                    depot_ready = bool(depot_result and depot_result.strip() == "1")
-                    if depot_ready:
-                        await self._process_new_checks()
-                        await self._crafting_location_checks()
-                        await self._skill_location_checks()
+                    # manually built by the player. (depot_built comes from the
+                    # aggregated status read above.)
+                    if status.get("depot") == "1":
+                        await self._process_new_checks(status)
+                        await self._crafting_location_checks(status)
+                        await self._skill_location_checks(status)
                         await self._apply_pending_items()
                         await self.update_energy()
-                        await self.new_energy()
-                        await self._check_caravan_request()
+                        await self.new_energy(status)
+                        await self._check_caravan_request(status)
                         await self._sync_shop()
-                        await self._check_shop_purchase()
+                        await self._check_shop_purchase(status)
                     else:
                         logger.debug("Trade depot not yet established - holding checks and item delivery")
 
@@ -843,17 +998,20 @@ class DwarfFortressContext(CommonContext):
 
             await asyncio.sleep(self._poll_interval)
 
-    async def _process_new_checks(self):
+    async def _process_new_checks(self, status: dict):
         """
-        Read new location checks from the Lua mod and report them to AP.
+        Report new location checks (read in the aggregated status blob) to AP.
         Only clears the Lua-side queue after send_msgs has actually completed
-        (see peek_pending_checks) - if send_msgs raises or the connection
-        drops before that, the checks stay queued and get retried next poll
-        instead of silently vanishing.
+        (clear_sent_checks re-reads the live queue and removes just these ids) -
+        if send_msgs raises or the connection drops before that, the checks stay
+        queued and get retried next poll instead of silently vanishing.
         """
-        location_ids = await asyncio.get_event_loop().run_in_executor(
-            None, self.dfhack.peek_pending_checks
-        )
+        raw = status.get("pending_checks", "[]")
+        try:
+            ids = json.loads(raw) if isinstance(raw, str) else raw
+            location_ids = [int(x) for x in ids] if isinstance(ids, list) else []
+        except (json.JSONDecodeError, ValueError):
+            location_ids = []
         if not location_ids:
             return
         self.debug(f"New checks: {location_ids}")
@@ -990,10 +1148,16 @@ class DwarfFortressContext(CommonContext):
                 logger.warning(f"Item name lookup failed for id {network_item.item}: {e}")
                 item_name = str(network_item.item)
 
-            self.debug(f"Delivering item [{i}]: id={network_item.item} → name={item_name!r}")
+            # Sender's name, folded into the announcement. Empty for your own
+            # items or server/start-inventory grants (source slot 0 or yourself).
+            sender = ""
+            if network_item.player and network_item.player != self.slot:
+                sender = self.player_names.get(network_item.player, "")
+
+            self.debug(f"Delivering item [{i}]: id={network_item.item} → name={item_name!r} from={sender!r}")
 
             await asyncio.get_event_loop().run_in_executor(
-                None, self.dfhack.deliver_item, item_name
+                None, self.dfhack.deliver_item, item_name, sender
             )
             self._received_index = i + 1
             # Persist the index so we don't re-deliver on restart.
@@ -1023,6 +1187,102 @@ class DwarfFortressContext(CommonContext):
                 + (f" — {skipped_traps} trap(s) skipped" if skipped_traps else "")
             )
 
+        # Refresh the panel's "which checks are reachable" view from real AP logic.
+        # Cheap and guarded: only re-evaluates + writes when the received item set
+        # actually changed, and never lets a logic error disrupt item delivery.
+        await asyncio.get_event_loop().run_in_executor(
+            None, self._push_accessible_checks
+        )
+
+    def _push_accessible_checks(self):
+        """Evaluate the real rules.py against the items received so far and store
+        the reachable milestone-check ids in world data for the panel's Checks
+        tab. Best-effort — any failure is logged and swallowed."""
+        received = self.items_received
+        if not received:
+            return
+        # Resolve received item ids -> names, same lookup order as delivery.
+        names = []
+        for ni in received:
+            try:
+                if hasattr(self, "item_names") and hasattr(self.item_names, "lookup_in_game"):
+                    names.append(self.item_names.lookup_in_game(ni.item))
+                elif hasattr(self, "item_names"):
+                    names.append(self.item_names.get(ni.item, str(ni.item)))
+                else:
+                    names.append(str(ni.item))
+            except Exception:
+                continue
+        # Fold the rule-relevant options into the signature so the first
+        # slot_data arrival (options {} -> populated) forces one recompute.
+        sd = getattr(self, "slot_data", {}) or {}
+        opts_sig = tuple(
+            (k, sd.get(k)) for k in
+            ("goal", "crafting_permits", "craftsanity_enabled",
+             "skillsanity_enabled", "craftsanity_materials")
+        )
+        # Count-sensitive: a new stackable item (e.g. Immigration Wave) bumps a
+        # count without adding a name, so key on (name,count) pairs, not names.
+        from collections import Counter
+        sig = hash((frozenset(Counter(names).items()), opts_sig))
+        if sig == self._accessible_sig:
+            return
+        # Build one representative dynamic craft location per unique flag so the
+        # craftsanity rows can be gated too. flag = item[_material] lowercased,
+        # matching init_crafting_locations' craft_count keys and the panel labels.
+        from types import SimpleNamespace
+        craft = getattr(self, "_crafting_locations", None) or {}
+        dynlocs, id_to_flag, seen = [], {}, set()
+        for cid, d in craft.items():
+            try:
+                ap_id = int(cid)
+            except (TypeError, ValueError):
+                continue
+            item = d.get("item", "") or ""
+            mat = d.get("material", "") or ""
+            flag = (item.replace(" ", "_") + (("_" + mat) if mat else "")).lower()
+            if flag in seen:
+                continue
+            seen.add(flag)
+            dynlocs.append(SimpleNamespace(
+                name=d.get("location_name", f"craft_{ap_id}"),
+                df_item=item, material_type=mat, ap_id=ap_id))
+            id_to_flag[ap_id] = flag
+        try:
+            from .logic_probe import accessible_location_ids
+            result = accessible_location_ids(names, sd, dynamic_locations=dynlocs)
+        except Exception as e:
+            logger.warning(f"[Dwarfipelago] accessible-checks eval failed: {e}")
+            return
+
+        def _push(key, obj):
+            js = json.dumps(obj)
+            # Splice as a Lua double-quoted literal (same escaping as deliver_item);
+            # JSON has no backslashes, so escaping '"' yields valid Lua source.
+            lua_str = '"' + js.replace("\\", "\\\\").replace('"', '\\"') + '"'
+            self.dfhack.run_command(
+                "lua",
+                f'dfhack.persistent.saveWorldDataString("dwarfipelago/{key}", {lua_str})',
+            )
+
+        # Milestone Checks tab: keep accessible_checks purely milestone ids.
+        craft_ids = set(id_to_flag)
+        acc_ms = [i for i in result["accessible"] if i not in craft_ids]
+        lck_ms = [i for i in result["locked"] if i not in craft_ids]
+        _push("accessible_checks", {"accessible": acc_ms, "locked": lck_ms})
+
+        # Craftsanity tab: which craft flags are logically locked (shown red).
+        if id_to_flag:
+            locked_ids = set(result["locked"])
+            locked_flags = sorted({f for aid, f in id_to_flag.items() if aid in locked_ids})
+            _push("craftsanity_locked", locked_flags)
+
+        self._accessible_sig = sig
+        self.debug(
+            f"accessible-checks pushed: {len(acc_ms)} reachable, {len(lck_ms)} locked; "
+            f"craft flags: {len(id_to_flag)} ({sum(1 for a in id_to_flag if a in set(result['locked']))} locked)"
+        )
+
     async def _sync_slot_data(self):
         """
         Write AP slot data (goal type + targets) to DFHack persistent storage
@@ -1039,6 +1299,9 @@ class DwarfFortressContext(CommonContext):
         pop_goal     = slot_data.get("population_goal_amount", 300)
         dl_threshold   = slot_data.get("deathlink_threshold", 5)
         dl_percentage  = slot_data.get("deathlink_percentage", 0)
+        dl_split       = slot_data.get("deathlink_split", 0)
+        dl_receive     = slot_data.get("deathlink_receive_amount", 5)
+        dl_send        = slot_data.get("deathlink_send_threshold", 5)
         self.seed         = slot_data.get("seed", 0)
         self._crafting_locations = slot_data.get("crafting_locations")
         self._craftsanity_max_value = slot_data.get("craftsanity_max_amount")
@@ -1060,6 +1323,10 @@ class DwarfFortressContext(CommonContext):
         seed_is_fresh = current_seed in ("nil", "", "None")
         self._deathlink_threshold  = int(dl_threshold)
         self._deathlink_percentage = bool(int(dl_percentage))
+        self._deathlink_split      = bool(int(dl_split))
+        # When split is off both directions use the single combined threshold.
+        self._deathlink_send_threshold  = int(dl_send) if self._deathlink_split else int(dl_threshold)
+        self._deathlink_receive_amount  = int(dl_receive) if self._deathlink_split else int(dl_threshold)
         if seed_is_fresh or current_seed == str(self.seed):
             script_version = (self.dfhack.run_command("lua", f'print(dfhack.persistent.getWorldDataString("dwarfipelago/version"))') or "").strip()
             if versions_compatible(self.version, script_version):
@@ -1073,6 +1340,9 @@ class DwarfFortressContext(CommonContext):
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink", "{1 if self._deathlink_enabled else 0}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_threshold", "{dl_threshold}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_percentage", "{int(dl_percentage)}")')
+                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_split", "{int(self._deathlink_split)}")')
+                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_receive_amount", "{self._deathlink_receive_amount}")')
+                        self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/deathlink_send_threshold", "{self._deathlink_send_threshold}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/seed", "{self.seed}")')
                         self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/custom_caves", "1")')
                     write()
@@ -1085,6 +1355,10 @@ class DwarfFortressContext(CommonContext):
                 # Merchant's Shop flag - Lua reads this to know whether the shop is enabled.
                 shop_enabled = slot_data.get("shop_enabled", 1)
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/shop_enabled", "{1 if shop_enabled else 0}")')
+                # Performance Assist flag - Lua reads this to drive every FPS helper
+                # (fast-heat, deteriorate, spatter cleanup, and timestream).
+                perf_assist = slot_data.get("performance_assist", 0)
+                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/perf_assist", "{1 if perf_assist else 0}")')
                 # Always re-sync these flags so Lua uses the correct key format
                 # even on reconnects or if the initial write was interrupted.
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/craftsanity_enabled", "{craftsanity_enabled}")')
@@ -1143,51 +1417,33 @@ class DwarfFortressContext(CommonContext):
                 f'dfhack.persistent.saveWorldDataString("dwarfipelago/pending_recv", tostring(c + {n}))',
             ),
         )
-        mode = f"{self._deathlink_threshold}% of population" if self._deathlink_percentage else f"{self._deathlink_threshold} dwarves"
+        mode = f"{self._deathlink_receive_amount}% of population" if self._deathlink_percentage else f"{self._deathlink_receive_amount} dwarves"
         logger.info(f"Queued {n} received DeathLink(s) - Lua will kill {mode} per link")
 
-    async def _check_deathlink_send(self):
+    async def _check_deathlink_send(self, status: dict):
         """
-        Compare the Lua-side death counter against how many DeathLinks we've
-        already sent. For each new multiple of deathlink_threshold deaths,
-        persist the new count then broadcast one DeathLink Bounce to the AP server.
+        Compare the Lua-side death counter (read in the aggregated status blob)
+        against how many DeathLinks we've already sent. For each new multiple of
+        deathlink_threshold deaths, persist the new count then broadcast one
+        DeathLink Bounce to the AP server.
         """
-        if not self._deathlink_enabled or self._deathlink_threshold <= 0:
+        if not self._deathlink_enabled or self._deathlink_send_threshold <= 0:
             return
 
-        def read_counts():
-            dc = self.dfhack.run_command(
-                "lua",
-                'print(dfhack.persistent.getWorldDataString("dwarfipelago/death_count") or "0")',
-            )
-            ds = self.dfhack.run_command(
-                "lua",
-                'print(dfhack.persistent.getWorldDataString("dwarfipelago/deathlinks_sent") or "0")',
-            )
-            pop = None
-            if self._deathlink_percentage:
-                pop = self.dfhack.run_command(
-                    "lua",
-                    'local c=0; for _,u in ipairs(df.global.world.units.active) do '
-                    'if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then c=c+1 end end; print(c)',
-                )
-            return dc, ds, pop
-
-        dc_raw, ds_raw, pop_raw = await asyncio.get_event_loop().run_in_executor(None, read_counts)
         try:
-            death_count  = int((dc_raw or "0").strip())
-            already_sent = int((ds_raw or "0").strip())
-        except ValueError:
+            death_count  = int(str(status.get("death_count") or "0").strip())
+            already_sent = int(str(status.get("deathlinks_sent") or "0").strip())
+        except (ValueError, TypeError):
             return
 
         if self._deathlink_percentage:
             try:
-                pop = max(1, int((pop_raw or "0").strip()))
-            except ValueError:
+                pop = max(1, int(str(status.get("pop") or "0").strip()))
+            except (ValueError, TypeError):
                 return
-            threshold = max(1, int(pop * self._deathlink_threshold / 100))
+            threshold = max(1, int(pop * self._deathlink_send_threshold / 100))
         else:
-            threshold = self._deathlink_threshold
+            threshold = self._deathlink_send_threshold
 
         to_send = death_count // threshold - already_sent
         if to_send <= 0:
@@ -1218,21 +1474,14 @@ class DwarfFortressContext(CommonContext):
 
         logger.info(f"Sent {to_send} DeathLink(s) - {death_count} total deaths / threshold {threshold}")
 
-    async def _check_goal_complete(self):
+    async def _check_goal_complete(self, status: dict):
         """
-        Poll the goal-complete flag written by the Lua mod and send
+        Read the goal-complete flag (from the aggregated status blob) and send
         ClientStatus.CLIENT_GOAL to the AP server the first time it's set.
         """
         if self._goal_complete:
             return
-        output = await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: self.dfhack.run_command(
-                "lua",
-                'print(dfhack.persistent.getWorldDataString("dwarfipelago/goal_complete") or "")',
-            ),
-        )
-        if output and output.strip() == "1":
+        if status.get("goal_complete") == "1":
             self._goal_complete = True
             await self.send_msgs([{"cmd": "StatusUpdate", "status": ClientStatus.CLIENT_GOAL}])
             logger.info("Goal complete - sent ClientStatus.CLIENT_GOAL to AP server")
@@ -1258,36 +1507,34 @@ class DwarfFortressContext(CommonContext):
             self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/energy_link", "{int(self.current_energy_link_value or 0)}")')
             self.last_energy = self.current_energy_link_value
 
-    async def new_energy(self):
-        if self.energy_link_enabled:
-            used_energy = self.dfhack.run_command("lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/use_energy_link") or "N")')
-            if used_energy and used_energy.strip() == "Y":
-                deposit_raw = self.dfhack.run_command("lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/energy_deposit") or "0")')
-                try:
-                    deposit = int((deposit_raw or "0").strip())
-                except ValueError:
-                    deposit = 0
-                if deposit > 0:
-                    await self.send_msgs([{
-                        "cmd": "Set", "key": self.energylink_key, "operations":
-                            [{"operation": "add", "value": deposit}]
-                    }])
-                    logger.debug(f"EnergyLink: Sent {format_SI_prefix(deposit)}*")
-                self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/energy_deposit", "0")')
-                self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/use_energy_link", "N")')
+    async def new_energy(self, status: dict):
+        if not self.energy_link_enabled:
+            return
+        if (status.get("use_energy") or "N") != "Y":
+            return
+        try:
+            deposit = int(str(status.get("energy_deposit") or "0").strip())
+        except (ValueError, TypeError):
+            deposit = 0
+        if deposit > 0:
+            await self.send_msgs([{
+                "cmd": "Set", "key": self.energylink_key, "operations":
+                    [{"operation": "add", "value": deposit}]
+            }])
+            logger.debug(f"EnergyLink: Sent {format_SI_prefix(deposit)}*")
+        self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/energy_deposit", "0")')
+        self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/use_energy_link", "N")')
 
-    async def _check_caravan_request(self):
+    async def _check_caravan_request(self, status: dict):
         """Handle caravan call: deduct seasonal energy cost from pool, then approve spawn in Lua."""
         if not self.energy_link_enabled:
             return
-        flag = self.dfhack.run_command("lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/request_caravan") or "0")')
-        if not (flag and flag.strip() == "1"):
+        if (status.get("request_caravan") or "0") != "1":
             return
         self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/request_caravan", "0")')
-        cost_raw = self.dfhack.run_command("lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/caravan_energy_cost") or "0")')
         try:
-            cost = int((cost_raw or "0").strip())
-        except ValueError:
+            cost = int(str(status.get("caravan_cost") or "0").strip())
+        except (ValueError, TypeError):
             cost = 0
         if cost <= 0:
             return
@@ -1304,6 +1551,101 @@ class DwarfFortressContext(CommonContext):
         }])
         self.dfhack.run_command("lua", 'dfhack.persistent.saveWorldDataString("dwarfipelago/spawn_caravan_approved", "1")')
         logger.debug(f"EnergyLink: Caravan approved, deducted {format_SI_prefix(cost)}*")
+
+    _MERCHANT_COFFER_ID = 37370630   # BASE_ID + 630; one received per unlocked tier
+
+    async def _hint_unlocked_shop(self):
+        """
+        When a Merchant's Coffer unlocks a new shop tier, hint that tier's shop
+        items so their recipients learn the goods are now purchasable here. Uses
+        create_as_hint=2 (free hints, only new ones notified), so re-running is
+        idempotent.
+        """
+        shop = self.slot_data.get("shop", {})
+        if not shop:
+            return
+        coffers = min(5, sum(1 for it in self.items_received if it.item == self._MERCHANT_COFFER_ID))
+        if coffers <= self._coffers_hinted:
+            return
+        hint_ids = [
+            int(k) for k, meta in shop.items()
+            if self._coffers_hinted < int(meta.get("tier", 1)) <= coffers
+        ]
+        if hint_ids:
+            await self.send_msgs([{
+                "cmd": "LocationScouts", "locations": hint_ids, "create_as_hint": 2,
+            }])
+            logger.info(f"Hinted {len(hint_ids)} shop item(s) for coffer tiers "
+                        f"{self._coffers_hinted + 1}-{coffers}")
+        self._coffers_hinted = coffers
+
+    def _build_shop_entries(self) -> dict:
+        """Assemble the shop table from scouted location info. Slots whose scout
+        reply hasn't arrived yet are omitted. Shared by the pre-launch raw bake
+        and the in-game shop sync. AP data only (no DFHack)."""
+        shop = self.slot_data.get("shop", {})
+        if not shop:
+            return {}
+        entries: dict[str, Any] = {}
+        for k in shop.keys():
+            sid = int(k)
+            info = self.locations_info.get(sid)
+            if not info:
+                continue  # scout reply not in yet for this slot
+            meta = shop[str(sid)]
+            try:
+                item_name = self.item_names.lookup_in_slot(info.item, info.player)
+            except Exception:
+                item_name = str(info.item)
+            player_name = self.player_names.get(info.player, str(info.player))
+            entries[str(meta["slot"])] = {
+                "id": sid,
+                "slot": meta["slot"],
+                "tier": meta["tier"],
+                "price": meta["price"],
+                "item": item_name,
+                "player": player_name,
+                "flags": int(getattr(info, "flags", 0) or 0),
+                "bought": 1 if sid in self.checked_locations else 0,
+            }
+        return entries
+
+    async def _scout_and_bake_shop_raws(self, timeout: float = 12.0):
+        """Before launching DF: scout the shop locations from the AP server and
+        bake each good's name into the mod raws, so the world about to be
+        generated shows this seed's shop items (not a prior session's). AP-only
+        (no DFHack), so it runs before DF starts. Best-effort: bakes whatever
+        scout replies arrive within the timeout."""
+        shop = self.slot_data.get("shop", {})
+        if not shop:
+            return
+        shop_ids = [int(k) for k in shop.keys()]
+        if not self._shop_scout_sent:
+            logger.info(f"Shop: scouting {len(shop_ids)} shop slots before launch")
+            await self.send_msgs([{
+                "cmd": "LocationScouts", "locations": shop_ids, "create_as_hint": 0,
+            }])
+            self._shop_scout_sent = True
+        # Wait for the scout replies (LocationInfo) to populate locations_info.
+        loop = asyncio.get_event_loop()
+        deadline = loop.time() + timeout
+        while loop.time() < deadline:
+            if all(sid in self.locations_info for sid in shop_ids):
+                break
+            await asyncio.sleep(0.2)
+        entries = self._build_shop_entries()
+        want, have = len(shop_ids), len(entries)
+        if not entries:
+            logger.warning("Shop: no scout replies arrived before launch; skipping raw "
+                           "bake (the generated world may show prior shop names).")
+            return
+        if have < want:
+            logger.warning(f"Shop: only {have}/{want} scout replies in before launch; "
+                           f"baking what we have.")
+        try:
+            self._write_shop_item_raws(entries)
+        except Exception as e:
+            logger.warning(f"Shop raw bake before launch failed: {e}")
 
     async def _sync_shop(self):
         """
@@ -1328,27 +1670,7 @@ class DwarfFortressContext(CommonContext):
             }])
             self._shop_scout_sent = True
 
-        entries: dict[str, Any] = {}
-        for sid in shop_ids:
-            info = self.locations_info.get(sid)
-            if not info:
-                continue  # scout reply not in yet for this slot
-            meta = shop[str(sid)]
-            try:
-                item_name = self.item_names.lookup_in_slot(info.item, info.player)
-            except Exception:
-                item_name = str(info.item)
-            player_name = self.player_names.get(info.player, str(info.player))
-            entries[str(meta["slot"])] = {
-                "id": sid,
-                "slot": meta["slot"],
-                "tier": meta["tier"],
-                "price": meta["price"],
-                "item": item_name,
-                "player": player_name,
-                "flags": int(getattr(info, "flags", 0) or 0),
-                "bought": 1 if sid in self.checked_locations else 0,
-            }
+        entries = self._build_shop_entries()
         if not entries:
             return
 
@@ -1358,6 +1680,13 @@ class DwarfFortressContext(CommonContext):
         if payload == self._shop_last_sig:
             return
         self._shop_last_sig = payload
+        # Native caravan: bake one AP-logo item raw per shop good into the mod so
+        # a freshly generated world renders their real names. Best-effort; preps
+        # the *next* world-gen.
+        try:
+            self._write_shop_item_raws(entries)
+        except Exception as e:
+            logger.debug(f"shop item raw generation skipped: {e}")
         escaped = payload.replace("\\", "\\\\").replace('"', '\\"')
         await asyncio.get_event_loop().run_in_executor(
             None,
@@ -1368,20 +1697,39 @@ class DwarfFortressContext(CommonContext):
         )
         logger.info(f"Shop: wrote {len(entries)} slot(s) to DFHack storage")
 
-    async def _check_shop_purchase(self):
+    def _write_shop_item_raws(self, entries):
+        """Generate one AP-logo tool raw per scouted shop good into the mod
+        (<DF>/mods/dwarfipelago), so the next world-gen bakes their real names.
+        The auto-install on client launch (or /dfinstall) copies them into
+        installed_mods; apcaravan.lua then spawns them onto the caravan."""
+        from . import apraws
+        exe = _get_df_executable()
+        if not exe:
+            return
+        mod = os.path.join(os.path.dirname(exe), "mods", "dwarfipelago")
+        if not os.path.isdir(mod):
+            return
+        shop_list = [
+            {"slot": e["slot"], "item": e.get("item", ""), "player": e.get("player", ""),
+             "tier": e.get("tier", 1)}
+            for e in entries.values()
+        ]
+        apraws.generate(shop_list, os.path.join(mod, "objects"), os.path.join(mod, "graphics"))
+        logger.info(f"Native caravan: generated {len(shop_list)} AP item raw(s) into {mod}.")
+
+    async def _check_shop_purchase(self, status: dict):
         """
         Buy bridge (mirrors _check_caravan_request): the Lua 'buy-shop' command
         charges the minted coins and appends the slot number to the JSON queue at
-        dwarfipelago/shop_buy. We drain the queue and send those slots' location
-        checks, releasing each item to its recipient. (A queue, not a single
-        value, so two quick purchases can't clobber each other.)
+        dwarfipelago/shop_buy (read here from the aggregated status blob). We drain
+        the queue and send those slots' location checks, releasing each item to its
+        recipient. (A queue, not a single value, so two quick purchases can't
+        clobber each other.)
         """
         shop = self.slot_data.get("shop", {})
         if not shop:
             return
-        raw = self.dfhack.run_command(
-            "lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/shop_buy") or "")')
-        raw = (raw or "").strip()
+        raw = str(status.get("shop_buy") or "").strip()
         if not raw or raw in ("[]", "nil", "0"):
             return
         try:
@@ -1402,8 +1750,8 @@ class DwarfFortressContext(CommonContext):
             logger.info(f"Shop: purchased slots {slots} -> locations {loc_ids}")
 
 
-    async def _crafting_location_checks(self):
-        """Read new crafting location checks from persistent storage and report them to AP."""
+    async def _crafting_location_checks(self, status: dict):
+        """Report new crafting location checks (counts from the status blob) to AP."""
         local_checks = []
         # Wait until the AP Get reply has populated the completed list. Using an
         # explicit flag (not len()==0) so a legitimately-empty list doesn't block
@@ -1433,23 +1781,11 @@ class DwarfFortressContext(CommonContext):
         if not key_to_pair:
             return
 
-        # Single batched RPC: read all keys in one Lua call and return JSON.
-        keys_lua = "{" + ",".join(f'"{k}"' for k in key_to_pair) + "}"
-        lua_code = (
-            f"local r={{}};for _,k in ipairs({keys_lua}) do "
-            f"r[k]=dfhack.persistent.getWorldDataString(k) or '0' end;"
-            f"print(require('json').encode(r))"
-        )
-        raw = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: self.dfhack.run_command("lua", lua_code)
-        )
-        if not raw or not raw.strip():
-            return
-        try:
-            counts = json.loads(raw.strip())
-        except json.JSONDecodeError:
-            logger.warning(f"_crafting_location_checks: failed to parse batch result: {raw!r}")
-            return
+        # Craft counts come from the aggregated status read (github #176) - all
+        # craft_count keys were fetched there in one RPC.
+        counts = status.get("craft") or {}
+        if not isinstance(counts, dict):
+            counts = {}
 
         # Build (item, material) → count lookup.
         count_lookup: dict[tuple[str, str], int] = {}
@@ -1502,9 +1838,9 @@ class DwarfFortressContext(CommonContext):
                 "lua", f'dfhack.gui.showAnnouncement("{location_name} Completed!", COLOR_GREEN)'
             )
     
-    async def _skill_location_checks(self):
-        """Read tracked skill levels from persistent storage and fire any skill
-        locations whose level threshold has been reached. Mirrors
+    async def _skill_location_checks(self, status: dict):
+        """Fire any skill locations whose level threshold has been reached, using
+        the tracked skill levels from the aggregated status blob. Mirrors
         _crafting_location_checks; completed ids share the same AP storage list."""
         if not self._completed_locations_loaded:
             return
@@ -1521,22 +1857,10 @@ class DwarfFortressContext(CommonContext):
         if not flag_keys:
             return
 
-        keys_lua = "{" + ",".join(f'"{k}"' for k in flag_keys) + "}"
-        lua_code = (
-            f"local r={{}};for _,k in ipairs({keys_lua}) do "
-            f"r[k]=dfhack.persistent.getWorldDataString(k) or '0' end;"
-            f"print(require('json').encode(r))"
-        )
-        raw = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: self.dfhack.run_command("lua", lua_code)
-        )
-        if not raw or not raw.strip():
-            return
-        try:
-            levels_raw = json.loads(raw.strip())
-        except json.JSONDecodeError:
-            logger.warning(f"_skill_location_checks: failed to parse batch result: {raw!r}")
-            return
+        # Skill levels come from the aggregated status read (github #176).
+        levels_raw = status.get("skill") or {}
+        if not isinstance(levels_raw, dict):
+            levels_raw = {}
 
         level_by_flag: dict[str, int] = {}
         for storage_key, flag in flag_keys.items():
@@ -1607,6 +1931,42 @@ class DwarfFortressContext(CommonContext):
         }])
     # ── CommonClient overrides ────────────────────────────────────────────────
 
+    async def _install_and_launch_df(self):
+        """Once connected to the AP server, refresh the world-gen preset and the
+        Dwarfipelago mod raws (wiping stale/duplicate installs so world-gen reads
+        the current files), then open Dwarf Fortress. Runs once per session; the
+        DFHack poll loop then connects as soon as DF/DFHack come up."""
+        if self._df_launch_started:
+            return
+        self._df_launch_started = True
+        exe = _get_df_executable()
+        if not exe:
+            logger.error("Could not locate the Dwarf Fortress executable; set 'game_path' "
+                         "in host.yaml. DF was not launched.")
+            return
+        loop = asyncio.get_event_loop()
+        # Scout the AP shop and bake this seed's good names into the mod raws
+        # BEFORE the install copy, so world-gen picks up the current shop.
+        try:
+            await self._scout_and_bake_shop_raws()
+        except Exception as e:
+            logger.warning(f"Shop scout/bake before launch failed (continuing): {e}")
+        # Install steps touch the filesystem; run off the event loop so the UI
+        # stays responsive. Each returns a status message for the console.
+        try:
+            for fn in (install_worldgen_preset, install_mod_for_worldgen):
+                msg = await loop.run_in_executor(None, fn)
+                for line in (msg or "").splitlines():
+                    logger.info(line)
+        except Exception as e:
+            logger.warning(f"Mod install step failed (launching anyway): {e}")
+        # Files are verified and cleaned; open the game.
+        try:
+            subprocess.Popen([exe], cwd=os.path.dirname(exe))
+            logger.info("Launching Dwarf Fortress...")
+        except OSError as e:
+            logger.error(f"Failed to launch Dwarf Fortress: {e}")
+
     async def server_auth(self, password_requested: bool = False):
         if password_requested and not self.password:
             await super().server_auth(password_requested)
@@ -1642,6 +2002,8 @@ class DwarfFortressContext(CommonContext):
                     "cmd": "SetNotify", "keys": [self.energylink_key]
                 }]))
             self.dfhack_task = asyncio.create_task(self.dfhack_poll_loop(), name="DFHack poll")
+            # Now that we're connected, install/clean the mod raws and open DF.
+            asyncio.create_task(self._install_and_launch_df())
         elif cmd == "Retrieved":
             key = "Dwarfipelago/"+str(self.seed)+"/completed_locations"
             if key in args['keys']:
@@ -1700,26 +2062,15 @@ class DwarfFortressContext(CommonContext):
             datatype = args.get("type")
             if datatype == "ItemSend":
                 item = args["item"]
-                if not self.slot_concerns_self(args["receiving"]): # You found someone else's item
-                    if self.slot_concerns_self(item.player):
-                        to_player = self.player_names[args["receiving"]]
-                        item_name = self.item_names.lookup_in_slot(int(args["data"][2]["text"]), args["receiving"])
-                        #COLOR_BROWN is actually Yellow in this DFHack version
-                        self.dfhack.run_command("lua", f'dfhack.gui.showAnnouncement("You found {to_player} their {item_name}.", COLOR_BROWN)')
-                elif self.slot_concerns_self(args["receiving"]): # This is your item
-                    player = self.player_names[int(args["data"][0]["text"])]
+                # Only announce items YOU send to another player. Items you RECEIVE
+                # are announced (with map zoom) by the mod as it spawns them, so
+                # announcing them here too would double up.
+                if not self.slot_concerns_self(args["receiving"]) and self.slot_concerns_self(item.player):
                     to_player = self.player_names[args["receiving"]]
-                    item_name = self.item_names.lookup_in_slot(int(args["data"][2]["text"]))
-                    if player == to_player: # you found your own item
-                        self.dfhack.run_command("lua", f'dfhack.gui.showAnnouncement("You found your {item_name}.", COLOR_GREEN)')
-                    else:
-                        self.dfhack.run_command("lua", f'dfhack.gui.showAnnouncement("{player} found your {item_name}.", COLOR_GREEN)')
-            elif datatype == "ItemCheat":
-                if self.slot_concerns_self(args["receiving"]): # its your item
-                    item = args["item"]
-                    item_name = self.item_names.lookup_in_slot(item.item)
-                    self.dfhack.run_command("lua", f'dfhack.gui.showAnnouncement("You received your {item_name}.", COLOR_GREEN)')
-            elif datatype == "Goal": 
+                    item_name = self.item_names.lookup_in_slot(int(args["data"][2]["text"]), args["receiving"])
+                    #COLOR_BROWN is actually Yellow in this DFHack version
+                    self.dfhack.run_command("lua", f'dfhack.gui.showAnnouncement("You found {to_player} their {item_name}.", COLOR_BROWN)')
+            elif datatype == "Goal":
                 if self.slot_concerns_self(args["slot"]):
                     self.dfhack.run_command("lua", f'dfhack.gui.showPopupAnnouncement("Congratulations! You achieved your goal!", COLOR_BLUE)')
 
@@ -1776,27 +2127,17 @@ def main():
         if args.name:
             ctx.auth = args.name
 
-        exe = _get_df_executable()
-        if not exe:
-            subprocess.Popen([exe], cwd=cwd)
-            return
-
-        cwd = os.path.dirname(exe)
-        try:
-            subprocess.Popen([exe], cwd=cwd)
-        except OSError as e:
-            logger.error("Failed to launch Dwarf Fortress", str(e))
-
-        # Start DFHack polling and (when inside AP) the server connection as
-        # concurrent asyncio tasks so neither blocks the other.
-        # ctx.dfhack_task = asyncio.create_task(ctx.dfhack_poll_loop(), name="DFHack poll")
-        # ctx.server_task = asyncio.create_task(server_loop(ctx), name="server loop")
-        # Show the AP client GUI window (kivy-based console).
-        # run_gui() schedules the UI as an asyncio task and returns immediately.
+        # DF is no longer launched here. The player connects to the AP server
+        # first; the "Connected" handler then installs/cleans the mod raws and
+        # opens the game (see _install_and_launch_df). This guarantees the mod
+        # files are refreshed for the session before DF reads them at world-gen.
+        # Show the AP client GUI window (kivy-based console). run_gui() schedules
+        # the UI as an asyncio task and returns immediately.
         ctx.run_gui()
         # Block until the user closes the window or the client disconnects.
         await ctx.exit_event.wait()
-        ctx.dfhack_task.cancel()
+        if ctx.dfhack_task:
+            ctx.dfhack_task.cancel()
         await ctx.shutdown()
 
     asyncio.run(run())

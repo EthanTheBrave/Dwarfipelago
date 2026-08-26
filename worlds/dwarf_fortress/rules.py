@@ -139,6 +139,46 @@ def set_rules(world: "DwarfFortressWorld") -> None:
     loc = multiworld.get_location("First Metal Bar Smelted", player)
     dynamic_rules.df_location_rule(loc, "Metal Bars", "")
 
+    # ── New "first" production milestones ──────────────────────────────────────
+    # Steel is smelted, so it shares the metal-bar (smelter) gate.
+    loc = multiworld.get_location("First Steel Bar", player)
+    dynamic_rules.df_location_rule(loc, "Metal Bars", "")
+
+    # A roast is a lavish prepared meal - same kitchen gate as the first meal.
+    loc = multiworld.get_location("First Roast", player)
+    dynamic_rules.df_location_rule(loc, "Prepared Meal", "")
+
+    # Glass is produced at a glass furnace; glass() self-adjusts to require the
+    # Glass permit as well when crafting permits are on.
+    loc = multiworld.get_location("First Glass Made", player)
+    loc.access_rule = lambda state: dynamic_rules.glass(state)
+
+    # Soap: the soap maker's workshop (plus the lye/tallow chain and Soap permit
+    # when permits are enabled).
+    loc = multiworld.get_location("First Soap Made", player)
+    if options.craftpermits == CraftingPermits.option_off:
+        loc.access_rule = lambda state: dynamic_rules.soap(state)
+    else:
+        loc.access_rule = lambda state: dynamic_rules.make_soap(state)
+
+    # Coins: the ability to make metal (plus the Coins permit when permits are
+    # enabled), matching the Merchant's Shop coin-minting gate.
+    loc = multiworld.get_location("First Coins Minted", player)
+    if options.craftpermits == CraftingPermits.option_off:
+        loc.access_rule = lambda state: dynamic_rules.metal(state)
+    else:
+        loc.access_rule = lambda state: dynamic_rules.metal_coins(state)
+
+    # Instruments are civ-generated and made at varying workshops; the craftsdwarf's
+    # workshop is the common one, used here as a best-guess hard requirement.
+    loc = multiworld.get_location("First Instrument Made", player)
+    loc.access_rule = lambda state: state.has("Craftsdwarf's Workshop Blueprint", player)
+
+    # A patient is treated in a hospital, which needs a bed - gate on bed-making
+    # ability (same rule as First Bed Made). First Birth stays always available.
+    loc = multiworld.get_location("First Patient Treated", player)
+    dynamic_rules.df_location_rule(loc, "Beds", "")
+
     # -- Harvesting Gates ------------------------------------------------------
     loc = multiworld.get_location("Harvest 50 Crops", player)
     loc.access_rule = lambda state: dynamic_rules.process_resource(state, "farming")
@@ -257,27 +297,44 @@ def set_rules(world: "DwarfFortressWorld") -> None:
         loc.access_rule = lambda state: dynamic_rules.wood_or_metal_or_glass_cage(state) \
             and dynamic_rules.mechanic_mechanism(state)
 
+    # ── Fortress-life & industry milestones ───────────────────────────────────
+    # First Legendary Dwarf, Tavern Established, Library Established, and
+    # Completed a Trade need no blueprint (mining/zone-designation/log-built depot
+    # + an auto-arriving caravan), so they stay always-reachable like base room
+    # zones and the caravan-visit checks.
+
+    # Harnessed Power: a water wheel or windmill needs a mechanism.
+    loc = multiworld.get_location("Harnessed Power", player)
+    if options.craftpermits == CraftingPermits.option_off:
+        loc.access_rule = lambda state: state.has("Mechanic's Workshop Blueprint", player)
+    else:
+        loc.access_rule = lambda state: dynamic_rules.mechanic_mechanism(state)
+
+    # Tamed a Wild Beast: capture a wild animal in a cage trap (cage + mechanism),
+    # then train it - same gate as Caged a Hostile Beast.
+    loc = multiworld.get_location("Tamed a Wild Beast", player)
+    if options.craftpermits == CraftingPermits.option_off:
+        loc.access_rule = lambda state: dynamic_rules.wood_or_metal_or_glass(state) \
+            and dynamic_rules.mechanic_workshop(state)
+    else:
+        loc.access_rule = lambda state: dynamic_rules.wood_or_metal_or_glass_cage(state) \
+            and dynamic_rules.mechanic_mechanism(state)
+
 
     # ── Merchant's Shop gates ─────────────────────────────────────────────────
-    # Shop slots require:
-    #   1. Enough Merchant's Coffers for the tier (10 slots per coffer).
-    #   2. The ability to mint coins - needs metal smelting; with craft permits
-    #      also requires a Coins Permit so the player can actually produce currency.
+    # Shop slots require only enough Merchant's Coffers for the tier (10 slots per
+    # coffer). Receiving the first coffer also establishes contact with the
+    # Archipelago (gorlak) caravan - the mod forces that contact on the first
+    # coffer - so the caravan that carries the shop is available from then on. No
+    # metalworking / coin-minting gate: the goods trade on the native caravan.
     # Only set when the shop is enabled; otherwise these locations don't exist.
     if options.merchant_shop:
         for slot in range(1, SHOP_SLOTS + 1):
             tier = (slot - 1) // 10 + 1
             loc = multiworld.get_location(f"Shop Slot {slot}", player)
-            if options.craftpermits == CraftingPermits.option_off:
-                loc.access_rule = lambda state, n=tier: (
-                    state.count("Merchant's Coffer", player) >= n
-                    and dynamic_rules.metal(state)
-                )
-            else:
-                loc.access_rule = lambda state, n=tier: (
-                    state.count("Merchant's Coffer", player) >= n
-                    and dynamic_rules.metal_coins(state)
-                )
+            loc.access_rule = lambda state, n=tier: (
+                state.count("Merchant's Coffer", player) >= n
+            )
 
     # ── Sold an Artifact (endgame) ────────────────────────────────────────────
     # You can only sell an artifact you first obtained. Two in-logic paths:
@@ -334,6 +391,16 @@ def set_rules(world: "DwarfFortressWorld") -> None:
             lambda state: dynamic_rules.metal(state)
         multiworld.get_location("Training Completed", player).access_rule = \
             lambda state: dynamic_rules.metal(state)
+
+        # Enemy-kill tallies need waves, which Military Training starts and grows;
+        # bigger tallies require more training (larger waves).
+        ENEMY_KILL_TRAINING = {
+            "Slay 10 Enemies": 1, "Slay 25 Enemies": 2, "Slay 50 Enemies": 3,
+            "Slay 100 Enemies": 5, "Slay 200 Enemies": 7,
+        }
+        for loc_name, need in ENEMY_KILL_TRAINING.items():
+            multiworld.get_location(loc_name, player).access_rule = \
+                lambda state, n=need: state.count("Military Training", player) >= n
 
     elif options.goal == DwarfFortressGoal.option_legendary_wealth:
         # Legendary Wealth requires the Blueprint, all five coffers, and a workforce.

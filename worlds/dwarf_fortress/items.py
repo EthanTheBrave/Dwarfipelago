@@ -15,9 +15,6 @@ class ItemData:
     weight: int = 10   # relative frequency when padding the pool with filler
                        # (higher = more common; only used for FILLER_ITEMS)
 
-
-# ── Items DF sends to other players ──────────────────────────────────────────
-
 # Workshop blueprint items - progression gates that other players find and send
 # to unlock workshops in your fortress. These are the core AP mechanic.
 # Workshop / furnace / building blueprint items - progression gates that other
@@ -122,12 +119,20 @@ FILLER_ITEMS: list[ItemData] = [
     ItemData("Copper Pick",            BASE_ID + 533, ItemClassification.filler, weight=3),
     ItemData("Copper Axe",             BASE_ID + 534, ItemClassification.filler, weight=3),
     ItemData("Copper Short Sword",     BASE_ID + 535, ItemClassification.filler, weight=2),
+    ItemData("Miracle Cure",           BASE_ID + 570, ItemClassification.filler, weight=8),
+    ItemData("Stress Blockers",        BASE_ID + 571, ItemClassification.filler, weight=8),
 ]
 
 TRAP_ITEMS: list[ItemData] = [
-    ItemData("Ensnaring Webs",         BASE_ID + 530, ItemClassification.trap),
-    ItemData("Order Sabotage",         BASE_ID + 531, ItemClassification.trap),
-    ItemData("Goblin Saboteurs",       BASE_ID + 532, ItemClassification.trap),
+    ItemData("Ensnaring Webs",         BASE_ID + 530, ItemClassification.trap, weight=5),
+    ItemData("Order Sabotage",         BASE_ID + 531, ItemClassification.trap, weight=3),
+    ItemData("Goblin Saboteurs",       BASE_ID + 532, ItemClassification.trap, weight=8),
+    ItemData("Goblin Ambush",          BASE_ID + 620, ItemClassification.trap, weight=8),
+    ItemData("Cave Bear Incursion",    BASE_ID + 621, ItemClassification.trap, weight=10),
+    ItemData("Vermin Infestation",     BASE_ID + 622, ItemClassification.trap, weight=10),
+    ItemData("Unquenchable Thirst",    BASE_ID + 623, ItemClassification.trap, weight=10),
+    ItemData("Lost Caravan",           BASE_ID + 624, ItemClassification.trap, weight=4),
+    ItemData("Catsplosion",            BASE_ID + 625, ItemClassification.trap, weight=10),
 ]
 
 CRAFT_ITEMS: list[ItemData] = [ #commented items people should get when getting the blueprints
@@ -287,26 +292,16 @@ RECEIVED_RESOURCES: list[ItemData] = [
     ItemData("Coal Bundle",            BASE_ID + 613, ItemClassification.filler),
 ]
 
-RECEIVED_TRAPS: list[ItemData] = [
-    ItemData("Goblin Ambush",          BASE_ID + 620, ItemClassification.trap),
-    ItemData("Cave Bear Incursion",    BASE_ID + 621, ItemClassification.trap),
-    ItemData("Vermin Infestation",     BASE_ID + 622, ItemClassification.trap),
-    ItemData("Unquenchable Thirst",    BASE_ID + 623, ItemClassification.trap),
-    ItemData("Lost Caravan",           BASE_ID + 624, ItemClassification.trap),
-    ItemData("Catsplosion",            BASE_ID + 625, ItemClassification.trap),
-]
-
 # Pool that goes into the AP multiworld.
 #
 # BLUEPRINT_ITEMS are progression-gated items the DF player must receive to
 # unlock workshops. They must ALL be in the pool - create_items() guarantees
 # they are never trimmed, regardless of location count.
 #
-# PROGRESSION_ITEMS / USEFUL_ITEMS / FILLER_ITEMS / TRAP_ITEMS are outbound
-# items DF contributes that other players may find.
-#
-# RECEIVED_* are items routed back to the DF player (trade goods, resources,
-# traps) - they live in the pool so the AP server can place them at locations.
+# Every list here is DF's own item pool: the AP server distributes them across the
+# multiworld and routes each back to the DF player when its location is found.
+# TRAP_ITEMS are all the traps the DF player receives (the Lua receive() dispatch
+# handles them); RECEIVED_* are the trade goods and resources.
 AP_ITEM_POOL: list[ItemData] = \
     BLUEPRINT_ITEMS \
     + PROGRESSION_ITEMS \
@@ -317,7 +312,6 @@ AP_ITEM_POOL: list[ItemData] = \
     + TRAP_ITEMS \
     + RECEIVED_TRADE_GOODS \
     + RECEIVED_RESOURCES \
-    + RECEIVED_TRAPS \
 
 
 # All items (for name→ID mapping used by item_name_to_id).

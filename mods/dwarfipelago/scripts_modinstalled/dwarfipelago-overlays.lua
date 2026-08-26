@@ -10,7 +10,9 @@
 -- Both are enabled/disabled by dwarfipelago.lua's start()/stop().
 
 local overlay = require('plugins.overlay')
+local widgets = require('gui.widgets')
 local to_pen  = dfhack.pen.parse
+local trade   = reqscript('internal/dwarfipelago/trade')
 
 -- ── Shared keyword matching ───────────────────────────────────────────────────
 
@@ -127,6 +129,7 @@ end
 
 -- "armor_stand" -> "Armor Stand", for the note text.
 local function permit_label(flag)
+    if flag == "cloth" or flag == "silk" then return "Cloth / Silk" end
     return (flag:gsub("_", " "):gsub("(%a)(%w*)", function(first, rest) return first:upper() .. rest end))
 end
 
@@ -388,7 +391,7 @@ local MATERIAL_KEYWORDS = {
     "bronze", "copper", "electrum", "elemental", "steel", "pewter", "gold", "iron",
     "lead", "nickel", "platinum", "silver", "tin", "zinc"}, 
     glass = {"glass"}, leather = {"leather"}, cloth = {" cloth", "yarn"},
-    adamantine = {"adamantine"}
+    silk = {"silk"}, adamantine = {"adamantine"}
 }
 
 local function material_required_by(craft_name)
@@ -420,7 +423,7 @@ local CRAFTSANITY_KEYWORDS = {
     ash = {"ash"}, charcoal = {"charcoal"}, metal_bars = {"bars", "ore", "metal object", "wafers"}, coke_bars = {"coke"},
     pearlash = {"pearlash"}, gypsum_plaster = {"plaster powder"}, jug = {"jug"}, large_pot = {"pot"},  hive = {"hive"},
     quicklime = {"quicklime"}, glass = {"raw green glass", "raw clear glass", "raw crystal glass"}, window = {"window"}, book_binding = {"book binding"},
-    scroll_roller = {"scroll rollers"}, leather = {"hide"}, sheet = {"sheet", "parchment"}, cloth = {"into cloth"}, alcohol = {"Brew drink", "mead"},
+    scroll_roller = {"scroll rollers"}, leather = {"hide"}, sheet = {"sheet", "parchment"}, cloth = {"into cloth"}, silk = {"into silk"}, alcohol = {"Brew drink", "mead"},
     lye = {"lye"}, potash = {"potash"}, milk_of_lime = {"milk of lime"}, prepared_meal = {"meal"},
     tallow = {"tallow"}, oil = {"oil"}, press_cake = {"press_cake"}, honey = {"honey"}, bee_wax = {"bee wax"},
     dye = {"dye"}, bag = {"bag"}, rope_chain = {"rope", "chain"}, battle_axe = {"battle axe"},
@@ -482,7 +485,7 @@ local function task_on_row(row, y)
             if craft then 
                 if craft == "beds" or craft == "ash" or craft == "charcoal" or craft == "metal_bars" or craft == "coke_bars"
                 or craft == "pearlash" or craft == "gypsum_plaster" or craft == "quicklime" or craft == "glass" or craft == "leather"
-                or craft == "sheet" or craft == "cloth" or craft == "alcohol" or craft == "lye" or craft == "potash" or craft == "milk_of_lime"
+                or craft == "sheet" or craft == "cloth" or craft == "silk" or craft == "alcohol" or craft == "lye" or craft == "potash" or craft == "milk_of_lime"
                 or craft == "prepared_meal" or craft == "tallow" or craft == "oil" or craft == "press_cake" or craft == "honey" 
                 or craft == "bee wax" or craft == "dye" or craft == "soap" or craft == "training_axe" or craft == "training_spear"
                 or craft == "training_sword" or craft == "cup" or craft == "ballista_parts" or craft == "catapult_parts" or craft == "millstone"
@@ -546,10 +549,40 @@ function CraftsanityOverlay:onRenderBody(dc)
     end
 end
 
+-- ── Caravan trade overlay ─────────────────────────────────────────────────────
+-- The AP shop is caravan-only: while an Archipelago caravan is docked (spring
+-- visit), a button on the trade depot opens the merchant shop window. There is
+-- no shop button on the temple altar. The window lives in trade.lua.
+DepotTradeOverlay = defclass(DepotTradeOverlay, overlay.OverlayWidget)
+DepotTradeOverlay.ATTRS{
+    desc            = "Dwarfipelago: button on the trade depot to shop a visiting Archipelago caravan",
+    default_pos     = {x = 58, y = 18},
+    default_enabled = true,
+    viewscreens     = {'dwarfmode/ViewSheets/BUILDING/TradeDepot'},
+    frame           = {w = 40, h = 1},
+}
+
+function DepotTradeOverlay:init()
+    self:addviews{
+        widgets.TextButton{
+            view_id     = 'open',
+            frame       = {t = 0, l = 0, h = 1},
+            label       = 'Trade with Archipelago Caravan',
+            key         = 'CUSTOM_CTRL_A',
+            visible     = function()
+                return trade.ap_caravan_docked()
+                    and trade.is_trade_depot(dfhack.gui.getSelectedBuilding())
+            end,
+            on_activate = function() trade.open("depot") end,
+        },
+    }
+end
+
 -- Auto-discovery table - DFHack registers these when the script is loaded.
 -- Widget names: "dwarfipelago-overlays.permits", "dwarfipelago-overlays.buildmenu".
 OVERLAY_WIDGETS = {
     permits   = PermitOverlay,
     buildmenu = BuildMenuOverlay,
     craftsanity = CraftsanityOverlay,
+    depottrade = DepotTradeOverlay,
 }

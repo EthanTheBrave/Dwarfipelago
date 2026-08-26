@@ -85,19 +85,22 @@ local function spawn_item(item_type, material, quantity)
     return created
 end
 
--- Show an AP announcement. If pos ({x,y,z}) is given, the announcement is
--- clickable in the announcements list and zooms the map to that tile.
--- Falls back to a plain showAnnouncement if zoom fails (e.g. bad pos).
+-- Sender of the item currently being delivered (set by M.receive), appended to
+-- the announcement so you can see who sent it. Empty for your own/server items.
+local _item_sender = nil
+
+-- Received-item announcement in the caravan-arrival style (a clickable log line,
+-- never the alert/popup that showAutoAnnouncement raises). A pos zooms there on
+-- click; no pos uses an off-map tile (blueprints/permits - nothing to zoom to).
+-- showZoomAnnouncement never moves the camera or pauses on its own.
+local OFFMAP_POS = { x = -30000, y = -30000, z = -30000 }
 local function announce(msg, pos, atype)
-    if pos then
-        local ok = pcall(function()
-            dfhack.gui.showZoomAnnouncement(
-                atype or df.announcement_type.CARAVAN_ARRIVAL,
-                pos, "[AP] " .. msg, COLOR_GREEN, true)
-        end)
-        if ok then return end
-    end
-    dfhack.gui.showAnnouncement("[AP] " .. msg, COLOR_GREEN, true)
+    atype = atype or df.announcement_type.CARAVAN_ARRIVAL
+    if _item_sender and _item_sender ~= "" then msg = msg .. " (from " .. _item_sender .. ")" end
+    local ok = pcall(function()
+        dfhack.gui.showZoomAnnouncement(atype, pos or OFFMAP_POS, "[AP] " .. msg, COLOR_GREEN, true)
+    end)
+    if not ok then dfhack.gui.showAnnouncement("[AP] " .. msg, COLOR_GREEN, true) end
 end
 
 -- Returns the trade depot center as a pos table, or nil if no depot exists.
@@ -177,6 +180,18 @@ local function find_civ_id(token)
         end
     end
     return fallback
+end
+
+-- Any enemy civilisation id, used as a shared "banner" for waves whose faction has
+-- no civ of its own (night raids). Skips the player's civ. Returns -1 if none.
+local function any_enemy_civ_id()
+    local mine = df.global.plotinfo and df.global.plotinfo.civ_id or -1
+    for _, ent in ipairs(df.global.world.entities.all) do
+        if ent.id ~= mine and ent.type == df.historical_entity_type.Civilization then
+            return ent.id
+        end
+    end
+    return -1
 end
 
 -- -- Item handlers: trade goods ------------------------------------------------
@@ -319,33 +334,33 @@ end
 -- the primary material/token isn't accepted by this DF version's createitem.
 local function recv_flux_stone()
     spawn_item("BOULDER", "INORGANIC:LIMESTONE", 4)
-    announce("Received: Flux Stone! Limestone for steelmaking.")
+    announce_at_depot("Received: Flux Stone! Limestone for steelmaking.")
 end
 
 local function recv_pig_iron_bar()
     if spawn_item("BAR", "INORGANIC:PIG_IRON", 2) == 0 then
         spawn_item("BAR", "INORGANIC:IRON", 2)
     end
-    announce("Received: Pig Iron Bars!")
+    announce_at_depot("Received: Pig Iron Bars!")
 end
 
 local function recv_charcoal()
     if spawn_item("BAR", "COAL:CHARCOAL", 3) == 0 then
         spawn_item("BAR", "COAL:COKE", 3)
     end
-    announce("Received: Charcoal! Fuel for forges and furnaces.")
+    announce_at_depot("Received: Charcoal! Fuel for forges and furnaces.")
 end
 
 local function recv_cloth_bolt()
     spawn_item("CLOTH", "PLANT_MAT:GRASS_TAIL_PIG:THREAD", 3)
-    announce("Received: Cloth Bolts! Ready for the loom or clothier.")
+    announce_at_depot("Received: Cloth Bolts! Ready for the loom or clothier.")
 end
 
 local function recv_tanned_leather()
     if spawn_item("SKIN_TANNED", "CREATURE_MAT:COW:LEATHER", 3) == 0 then
         spawn_item("CLOTH", "PLANT_MAT:GRASS_TAIL_PIG:THREAD", 3)
     end
-    announce("Received: Tanned Leather!")
+    announce_at_depot("Received: Tanned Leather!")
 end
 
 -- Bag of sand for glassmaking. Sand isn't a free-standing item - it lives inside
@@ -398,10 +413,10 @@ local function recv_bag_of_sand()
     if not ok then
         log.error("bag_of_sand: " .. tostring(err))
         spawn_item("BOULDER", "INORGANIC:LIMESTONE", 3)  -- useful fallback so the gift isn't wasted
-        announce("Received: a Sand shipment (delivered as flux - bag-of-sand spawn unavailable).")
+        announce_at_depot("Received: a Sand shipment (delivered as flux - bag-of-sand spawn unavailable).")
         return
     end
-    announce("Received: Bags of Sand! Ready for the glass furnace.")
+    announce_at_depot("Received: Bags of Sand! Ready for the glass furnace.")
 end
 
 -- Raw clay as mineable clay STONE boulders. Kilns gather earthenware/stoneware
@@ -412,7 +427,7 @@ local function recv_raw_clay()
     local n = spawn_item("BOULDER", "INORGANIC:KAOLINITE", 4)
     if n == 0 then n = spawn_item("BOULDER", "INORGANIC:FIRE_CLAY", 4) end
     if n == 0 then n = spawn_item("BLOCKS", "INORGANIC:FIRE_CLAY", 4) end
-    announce("Received: Raw Clay! Clay stone (kaolinite for porcelain).")
+    announce_at_depot("Received: Raw Clay! Clay stone (kaolinite for porcelain).")
 end
 
 -- Low-grade (copper) tools/gear - useful recovery, intentionally rare.
@@ -420,21 +435,21 @@ local function recv_copper_pick()
     if spawn_item("WEAPON:ITEM_WEAPON_PICK", "INORGANIC:COPPER") == 0 then
         spawn_item("BAR", "INORGANIC:COPPER", 2)
     end
-    announce("Received: a Copper Pick. Crude, but it digs.")
+    announce_at_depot("Received: a Copper Pick. Crude, but it digs.")
 end
 
 local function recv_copper_axe()
     if spawn_item("WEAPON:ITEM_WEAPON_AXE_BATTLE", "INORGANIC:COPPER") == 0 then
         spawn_item("BAR", "INORGANIC:COPPER", 2)
     end
-    announce("Received: a Copper Axe. Good for trees and trouble.")
+    announce_at_depot("Received: a Copper Axe. Good for trees and trouble.")
 end
 
 local function recv_copper_short_sword()
     if spawn_item("WEAPON:ITEM_WEAPON_SWORD_SHORT", "INORGANIC:COPPER") == 0 then
         spawn_item("BAR", "INORGANIC:COPPER", 2)
     end
-    announce("Received: a Copper Short Sword.")
+    announce_at_depot("Received: a Copper Short Sword.")
 end
 
 -- -- Item handlers: useful items -----------------------------------------------
@@ -567,9 +582,7 @@ local function recv_artifact_weapon()
             spawn_item("BAR", "INORGANIC:STEEL", 3)
         end
     end
-    dfhack.gui.showAnnouncement(
-        "[AP] An Artifact Weapon has been delivered to your fortress! Your champions stand ready.",
-        COLOR_GREEN, true)
+    announce_at_depot("An Artifact Weapon has been delivered to your fortress! Your champions stand ready.")
     print("[Dwarfipelago] Progression item received: Artifact Weapon")
 end
 
@@ -586,9 +599,7 @@ local function recv_artifact_armor()
     spawn_item("GLOVES:ITEM_GLOVES_GAUNTLETS", mat)
     spawn_item("PANTS:ITEM_PANTS_GREAVES",     mat)
     spawn_item("SHOES:ITEM_SHOES_BOOTS",       mat)
-    dfhack.gui.showAnnouncement(
-        "[AP] Artifact Armor has been delivered to your soldiers! Your defenders are emboldened.",
-        COLOR_GREEN, true)
+    announce_at_depot("Artifact Armor has been delivered to your soldiers! Your defenders are emboldened.")
     print("[Dwarfipelago] Progression item received: Artifact Armor")
 end
 
@@ -655,10 +666,8 @@ local function recv_master_builders_codex()
             if spawn_item("DOOR", m) > 0 then break end
         end
     end
-    dfhack.gui.showAnnouncement(
-        "[AP] A Master Builder's Codex arrives with an artifact door! To build it, raise the " ..
-        "build material list's Max Quality filter to Artifact (it's hidden at Masterful by default).",
-        COLOR_GREEN, true)
+    announce_at_depot("A Master Builder's Codex arrives with an artifact door! To build it, raise the " ..
+        "build material list's Max Quality filter to Artifact (it's hidden at Masterful by default).")
     print("[Dwarfipelago] Progression item received: Master Builder's Codex")
 end
 
@@ -1004,6 +1013,167 @@ local function create_unit(race_token, pos, opts)
     return result
 end
 
+-- Create and equip a basic leather outfit (body/legs/feet) so the merchant
+-- isn't naked - it has no AI to pick up dropped clothes like a citizen would.
+local function dress_merchant(unit)
+    local idefs = df.global.world.raws.itemdefs
+    local mi = dfhack.matinfo.find("CREATURE_MAT:COW:LEATHER")
+            or dfhack.matinfo.find("PLANT_MAT:GRASS_TAIL_PIG:THREAD")
+    if not mi then return end
+    local function clothing_idx(defs)
+        local fb
+        for _, d in ipairs(defs) do
+            fb = fb or d.subtype
+            local lvl; pcall(function() lvl = d.armorlevel end)
+            if lvl == 0 then return d.subtype end
+        end
+        return fb
+    end
+    local function wear(itype, defs, count)
+        local sub = clothing_idx(defs); if not sub then return end
+        for _ = 1, (count or 1) do
+            local ok, made = pcall(dfhack.items.createItem, unit, itype, sub, mi.type, mi.index, false)
+            if ok and made and made[1] then
+                pcall(function()
+                    made[1].flags.forbid = false
+                    dfhack.items.moveToInventory(made[1], unit, 2, -1)  -- 2 = Worn
+                end)
+            end
+        end
+    end
+    wear(df.item_type.ARMOR, idefs.armor)
+    wear(df.item_type.PANTS, idefs.pants)
+    wear(df.item_type.SHOES, idefs.shoes, 2)  -- one for each foot
+end
+
+-- Put a plain metal weapon in a guard's hand so the escort reads as armed.
+local function equip_weapon(unit)
+    local mi = dfhack.matinfo.find("INORGANIC:IRON") or dfhack.matinfo.find("INORGANIC:COPPER")
+    if not mi then return end
+    local sub
+    for _, d in ipairs(df.global.world.raws.itemdefs.weapons) do
+        local ok, id = pcall(function() return d.id end)
+        if ok and id and id:find("AXE") then sub = d.subtype; break end
+        sub = sub or d.subtype
+    end
+    if not sub then return end
+    local ok, made = pcall(dfhack.items.createItem, unit, df.item_type.WEAPON, sub, mi.type, mi.index, false)
+    if ok and made and made[1] then
+        pcall(function()
+            made[1].flags.forbid = false
+            dfhack.items.moveToInventory(made[1], unit, 1, -1)  -- 1 = Weapon (held)
+        end)
+    end
+end
+
+-- ── Archipelago caravan merchant NPC ──────────────────────────────────────────
+-- A neutral dwarf that stands at the trade depot while the AP caravan is docked;
+-- its presence is what gates the depot shop button. No real caravan is spawned.
+function M.ap_merchant_present()
+    local id = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_unit") or "")
+    local u = id and df.unit.find(id)
+    return (u and dfhack.units.isActive(u) and not u.flags1.inactive) and true or false
+end
+
+function M.spawn_ap_merchant()
+    if M.ap_merchant_present() then return true end
+    local dx, dy, dz = find_trade_depot_center()
+    if not dx then return false end
+    local ids = {}
+    -- Spawn a dressed, neutral dwarf near the depot (just stands there); guards
+    -- also get a weapon in hand.
+    local function spawn_dwarf(ox, oy, nick, prof, armed)
+        local u = create_unit("DWARF", { x = dx + ox, y = dy + oy, z = dz }, {})
+        if not u then return nil end
+        pcall(function() dfhack.units.setNickname(u, nick) end)
+        pcall(function() u.profession = df.profession.TRADER; u.custom_profession = prof end)
+        dress_merchant(u)
+        if armed then equip_weapon(u) end
+        ids[#ids + 1] = u.id
+        return u
+    end
+    -- Lead merchant - its id gates the depot shop button via ap_merchant_present().
+    local lead = spawn_dwarf(0, 0, "Archipelago Merchant", "Merchant", false)
+    if not lead then return false end
+    -- A modest entourage: another trader + two guards.
+    spawn_dwarf(1, 0, "Archipelago Trader", "Trader", false)
+    spawn_dwarf(-1, 0, "Caravan Guard", "Guard", true)
+    spawn_dwarf(0, 1, "Caravan Guard", "Guard", true)
+    -- A couple of pack animals (first token that exists in this world's raws).
+    for _, off in ipairs({ { 1, 1 }, { -1, -1 } }) do
+        local a = create_unit({ "MULE", "DONKEY", "YAK", "CAMEL", "HORSE" },
+            { x = dx + off[1], y = dy + off[2], z = dz }, {})
+        if a then ids[#ids + 1] = a.id end
+    end
+    -- Persist the lead id (gating) and the whole group (departure cleanup).
+    dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_unit", tostring(lead.id))
+    dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_units", table.concat(ids, ","))
+    return true
+end
+
+-- Retire the whole caravan (merchants, guards, pack animals) without corpses:
+-- mark each inactive + drop it from the active list.
+function M.despawn_ap_merchant()
+    local function retire(u)
+        if not u then return end
+        pcall(function()
+            u.flags1.inactive = true
+            local act = df.global.world.units.active
+            for i = #act - 1, 0, -1 do if act[i] == u then act:erase(i); break end end
+        end)
+    end
+    local raw = dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_units") or ""
+    for s in raw:gmatch("%d+") do retire(df.unit.find(tonumber(s))) end
+    -- Legacy single-id fallback (pre-entourage saves).
+    local id = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_unit") or "")
+    if id then retire(df.unit.find(id)) end
+    dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_unit", "")
+    dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_units", "")
+end
+
+-- Exposed so the poll can zoom arrival/departure announcements to the depot.
+M.find_trade_depot_center = find_trade_depot_center
+
+-- EXPERIMENTAL: DF only unlocks "move goods to depot" when plotinfo.caravans has
+-- an entry in the Approaching/AtDepot state. While the AP merchant is docked we
+-- fake one (entity = our civ, no real merchants) - but ONLY when nothing is
+-- already AtDepot, so we never spam duplicates and never disturb a real caravan.
+-- DF adopts it and gives it a normal stay; if its clock runs out we recreate on
+-- the next poll. On departure we send our AtDepot entries to Leaving so DF
+-- retires them gracefully.
+function M.ensure_trade_session()
+    return pcall(function()
+        local caravans = df.global.plotinfo.caravans
+        for _, c in ipairs(caravans) do
+            local ts = c.trade_state
+            if ts == df.caravan_state.T_trade_state.AtDepot
+                    or ts == df.caravan_state.T_trade_state.Approaching then
+                return  -- a caravan is already enabling move-goods
+            end
+        end
+        local civ = df.historical_entity.find(df.global.plotinfo.civ_id)
+        if not civ then return end
+        local cs = df.caravan_state:new()
+        cs.entity = civ.id
+        cs.trade_state = df.caravan_state.T_trade_state.AtDepot
+        cs.time_remaining = 20000   -- int16; DF resets it to a normal stay on tick
+        caravans:insert('#', cs)
+    end)
+end
+
+function M.remove_trade_session()
+    pcall(function()
+        for _, c in ipairs(df.global.plotinfo.caravans) do
+            local ts = c.trade_state
+            if c.entity == df.global.plotinfo.civ_id
+                    and (ts == df.caravan_state.T_trade_state.AtDepot
+                         or ts == df.caravan_state.T_trade_state.Approaching) then
+                c.trade_state = df.caravan_state.T_trade_state.Leaving
+            end
+        end
+    end)
+end
+
 -- Add `amount` stress to up to `count` random living citizens (all if count nil).
 -- Returns how many were affected.
 local function stress_citizens(amount, count)
@@ -1209,11 +1379,54 @@ local function recv_unquenchable_thirst()
     announce(("Trap: Unquenchable Thirst! %d dwarves drop everything, desperate for a drink!"):format(n))
 end
 
+local LOST_CARAVAN_FLAG = "dwarfipelago/trap/lost_caravan"
+
 local function recv_lost_caravan()
-    -- Flag that the next caravan should be skipped / arrive empty.
-    dfhack.persistent.saveWorldDataString("dwarfipelago/trap/lost_caravan", "1")
-    announce("Trap: A caravan has been lost on the road...")
+    -- Arm the curse; it fires when the next caravan actually arrives.
+    dfhack.persistent.saveWorldDataString(LOST_CARAVAN_FLAG, "1")
+    announce("Trap: A caravan bound for your fortress has been lost on the road...")
 end
+
+-- True for creatures that can learn (the merchants/guards), false for livestock.
+local function is_sapient(unit)
+    local c = df.global.world.raws.creatures.all[unit.race].caste[unit.caste]
+    return c.flags[df.caste_raw_flags.CAN_LEARN]
+end
+
+-- Spoil an arriving caravan's whole cargo if the curse is armed: perishables rot
+-- outright ("rotten X"), everything else arrives at max wear and near-worthless,
+-- and the livestock it brought to sell (caged or roped animals) die in transit. The
+-- kill is scoped by the trader flag on the *containing* item: a sale animal sits in
+-- a trader-flagged cage/on a trader-flagged tether, while the fort's own caged pets
+-- and chained war dogs are in ordinary (non-trader) cages, so they are untouched.
+-- Loose pack/draft animals aren't held by a trade good, so wagon-pullers survive.
+-- Fires once, then disarms. Called from caravan detection; returns true if it fired.
+local function trigger_lost_caravan_curse()
+    if dfhack.persistent.getWorldDataString(LOST_CARAVAN_FLAG) ~= "1" then return false end
+    local goods, killed = 0, 0
+    for _, it in ipairs(df.global.world.items.all) do
+        if it.flags.trader then
+            it.flags.rotten = true            -- spoils perishables; inert on non-organic goods
+            pcall(function() it.wear = 3 end)  -- guts the value of metal/stone/craft goods
+            goods = goods + 1
+            -- Kill any animal held inside this trade good (caged/tethered livestock).
+            for _, r in ipairs(it.general_refs) do
+                if df.general_ref_contains_unitst:is_instance(r) then
+                    local u = df.unit.find(r.unit_id)
+                    if u and dfhack.units.isAlive(u) and not is_sapient(u) then
+                        pcall(function() u.body.blood_count = 0 end)  -- bleeds out, leaving a corpse
+                        killed = killed + 1
+                    end
+                end
+            end
+        end
+    end
+    dfhack.persistent.saveWorldDataString(LOST_CARAVAN_FLAG, "")  -- disarm
+    announce("A caravan got lost on its way here, and unfortunately couldn't keep the cargo alive.")
+    log.info(("Lost Caravan curse: spoiled %d trade goods, lost %d livestock"):format(goods, killed))
+    return true
+end
+M.trigger_lost_caravan_curse = trigger_lost_caravan_curse
 
 -- -- Megabeast spawn helpers ---------------------------------------------------
 
@@ -1791,10 +2004,10 @@ local WARBAND_TIERS = {
     [3] = { size = {3, 4},   mat = "COPPER", armor = "shield", skill = {0, 1}, ranged = {0, 0}, beasts = {0, 0} },
     [4] = { size = {4, 5},   mat = "IRON",   armor = "shield", skill = {2, 3}, ranged = {0, 1}, beasts = {0, 0} },
     [5] = { size = {5, 6},   mat = "IRON",   armor = "light",  skill = {3, 4}, ranged = {1, 1}, beasts = {0, 0} },
-    [6] = { size = {6, 8},   mat = "IRON",   armor = "light",  skill = {4, 5}, ranged = {1, 2}, beasts = {0, 1} },
-    [7] = { size = {9, 11},  mat = "IRON",   armor = "full",   skill = {6, 7}, ranged = {2, 3}, beasts = {1, 1} },
-    [8] = { size = {12, 15}, mat = "IRON",   armor = "full",   skill = {7, 8}, ranged = {3, 4}, beasts = {1, 2} },
-    [9] = { size = {16, 20}, mat = "STEEL",  armor = "full",   skill = {8, 9}, ranged = {4, 6}, beasts = {2, 3} },
+    [6] = { size = {7, 10},  mat = "IRON",   armor = "light",  skill = {4, 5},  ranged = {2, 3},  beasts = {1, 2} },
+    [7] = { size = {11, 15}, mat = "IRON",   armor = "full",   skill = {6, 7},  ranged = {3, 5},  beasts = {2, 3} },
+    [8] = { size = {16, 22}, mat = "IRON",   armor = "full",   skill = {7, 9},  ranged = {5, 8},  beasts = {3, 5} },
+    [9] = { size = {24, 32}, mat = "STEEL",  armor = "full",   skill = {8, 10}, ranged = {7, 11}, beasts = {5, 8} },
 }
 
 -- Weapon options: {itemdef id, matching job_skill name}. Picked per unit.
@@ -1880,6 +2093,9 @@ end
 -- stack of bolts, so the ranged contingent can actually fire. Best-effort and
 -- pcall-guarded - if a world lacks the itemdefs the unit simply goes without.
 -- Buffs the crossbow skill.
+-- Ammo a siege marksman carries, so they sustain fire through a long siege.
+local RANGED_AMMO_STACK = 90
+
 local function equip_crossbow(unit, mat, level)
     local W = df.global.world.raws.itemdefs
     local grasps = find_body_parts(unit, "GRASP")
@@ -1899,7 +2115,7 @@ local function equip_crossbow(unit, mat, level)
                 local bi = bolts and bolts[1]
                 if bi then
                     bi.flags.forbid = false
-                    pcall(function() bi.stack_size = 25 end)
+                    pcall(function() bi.stack_size = RANGED_AMMO_STACK end)
                     dfhack.items.moveToContainer(bi, qi)
                 end
             end
@@ -1930,7 +2146,7 @@ local function equip_bow(unit, mat, level)
                 local ai = arrows and arrows[1]
                 if ai then
                     ai.flags.forbid = false
-                    pcall(function() ai.stack_size = 25 end)
+                    pcall(function() ai.stack_size = RANGED_AMMO_STACK end)
                     dfhack.items.moveToContainer(ai, qi)
                 end
             end
@@ -1960,7 +2176,7 @@ local SIEGE_FACTIONS = {
       beasts = { "DOG", "WOLF" },
       announce = "A human army lays siege to the fortress!" },
     { key = "elf", civ = "ELF", races = {"ELF"}, material = "wood", weapons = "elf",
-      armor = "none", ranged = "bow", arm_beasts = false, min_readiness = 4,
+      armor = "tier", ranged = "bow", arm_beasts = false, min_readiness = 4,
       beasts = { "GIANT_JAGUAR", "GIANT_TIGER", "GIANT_LEOPARD", "GRIZZLY_BEAR", "ELEPHANT", "LION", "TIGER" },
       announce = "An elven host emerges from the wilds to besiege the fortress!" },
     { key = "night", civ = nil, races = nil, material = "none", weapons = "none",
@@ -1977,7 +2193,7 @@ local SIEGE_FACTIONS = {
 local DEFENSE_MIN_SOLDIERS  = 4     -- soldiers the readiness gate already assumes
 local DEFENSE_SOLDIER_WEIGHT = 2    -- each trained soldier beyond that ~ this many trap-points
 local DEFENSE_SCALE          = 40   -- defense score that reaches the full bonus
-local DEFENSE_MAX_BONUS      = 1.0  -- max added multiplier (1.0 => up to 2x wave size)
+local DEFENSE_MAX_BONUS      = 1.5  -- max added multiplier (1.5 => up to 2.5x wave size)
 
 -- Count the fort's defensive traps + upright spikes.
 local function count_defensive_traps()
@@ -2104,9 +2320,17 @@ local function pick_siege_faction(readiness)
     return usable[math.random(#usable)]
 end
 
+-- Resolve a faction by its key (goblin|human|elf|night), case-insensitive. nil if none.
+local function faction_by_key(key)
+    key = tostring(key):lower()
+    for _, f in ipairs(SIEGE_FACTIONS) do if f.key == key then return f end end
+    return nil
+end
+
 -- Spawn a roaming warband for the given readiness level (1-9). Returns the count
--- spawned. Picks a surface-edge tile so the enemies march in.
-local function spawn_warband(readiness)
+-- spawned. Picks a surface-edge tile so the enemies march in. An optional
+-- faction_key (goblin|human|elf|night) forces that faction instead of a random one.
+local function spawn_warband(readiness, faction_key)
     local tier = WARBAND_TIERS[readiness]
     if not tier then log.warn("spawn_warband: no tier for readiness " .. tostring(readiness)); return 0 end
 
@@ -2117,8 +2341,12 @@ local function spawn_warband(readiness)
     local x, y, z = find_surface_spawn_pos()
     if not x then log.warn("spawn_warband: no surface spawn position; skipping wave"); return 0 end
 
-    -- Pick which civilisation/faction sieges this wave, and build its roster.
-    local faction = pick_siege_faction(readiness)
+    -- Pick which civilisation/faction sieges this wave, and build its roster. A
+    -- forced faction_key overrides the random pick (unknown key -> random).
+    local faction = faction_key and faction_by_key(faction_key) or pick_siege_faction(readiness)
+    if faction_key and not faction_by_key(faction_key) then
+        log.warn("spawn_warband: unknown faction '" .. tostring(faction_key) .. "'; picking randomly")
+    end
 
     local pool
     if faction.key == "night" then
@@ -2140,7 +2368,11 @@ local function spawn_warband(readiness)
         mat = find_wood_mat()
     end
 
-    local civ_id      = faction.civ and find_civ_id(faction.civ) or -1
+    -- One shared civ id for the whole wave: a civ_id of -1 (wild) makes a unit
+    -- hostile to everyone, its own siege included, so beasts, wall-breakers and
+    -- champions would infight. Night raids borrow any enemy civ as a banner.
+    local civ_id      = (faction.civ and find_civ_id(faction.civ)) or find_goblin_civ_id()
+    if not civ_id or civ_id == -1 then civ_id = any_enemy_civ_id() end
     local tier_armor  = (faction.armor == "tier") and tier.armor or "none"
     local give_shield = (tier_armor == "shield" or tier_armor == "full")
     local has_armor   = (tier_armor == "light" or tier_armor == "full")
@@ -2172,15 +2404,23 @@ local function spawn_warband(readiness)
         end
     end
 
-    -- Ranged contingent: crossbows for the metal civs, bows for elves.
+    -- Ranged contingent (the siege's "artillery"): elite marksmen skilled well
+    -- above the infantry, carrying big ammo stacks; steel crossbows from readiness 7
+    -- for penetration. Crossbows for the metal civs, bows for elves.
     if faction.ranged ~= "none" and mat then
+        local ranged_skill = math.min(tier.skill[2] + 5, 18)
+        local xbow_mat = mat
+        if faction.ranged == "crossbow" and readiness >= 7 then
+            local steel = dfhack.matinfo.find("INORGANIC:STEEL")
+            if steel then xbow_mat = { type = steel.type, index = steel.index } end
+        end
         local nr = math.floor(math.random(tier.ranged[1], tier.ranged[2]) * mult)
         for _ = 1, nr do
             local unit = spawn_one(civ_id)
             if unit then
                 pcall(function()
-                    if faction.ranged == "bow" then equip_bow(unit, mat, rskill())
-                    else equip_crossbow(unit, mat, rskill()) end
+                    if faction.ranged == "bow" then equip_bow(unit, mat, ranged_skill)
+                    else equip_crossbow(unit, xbow_mat, ranged_skill) end
                 end)
                 spawned = spawned + 1
             end
@@ -2210,7 +2450,7 @@ local function spawn_warband(readiness)
     if beast_pool and #beast_pool > 0 and nb > 0 then
         for _ = 1, nb do
             local brute = create_unit(beast_pool[math.random(#beast_pool)],
-                                      { x = x, y = y, z = z }, { civ_id = -1, hostile = true })
+                                      { x = x, y = y, z = z }, { civ_id = civ_id, hostile = true })
             if brute then
                 if mat and faction.arm_beasts then  -- goblin trolls/ogres wield an axe
                     pcall(function()
@@ -2222,6 +2462,36 @@ local function spawn_warband(readiness)
                     end)
                 end
                 spawned = spawned + 1
+            end
+        end
+    end
+
+    -- Wall-breakers (readiness 7+): a large siege brings building-destroyer brutes
+    -- (trolls/ogres, BD level 2) that smash through constructed walls, fortifications,
+    -- and buildings, so a walled-off funnel can't trivialise it. Goblin waves already
+    -- field them as escorts; give the other factions a few here.
+    if readiness >= 7 and faction.key ~= "goblin" then
+        local breakers = bestiary.filter_present({ "TROLL", "OGRE" })
+        if #breakers > 0 then
+            local nwb = math.max(1, math.floor((readiness - 6) * mult))
+            for _ = 1, nwb do
+                local wb = create_unit(breakers[math.random(#breakers)],
+                                       { x = x, y = y, z = z }, { civ_id = civ_id, hostile = true })
+                if wb then spawned = spawned + 1 end
+            end
+        end
+    end
+
+    -- Champion beasts: from readiness 8 the siege is joined by a semi-megabeast
+    -- (minotaur, cyclops, ettin, giant) - a BD2 bruiser far tougher than a troll.
+    -- One at readiness 8, two at readiness 9.
+    if readiness >= 8 then
+        local champions = bestiary.census().semimegabeast
+        if #champions > 0 then
+            for _ = 1, (readiness - 7) do
+                local champ = create_unit(champions[math.random(#champions)],
+                                          { x = x, y = y, z = z }, { civ_id = civ_id, hostile = true })
+                if champ then spawned = spawned + 1 end
             end
         end
     end
@@ -2239,11 +2509,35 @@ M.spawn_warband = spawn_warband
 
 -- -- Item handlers: progression locks -----------------------------------------
 
+-- Establish contact with the Archipelago (gorlak) civ and force its caravan, so
+-- the AP shop becomes reachable. Merchants are natively gorlak because the
+-- sending civ is gorlak. No-op if no gorlak civ exists in this world.
+local function contact_gorlak_caravan()
+    dfhack.persistent.saveWorldDataString("dwarfipelago/gorlak_contacted", "1")
+    local id = find_civ_id("GORLAK")
+    if not id then
+        log.warn("contact_gorlak_caravan: no GORLAK/ARCHIPELAGO civ in this world")
+        return false
+    end
+    local ok = pcall(function() dfhack.run_command("force", "Caravan", tostring(id)) end)
+    if ok then
+        announce("The Archipelago has heard of your fortress - a gorlak caravan is on its way!")
+    end
+    return ok
+end
+M.contact_gorlak_caravan = contact_gorlak_caravan
+
 local function recv_merchants_coffer()
     local key = "dwarfipelago/unlock/wealth_coffers"
     local n = (tonumber(dfhack.persistent.getWorldDataString(key)) or 0) + 1
     dfhack.persistent.saveWorldDataString(key, tostring(n))
     announce(("Merchant's Coffer received! Wealth tier %d/5 unlocked"):format(n))
+    -- The first coffer establishes contact with the Archipelago (gorlak) civ and
+    -- summons their caravan, which carries the AP shop. Later coffers only raise
+    -- the tier cap.
+    if n == 1 then
+        contact_gorlak_caravan()
+    end
 end
 
 -- Create `count` adult dwarves and enlist them as fortress citizens. Used for the
@@ -2316,6 +2610,35 @@ local function make_outfit()
     if feet then spawn_item("SHOES:" .. feet, cloth) end
 end
 
+-- Freshly created citizens have no work-detail labor assignment, so they idle
+-- until the player toggles labors. Mirror the game's computation: enable every
+-- labor (v50's everybody-does-everything default), then turn OFF any labor a
+-- restricted work detail reserves for others - "only selected" (mode 3) or
+-- "nobody" (mode 2) - unless this dwarf is one of the selected. So migrants pick
+-- up the "anyone can do this" labors but not e.g. fishing gated to one dwarf.
+local function enable_labors(unit)
+    pcall(function()
+        local labors = unit.status.labors
+        for i = 0, df.unit_labor._last_item do labors[i] = true end
+        local wd = df.global.plotinfo.labor_info.work_details
+        for i = 0, #wd - 1 do
+            local d = wd[i]
+            local mode = d.flags.mode
+            if mode == 2 or mode == 3 then
+                local assigned = false
+                for _, uid in ipairs(d.assigned_units) do
+                    if uid == unit.id then assigned = true; break end
+                end
+                if not assigned then
+                    for L = 0, df.unit_labor._last_item do
+                        if d.allowed_labors[L] then labors[L] = false end
+                    end
+                end
+            end
+        end
+    end)
+end
+
 -- Labor/craft/domestic skills a normal DF migrant might arrive already trained
 -- in (no combat skills - those come from the fort's own military training).
 -- Real migrants are drawn from the parent civ's population and often carry a
@@ -2373,6 +2696,7 @@ local function spawn_citizen_dwarves(count)
             end
             df.global.world.units.active:insert('#', unit)
             dfhack.units.makeown(unit)   -- enlist as a fortress member
+            enable_labors(unit)          -- turn on labors so they work without manual toggling
             set_dwarf_name(unit, dwarf_name())
             pcall(make_outfit)           -- cloth outfit at the depot to dress with
             pcall(give_migrant_skills, unit)
@@ -2635,6 +2959,85 @@ M.UNLOCK_DEFS = {
     { key = "mining_depth",          label = "Progressive Mining Depth", max = 4 },
 }
 
+-- Restore: fully heal a random injured citizen back to perfect health (via DFHack
+-- full-heal). "Injured" = has active wounds or is knocked unconscious.
+local function recv_miracle_cure()
+    local injured = {}
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then
+            local hurt = false
+            pcall(function() hurt = (#u.body.wounds > 0) or (u.counters.unconscious > 0) end)
+            if hurt then table.insert(injured, u) end
+        end
+    end
+    if #injured == 0 then
+        announce("Received: Miracle Cure - but no dwarf is hurt right now, so its magic goes unspent.")
+        return
+    end
+    local u    = injured[math.random(#injured)]
+    local name = unit_display_name(u)
+    if name == "" then name = "A wounded dwarf" end
+    local ok = pcall(function() dfhack.run_command("full-heal", "--unit", tostring(u.id)) end)
+    if ok then
+        announce(("Received: Miracle Cure! %s has been restored to perfect health."):format(name),
+                 { x = u.pos.x, y = u.pos.y, z = u.pos.z })
+    else
+        announce(("Received: Miracle Cure! (the healing of %s fizzled)"):format(name))
+    end
+end
+
+-- Cheer up: find the unhappiest living citizen (highest stress) and restore a
+-- perfect mental state - ecstatic stress plus ending any active mental break
+-- (melancholy / raving / berserk) and the crazed flag. Productive strange moods
+-- (Fey, Possessed, etc.) are left intact. No-op if there are no citizens.
+local function recv_stress_blockers()
+    local worst, worst_stress
+    for _, u in ipairs(df.global.world.units.active) do
+        -- Any living fort dwarf, adults AND children (isCitizen excludes children,
+        -- but a berserk/miserable child is exactly when you'd want this).
+        if dfhack.units.isOwnGroup(u) and dfhack.units.isAlive(u) and dfhack.units.isDwarf(u)
+                and u.status.current_soul then
+            local s
+            pcall(function() s = u.status.current_soul.personality.stress end)
+            if s and (worst_stress == nil or s > worst_stress) then worst, worst_stress = u, s end
+        end
+    end
+    if not worst then
+        announce("Received: Stress Blockers - but there are no dwarves here to cheer up.")
+        return
+    end
+    local name = unit_display_name(worst)
+    if name == "" then name = "A dwarf" end
+    -- Ecstatic now AND at baseline (longterm_stress), so it doesn't creep back up -
+    -- the same two fields DFHack's remove-stress sets.
+    local ok = pcall(function()
+        local p = worst.status.current_soul.personality
+        p.stress          = -100000
+        p.longterm_stress = -100000
+    end)
+    -- Reset an enraged/martial-trance soldier mood (also handled by remove-stress).
+    pcall(function()
+        if worst.counters.soldier_mood > df.soldier_mood_type.Enraged then
+            worst.counters.soldier_mood = df.soldier_mood_type.None
+        end
+    end)
+    -- End an active mental break - melancholy, stark raving mad, or berserk (all
+    -- df.mood_type values); remove-stress does NOT do this. Leave productive
+    -- strange moods (artifact) alone.
+    pcall(function()
+        local m = worst.mood
+        if m == df.mood_type.Melancholy or m == df.mood_type.Raving or m == df.mood_type.Berserk then
+            worst.mood = df.mood_type.None
+        end
+    end)
+    if ok then
+        announce(("Received: Stress Blockers! %s pops one and is restored to perfect peace of mind."):format(name),
+                 { x = worst.pos.x, y = worst.pos.y, z = worst.pos.z })
+    else
+        announce(("Received: Stress Blockers! (but %s's troubled mind resisted)"):format(name))
+    end
+end
+
 -- -- Dispatch table ------------------------------------------------------------
 -- Maps AP item name -> handler function.
 -- Names must match items.py exactly.
@@ -2664,6 +3067,8 @@ M.handlers = {
     ["Fine Cloth"]           = recv_fine_cloth,
     ["Raw Adamantine"]       = recv_raw_adamantine,
     ["Sunlight Tonic"]       = recv_sunlight_tonic,
+    ["Miracle Cure"]         = recv_miracle_cure,
+    ["Stress Blockers"]          = recv_stress_blockers,
 
     -- Livestock
     ["Breeding Pigs"]        = recv_breeding_pigs,
@@ -2771,9 +3176,7 @@ M.BLUEPRINT_NAMES = BLUEPRINT_NAMES
 for _, bp_name in ipairs(BLUEPRINT_NAMES) do
     M.handlers[bp_name] = function()
         dfhack.persistent.saveWorldDataString("dwarfipelago/blueprint/" .. bp_name, "1")
-        dfhack.gui.showAnnouncement(
-            ("[AP] Blueprint received: %s"):format(bp_name),
-            COLOR_GREEN, true)
+        announce(("Blueprint received: %s"):format(bp_name))
         print(("[Dwarfipelago] Blueprint unlocked: %s"):format(bp_name))
     end
 end
@@ -2812,11 +3215,20 @@ for _, item_name in ipairs(CRAFTING_LOCK_ITEMS) do
     local flag = item_name:lower():gsub(" ", "_")
     M.handlers[item_name .. " Permit"] = function()
         dfhack.persistent.saveWorldDataString("dwarfipelago/craftlock/" .. flag, "1")
-        dfhack.gui.showAnnouncement(
-            ("[AP] Crafting permit received: %s"):format(item_name),
-            COLOR_GREEN, true)
+        announce(("Crafting permit received: %s"):format(item_name))
         print(("[Dwarfipelago] Craft unlocked: %s"):format(item_name))
     end
+end
+
+-- Cloth and Silk share one AP permit ("Cloth / Silk Permit"), so replace their
+-- auto-generated single-item handlers with a combined one unlocking both craftlocks.
+M.handlers["Cloth Permit"] = nil
+M.handlers["Silk Permit"]  = nil
+M.handlers["Cloth / Silk Permit"] = function()
+    dfhack.persistent.saveWorldDataString("dwarfipelago/craftlock/cloth", "1")
+    dfhack.persistent.saveWorldDataString("dwarfipelago/craftlock/silk", "1")
+    announce("Crafting permit received: Cloth / Silk")
+    print("[Dwarfipelago] Craft unlocked: Cloth / Silk")
 end
 
 -- -- Test harness (dwarfipelago test <name>) ----------------------------------
@@ -2879,7 +3291,187 @@ local function test_find(substr)
 end
 
 -- Ordered so 'dwarfipelago test' lists them predictably.
+-- Stock a coffer in the temple zone with coins/gem/goods + a dummy shop, then
+-- open the trade window. Forces shop_unlocked; unpausing lets the shrine detector
+-- re-lock it (the shrine is otherwise incomplete).
+local function test_trade()
+    local trade = reqscript('internal/dwarfipelago/trade')
+    local json  = require('json')
+
+    local temple_locs, site = {}, dfhack.world.getCurrentSite()
+    if site then
+        for _, b in ipairs(site.buildings) do
+            if df.abstract_building_templest:is_instance(b) then temple_locs[b.id] = true end
+        end
+    end
+    local zone
+    for _, z in ipairs(df.global.world.buildings.other.ANY_ZONE) do
+        local loc = -1; pcall(function() loc = z.location_id end)
+        if loc and loc >= 0 and temple_locs[loc] then zone = z; break end
+    end
+    if not zone then
+        dfhack.printerr("[test] No temple zone found - assign a zone to a temple first."); return
+    end
+    local x1, x2 = math.min(zone.x1, zone.x2), math.max(zone.x1, zone.x2)
+    local y1, y2 = math.min(zone.y1, zone.y2), math.max(zone.y1, zone.y2)
+    local zz = zone.z
+    local tx, ty = math.floor((x1 + x2) / 2), math.floor((y1 + y2) / 2)
+
+    -- Offering places build instantly (no materials); add one so the shop-button
+    -- overlay (which binds to the altar's panel) has something to attach to.
+    local have_altar = false
+    for _, b in ipairs(df.global.world.buildings.other.OFFERING_PLACE) do
+        if b.z == zz and b.x1 <= x2 and b.x2 >= x1 and b.y1 <= y2 and b.y2 >= y1 then
+            have_altar = true; break
+        end
+    end
+    if not have_altar then
+        pcall(function()
+            dfhack.buildings.constructBuilding{type = df.building_type.OfferingPlace, pos = {x = tx, y = ty, z = zz}}
+        end)
+    end
+
+    local unit
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then unit = u; break end
+    end
+    if not unit then dfhack.printerr("[test] No living citizen to create items."); return end
+
+    local function mat(...)
+        for _, tok in ipairs({...}) do
+            local m = dfhack.matinfo.find(tok); if m then return m.type, m.index end
+        end
+    end
+
+    local placed = 0
+    local function make(itype, ...)
+        local mt, mi = mat(...); if not mt then return end
+        local o, m = pcall(dfhack.items.createItem, unit, itype, -1, mt, mi, false)
+        if o then return m end
+    end
+
+    -- Full-value path: drop a gold-coin stack + a cut gem onto an existing
+    -- stockpile (offer_items pulls coins/gems sitting on stockpile tiles).
+    do
+        local sp
+        for _, b in ipairs(df.global.world.buildings.all) do
+            if df.building_stockpilest:is_instance(b) then sp = b; break end
+        end
+        if sp then
+            local sx, sy, sz = sp.x1, sp.y1, sp.z
+            local coins = make(df.item_type.COIN, "INORGANIC:GOLD", "INORGANIC:COPPER")
+            if coins and coins[1] then
+                pcall(function()
+                    coins[1].stack_size = 500; coins[1].flags.forbid = false
+                    dfhack.items.moveToGround(coins[1], {x = sx, y = sy, z = sz})
+                end)
+                placed = placed + 1
+            end
+            local gem = make(df.item_type.SMALLGEM, "INORGANIC:MICROCLINE", "INORGANIC:AMETHYST")
+            if gem and gem[1] then
+                pcall(function()
+                    gem[1].flags.forbid = false
+                    dfhack.items.moveToGround(gem[1], {x = sx, y = sy, z = sz})
+                end)
+                placed = placed + 1
+            end
+        end
+    end
+
+    -- Half-value path: assign a couple of granite crafts to a display pedestal
+    -- (the first display furniture in the fort, if any).
+    do
+        local ped
+        for _, b in ipairs(df.global.world.buildings.all) do
+            if df.building_display_furniturest:is_instance(b) then ped = b; break end
+        end
+        if ped then
+            local function display(items)
+                local it = items and items[1]; if not it then return end
+                pcall(function()
+                    it.flags.forbid = false
+                    dfhack.items.moveToGround(it, {x = ped.x1, y = ped.y1, z = ped.z})
+                    ped.displayed_items:insert('#', it.id)
+                end)
+                placed = placed + 1
+            end
+            display(make(df.item_type.GOBLET,   "INORGANIC:GRANITE", "INORGANIC:GABBRO"))
+            display(make(df.item_type.FIGURINE, "INORGANIC:GRANITE", "INORGANIC:GABBRO"))
+        end
+    end
+
+    -- Depot/caravan path: stage a few items as trade goods on the trade depot
+    -- (TEMP role + trader flag = "slated for trade").
+    do
+        local depot
+        for _, b in ipairs(df.global.world.buildings.all) do
+            if df.building_tradedepotst:is_instance(b) then depot = b; break end
+        end
+        if depot then
+            local function to_depot(items)
+                local it = items and items[1]; if not it then return end
+                pcall(function()
+                    it.flags.forbid = false
+                    -- fortress goods staged for trade: on the depot (TEMP role),
+                    -- but NOT flagged trader (that would be the caravan's side).
+                    dfhack.items.moveToBuilding(it, depot, df.building_item_role_type.TEMP)
+                end)
+                placed = placed + 1
+            end
+            local dcoins = make(df.item_type.COIN, "INORGANIC:GOLD", "INORGANIC:COPPER")
+            if dcoins and dcoins[1] then pcall(function() dcoins[1].stack_size = 500 end) end
+            to_depot(dcoins)
+            to_depot(make(df.item_type.GOBLET,   "INORGANIC:SILVER", "INORGANIC:COPPER"))
+            to_depot(make(df.item_type.FIGURINE, "INORGANIC:SILVER", "INORGANIC:COPPER"))
+        end
+    end
+
+    -- 5 gold bars in the zone so the shrine's bar requirement is met (loose, not
+    -- on a pedestal or stockpile, so they don't show as payment).
+    do
+        local bars = make(df.item_type.BAR, "INORGANIC:GOLD")
+        if bars and bars[1] then
+            pcall(function() bars[1].stack_size = 5; bars[1].flags.forbid = false end)
+            pcall(function() dfhack.items.moveToGround(bars[1], {x = tx, y = ty, z = zz}) end)
+        end
+    end
+
+    local shop = {
+        ["1"]={slot=1,tier=1,price=120, item="Steel Battle Axe",         player="Alice", bought=0, id=37380101},
+        ["2"]={slot=2,tier=1,price=300, item="Masterwork Coffer",        player="Bob",   bought=0, id=37380102},
+        ["3"]={slot=3,tier=2,price=650, item="Adamantine Wafers",        player="Carol", bought=0, id=37380103},
+        ["4"]={slot=4,tier=2,price=900, item="Cave Spider Silk Cloth",   player="Dave",  bought=0, id=37380104},
+        ["5"]={slot=5,tier=3,price=1500,item="Artifact Warhammer",       player="Erin",  bought=0, id=37380105},
+        ["6"]={slot=6,tier=4,price=3000,item="Divine Steel Breastplate", player="Frank", bought=0, id=37380106},
+    }
+    local P = "dwarfipelago/"
+    dfhack.persistent.saveWorldDataString(P.."shop", json.encode(shop))
+    dfhack.persistent.saveWorldDataString(P.."shop_pending", "{}")
+    dfhack.persistent.saveWorldDataString(P.."shop_buy", "[]")
+    dfhack.persistent.saveWorldDataString(P.."unlock/wealth_coffers", "3")
+    dfhack.persistent.saveWorldDataString(P.."shrine_progress", json.encode({
+        zone = zone.id, x = tx, y = ty, z = zz, value = 9999, value_req = 5000,
+        bars = 5, bars_req = 5, altar = true, bin = true, ok = true }))
+    dfhack.persistent.saveWorldDataString(P.."shop_unlocked", "1")
+    -- dock an AP caravan too, so the trade-depot button is testable
+    dfhack.persistent.saveWorldDataString(P.."ap_caravan_active", "1")
+    dfhack.persistent.saveWorldDataString(P.."ap_caravan_arrive", tostring(df.global.cur_year * 403200 + df.global.cur_year_tick))
+    -- stand the Archipelago merchant NPC at the depot (its presence gates the button)
+    if M.spawn_ap_merchant() then print("[test] Archipelago merchant is standing at the depot.") end
+    -- fake a caravan trade session so DF unlocks "move goods to depot"
+    if M.ensure_trade_session() then print("[test] Trade session pinned - 'move goods to depot' should be available.") end
+
+    local offerable = #trade.offer_items()
+    print(("[test] Zone %d: altar + 5 gold bars + stockpile coins/gem + pedestal crafts; %d placed, %d offerable.")
+        :format(zone.id, placed, offerable))
+    print("[test] 6 dummy goods loaded (coffers=3, tier 4 locked); shop unlocked.")
+    print("[test] Select the altar for the 'Open Merchant Shop' button - and it's already open now.")
+    trade.open()
+end
+
 local TEST_LIST = {
+    { "trade",     "Stock a coffer in your temple zone + dummy shop, then open the trade window",
+                   function() test_trade() end },
     { "spawn",     "Spawn 1 unit via dfhack.units API + report status (arg: RACE, default DWARF)",
                    function(rest) test_spawn(rest[1]) end },
     { "find",      "List creature tokens matching a substring (arg: SUBSTR, e.g. BEAR)",
@@ -2894,8 +3486,8 @@ local TEST_LIST = {
     { "ordersab",  "Order Sabotage trap (wipe all manager work orders)", function() recv_order_sabotage() end },
     { "spider",    "Precursor threat (giant cave spider, underground)", function() spawn_precursor_threat() end },
     { "megabeast", "Force the goal megabeast (once per world)",        function() spawn_target_megabeast() end },
-    { "wave",      "Spawn a roaming warband for a readiness level (arg: 1-9, default 1)",
-                   function(rest) spawn_warband(tonumber(rest[1]) or 1) end },
+    { "wave",      "Spawn a warband (args: readiness 1-9 [default 1] [, faction goblin|human|elf|night])",
+                   function(rest) spawn_warband(tonumber(rest[1]) or 1, rest[2]) end },
     { "wave-now",  "Force the scheduled wave due now (tests the auto-scheduler; needs readiness>=1, slay_megabeast)",
                    function()
                        dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/next_wave_tick", "0")
@@ -3009,10 +3601,30 @@ local TEST_LIST = {
                            print(("[worldcheck] %d issue(s) found - see above. Consider rerolling if critical."):format(issues))
                        end
                    end },
-    { "caravan",   "Force a caravan (arg: dwarf|elf|human|goblin; default = parent civ)",
+    { "caravan",   "Force a caravan (arg: dwarf|elf|human|goblin|gorlak; default = parent civ)",
                    function(rest)
                        local token = ({ dwarf = "DWARF", elf = "ELF",
-                                        human = "HUMAN", goblin = "GOBLIN" })[(rest[1] or ""):lower()]
+                                        human = "HUMAN", goblin = "GOBLIN",
+                                        gorlak = "GORLAK", ap = "GORLAK",
+                                        archipelago = "GORLAK" })[(rest[1] or ""):lower()]
+                       -- Gorlak = the Archipelago caravan. It only carries AP goods
+                       -- once you hold a Merchant's Coffer, and receiving the FIRST
+                       -- coffer is what establishes contact and summons the caravan.
+                       -- So exercise the real flow: with no coffer yet, grant one
+                       -- (recv_merchants_coffer fires the contact + forces the caravan)
+                       -- instead of force-spawning a caravan that would carry nothing.
+                       if token == "GORLAK" then
+                           local coffers = tonumber(dfhack.persistent.getWorldDataString(
+                               "dwarfipelago/unlock/wealth_coffers")) or 0
+                           if coffers < 1 then
+                               recv_merchants_coffer()   -- coffer #1 -> contact -> gorlak caravan
+                               print("[test] No Merchant's Coffer yet: granted one, which "
+                                     .. "established contact and summoned the gorlak caravan.")
+                               return
+                           end
+                           -- Already have a coffer (contact established): fall through
+                           -- and force another gorlak caravan directly.
+                       end
                        local ok
                        if token then
                            local id = find_civ_id(token)
@@ -3020,6 +3632,9 @@ local TEST_LIST = {
                                print("[test] No " .. token .. " civilization exists in this world.")
                                return
                            end
+                           -- Forcing a foreign civ's caravan also establishes contact:
+                           -- the merchants that arrive are that civ's own race (a GORLAK
+                           -- civ sends gorlak merchants), so no runtime race change needed.
                            ok = pcall(function() dfhack.run_command("force", "Caravan", tostring(id)) end)
                            print(ok and ("[test] Forced a " .. token .. " caravan (civ id " .. id .. ").")
                                      or  "[test] force Caravan failed.")
@@ -3175,14 +3790,18 @@ function M.reembark_batch_spawn(wave_count)
     end
 end
 
--- Called by main.lua when the client delivers an item by name.
-function M.receive(item_name)
+-- Called by main.lua when the client delivers an item by name. `sender` (the
+-- player who sent it, or "" for your own/server items) is folded into the
+-- announcement by announce().
+function M.receive(item_name, sender)
+    _item_sender = sender
     local handler = M.handlers[item_name]
     if handler then
         handler()
     else
         log.error("Unknown item received: " .. tostring(item_name))
     end
+    _item_sender = nil
 end
 
 -- reqscript returns the script's _ENV, not the explicit return value.

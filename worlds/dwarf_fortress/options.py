@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from Options import Choice, Range, PerGameCommonOptions, DeathLink, OptionList, Toggle, StartInventory, OptionGroup, DefaultOnToggle
+from Options import Choice, Range, PerGameCommonOptions, DeathLink, OptionList, OptionSet, Toggle, StartInventory, OptionGroup, DefaultOnToggle
 
 
 # ── General ────────────────────────────────────────────────────────────────
@@ -32,6 +32,18 @@ class TrapItemWeight(Range):
     range_start = 0
     range_end = 100
     default = 20
+
+
+class EnabledTraps(OptionSet):
+    """Which trap items are allowed in the pool. Uncheck a trap to keep it out of
+    every seed. Trap frequency overall is still governed by Trap Item Weight."""
+    display_name = "Enabled Traps"
+    valid_keys = {
+        "Ensnaring Webs", "Order Sabotage", "Goblin Saboteurs",
+        "Goblin Ambush", "Cave Bear Incursion", "Vermin Infestation",
+        "Unquenchable Thirst", "Lost Caravan", "Catsplosion",
+    }
+    default = valid_keys.copy()
 
 
 class TradesInLogic(Toggle):
@@ -103,6 +115,36 @@ class DeathLinkPercentage(Toggle):
     Example: threshold=10 with 80 dwarves kills/requires 8 dwarves per DeathLink.
     """
     display_name = "Death Link Percentage"
+
+
+class DeathLinkSplit(Toggle):
+    """
+    Split the Death Link amounts. When off, Death Link Threshold governs both directions.
+    When on, use Death Link Receive Amount and Death Link Send Threshold separately.
+    """
+    display_name = "Split Death Link Amounts"
+
+
+class DeathLinkReceiveAmount(Range):
+    """
+    Dwarves killed per incoming DeathLink. Only used when Split Death Link Amounts is on.
+    Treated as a percentage of population when Death Link Percentage is enabled.
+    """
+    display_name = "Death Link Receive Amount"
+    range_start = 1
+    range_end = 50
+    default = 5
+
+
+class DeathLinkSendThreshold(Range):
+    """
+    Dwarves that must die to send one DeathLink. Only used when Split Death Link Amounts is on.
+    Treated as a percentage of population when Death Link Percentage is enabled.
+    """
+    display_name = "Death Link Send Threshold"
+    range_start = 1
+    range_end = 50
+    default = 5
 
 
 # ── Craftsanity ───────────────────────────────────────────────────────────
@@ -420,11 +462,37 @@ class ExcludeTopFortressChecks(Toggle):
     display_name = "Exclude Top Fortress Milestones"
 
 
+class ExcludeCombatChecks(Toggle):
+    """
+    Keep progression out of the difficult combat checks (filler only): the great-beast
+    kills - Forgotten Beast, Titan, Semi-megabeast, and Megabeast Slain. (These are
+    already off on the Slay Megabeast goal.)
+    """
+    display_name = "Exclude Difficult Combat Checks"
+
+
+class PerformanceAssist(Toggle):
+    """
+    Help slower machines keep up. When on, the mod applies several DFHack FPS aids:
+    - fast-heat: quicker temperature calculations (no gameplay change)
+    - deteriorate: stray damaged clothing rots away instead of piling up
+    - periodic cleanup: clean map spatter and confiscate heavily-worn owned junk
+    - timestream: scale the simulation to your frame rate so a laggy fort still feels
+      responsive (dwarves do the same work in the same in-game time, you just wait less)
+    Off by default: it changes the fort's look and its timing. Regardless of this setting,
+    the mod also auto-throttles its own background scans whenever it detects low FPS.
+    """
+    display_name = "Performance Assist"
+
+
 @dataclass
 class DwarfFortressOptions(PerGameCommonOptions):
     deathlink: DeathLink
     deathlink_threshold: DeathLinkThreshold
     deathlink_percentage: DeathLinkPercentage
+    deathlink_split: DeathLinkSplit
+    deathlink_receive_amount: DeathLinkReceiveAmount
+    deathlink_send_threshold: DeathLinkSendThreshold
     energy_link: EnergyLink
     goal: DwarfFortressGoal
     wealth_goal_amount: WealthGoalAmount
@@ -451,9 +519,12 @@ class DwarfFortressOptions(PerGameCommonOptions):
     skillsanity_max_level: SkillsanityMaxLevel
     skillsanity_behaviour: SkillsanityLevelMechanic
     trap_item_weight: TrapItemWeight
+    enabled_traps: EnabledTraps
     exclude_deep_endgame_checks: ExcludeDeepEndgameChecks
     exclude_top_room_checks: ExcludeTopRoomChecks
     exclude_top_fortress_checks: ExcludeTopFortressChecks
+    exclude_combat_checks: ExcludeCombatChecks
+    performance_assist: PerformanceAssist
     start_inventory: StartingDefaultDFInventory
 
 
@@ -472,6 +543,12 @@ dwarf_fortress_option_groups = [
         DeathLink,
         DeathLinkThreshold,
         DeathLinkPercentage,
+        DeathLinkSplit,
+        DeathLinkReceiveAmount,
+        DeathLinkSendThreshold,
+    ], start_collapsed=True),
+    OptionGroup("Traps", [
+        EnabledTraps,
     ], start_collapsed=True),
     OptionGroup("Craftsanity", [
         EnableCraftsanity,
@@ -499,5 +576,8 @@ dwarf_fortress_option_groups = [
     ], start_collapsed=True),
     OptionGroup("Item & Location Options", [
         StartingDefaultDFInventory,
+    ], start_collapsed=True),
+    OptionGroup("Performance", [
+        PerformanceAssist,
     ], start_collapsed=True),
 ]

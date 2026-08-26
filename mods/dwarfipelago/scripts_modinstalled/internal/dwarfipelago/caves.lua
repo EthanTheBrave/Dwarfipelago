@@ -25,6 +25,7 @@ local TICKS_PER_MONTH = 33600
 local TICKS_PER_YEAR  = 403200
 local SILK_INTERVAL   = 2 * TICKS_PER_MONTH   -- every 2 in-game months
 local SILK_PER_SPAWN  = 20                     -- skeins of raw cave silk per drop
+local SILK_HINT_COUNT = 6                      -- one-time surface breadcrumb over cave 1
 
 -- Tiletype IDs resolved at load time by scanning the enum, so we never depend on
 -- a hardcoded number or a name that may differ between DF/DFHack versions.
@@ -329,6 +330,11 @@ local function carve(cx, cy, cz, rx_in, ry_in)
             end
         end
     end
+    -- Carving writes tiletypes directly, which leaves DF's passability cache stale
+    -- (dwarves see the new floor as solid until a dig forces a rebuild). Reindex
+    -- pathfinding so the carved tiles become genuinely walkable - same fix the
+    -- tile-delete/zlevel-delete scripts use after editing tiles.
+    pcall(function() df.global.world.reindex_pathfinding = true end)
     return floor_tiles
 end
 
@@ -566,7 +572,7 @@ local function abs_tick()
     return df.global.cur_year * TICKS_PER_YEAR + df.global.cur_year_tick
 end
 
--- Drop raw cave spider silk thread in secret cave 1 (the Spider Silk Cave),
+-- Drop raw cave spider silk webbing in secret cave 1 (the Spider Silk Cave),
 -- rate-limited to once every SILK_INTERVAL ticks (~2 in-game months). Called
 -- each poll from dwarfipelago.lua; no-ops until the secret cave exists, and the
 -- first eligible poll after generation seeds the cave immediately (last == nil).
@@ -593,11 +599,20 @@ function M.poll_cave_silk()
     end
     if #tiles == 0 then tiles = { { x = x, y = y } } end  -- fallback: centre only
 
-    -- Round-robin one skein at a time across the floor tiles.
+    -- Round-robin one skein at a time across the floor tiles, then flag each new
+    -- thread as raw webbing (spider_web). That makes it *real* cave silk: dwarves
+    -- must "Collect webs" to gather it into thread before it can be woven, rather
+    -- than getting ready-to-weave thread handed to them.
+    local first_id = df.global.item_next_id
     local made = 0
     for i = 1, SILK_PER_SPAWN do
         local t = tiles[((i - 1) % #tiles) + 1]
         made = made + place_item_at(t.x, t.y, z, "THREAD", "CREATURE_MAT:SPIDER_CAVE:SILK", 1)
+    end
+    for _, it in ipairs(df.global.world.items.all) do
+        if it.id >= first_id and it:getType() == df.item_type.THREAD then
+            pcall(function() it.flags.spider_web = true end)
+        end
     end
     dfhack.persistent.saveWorldDataString(KEY_SILK_LAST, tostring(now))
     log.info(("Secret cave 1: spread %d raw cave silk across %d tiles at (%d,%d,%d)"):format(
@@ -615,6 +630,49 @@ end
 --   Secret 2 - Karl's Coffin Cave (cavern 1 -> cavern 2 gap, slot 4 / NE quadrant):
 --     Standard organic oval.  Contains a gold coffin registered as the artifact
 --     "Karl" - displayed in-game as "Karl the Gold Coffin".  Stupid, but valuable.
+-- One-time surface breadcrumb: a little raw cave silk webbing on the surface
+-- directly above secret cave 1, to hint roughly where the Spider Silk Cave is.
+-- Purely cosmetic signage - the player still has to find/dig the cave itself.
+local function spawn_surface_silk_hint(cx, cy)
+    local map = df.global.world.map
+    local function outside_floor(x, y, z)
+        local blk = dfhack.maps.getTileBlock(x, y, z)
+        if not blk then return false end
+        local lx, ly = x % 16, y % 16
+        local ok = false
+        pcall(function()
+            local des = blk.designation[lx][ly]
+            local sh  = df.tiletype.attrs[blk.tiletype[lx][ly]].shape
+            ok = des.outside and not des.hidden
+                 and (sh == df.tiletype_shape.FLOOR or sh == df.tiletype_shape.RAMP)
+        end)
+        return ok
+    end
+    -- topmost open-air floor in the column above the cave = the local surface
+    local sz
+    for z = map.z_count - 1, 0, -1 do
+        if outside_floor(cx, cy, z) then sz = z; break end
+    end
+    if not sz then return end
+    -- a small cluster of nearby surface tiles
+    local tiles = {}
+    for ddx = -2, 2 do for ddy = -2, 2 do
+        if outside_floor(cx + ddx, cy + ddy, sz) then tiles[#tiles + 1] = { x = cx + ddx, y = cy + ddy } end
+    end end
+    if #tiles == 0 then tiles = { { x = cx, y = cy } } end
+    local first_id = df.global.item_next_id
+    for i = 1, SILK_HINT_COUNT do
+        local t = tiles[((i - 1) % #tiles) + 1]
+        place_item_at(t.x, t.y, sz, "THREAD", "CREATURE_MAT:SPIDER_CAVE:SILK", 1)
+    end
+    for _, it in ipairs(df.global.world.items.all) do
+        if it.id >= first_id and it:getType() == df.item_type.THREAD then
+            pcall(function() it.flags.spider_web = true end)
+        end
+    end
+    log.info(("Secret cave 1: surface silk breadcrumb at (%d,%d,%d)"):format(cx, cy, sz))
+end
+
 function M.generate_secret_caves()
     if dfhack.persistent.getWorldDataString(KEY_SECRETS_DONE) == "1" then return end
     if dfhack.persistent.getWorldDataString("dwarfipelago/mining/ceilings_done") ~= "1" then return end
@@ -634,6 +692,8 @@ function M.generate_secret_caves()
             dfhack.persistent.saveWorldDataString(KEY_SECRET1 .. "y", tostring(y))
             dfhack.persistent.saveWorldDataString(KEY_SECRET1 .. "z", tostring(z))
             log.info(("Secret cave 1 (cave silk) at (%d,%d,%d)"):format(x, y, z))
+            -- one-time surface breadcrumb hinting where the cave is
+            spawn_surface_silk_hint(x, y)
         else
             log.warn("Secret cave 1 (cave silk): no suitable site found in surface->C1 gap")
         end
@@ -656,6 +716,17 @@ function M.generate_secret_caves()
 
     dfhack.persistent.saveWorldDataString(KEY_SECRETS_DONE, "1")
     log.info("Secret cave generation complete")
+end
+
+-- One-time repair for saves whose caves were carved before the reindex fix:
+-- those tiles never rebuilt DF's passability cache, so dwarves still see the
+-- floor as solid. Reindex once (gated by a persistent flag) to make old caves
+-- walkable without a manual dig. New carves self-reindex in carve().
+local KEY_PASS_REPAIR = "dwarfipelago/caves/passability_repaired"
+function M.repair_passability()
+    if dfhack.persistent.getWorldDataString(KEY_PASS_REPAIR) == "1" then return end
+    pcall(function() df.global.world.reindex_pathfinding = true end)
+    dfhack.persistent.saveWorldDataString(KEY_PASS_REPAIR, "1")
 end
 
 -- Copy all module exports into _ENV so reqscript callers can access them.

@@ -100,27 +100,21 @@ local function zone_quality_rank(zone)
     return value_to_tier(zone_room_value(zone))
 end
 
--- True if at least one Civzone of the given df.civzone_type exists.
+-- True if a Civzone of the given type exists. Scans the dedicated zone list, not
+-- all of buildings.all (this runs every poll per unchecked room-zone check).
 local function has_zone_type(zone_type)
     local found = false
     pcall(function()
-        for _, z in ipairs(df.global.world.buildings.all) do
-            if not found then
-                local ok, t = pcall(function() return z:getType() end)
-                if ok and t == df.building_type.Civzone then
-                    local ok2, st = pcall(function() return z:getSubtype() end)
-                    if ok2 and st == zone_type then found = true end
-                end
-            end
+        for _, z in ipairs(df.global.world.buildings.other.ANY_ZONE) do
+            local ok, st = pcall(function() return z:getSubtype() end)
+            if ok and st == zone_type then found = true; break end
         end
     end)
     return found
 end
 
--- Best quality tier (0-7) reached by EACH quality-rated room type, as a table
--- keyed by df.civzone_type (Bedroom/Office/DiningHall/Tomb). -1 = no room of
--- that type yet. Computed in a single buildings.all pass and memoized per frame,
--- so the 20 per-room-tier checks that read it share one scan instead of 20.
+-- Best quality tier (0-7) per room type, keyed by civzone_type (-1 = none).
+-- One zone-list pass, memoized per frame so the ~20 tier checks share it.
 local _room_q_cache, _room_q_frame = nil, -1
 local function room_qualities()
     local frame = df.global.world.frame_counter or 0
@@ -128,14 +122,11 @@ local function room_qualities()
     local ct = df.civzone_type
     local q = { [ct.Bedroom] = -1, [ct.Office] = -1, [ct.DiningHall] = -1, [ct.Tomb] = -1 }
     pcall(function()
-        for _, z in ipairs(df.global.world.buildings.all) do
-            local ok, t = pcall(function() return z:getType() end)
-            if ok and t == df.building_type.Civzone then
-                local ok2, st = pcall(function() return z:getSubtype() end)
-                if ok2 and q[st] ~= nil then
-                    local r = zone_quality_rank(z)
-                    if r > q[st] then q[st] = r end
-                end
+        for _, z in ipairs(df.global.world.buildings.other.ANY_ZONE) do
+            local ok2, st = pcall(function() return z:getSubtype() end)
+            if ok2 and q[st] ~= nil then
+                local r = zone_quality_rank(z)
+                if r > q[st] then q[st] = r end
             end
         end
     end)
@@ -148,29 +139,15 @@ local function room_quality(zone_type)
     return room_qualities()[zone_type] or -1
 end
 
--- True if any Civzone is assigned to a location whose abstract building passes
--- the given is_instance check (e.g. df.abstract_building_templest:is_instance).
+-- True if any of the site's locations satisfies check_fn (temple/tavern/library).
+-- Scans only the site location list, not buildings.all (runs every poll).
 local function has_location_type(check_fn)
     local found = false
     pcall(function()
         local site = dfhack.world.getCurrentSite()
         if not site then return end
-        for _, z in ipairs(df.global.world.buildings.all) do
-            if found then return end
-            local ok, t = pcall(function() return z:getType() end)
-            if ok and t == df.building_type.Civzone then
-                local loc_id = -1
-                pcall(function() loc_id = z.location_id end)
-                if loc_id and loc_id >= 0 then
-                    pcall(function()
-                        for _, bld in ipairs(site.buildings) do
-                            if bld.id == loc_id and check_fn(bld) then
-                                found = true; break
-                            end
-                        end
-                    end)
-                end
-            end
+        for _, bld in ipairs(site.buildings) do
+            if check_fn(bld) then found = true; break end
         end
     end)
     return found
@@ -366,10 +343,10 @@ end
 
 M.checks = {
     -- Room type milestones - each zone type is designated.
-    { id = 37370000, name = "Bedroom",              fn = function() return has_zone_type(df.civzone_type.Bedroom)   end },
-    { id = 37370001, name = "Office",               fn = function() return has_zone_type(df.civzone_type.Office)    end },
-    { id = 37370002, name = "Tomb Zone Established", fn = function() return has_zone_type(df.civzone_type.Tomb)      end },
-    { id = 37370004, name = "Dining Hall",          fn = function() return has_zone_type(df.civzone_type.DiningHall) end },
+    { id = 37370000, name = "Bedroom Established",     fn = function() return has_zone_type(df.civzone_type.Bedroom)   end },
+    { id = 37370001, name = "Office Established",      fn = function() return has_zone_type(df.civzone_type.Office)    end },
+    { id = 37370002, name = "Tomb Established",        fn = function() return has_zone_type(df.civzone_type.Tomb)      end },
+    { id = 37370004, name = "Dining Hall Established", fn = function() return has_zone_type(df.civzone_type.DiningHall) end },
     -- Temple tiers: DF's own location_tier - 0 = shrine, 1 = temple, 2 = temple complex.
     -- Shrine also fires when any temple location exists at ANY tier (location_tier >= 0),
     -- not just via the Civzone->location link. Temple/Complex read location_tier while
@@ -438,6 +415,12 @@ M.checks = {
     { id = 37370118, name = "First Anvil Made",        fn = function() return M.production_flag("anvil")          end },
     { id = 37370119, name = "First Millstone Made",    fn = function() return M.production_flag("millstone")      end },
     { id = 37370120, name = "First Minecart Made",     fn = function() return M.production_flag("minecart")       end },
+    { id = 37370121, name = "First Steel Bar",         fn = function() return M.production_flag("steel_bar")      end },
+    { id = 37370122, name = "First Glass Made",        fn = function() return M.production_flag("glass")          end },
+    { id = 37370123, name = "First Soap Made",         fn = function() return M.production_flag("soap")           end },
+    { id = 37370124, name = "First Instrument Made",   fn = function() return M.production_flag("instrument")     end },
+    { id = 37370125, name = "First Coins Minted",      fn = function() return M.production_flag("coins")          end },
+    { id = 37370126, name = "First Roast",             fn = function() return M.production_flag("roast")          end },
 
     -- Trade / export milestones
     { id = 37370202, name = "Dwarven Caravan Visit",    fn = function() return M.trade_flag("dwarven_caravan")    end },
@@ -505,10 +488,14 @@ M.checks = {
     { id = 37370741, name = "Pumped Water",  fn = function() return M.production_flag("pump_water") end },
     { id = 37370742, name = "Pumped Magma",  fn = function() return M.production_flag("pump_magma") end },
 
+    -- Health / hospital.
+    { id = 37370745, name = "First Patient Treated", fn = function() return M.production_flag("patient_treated") end },
+
     -- Biology / animals.
     -- "First Eggs Hatched" (37370750) disabled: hatch detection unreliable on DF v50.
     -- { id = 37370750, name = "First Eggs Hatched", fn = function() return M.production_flag("egg_hatched")     end },
     { id = 37370751, name = "Caged a Hostile Beast", fn = function() return M.production_flag("caged_hostile_beast") end },
+    { id = 37370752, name = "First Birth",           fn = function() return M.production_flag("first_birth")        end },
 
     -- Deep / endgame.
     { id = 37370760, name = "Mined Adamantine", fn = function() return M.production_flag("adamantine")    end },
@@ -522,6 +509,35 @@ M.checks = {
     { id = 37370771, name = "Training Completed",
       fn = function() return dfhack.persistent.getWorldDataString("dwarfipelago/goal") == "0"
                           and M.training_completed() end },
+
+    -- Combat & threats - set by the onUnitDeath hook and siege detector in
+    -- dwarfipelago.lua. Apply to every goal.
+    { id = 37370780, name = "First Kill",              fn = function() return M.production_flag("first_kill")           end },
+    { id = 37370781, name = "First Siege",             fn = function() return M.production_flag("first_siege")          end },
+    { id = 37370782, name = "Forgotten Beast Slain",   fn = function() return M.production_flag("slew_forgotten_beast") end },
+    { id = 37370783, name = "Titan Slain",             fn = function() return M.production_flag("slew_titan")           end },
+    { id = 37370784, name = "Semi-megabeast Slain",    fn = function() return M.production_flag("slew_semimegabeast")   end },
+    { id = 37370785, name = "Megabeast Slain",         fn = function() return M.production_flag("slew_megabeast")       end },
+
+    -- Strange moods & artifacts - set by poll detectors in dwarfipelago.lua.
+    { id = 37370790, name = "First Strange Mood",      fn = function() return M.production_flag("strange_mood")         end },
+    { id = 37370791, name = "First Artifact Created",  fn = function() return M.production_flag("artifact_created")     end },
+
+    -- Cumulative enemy kills (Slay Megabeast goal). Counted in on_unit_death.
+    { id = 37370792, name = "Slay 10 Enemies",         fn = function() return M.enemies_killed() >= 10  end },
+    { id = 37370793, name = "Slay 25 Enemies",         fn = function() return M.enemies_killed() >= 25  end },
+    { id = 37370794, name = "Slay 50 Enemies",         fn = function() return M.enemies_killed() >= 50  end },
+    { id = 37370795, name = "Slay 100 Enemies",        fn = function() return M.enemies_killed() >= 100 end },
+    { id = 37370796, name = "Slay 200 Enemies",        fn = function() return M.enemies_killed() >= 200 end },
+
+    -- Fortress-life milestones: legendary/power/trade/tame latched by detectors;
+    -- tavern/library read the live location list.
+    { id = 37373000, name = "First Legendary Dwarf",   fn = function() return M.production_flag("legendary_dwarf") end },
+    { id = 37373001, name = "Tavern Established",       fn = function() return has_location_type(function(b) return df.abstract_building_inn_tavernst:is_instance(b) end) end },
+    { id = 37373002, name = "Library Established",      fn = function() return has_location_type(function(b) return df.abstract_building_libraryst:is_instance(b) end) end },
+    { id = 37373003, name = "Harnessed Power",         fn = function() return M.production_flag("harnessed_power") end },
+    { id = 37373004, name = "Completed a Trade",       fn = function() return M.production_flag("completed_trade") end },
+    { id = 37373005, name = "Tamed a Wild Beast",      fn = function() return M.production_flag("tamed_beast") end },
 }
 
 -- ── Production flag helpers ───────────────────────────────────────────────────
@@ -704,6 +720,16 @@ function M.crops_harvested()
     return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/farming/crop_count")) or 0
 end
 
+-- Cumulative enemies slain, incremented from on_unit_death (Slay Megabeast goal).
+function M.enemies_killed()
+    return tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/combat/enemies_killed")) or 0
+end
+function M.increment_enemies_killed()
+    local n = M.enemies_killed() + 1
+    dfhack.persistent.saveWorldDataString("dwarfipelago/combat/enemies_killed", tostring(n))
+    return n
+end
+
 -- ── Job type → production flag mapping ───────────────────────────────────────
 -- Called by main.lua's eventful job hook to classify completed jobs.
 --
@@ -768,6 +794,7 @@ map("BrewDrink",               "brew")
 -- Materials
 map("SmeltOre",                "metal_bar")
 map("MeltMetalObject",         "metal_bar")
+map("MakeRawGlass",            "glass")   -- gate First Glass Made on the furnace job, not embark glass
 map("CutBlock",                "stone_block")
 map("ConstructBlocks",         "stone_block")  -- DF50+ name for cutting blocks
 map("WeaveCloth",              "cloth")
@@ -802,6 +829,11 @@ local function rprod(name, flag) REACTION_TO_PROD[name] = flag end
 rprod("BREW_DRINK_FROM_PLANT",        "brew")
 rprod("BREW_DRINK_FROM_PLANT_GROWTH", "brew")
 rprod("TAN_A_HIDE",                   "leather")
+-- Gate First Steel/Soap on the making reaction (not embark bars). Glass is a
+-- hardcoded job type (MakeRawGlass), mapped in JOB_TO_FLAG below.
+rprod("STEEL_MAKING",                 "steel_bar")
+rprod("MAKE_SOAP_FROM_TALLOW",        "soap")
+rprod("MAKE_SOAP_FROM_OIL",           "soap")
 
 function M.job_to_production_flag(job)
     if job and job.job_type then
@@ -828,6 +860,7 @@ M.has_zone_type        = has_zone_type
 M.room_quality         = room_quality
 M.best_location_tier   = best_location_tier
 M.best_location_value  = best_location_value
+M.held_by_unit         = held_by_unit
 
 function M.has_temple_zone()
     return has_location_type(function(b) return df.abstract_building_templest:is_instance(b) end)
@@ -843,17 +876,14 @@ function M.best_room_description()
     local best_desc = ""
     pcall(function()
         local ct = df.civzone_type
-        for _, z in ipairs(df.global.world.buildings.all) do
-            local ok, t = pcall(function() return z:getType() end)
-            if ok and t == df.building_type.Civzone then
-                local ok2, st = pcall(function() return z:getSubtype() end)
-                if ok2 and (st == ct.Bedroom or st == ct.Office
-                         or st == ct.DiningHall or st == ct.Tomb) then
-                    local desc = ""
-                    pcall(function() desc = dfhack.buildings.getRoomDescription(z) or "" end)
-                    local r = ROOM_TIER[desc] or -1
-                    if r > best_rank then best_rank = r; best_desc = desc end
-                end
+        for _, z in ipairs(df.global.world.buildings.other.ANY_ZONE) do
+            local ok2, st = pcall(function() return z:getSubtype() end)
+            if ok2 and (st == ct.Bedroom or st == ct.Office
+                     or st == ct.DiningHall or st == ct.Tomb) then
+                local desc = ""
+                pcall(function() desc = dfhack.buildings.getRoomDescription(z) or "" end)
+                local r = ROOM_TIER[desc] or -1
+                if r > best_rank then best_rank = r; best_desc = desc end
             end
         end
     end)
@@ -1178,7 +1208,7 @@ local MATCAT_TO_FLAG = {
     stone = "stone", rock = "stone",
     glass = "glass", glass2 = "glass", glass3 = "glass",
     leather = "leather",
-    cloth = "cloth", yarn = "cloth", silk = "cloth", plant_cloth = "cloth",
+    cloth = "cloth", yarn = "cloth", silk = "silk", plant_cloth = "cloth",
     bone = "bone",
 }
 
@@ -1214,7 +1244,7 @@ local function classify_mat(mat_type, mat_index)
             return "cloth"  -- plant fiber / thread
         elseif mat.mode == "creature" then
             if up:find("LEATHER") then return "leather" end
-            if up:find(":SILK") then return "cloth" end
+            if up:find(":SILK") then return "silk" end
             return "bone"
         end
 
@@ -1311,6 +1341,9 @@ local function _job_flag_dispatch(job)
         return LARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
     elseif flag == "FARMOR_SUBTYPE" then
         return FARMOR_SUBTYPE_FLAG[tonumber(job.item_subtype)]
+    elseif flag == "cloth" then
+        -- WeaveCloth covers plant/yarn/silk thread; silk cloth is its own check.
+        if mat_craft_flag(job) == "silk" then return "silk" end
     end
     return flag
 end
@@ -1320,13 +1353,19 @@ end
 local NON_MATERIAL = {
     beds=true, ash=true, charcoal=true, metal_bars=true, coke_bars=true,
     pearlash=true, gypsum_plaster=true, quicklime=true, glass=true,
-    leather=true, sheet=true, cloth=true, alcohol=true,
+    leather=true, sheet=true, cloth=true, silk=true, alcohol=true,
     lye=true, potash=true, milk_of_lime=true, prepared_meal=true,
     tallow=true, oil=true, press_cake=true, honey=true,
     bee_wax=true, dye=true, soap=true, training_axe=true,
     training_spear=true, training_sword=true, cup=true, ballista_parts=true,
     catapult_parts=true, millstone=true, quern=true, slab=true,
     mug=true, totem=true, window=true,
+    -- Inherently single-material items the AP registers as non-material (must
+    -- match craftsanity.non_material_items). Without these the mod appended a
+    -- material suffix (e.g. leather_armor_leather) that the client never
+    -- initialized, so the craft was silently dropped and no check fired.
+    display_case=true, bolt_thrower_parts=true, codex=true, quire=true,
+    scroll=true, leather_armor=true,
 }
 
 -- Returns the base item flag for a job (no material suffix). Used by the
@@ -1426,7 +1465,7 @@ function M.get_all_craft_counts()
     return out
 end
 
--- Clears all recorded craft counts and the index (used by 'dwarfipelago reset').
+-- Clears all recorded craft counts and the index (used by 'dwarfipelago progress-wipe').
 function M.clear_craft_counts()
     local json = require('json')
     local raw  = dfhack.persistent.getWorldDataString(CRAFT_INDEX_KEY)
@@ -1632,7 +1671,7 @@ function M.get_all_skill_counts()
     return out
 end
 
--- Clears all recorded skill levels back to 0 (used by 'dwarfipelago reset').
+-- Clears all recorded skill levels back to 0 (used by 'dwarfipelago progress-wipe').
 -- Only resets skills that were initialised for this slot (level >= 0).
 function M.clear_skill_counts()
     for _, skilltype in ipairs(SKILL_LIST) do
@@ -1778,6 +1817,102 @@ function M.barracks_is_set_up()
         return false
     end)
     return ok and result == true
+end
+
+-- ── Merchant deity: Dwarfipelagius ────────────────────────────────────────────
+-- Adds Dwarfipelagius to the deities the fort can dedicate a temple to. DF builds
+-- the "create temple" deity list from citizens' worship links, so we create the
+-- deity historical figure and link a citizen to it. (Ported from feat/shopCreatives
+-- without the religion entity, temple auto-assignment, or shrine building.)
+local KEY_DEITY_ID = "dwarfipelago/deity_id"
+
+local function find_dwarf_race()
+    for i, raw in ipairs(df.global.world.raws.creatures.all) do
+        if raw.creature_id == "DWARF" then return i end
+    end
+    return 0
+end
+
+-- Create the Dwarfipelagius deity historical figure. Idempotent (checks history
+-- first so it never duplicates). Returns the new HF id.
+local function create_merchant_deity()
+    for _, fig in ipairs(df.global.world.history.figures) do
+        if fig.name.first_name == "Dwarfipelagius" and fig.flags.deity then
+            return fig.id
+        end
+    end
+    local hf = df.historical_figure:new()
+    hf.race          = find_dwarf_race()
+    hf.caste         = 0
+    hf.sex           = -1
+    hf.appeared_year = -1
+    hf.born_year     = -1
+    hf.born_seconds  = -1
+    hf.curse_year    = -1
+    hf.curse_seconds = -1
+    hf.old_year      = -1
+    hf.old_seconds   = -1
+    hf.died_year     = -1
+    hf.died_seconds  = -1
+    hf.breed_id      = -1
+    hf.name.has_name   = true
+    hf.name.first_name = "Dwarfipelagius"
+    hf.flags.deity        = true
+    hf.flags.brag_on_kill = true
+    hf.flags.kill_quest   = true
+    hf.flags.chatworthy   = true
+    hf.flags.flashes      = true
+    hf.flags.never_cull   = true
+    hf.info = df.historical_figure_info:new()
+    hf.info.metaphysical = {new = true}
+    hf.info.known_info   = {new = true}
+    for _, sphere in ipairs({df.sphere_type.TRADE, df.sphere_type.WEALTH, df.sphere_type.JEWELS}) do
+        hf.info.metaphysical.spheres:insert('#', sphere)
+    end
+    hf.pool_id = -1
+    hf.id      = df.global.hist_figure_next_id
+    df.global.hist_figure_next_id = df.global.hist_figure_next_id + 1
+    df.global.world.history.figures:insert('#', hf)
+    return hf.id
+end
+
+-- Ensure Dwarfipelagius exists; returns the deity HF id (or nil on failure).
+function M.ensure_merchant_deity()
+    local stored = tonumber(dfhack.persistent.getWorldDataString(KEY_DEITY_ID))
+    if stored and stored >= 0 then return stored end
+    local id
+    pcall(function() id = create_merchant_deity() end)
+    if id then dfhack.persistent.saveWorldDataString(KEY_DEITY_ID, tostring(id)) end
+    return id
+end
+
+-- Link a living citizen's historical figure to the deity so DF lists it in the
+-- "create temple" selection. Idempotent; re-links a fresh citizen if needed.
+function M.register_deity_with_citizens(deity_id)
+    if not deity_id or deity_id < 0 then return end
+    pcall(function()
+        for _, unit in ipairs(df.global.world.units.active) do
+            if dfhack.units.isCitizen(unit) and dfhack.units.isAlive(unit)
+                    and unit.hist_figure_id >= 0 then
+                local hf = df.historical_figure.find(unit.hist_figure_id)
+                if hf then
+                    local already = false
+                    for _, lnk in ipairs(hf.histfig_links) do
+                        if df.histfig_hf_link_deityst:is_instance(lnk) and lnk.target_hf == deity_id then
+                            already = true; break
+                        end
+                    end
+                    if not already then
+                        local lnk = df.histfig_hf_link_deityst:new()
+                        lnk.target_hf     = deity_id
+                        lnk.link_strength = 50
+                        hf.histfig_links:insert('#', lnk)
+                    end
+                    return  -- one worshipping citizen is enough for the temple list
+                end
+            end
+        end
+    end)
 end
 
 -- reqscript returns the script's _ENV, not the explicit return value.

@@ -1,0 +1,6 @@
+inorganic_dwarfipelago_shop
+
+[OBJECT:INORGANIC]
+
+	One stone per shop slot, named after the good it stands for.
+

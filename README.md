@@ -240,6 +240,8 @@ Five coffers gate the five treasury milestone checks. These thresholds measure t
 
 The **Legendary Wealth** goal also requires all 5 coffers and a treasury value at or above your configured `wealth_goal_amount` to complete.
 
+Coffers also gate the **Merchant's Shop**: the Archipelago caravan only stops if you hold at least one, and each coffer unlocks 10 more of the shop's 50 slots (see Merchant's Shop).
+
 #### Immigration Wave (x5) - Population Growth
 
 Five waves gate the five fortress title checks (Hamlet through Metropolis) and scale up the population requirement for every goal's completion condition. Each Immigration Wave received also brings a small group of dwarves into your fortress as new citizens (arriving named and in basic clothing at the depot), so receiving them genuinely grows your population.
@@ -296,7 +298,8 @@ Throughout the Multiworld will contain this item. Collect all of them to reach y
 | Industry materials | Flux stone, pig iron, charcoal, cloth bolts, tanned leather, **bags of sand** (glassmaking), raw clay (kaolinite for porcelain), plus rare low-grade copper tools (pick/axe/sword) |
 | Livestock | Breeding pairs - pigs, chickens, alpacas, cows, sheep, yaks - delivered to the depot to grow your herds |
 | Fortress unlocks | **Progressive Mining Depth** (x4 - each lets you dig one cavern tier deeper), **Sunlight Tonic** (your dwarves may walk freely in sunlight - no cave-adaptation nausea) |
-| Traps | Goblin ambush, cave bear incursion, vermin infestation, unquenchable thirst, lost caravan, catsplosion, goblin saboteurs, ensnaring webs, **order sabotage** (shreds every current manager work order) |
+| Curatives | **Miracle Cure** (fully heals a random injured dwarf), **Stress Blockers** (resets your unhappiest dwarf - adult or child - to a perfect mental state: ecstatic, and clears any active mental break) |
+| Traps | Goblin ambush, cave bear incursion, vermin infestation, unquenchable thirst, lost caravan (the next caravan's cargo arrives rotten and worthless), catsplosion, goblin saboteurs, ensnaring webs, **order sabotage** (shreds every current manager work order) |
 | Crafting Permits | When `craftpermits` is enabled, each permit item unlocks the ability to craft one item type (e.g. you can't make a table until the Table permit arrives). See the Crafting Permits section. |
 | Cave Map Fragment | Reveals a hint about the next undiscovered custom cave — coordinate hint for treasure caves, directional warning for trap caves. Up to 6 per slot; extra fragments beyond 6 are acknowledged but produce no new hint. |
 | Remains of the Great King | Treasure-hunt goal item - collect all of them (`king_remains` goal) to win. |
@@ -315,7 +318,7 @@ All received goods are delivered to the **trade depot**.
 Completing these milestones sends items to other players:
 
 - **Treasury milestones** - Humble Beginnings (1,000☼) through Legendary Vault (500,000☼) — based on the combined value of **minted coins and cut gems** in fortress stocks, not total fortress wealth
-- **First production** - first weapon forged, armor crafted, meal prepared, brew completed, metal bar smelted, gem cut, and more (18 milestones)
+- **First production** - first weapon forged, armor crafted, meal prepared, brew completed, metal bar smelted, gem cut, steel bar smelted, glass made, soap made, instrument crafted, coins minted, lavish roast, and more (27 milestones)
 - **Trade & diplomacy** - dwarven/elven/human caravan visits, outpost liaison meeting, first raid, first artifact recovery, first act of diplomacy (an elven/human caravan-visit check auto-completes if that civilisation doesn't exist in your world, so it can't soft-lock the seed)
 - **Fortress status** - noble appointments and civilisation recognition milestones
 - **Fortress titles** - Hamlet, Village, Town, City, Metropolis (population + wealth thresholds)
@@ -323,7 +326,10 @@ Completing these milestones sends items to other players:
 - **Mining** - cavern-approach progress (25% / 50% toward each cavern), tiles excavated (100 → 10,000), and breach events (First/Second/Third Cavern, Reached the Magma Sea, Welcome to the Circus). When **Progressive Mining Depth** is enabled, how deep you may dig is itself gated by items (see below)
 - **Farming** - harvested-crop milestones (50 / 100 / 250 / 500 / 1,000 crops)
 - **Infrastructure** - Built a Well, Pumped Water, Pumped Magma
-- **Biology** - First Eggs Hatched, Caged a Hostile Beast
+- **Biology** - Caged a Hostile Beast, First Birth (a child born in the fortress)
+- **Health** - First Patient Treated (a wounded dwarf is cared for in the hospital; gated behind bed-making, and the Beds permit when crafting permits are set to *all*)
+- **Combat & threats** - First Kill and First Siege (every goal); beast-slain milestones - Forgotten Beast, Titan, Semi-megabeast, Megabeast (all goals except Slay Megabeast, and optionally excludable via the *Exclude Difficult Combat Checks* toggle); enemy-kill counts - Slay 10 / 25 / 50 / 100 / 200 Enemies (Slay Megabeast goal only, gated behind Military Training)
+- **Strange moods & artifacts** - First Strange Mood (fires the moment the first mood is claimed), First Artifact Created
 - **Deep / Endgame** - Mined Adamantine, Sold an Artifact
 - **Craftsanity** - optional crafting milestone checks (see below)
 - **Skillsanity** - optional per-skill checks: each level a dwarf gains in a tracked labor or combat skill fires a check (see below)
@@ -481,22 +487,20 @@ The thresholds are based on your own world's cavern/magma z-levels as they're di
 
 The Merchant's Shop lets you **spend minted coins to buy multiworld items** — a way to turn your economy into progress when the checks dry up. It's on by default; disable it with `merchant_shop: false`.
 
-### Opening the shop — the Merchant's Shrine
+### The Archipelago caravan
 
-The shop is closed until you build a **Merchant's Shrine** and keep it standing. A shrine is a **dedicated temple zone** (a Civzone assigned to a temple location) that contains:
+The shop is **caravan-only**. An Archipelago caravan visits your **trade depot** once a year (in spring) and, while it is docked, the shop is open. The caravan only stops if your fortress has **at least one Merchant's Coffer** to trade against - with none, it passes your fortress by and deems you "unworthy of a stop." (There is no longer a Merchant's Shrine to build; any temple you raise to Dwarfipelagius is now purely decorative.)
 
-- a built **altar** (Offering Place),
-- a **container** (bin/coffer),
-- **bars of the chosen type** — **5 gold**, **10 silver**, or **20 coke** (the accepted bar type is configurable), and
-- total zone value **≥ 5,000☼**.
+The caravan arrives as a small entourage - a lead merchant, a second trader, a couple of armed guards, and two pack mules - that stands at the depot for its stay and then packs up and departs as a group. If Energy Link is enabled you can also **call a caravan early** by spending energy (see Energy Link).
 
-The shop opens a few seconds after the shrine qualifies, and **closes again if the shrine is dismantled** — it must stay intact. The panel's **Shop** tab shows your progress toward these requirements.
+**Dwarfipelagius**, the merchant god, is added to your civilization's worshippable deities, so you can dedicate a temple to them like any other god (purely for flavor and the decorative shrine floor marker).
 
 ### Buying
 
-- The shop has **50 slots**; **10 unlock per Merchant's Coffer** you've received (so all 50 need all 5 coffers).
+- Select the **trade depot** and press **Ctrl+A** (or use the panel's **Shop** tab) while a caravan is docked.
+- The shop has **50 slots**; **10 unlock per Merchant's Coffer** you've received (so all 50 need all 5 coffers). Goods stay limited to the coffer tiers you have unlocked.
 - Each slot holds **one multiworld item at a coin price** (a value banded by tier). Buying deducts that value from your minted coins and sends the item's location check; each slot is bought once.
-- Buy from the panel's **Shop** tab, or from the console: `dwarfipelago buy-shop <slot>`.
+- Console: `dwarfipelago buy-shop <slot>` (only works while a caravan is docked).
 
 ### Options
 
@@ -624,8 +628,8 @@ A running list of ideas, planned features, and things that still need doing. No 
 ### Ideas / Future Features
 
 - [X] **Skill milestone locations** - first Skilled / Expert / Master dwarf per skill category (originally cut for scope)
-- [ ] **Combat milestone locations** - first kill, first siege survived, first forgotten beast
-- [ ] **Artifact creation check** - a dwarf goes into a strange mood and produces an artifact
+- [X] **Combat milestone locations** - first kill, first siege, and beast-slain checks (forgotten beast, titan, semi-megabeast, megabeast), plus enemy-kill counts on the Slay Megabeast goal
+- [X] **Artifact creation check** - a dwarf goes into a strange mood and produces an artifact
 - [ ] **Custom AP items** - define unique DF-flavored items as raw reactions for cleaner in-game delivery
 - [X] **Overlay UI** - DFHack overlay panel showing current AP connection status and recent items
 - [X] **Multi-fortress support** - allow switching between saves without resetting AP state

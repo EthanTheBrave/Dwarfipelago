@@ -2,8 +2,9 @@
 -- Usage (DFHack console):
 --   dwarfipelago start              -- enable and register hooks
 --   dwarfipelago stop               -- disable and unregister hooks
+--   dwarfipelago restart            -- stop then start (reload hooks)
 --   dwarfipelago status             -- show current state
---   dwarfipelago reset              -- wipe persistent state (use with care)
+--   dwarfipelago progress-wipe      -- wipe persistent state (use with care)
 --   dwarfipelago resetseed          -- clear AP seed lock so this world can join a new slot
 --   dwarfipelago receive <item>     -- manually deliver an item (for testing)
 --   dwarfipelago test <name> [args] -- run a mechanic verification test (e.g. spawn, goblin)
@@ -55,6 +56,16 @@ for _, name in ipairs({
 }) do
     local v = df.job_type[name]
     if v ~= nil then MINING_JOBS[v] = true end
+end
+
+-- Hospital treatment jobs - completing any of these means a patient was helped.
+local MEDICAL_JOBS = {}
+for _, name in ipairs({
+    "DiagnosePatient", "Surgery", "DressWound", "CleanPatient",
+    "PlaceInTraction", "ApplyCast", "SetBone",
+}) do
+    local v = df.job_type[name]
+    if v ~= nil then MEDICAL_JOBS[v] = true end
 end
 
 -- Reverse-map a block's global_feature id to the embark's map_feature object.
@@ -386,6 +397,11 @@ local function was_citizen(unit)
         return unit.civ_id == df.global.plotinfo.civ_id
     end)
     if not (ok and civ_ok) then return false end
+    -- Owned livestock share the fort's civ_id, so butchering (or any animal death)
+    -- would otherwise count as a citizen death and fire a spurious DeathLink.
+    local anim = false
+    pcall(function() anim = dfhack.units.isAnimal(unit) end)
+    if anim then return false end
     if unit.flags1.merchant or unit.flags1.diplomat then return false end
     if unit.flags2.visitor or unit.flags2.visitor_uninvited then return false end
     if unit.flags2.resident then return false end
@@ -439,6 +455,33 @@ local function on_unit_death(uid)
         end
     end
 
+    -- ── Combat milestone checks ───────────────────────────────────────────────
+    -- First Kill applies to every goal. The great-beast kills are deactivated on
+    -- Slay Megabeast (that kill IS the goal; those locations are dropped from its pool).
+    pcall(function()
+        local slay = (goal_setting("goal", -1) == 0)
+        local fb  = dfhack.units.isForgottenBeast(unit)
+        local ti  = dfhack.units.isTitan(unit)
+        local smb = dfhack.units.isSemiMegabeast(unit)
+        local mb  = dfhack.units.isMegabeast(unit)
+        local enemy = fb or ti or smb or mb
+        if enemy and not slay then
+            if fb  then checks.set_production_flag("slew_forgotten_beast") end
+            if ti  then checks.set_production_flag("slew_titan")           end
+            if smb then checks.set_production_flag("slew_semimegabeast")   end
+            if mb  then checks.set_production_flag("slew_megabeast")       end
+        end
+        if not enemy then
+            local ok, inv = pcall(dfhack.units.isInvader, unit)
+            enemy = ok and inv or false
+        end
+        if enemy then
+            checks.set_production_flag("first_kill")
+            -- Tally kills for the "Slay N Enemies" checks (Slay Megabeast goal only).
+            if slay then checks.increment_enemies_killed() end
+        end
+    end)
+
     -- ── DeathLink: count citizen deaths ──────────────────────────────────────
     -- Skip (and consume) deaths we inflicted ourselves applying a received
     -- DeathLink, so those don't feed back into our outgoing threshold and bounce
@@ -465,7 +508,13 @@ local function apply_pending_recv_deathlinks()
 
     state.clear_pending_recv()
 
-    local threshold     = goal_setting("deathlink_threshold", 5)
+    -- When split is on, incoming links use their own receive amount; else the combined threshold.
+    local threshold
+    if goal_setting("deathlink_split", 0) == 1 then
+        threshold = goal_setting("deathlink_receive_amount", 5)
+    else
+        threshold = goal_setting("deathlink_threshold", 5)
+    end
     local is_percentage = goal_setting("deathlink_percentage", 0) == 1
 
     local per_link
@@ -576,6 +625,7 @@ local function detect_caravans()
         if dfhack.units.isAlive(unit) then
             -- Merchant units mark a caravan visit for that race.
             if unit.flags1.merchant then
+                items.trigger_lost_caravan_curse()  -- spoils this cargo if the trap is armed
                 local creature = df.creature_raw.find(unit.race)
                 if creature then
                     local flag = CARAVAN_RACES[creature.creature_id]
@@ -593,6 +643,23 @@ local function detect_caravans()
             end
         end
     end
+end
+
+-- Native AP shop: put the AP goods on a docked caravan as real items and detect
+-- purchases. Piggybacks any caravan for now; will gate to the Archipelago civ
+-- once that caravan is wired up.
+local apcaravan = reqscript('internal/dwarfipelago/apcaravan')
+local _ap_caravan_was_docked = false
+local function poll_ap_caravan()
+    local docked = apcaravan.caravan_docked()
+    if docked then
+        apcaravan.inject_ap_goods()
+        apcaravan.hide_caravan_goods()   -- gorlak caravan: show only AP goods
+        apcaravan.detect_ap_trades()
+    elseif _ap_caravan_was_docked then
+        apcaravan.clear_ap_goods()   -- caravan left: pull back any unbought AP goods
+    end
+    _ap_caravan_was_docked = docked
 end
 
 -- ability to force a caravan
@@ -647,6 +714,20 @@ local function get_season_name()
     return SEASON_NAMES[_cur_season()] or "Unknown"
 end
 
+-- Announce zoomed to the trade depot (caravan-arrival style); falls back to a
+-- plain announcement if the depot can't be located.
+local function announce_caravan(msg, color)
+    local zx, zy, zz = items.find_trade_depot_center()
+    if zx then
+        local ok = pcall(function()
+            dfhack.gui.showZoomAnnouncement(df.announcement_type.CARAVAN_ARRIVAL,
+                { x = zx, y = zy, z = zz }, msg, color, true)
+        end)
+        if ok then return end
+    end
+    dfhack.gui.showAnnouncement(msg, color, true)
+end
+
 local function call_ap_caravan()
     if dfhack.persistent.getWorldDataString("dwarfipelago/energy_enabled") ~= "1" then
         dfhack.gui.showAnnouncement("[AP] Energy Link is not enabled for this slot.", COLOR_YELLOW, true)
@@ -698,9 +779,9 @@ local function _check_spawn_caravan_approved()
     end
     dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "1")
     local cost = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/caravan_energy_cost") or "0") or 0
-    dfhack.gui.showAnnouncement(
-        ("[AP] The AP caravan has arrived! (%s spent)"):format(fmt_energy(cost)),
-        COLOR_GREEN, true)
+    announce_caravan(
+        ("[AP] The Archipelago caravan has arrived! (%s spent)"):format(fmt_energy(cost)),
+        COLOR_GREEN)
     print("[Dwarfipelago] AP caravan spawned.")
 end
 
@@ -861,9 +942,9 @@ local function buy_shop(slot)
         dfhack.gui.showAnnouncement("[AP] The shop is not available yet.", COLOR_YELLOW, true)
         return
     end
-    if dfhack.persistent.getWorldDataString("dwarfipelago/shop_unlocked") ~= "1" then
+    if dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_active") ~= "1" then
         dfhack.gui.showAnnouncement(
-            "[AP] The shop is closed -- build the merchant's shrine to open it.", COLOR_YELLOW, true)
+            "[AP] The shop is closed -- wait for an Archipelago caravan to dock.", COLOR_YELLOW, true)
         return
     end
     local shop = json.decode(raw) or {}
@@ -919,26 +1000,151 @@ local function buy_shop(slot)
         ("[AP] Bought %s for %d coins."):format(tostring(entry.item or "item"), price), COLOR_GREEN, true)
 end
 
--- Merchant shrine detector: opens the shop when the player has a temple zone (a
--- Civzone assigned to a location) holding a built altar (OfferingPlace), a
--- container, the chosen bar type/count, and total item/furniture value >= threshold.
--- Bar type (gold/coke/silver) is read from dwarfipelago/shrine_bar_type.
--- Re-runs so the shrine must STAY intact for the shop to remain open.
--- Writes dwarfipelago/shop_unlocked + dwarfipelago/shrine_progress (for the panel).
---
--- Performance: this scans every item in the fort. It used to run that scan once
--- PER location zone (temple/tavern/library/...) EVERY poll, i.e. O(zones × items)
--- every 100 ticks - the single biggest per-poll cost on a large fort. It now:
---   * no-ops entirely when the Merchant's Shop option is off,
---   * makes ONE items.all pass, attributing each item to its zone (the expensive
---     value/type/material lookups run once per item, not once per item per zone),
---   * runs only every SHRINE_POLL_INTERVAL polls (the shop opening a few seconds
---     later is imperceptible, the cost saving is not).
+-- Merchant shrine detector: opens the shop when a temple zone holds a built altar,
+-- a container, the chosen bar type/count, and item value >= threshold. Re-runs so
+-- the shrine must stay intact. No-op when the shop is off; throttled to every
+-- SHRINE_POLL_INTERVAL polls.
 local SHRINE_VALUE_REQ = 5000
 local SHRINE_BAR_REQS  = {gold=5, coke=20, silver=10}
 local SHRINE_BAR_TOKS  = {gold="GOLD", coke="COKE", silver="SILVER"}
 local SHRINE_POLL_INTERVAL = 5   -- run once every 5 polls (~every 500 ticks)
 local _shrine_poll_counter = 0
+
+-- ── Shrine marker ─────────────────────────────────────────────────────────────
+-- A forbidden gold statue marking the claimed shrine zone, so the player can see
+-- which temple the shop watches. Tracked by id, moved when the zone changes,
+-- garbage-collected when none; excluded from the value scan by id.
+local SHRINE_MARKER_KEY  = "dwarfipelago/shrine_marker"
+local SHRINE_MARKER_ZONE = "dwarfipelago/shrine_marker_zone"
+
+local function shrine_marker_material()
+    for _, tok in ipairs({ "INORGANIC:GOLD", "INORGANIC:PLATINUM",
+                           "INORGANIC:SILVER", "INORGANIC:COPPER" }) do
+        local m = dfhack.matinfo.find(tok)
+        if m then return m.type, m.index end
+    end
+end
+
+-- First open floor tile in the zone (marker never lands in a wall); else centre.
+local function shrine_floor_tile(best)
+    local ok_shape = {
+        [df.tiletype_shape.FLOOR]   = true,
+        [df.tiletype_shape.BOULDER] = true,
+        [df.tiletype_shape.PEBBLES] = true,
+    }
+    for x = best.x1 or best.cx, best.x2 or best.cx do
+        for y = best.y1 or best.cy, best.y2 or best.cy do
+            local tt = dfhack.maps.getTileType(x, y, best.cz)
+            if tt and ok_shape[df.tiletype.attrs[tt].shape] then return x, y, best.cz end
+        end
+    end
+    return best.cx, best.cy, best.cz
+end
+
+local function sync_shrine_marker(best, marker_id)
+    local marker = marker_id and df.item.find(marker_id) or nil
+
+    -- No temple zone claimed: retire the marker.
+    if not best.zone_id then
+        if marker then pcall(function()
+            marker.flags.forbid = true
+            marker.flags.hidden = true
+            marker.flags.garbage_collect = true
+        end) end
+        dfhack.persistent.saveWorldDataString(SHRINE_MARKER_KEY, "")
+        dfhack.persistent.saveWorldDataString(SHRINE_MARKER_ZONE, "")
+        return
+    end
+
+    local tx, ty, tz = shrine_floor_tile(best)
+    if marker then
+        local mx, my, mz = dfhack.items.getPosition(marker)
+        if mx ~= tx or my ~= ty or mz ~= tz then
+            pcall(function() dfhack.items.moveToGround(marker, { x = tx, y = ty, z = tz }) end)
+        end
+        pcall(function() marker.flags.forbid = true end)
+    else
+        -- Create a fresh marker (also self-heals if the old one was destroyed).
+        local creator
+        for _, u in ipairs(df.global.world.units.active) do
+            if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then creator = u; break end
+        end
+        if not creator then return end
+        local mt, mi = shrine_marker_material()
+        if not mt then return end
+        pcall(function()
+            local made = dfhack.items.createItem(creator, df.item_type.STATUE, -1, mt, mi, false)
+            local it = made and made[1]
+            if not it then return end
+            dfhack.items.moveToGround(it, { x = tx, y = ty, z = tz })
+            it.flags.forbid = true
+            marker = it
+            dfhack.persistent.saveWorldDataString(SHRINE_MARKER_KEY, tostring(it.id))
+        end)
+        if not marker then return end
+    end
+
+    -- Point the player at the shrine once, when the claimed zone changes.
+    if tostring(best.zone_id) ~= dfhack.persistent.getWorldDataString(SHRINE_MARKER_ZONE) then
+        dfhack.persistent.saveWorldDataString(SHRINE_MARKER_ZONE, tostring(best.zone_id))
+        pcall(function()
+            dfhack.gui.showZoomAnnouncement(df.announcement_type.CARAVAN_ARRIVAL,
+                { x = tx, y = ty, z = tz },
+                "[AP] The merchant god's mark rests upon this shrine.", COLOR_GREEN, true)
+        end)
+    end
+end
+
+-- ── Shrine floor marker ───────────────────────────────────────────────────────
+-- Replaces the old forbidden statue: instantly lay a constructed floor across the
+-- claimed temple zone's floor tiles, rotating four bright materials so it reads as
+-- an Archipelago-branded floor. Idempotent per zone.
+local SHRINE_FLOOR_ZONE = "dwarfipelago/shrine_floor_zone"
+local AP_FLOOR_TOKENS = { "INORGANIC:GOLD", "INORGANIC:MICROCLINE", "INORGANIC:CINNABAR", "INORGANIC:MALACHITE" }
+
+local function place_shrine_floor(best, marker_id)
+    -- Retire any legacy gold-statue marker from older saves.
+    if marker_id then
+        local m = df.item.find(marker_id)
+        if m then pcall(function() m.flags.forbid = true; m.flags.hidden = true; m.flags.garbage_collect = true end) end
+        dfhack.persistent.saveWorldDataString(SHRINE_MARKER_KEY, "")
+    end
+    if not best.zone_id then return end
+    -- Lay the floor only once per claimed zone.
+    if dfhack.persistent.getWorldDataString(SHRINE_FLOOR_ZONE) == tostring(best.zone_id) then return end
+
+    local mats = {}
+    for _, tok in ipairs(AP_FLOOR_TOKENS) do
+        local mi = dfhack.matinfo.find(tok)
+        if mi then mats[#mats + 1] = { t = mi.type, i = mi.index } end
+    end
+    if #mats == 0 then return end
+
+    local z = best.cz or best.z
+    for x = best.x1, best.x2 do
+        for y = best.y1, best.y2 do
+            local tt = dfhack.maps.getTileType(x, y, z)
+            if tt and df.tiletype.attrs[tt].shape == df.tiletype_shape.FLOOR
+                    and tt ~= df.tiletype.ConstructedFloor
+                    and not dfhack.buildings.findAtTile(x, y, z) then
+                local m = mats[((x + y) % #mats) + 1]
+                pcall(function()
+                    local c = df.construction:new()
+                    c.pos.x, c.pos.y, c.pos.z = x, y, z
+                    c.item_type    = df.item_type.BOULDER
+                    c.item_subtype = -1
+                    c.mat_type     = m.t
+                    c.mat_index    = m.i
+                    c.original_tile = tt
+                    dfhack.constructions.insert(c)
+                    local blk = dfhack.maps.getTileBlock(x, y, z)
+                    blk.tiletype[x % 16][y % 16] = df.tiletype.ConstructedFloor
+                end)
+            end
+        end
+    end
+    dfhack.persistent.saveWorldDataString(SHRINE_FLOOR_ZONE, tostring(best.zone_id))
+end
 
 local function detect_shrine()
     -- Shop disabled for this seed => never scan (shop_enabled written by the AP
@@ -952,6 +1158,7 @@ local function detect_shrine()
     local bar_type = dfhack.persistent.getWorldDataString("dwarfipelago/shrine_bar_type") or "gold"
     local bar_req  = SHRINE_BAR_REQS[bar_type] or 5
     local bar_tok  = SHRINE_BAR_TOKS[bar_type] or "GOLD"
+    local marker_id = tonumber(dfhack.persistent.getWorldDataString(SHRINE_MARKER_KEY))
 
     local best = {value=0, bars=0, altar=false, bin=false, ok=false, score=-1}
     pcall(function()
@@ -969,60 +1176,69 @@ local function detect_shrine()
             end
         end
 
-        -- 1. Collect the Civzones assigned to a temple location.
+        -- 1. Civzones assigned to a temple location (dedicated zone list).
         local zones = {}
-        for _, z in ipairs(df.global.world.buildings.all) do
-            local okt, t = pcall(function() return z:getType() end)
-            if okt and t == df.building_type.Civzone then
-                local loc = -1
-                pcall(function() loc = z.location_id end)
-                if loc and loc >= 0 and temple_locs[loc] then
-                    zones[#zones + 1] = {
-                        x1 = math.min(z.x1, z.x2), x2 = math.max(z.x1, z.x2),
-                        y1 = math.min(z.y1, z.y2), y2 = math.max(z.y1, z.y2),
-                        z = z.z, value = 0, bars = 0, bin = false, altar = false,
-                    }
-                end
+        for _, z in ipairs(df.global.world.buildings.other.ANY_ZONE) do
+            local loc = -1
+            pcall(function() loc = z.location_id end)
+            if loc and loc >= 0 and temple_locs[loc] then
+                local zx1, zx2 = math.min(z.x1, z.x2), math.max(z.x1, z.x2)
+                local zy1, zy2 = math.min(z.y1, z.y2), math.max(z.y1, z.y2)
+                zones[#zones + 1] = {
+                    id = z.id,
+                    x1 = zx1, x2 = zx2, y1 = zy1, y2 = zy2, z = z.z,
+                    cx = math.floor((zx1 + zx2) / 2), cy = math.floor((zy1 + zy2) / 2),
+                    value = 0, bars = 0, bin = false, altar = false,
+                }
             end
         end
         if #zones == 0 then return end
 
-        -- 2. Altar detection: one buildings pass (buildings are few), flagging any
-        --    zone an OfferingPlace overlaps.
-        for _, b in ipairs(df.global.world.buildings.all) do
-            local okb, bt = pcall(function() return b:getType() end)
-            if okb and bt == df.building_type.OfferingPlace then
-                for _, zn in ipairs(zones) do
-                    if b.z == zn.z and b.x1 <= zn.x2 and b.x2 >= zn.x1
-                            and b.y1 <= zn.y2 and b.y2 >= zn.y1 then
-                        zn.altar = true
-                    end
+        -- 2. Altar: flag any zone an OfferingPlace overlaps (dedicated list).
+        for _, b in ipairs(df.global.world.buildings.other.OFFERING_PLACE) do
+            for _, zn in ipairs(zones) do
+                if b.z == zn.z and b.x1 <= zn.x2 and b.x2 >= zn.x1
+                        and b.y1 <= zn.y2 and b.y2 >= zn.y1 then
+                    zn.altar = true
                 end
             end
         end
 
-        -- 3. ONE items.all pass. The cheap pos/bbox test runs per item per zone,
-        --    but the expensive value/type/material lookups run only for an item
-        --    that actually lands in a zone (and then only once).
+        -- 3. Item scan: cheap it.pos bbox first; only in-zone items pay the holder
+        --    walk and get their container tree walked (so binned bars/valuables
+        --    count). counted[] guards against double-counting.
+        local counted = {}
+        local function accrue(it, ity, zn)
+            if counted[it.id] then return end
+            counted[it.id] = true
+            local ok, v = pcall(dfhack.items.getValue, it); if ok and v then zn.value = zn.value + v end
+            if ity == df.item_type.BAR then
+                local tok = ""
+                pcall(function()
+                    local m = dfhack.matinfo.decode(it.mat_type, it.mat_index)
+                    tok = (m and m:getToken()) or ""
+                end)
+                if tok:find(bar_tok) then zn.bars = zn.bars + (it.stack_size or 1) end
+            end
+        end
+        local function accrue_tree(it, zn)
+            local ity = it:getType()
+            accrue(it, ity, zn)
+            if ity == df.item_type.BIN or ity == df.item_type.BOX then zn.bin = true end
+            local ok, contents = pcall(dfhack.items.getContainedItems, it)
+            if ok and contents then
+                for _, ci in ipairs(contents) do accrue_tree(ci, zn) end
+            end
+        end
+
         for _, it in ipairs(df.global.world.items.all) do
             local p = it.pos
-            if p then
+            if p and (not marker_id or it.id ~= marker_id) then
                 local px, py, pz = p.x, p.y, p.z
                 for _, zn in ipairs(zones) do
                     if pz == zn.z and px >= zn.x1 and px <= zn.x2
                             and py >= zn.y1 and py <= zn.y2 then
-                        local v = 0; pcall(function() v = dfhack.items.getValue(it) end)
-                        zn.value = zn.value + v
-                        local ity = it:getType()
-                        if ity == df.item_type.BIN or ity == df.item_type.BOX then zn.bin = true end
-                        if ity == df.item_type.BAR then
-                            local tok = ""
-                            pcall(function()
-                                local m = dfhack.matinfo.decode(it.mat_type, it.mat_index)
-                                tok = (m and m:getToken()) or ""
-                            end)
-                            if tok:find(bar_tok) then zn.bars = zn.bars + (it.stack_size or 1) end
-                        end
+                        if not checks.held_by_unit(it) then accrue_tree(it, zn) end
                         break  -- an item belongs to at most one zone
                     end
                 end
@@ -1038,27 +1254,26 @@ local function detect_shrine()
                 best = {
                     value = zn.value, bars = zn.bars, altar = zn.altar, bin = zn.bin, score = score,
                     ok = zn.altar and zn.bin and zn.bars >= bar_req and zn.value >= SHRINE_VALUE_REQ,
+                    zone_id = zn.id, cx = zn.cx, cy = zn.cy, cz = zn.z,
+                    x1 = zn.x1, x2 = zn.x2, y1 = zn.y1, y2 = zn.y2,
                 }
             end
         end
     end)
+
+    -- Mark the claimed zone in-world so it is identifiable at a glance.
+    place_shrine_floor(best, marker_id)
 
     dfhack.persistent.saveWorldDataString("dwarfipelago/shop_unlocked", best.ok and "1" or "0")
     dfhack.persistent.saveWorldDataString("dwarfipelago/shrine_progress", json.encode({
         value=best.value, value_req=SHRINE_VALUE_REQ,
         bars=best.bars,   bars_req=bar_req,
         altar=best.altar, bin=best.bin, ok=best.ok,
+        zone=best.zone_id, x=best.cx, y=best.cy, z=best.cz,
     }))
 
-    if best.ok then
-        if dfhack.persistent.getWorldDataString("dwarfipelago/shop_unlocked_announced") ~= "1" then
-            dfhack.persistent.saveWorldDataString("dwarfipelago/shop_unlocked_announced", "1")
-            dfhack.gui.showAnnouncement(
-                "[AP] The merchant god accepts your shrine -- the shop is open!", COLOR_GREEN, true)
-        end
-    else
-        dfhack.persistent.saveWorldDataString("dwarfipelago/shop_unlocked_announced", "0")
-    end
+    -- The shop no longer opens from the shrine (it is caravan-only now), so there
+    -- is no shrine-unlock announcement here; detect_shrine only marks the temple.
 end
 
 
@@ -1141,6 +1356,13 @@ end
 local _order_amounts    = {}     -- order id -> { left=amount_left, total=amount_total }
 local _order_probe_logged = false
 
+-- First-production flags that announce when their gating job/reaction completes.
+local PROD_ANNOUNCE = {
+    steel_bar = "The first steel has been forged!",
+    glass     = "Glass has been made!",
+    soap      = "The first soap has been made!",
+}
+
 local function poll_manager_orders()
     local ok, list = pcall(function()
         local mo = df.global.world.manager_orders
@@ -1187,6 +1409,8 @@ local function poll_manager_orders()
                     pcall(function() pflag = checks.job_to_production_flag(order) end)
                     if pflag and not checks.production_flag(pflag) then
                         checks.set_production_flag(pflag)
+                        local msg = PROD_ANNOUNCE[pflag]
+                        if msg then dfhack.gui.showAnnouncement("[AP] " .. msg, COLOR_GREEN, true) end
                     end
                 end
             end
@@ -1432,6 +1656,71 @@ local function abs_tick()
     return df.global.cur_year * TICKS_PER_YEAR + df.global.cur_year_tick
 end
 
+-- ── Archipelago caravan: seasonal (spring) visit while the shrine is active ────
+-- The AP shop is always reachable at the shrine altar; on top of that, each
+-- spring a neutral "Archipelago Merchant" dwarf stands at the trade depot for a
+-- while, exposing the same shop from a depot button (dwarfipelago-overlays). No
+-- real caravan is spawned - just the one NPC, whose presence gates the button.
+local AP_CARAVAN_STAY_TICKS = 24000  -- ~20 days at the depot before it departs
+local function detect_ap_caravan()
+    local coffers = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/unlock/wealth_coffers")) or 0
+    local active  = dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_active") == "1"
+    local now = abs_tick()
+    if active then
+        local arrive  = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_arrive")) or 0
+        local present = items.ap_merchant_present()
+        -- Depart when the stay is up or the merchant is gone (e.g. killed).
+        if not present or now - arrive >= AP_CARAVAN_STAY_TICKS then
+            items.despawn_ap_merchant()
+            items.remove_trade_session()
+            dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "0")
+            if present then
+                announce_caravan("[AP] The Archipelago caravan packs up and departs.", COLOR_YELLOW)
+            end
+        else
+            items.ensure_trade_session()  -- keep DF's "move goods to depot" enabled
+        end
+        return
+    end
+    -- Arrive once per year in spring (season 0), independent of the shrine. The
+    -- caravan only stops if the fort has at least one Merchant's Coffer to trade
+    -- against; with none it passes by (announced once, so the year is marked
+    -- either way). Goods offered stay limited to the unlocked coffer tiers.
+    if _cur_season() == 0 then
+        local last = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_year")) or -1
+        if df.global.cur_year > last then
+            if coffers >= 1 and items.spawn_ap_merchant() then
+                items.ensure_trade_session()
+                dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_year", tostring(df.global.cur_year))
+                dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "1")
+                dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_arrive", tostring(now))
+                announce_caravan(
+                    "[AP] An Archipelago caravan has arrived at your trade depot!", COLOR_GREEN)
+            elseif coffers < 1 then
+                dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_year", tostring(df.global.cur_year))
+                dfhack.gui.showAnnouncement(
+                    "[AP] An Archipelago caravan passes by - with no Merchant's Coffer to trade against, they deem your fortress unworthy of a stop.",
+                    COLOR_YELLOW, true)
+            end
+        end
+    end
+end
+
+-- Crash-diagnosis breadcrumb: note the building sheet the player is viewing (on
+-- change) so the log's tail shows the last screen before an overlay/DF crash.
+-- (Full DF/DFHack crashes are captured separately in <DF>/crashlog/.)
+local _last_bld_focus
+local function log_building_focus()
+    local ok, foci = pcall(dfhack.gui.getCurFocus, true)
+    if ok and type(foci) == "table" then
+        local top = foci[1]
+        if top and top:find("ViewSheets/BUILDING", 1, true) and top ~= _last_bld_focus then
+            _last_bld_focus = top
+            log.info("Viewing building sheet: " .. top)
+        end
+    end
+end
+
 -- War Readiness = Military Training items received, capped by fortress military
 -- milestones: 1-4 free, 5-6 need a set-up barracks, 7-9 need 4 soldiers at combat
 -- skill 10+. (Readiness 10 - the breach - is gated on the full war effort and
@@ -1525,12 +1814,249 @@ end
 -- ── Poll loop: wealth, trade, and goal milestones ─────────────────────────────
 -- Runs every POLL_TICKS game ticks. Production checks are handled by eventful.
 
+-- ── Combat / mood milestone detectors ─────────────────────────────────────────
+
+-- First Siege: fires the moment hostile invaders appear (a siege, ambush, or a
+-- Slay Megabeast wave) - like the caravan checks, no survival needed.
+local function detect_first_siege()
+    if checks.production_flag("first_siege") then return end
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isAlive(u) then
+            local ok, inv = pcall(dfhack.units.isInvader, u)
+            if ok and inv then
+                checks.set_production_flag("first_siege")
+                dfhack.gui.showAnnouncement("[AP] A hostile force besieges your fortress!", COLOR_YELLOW, true)
+                return
+            end
+        end
+    end
+end
+
+-- Strange-mood build jobs (one per workshop type). Such a job exists only once a
+-- moody dwarf has CLAIMED a workshop.
+local STRANGE_MOOD_JOBS = {}
+for _, n in ipairs({ "StrangeMoodCrafter", "StrangeMoodJeweller", "StrangeMoodForge",
+                     "StrangeMoodMagmaForge", "StrangeMoodBrooding", "StrangeMoodFell",
+                     "StrangeMoodCarpenter", "StrangeMoodMason" }) do
+    local id = df.job_type[n]
+    if id then STRANGE_MOOD_JOBS[id] = true end
+end
+
+-- First Strange Mood: fires once a mood has claimed a workshop, not on mood entry -
+-- AP locks workshops, so a mood that can't reach an unlocked one fails and shouldn't count.
+local function detect_strange_mood()
+    if checks.production_flag("strange_mood") then return end
+    local link = df.global.world.jobs.list.next
+    while link do
+        local job = link.item
+        if job and STRANGE_MOOD_JOBS[job.job_type] then
+            checks.set_production_flag("strange_mood")
+            return
+        end
+        link = link.next
+    end
+end
+
+-- First Artifact Created: the world artifact count grows past the baseline captured
+-- on the first poll (world-gen artifacts) - a moody dwarf finished a masterwork.
+local function detect_artifact_created()
+    if checks.production_flag("artifact_created") then return end
+    local key = "dwarfipelago/combat/artifact_baseline"
+    local base = tonumber(dfhack.persistent.getWorldDataString(key))
+    local cur  = #df.global.world.artifacts.all
+    if not base then
+        dfhack.persistent.saveWorldDataString(key, tostring(cur))
+    elseif cur > base then
+        checks.set_production_flag("artifact_created")
+        dfhack.gui.showAnnouncement("[AP] An artifact has been created in your fortress!", COLOR_CYAN, true)
+    end
+end
+
+-- First Birth: a child born in the fortress. Gated on age so a migrant arriving
+-- with an (older) baby doesn't count - only a freshly-born citizen infant fires it.
+local function detect_first_birth()
+    if checks.production_flag("first_birth") then return end
+    local YEAR_TICKS = 403200  -- 12 months * 28 days * 1200 ticks
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isBaby(u) and dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then
+            local age = (df.global.cur_year - u.birth_year) * YEAR_TICKS
+                      + (df.global.cur_year_tick - u.birth_time)
+            if age >= 0 and age < 2400 then  -- born within ~2 days = an in-fort birth
+                checks.set_production_flag("first_birth")
+                dfhack.gui.showAnnouncement("[AP] A child has been born in the fortress!", COLOR_GREEN, true)
+                return
+            end
+        end
+    end
+end
+
+-- First Legendary Dwarf: any citizen reaches Legendary (skill rating 15+) in any
+-- skill. Latched so a later skill-rust can't un-fire the milestone.
+local function detect_legendary_dwarf()
+    if checks.production_flag("legendary_dwarf") then return end
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isCitizen(u) and dfhack.units.isAlive(u) then
+            local soul = u.status.current_soul
+            if soul then
+                for _, sk in ipairs(soul.skills) do
+                    if sk.rating and sk.rating >= df.skill_rating.Legendary then
+                        checks.set_production_flag("legendary_dwarf")
+                        dfhack.gui.showAnnouncement("[AP] A dwarf has achieved Legendary mastery!", COLOR_GREEN, true)
+                        return
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Harnessed Power: a water wheel or windmill exists in the fort. Latched.
+local function detect_harnessed_power()
+    if checks.production_flag("harnessed_power") then return end
+    for _, b in ipairs(df.global.world.buildings.all) do
+        local ok, t = pcall(function() return b:getType() end)
+        if ok and (t == df.building_type.WaterWheel or t == df.building_type.Windmill) then
+            checks.set_production_flag("harnessed_power")
+            dfhack.gui.showAnnouncement("[AP] Your fortress harnesses the power of water or wind!", COLOR_CYAN, true)
+            return
+        end
+    end
+end
+
+-- Completed a Trade: baseline a caravan's trader-flagged goods; fires when one
+-- loses the flag (bought). Baseline resets when no merchant is present.
+local _trade_baseline = nil
+local function detect_completed_trade()
+    if checks.production_flag("completed_trade") then return end
+    local merchant_present = false
+    for _, u in ipairs(df.global.world.units.active) do
+        local ok, m = pcall(function() return u.flags1.merchant end)
+        if ok and m then merchant_present = true; break end
+    end
+    if not merchant_present then _trade_baseline = nil; return end
+    if not _trade_baseline then
+        _trade_baseline = {}
+        for _, it in ipairs(df.global.world.items.all) do
+            if it.flags.trader then _trade_baseline[it.id] = true end
+        end
+        return
+    end
+    for id in pairs(_trade_baseline) do
+        local it = df.item.find(id)
+        if it and not it.flags.trader then
+            checks.set_production_flag("completed_trade")
+            dfhack.gui.showAnnouncement("[AP] You have completed a trade with a caravan!", COLOR_GREEN, true)
+            return
+        end
+    end
+end
+
+-- Tamed a Wild Beast: fires when a creature first seen wild later becomes tame.
+-- Bought/bred animals are tame from first sight, so they never enter _wild_seen.
+local _wild_seen = {}
+local function detect_tamed_beast()
+    if checks.production_flag("tamed_beast") then return end
+    for _, u in ipairs(df.global.world.units.active) do
+        if dfhack.units.isAlive(u) and not dfhack.units.isCitizen(u) then
+            if dfhack.units.isTame(u) then
+                if _wild_seen[u.id] then
+                    checks.set_production_flag("tamed_beast")
+                    dfhack.gui.showAnnouncement("[AP] A wild beast has been tamed!", COLOR_GREEN, true)
+                    return
+                end
+            elseif dfhack.units.isAnimal(u) then
+                _wild_seen[u.id] = true
+            end
+        end
+    end
+end
+
+-- ── Adaptive poll backoff ─────────────────────────────────────────────────────
+-- The scan batch below runs every POLL_TICKS - fine on a healthy machine, extra
+-- load on a struggling one. getUnpausedFps() is the live frame rate; when it drops
+-- we run the batch every Nth cycle instead of every cycle so the mod stops
+-- compounding the slowdown. Near the FPS cap it always runs (factor 1). Self-tuning,
+-- no config, and a nil API (older DFHack) just means it never backs off.
+local _poll_skip_remaining = 0
+local function poll_backing_off()
+    if _poll_skip_remaining > 0 then
+        _poll_skip_remaining = _poll_skip_remaining - 1
+        return true
+    end
+    local factor = 1
+    local ok, fps = pcall(dfhack.internal.getUnpausedFps)
+    if ok and type(fps) == "number" and fps > 0 then
+        if     fps < 12 then factor = 4
+        elseif fps < 20 then factor = 3
+        elseif fps < 30 then factor = 2
+        end
+    end
+    _poll_skip_remaining = factor - 1   -- run this cycle, then skip the next (factor-1)
+    return false
+end
+
+-- ── Performance assist (opt-in) ───────────────────────────────────────────────
+-- When enabled (dwarfipelago/perf_assist == "1") the mod attacks the classic DF FPS
+-- drains: the fast-heat tweak (faster temperature calc, no gameplay change) and
+-- clothing deterioration stay enabled, and ~weekly it cleans map spatter and
+-- confiscates heavily-worn owned junk. Off by default; it changes the fort's look
+-- and rots stray tattered gear. (Deliberately avoids deteriorating corpses/food.)
+local PERF_CLEAN_INTERVAL = 8400  -- ~1 in-game week (1200 ticks/day)
+local _perf_active   -- nil until first applied; true/false = last state we set
+local function run_perf_assist()
+    local on = dfhack.persistent.getWorldDataString("dwarfipelago/perf_assist") == "1"
+    -- Apply the persistent enables/disables once per state change. fast-heat is a
+    -- session tweak; deteriorate persists in the save, so re-applying is harmless.
+    if on and _perf_active ~= true then
+        _perf_active = true
+        pcall(function() dfhack.run_command("tweak", "fast-heat", "quiet") end)
+        pcall(function() dfhack.run_command("deteriorate", "enable", "clothes") end)
+    elseif (not on) and _perf_active ~= false then
+        _perf_active = false
+        pcall(function() dfhack.run_command("tweak", "fast-heat", "disable", "quiet") end)
+        pcall(function() dfhack.run_command("deteriorate", "disable", "clothes") end)
+    end
+    if not on then return end
+    -- Periodic (~weekly) cleanup: map spatter + heavily-worn owned items.
+    local now   = df.global.world.frame_counter or 0
+    local last  = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/perf/last_clean")) or 0
+    local delta = now - last
+    if delta >= 0 and delta < PERF_CLEAN_INTERVAL then return end
+    dfhack.persistent.saveWorldDataString("dwarfipelago/perf/last_clean", tostring(now))
+    pcall(function() dfhack.run_command("clean", "map") end)
+    pcall(function() dfhack.run_command("cleanowned", "X") end)
+    log.info("Performance assist: cleaned spatter + worn junk to reduce FPS lag")
+end
+
+-- ── Timestream ────────────────────────────────────────────────────────────────
+-- "Fix FPS death": DFHack scales the simulation to the FPS the machine can manage so
+-- a laggy fort still feels responsive. Driven by the same Performance Assist flag as
+-- the rest; kept a separate function so it can engage before the backoff gate.
+local _timestream_active
+local function run_timestream()
+    local on = dfhack.persistent.getWorldDataString("dwarfipelago/perf_assist") == "1"
+    if on and _timestream_active ~= true then
+        _timestream_active = true
+        pcall(function() dfhack.run_command("enable", "timestream") end)
+    elseif (not on) and _timestream_active ~= false then
+        _timestream_active = false
+        pcall(function() dfhack.run_command("disable", "timestream") end)
+    end
+end
+
 local function poll_checks()
     if not state.is_enabled() then return end
     -- repeatUtil fires the callback immediately on registration, and again
     -- during world-loading screens.  Do nothing until the fortress map is
     -- fully live and the simulation is running.
     if not dfhack.isMapLoaded() then return end
+
+    -- Timestream (opt-in) is the anti-lag tool, so engage it promptly - before the
+    -- backoff gate - as soon as the map is live.
+    pcall(run_timestream)
+
+    -- On a struggling machine, skip this cycle's scan batch (see poll_backing_off).
+    if poll_backing_off() then return end
 
     -- Capture the surface z-level once, early (before much digging), from a
     -- living citizen's position. Used as the reference for mining-depth checks.
@@ -1558,6 +2084,8 @@ local function poll_checks()
     caves.generate_secret_caves()
     -- AP custom caves: conditional on the custom_caves option, no-op if disabled.
     caves.generate()
+    -- One-time: repair passability of caves carved before the reindex fix.
+    pcall(caves.repair_passability)
     -- Secret cave 1: passive raw cave silk drop (self-rate-limited to ~2 months).
     pcall(caves.poll_cave_silk)
 
@@ -1588,17 +2116,29 @@ local function poll_checks()
     guard("goal",          check_goal_by_poll)
     guard("locked_notify", check_locked_notifications)
     guard("caravans",      detect_caravans)
+    guard("ap_caravan",    poll_ap_caravan)
     guard("missions",      checks.detect_mission_checks)
     guard("pump",          detect_pump_activity)
     -- detect_egg_hatch()  -- disabled: hatch detection unreliable on DF v50
     guard("caged_beast",   detect_caged_hostile_beast)
     guard("cave_adapt",    suppress_cave_adaptation)
     guard("sold_artifact", detect_sold_artifact)
+    guard("first_siege", detect_first_siege)
+    guard("strange_mood",   detect_strange_mood)
+    guard("artifact_made",  detect_artifact_created)
+    guard("first_birth",    detect_first_birth)
+    guard("legendary_dwarf", detect_legendary_dwarf)
+    guard("harnessed_power", detect_harnessed_power)
+    guard("completed_trade", detect_completed_trade)
+    guard("tamed_beast",     detect_tamed_beast)
     guard("shrine",        detect_shrine)
+    guard("apcaravan",     detect_ap_caravan)
+    guard("focus_log",     log_building_focus)
     guard("spawn_caravan", _check_spawn_caravan_approved)
     guard("skills",        checks.update_skill_levels)
     guard("waves",         poll_warband_waves)
     guard("permit_overlay", sync_permit_overlay)
+    guard("perf_assist",   run_perf_assist)
     guard("custom_caves",  function()
         local discovered = caves.check_discoveries()
         for _, info in ipairs(discovered) do
@@ -1652,6 +2192,14 @@ local function on_job_completed(job)
     local prod_flag = checks.job_to_production_flag(job)
     if prod_flag and not checks.production_flag(prod_flag) then
         checks.set_production_flag(prod_flag)
+        local msg = PROD_ANNOUNCE[prod_flag]
+        if msg then dfhack.gui.showAnnouncement("[AP] " .. msg, COLOR_GREEN, true) end
+    end
+
+    -- "First Patient Treated": a doctor completes a hospital treatment job.
+    if MEDICAL_JOBS[job.job_type] and not checks.production_flag("patient_treated") then
+        checks.set_production_flag("patient_treated")
+        dfhack.gui.showAnnouncement("[AP] A patient has been treated in the hospital!", COLOR_GREEN, true)
     end
 
     -- Well / trap construction detection (both complete as ConstructBuilding jobs).
@@ -1969,6 +2517,16 @@ local ADAMANTINE_ARTIFACT_TYPES = {
     SHIELD = true, GLOVES = true, PANTS = true, SHOES = true,
 }
 
+-- True only when a fortress member crafted the item. Visitor belongings (a
+-- visiting bard's instrument, a mercenary's gear) and worldgen artifacts have no
+-- fort maker (maker == -1), so this keeps them from firing "first X made"
+-- milestones - e.g. a bard arriving with their own instrument.
+local function made_by_fort(item)
+    local maker = -1
+    pcall(function() maker = item.maker end)
+    return maker ~= -1
+end
+
 local function on_item_created(item_id)
     if not state.is_enabled() then return end
     local item = df.item.find(item_id)
@@ -2004,7 +2562,7 @@ local function on_item_created(item_id)
         -- Capped, not blocked - minting/cutting itself always keeps working so the
         -- shop never runs dry, but value past the current coffer tier's ceiling
         -- doesn't count toward wealth progress until the next coffer raises it.
-        if t == "COIN" or t == "SMALLGEM" then
+        if (t == "COIN" or t == "SMALLGEM") and made_by_fort(item) then
             local ok_type, itype = pcall(function() return item:getType() end)
             if ok_type then
                 local cap     = treasury_created_cap()
@@ -2020,6 +2578,26 @@ local function on_item_created(item_id)
                 end
             end
         end
+
+        -- New "first" production milestones. Item-based so manager-order output
+        -- counts too (those jobs don't reach on_job_completed).
+        if t == "INSTRUMENT" and not checks.production_flag("instrument") and made_by_fort(item) then
+            checks.set_production_flag("instrument")
+            dfhack.gui.showAnnouncement("[AP] Your first instrument has been crafted!", COLOR_GREEN, true)
+        end
+        if t == "COIN" and not checks.production_flag("coins") and made_by_fort(item) then
+            checks.set_production_flag("coins")
+            dfhack.gui.showAnnouncement("[AP] Your first coins have been minted!", COLOR_GREEN, true)
+        end
+        if t == "FOOD" and not checks.production_flag("roast") then
+            local ok_ing, n = pcall(function() return #item.ingredients end)
+            if ok_ing and n >= 4 then  -- a 4-ingredient prepared meal is a lavish roast
+                checks.set_production_flag("roast")
+                dfhack.gui.showAnnouncement("[AP] A lavish roast has been prepared!", COLOR_GREEN, true)
+            end
+        end
+        -- (First Steel/Glass/Soap are gated on their making job/reaction via
+        -- job_to_production_flag, so embark stock does not fire them.)
 
         -- Adamantine detection: fires the first time raw adamantine is mined (raw
         -- adamantine boulders when mined, or strands/wafers in some DF versions).
@@ -2377,6 +2955,13 @@ local function start()
 
     check_civilization_diversity()
 
+    -- Add Dwarfipelagius to the fort's worshippable deities (the "create temple"
+    -- deity list is built from a citizen's worship link).
+    pcall(function()
+        local deity_id = checks.ensure_merchant_deity()
+        if deity_id then checks.register_deity_with_citizens(deity_id) end
+    end)
+
     print("[Dwarfipelago] Started. Listening for fortress milestones.")
     print("[Dwarfipelago] Make sure DwarfFortressClient.py is running.")
 end
@@ -2410,17 +2995,25 @@ if cmd == "start" then
     start()
 elseif cmd == "stop" then
     stop()
+elseif cmd == "restart" then
+    stop()
+    start()
 elseif cmd == "status" then
     state.dump()
-elseif cmd == "reset" then
+elseif cmd == "progress-wipe" then
     stop()
     state.reset()
+elseif cmd == "reset" then
+    -- Renamed to 'progress-wipe' so nobody wipes their run by reflex-typing
+    -- "reset". Guide the user instead of wiping.
+    dfhack.printerr("'dwarfipelago reset' was renamed to 'dwarfipelago progress-wipe' to "
+        .. "prevent accidental wipes. Run 'dwarfipelago progress-wipe' to erase all AP state.")
 elseif cmd == "resetseed" then
     -- Clear the stored AP world identity so this DF save can be reconnected to a
     -- freshly generated AP slot (new seed) without the client rejecting it with
     -- "This saved world does not match this slot." Lets you keep a test world
     -- across regenerations. Other AP state (checks, unlocks, craft counts) is
-    -- left intact - use "dwarfipelago reset" for a full wipe.
+    -- left intact - use "dwarfipelago progress-wipe" for a full wipe.
     local ok = pcall(function()
         dfhack.persistent.deleteWorldData("dwarfipelago/seed")
     end)
@@ -2456,5 +3049,5 @@ elseif cmd == "test" then
     -- Manual mechanic verification: dwarfipelago test <name> [args]
     items.run_test(args[2], { table.unpack(args, 3) })
 else
-    print("Usage: dwarfipelago [start|stop|status|reset|resetseed|panel|call-caravan|dismiss-caravan|deposit-ale [n]|deposit-food [n]|deposit-coins <value>|buy-shop <slot>|summon-beast|receive <item>|test <name>]")
+    print("Usage: dwarfipelago [start|stop|restart|status|progress-wipe|resetseed|panel|call-caravan|dismiss-caravan|deposit-ale [n]|deposit-food [n]|deposit-coins <value>|buy-shop <slot>|summon-beast|receive <item>|test <name>]")
 end

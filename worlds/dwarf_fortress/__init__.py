@@ -9,12 +9,12 @@ from .options import DwarfFortressOptions, DwarfFortressGoal, CraftingPermits, E
 from .settings import DwarfFortressSettings
 from .items import (
     ItemData, ITEM_TABLE, AP_ITEM_POOL, FILLER_ITEMS, TRAP_ITEMS,
-    PROGRESSION_ITEMS, USEFUL_ITEMS, CRAFT_ITEMS, RECEIVED_TRAPS,
+    PROGRESSION_ITEMS, USEFUL_ITEMS, CRAFT_ITEMS,
 )
 from .locations import (
     LocationData, LOCATION_TABLE, ALL_LOCATIONS, SHOP_LOCATIONS, SHOP_SLOTS,
     SHOP_PRICE_MIN, SHOP_PRICE_MAX,
-    EXCLUDE_DEEP_ENDGAME, EXCLUDE_TOP_ROOMS, EXCLUDE_TOP_FORTRESS,
+    EXCLUDE_DEEP_ENDGAME, EXCLUDE_TOP_ROOMS, EXCLUDE_TOP_FORTRESS, EXCLUDE_COMBAT,
 )
 from .craftsanity import (
     generate_location_data,
@@ -158,9 +158,20 @@ class DwarfFortressWorld(World):
         }
         if self.options.goal != DwarfFortressGoal.option_mountainhome:
             active -= NOBLE_LADDER_LOCATIONS
-        SIEGE_LOCATION_NAMES = {"Barracks Established", "Training Completed"}
+        SIEGE_LOCATION_NAMES = {
+            "Barracks Established", "Training Completed",
+            "Slay 10 Enemies", "Slay 25 Enemies", "Slay 50 Enemies",
+            "Slay 100 Enemies", "Slay 200 Enemies",
+        }
         if self.options.goal != DwarfFortressGoal.option_slay_megabeast:
             active -= SIEGE_LOCATION_NAMES
+        # Great-beast kills overlap the Slay Megabeast goal (that kill IS the goal),
+        # so drop them there; First Kill / First Siege stay (they come from waves).
+        BEAST_SLAIN_LOCATION_NAMES = {
+            "Forgotten Beast Slain", "Titan Slain", "Semi-megabeast Slain", "Megabeast Slain",
+        }
+        if self.options.goal == DwarfFortressGoal.option_slay_megabeast:
+            active -= BEAST_SLAIN_LOCATION_NAMES
         for skill_names in self.remove_skill_locations_names:
              active.remove(skill_names)
         # The shop's 50 slots are active (and coffer-gated in rules.py) only when
@@ -189,6 +200,8 @@ class DwarfFortressWorld(World):
             excluded_names |= EXCLUDE_TOP_ROOMS
         if self.options.exclude_top_fortress_checks:
             excluded_names |= EXCLUDE_TOP_FORTRESS
+        if self.options.exclude_combat_checks:
+            excluded_names |= EXCLUDE_COMBAT
         for name in self.active_location_names:
             loc = DwarfFortressLocation(
                 self.player, name, self.location_name_to_id[name], fortress
@@ -222,18 +235,19 @@ class DwarfFortressWorld(World):
             d for d in self.ap_item_pool
             if d.classification == ItemClassification.progression
         ]
-        received_trap_names = {d.name for d in RECEIVED_TRAPS}
+        enabled_traps = set(self.options.enabled_traps.value)
+        all_trap_names = {d.name for d in TRAP_ITEMS}
         # Traps that don't make sense for the chosen options. With craftpermits=all,
         # brewing is gated behind the Alcohol permit, so an ale-draining thirst trap
         # could leave a fort with no way to make more - exclude it in that mode.
-        excluded_trap_names: set[str] = set()
+        excluded_trap_names: set[str] = all_trap_names - enabled_traps
         if self.options.craftpermits == CraftingPermits.option_all:
             excluded_trap_names.add("Unquenchable Thirst")
         optional: list[ItemData] = [
             d for d in self.ap_item_pool
             for _ in range(d.quantity)
             if d.classification != ItemClassification.progression
-            and (trap_weight > 0 or d.name not in received_trap_names)
+            and (trap_weight > 0 or d.name not in all_trap_names)
             and d.name not in excluded_trap_names
         ]
 
@@ -313,9 +327,12 @@ class DwarfFortressWorld(World):
         #    Filler is chosen by weight, so useful materials show up far more than
         #    flavor trinkets and the rare low-grade tools.
         filler_weights = [f.weight for f in FILLER_ITEMS]
+        padding_traps = [t for t in TRAP_ITEMS if t.name in enabled_traps]
+        padding_trap_weights = [t.weight for t in padding_traps]
         while len(item_pool) < location_count:
-            if self.random.random() < trap_weight and TRAP_ITEMS:
-                item_pool.append(self.create_item(self.random.choice(TRAP_ITEMS).name))
+            if self.random.random() < trap_weight and padding_traps:
+                trap = self.random.choices(padding_traps, weights=padding_trap_weights, k=1)[0]
+                item_pool.append(self.create_item(trap.name))
             else:
                 choice = self.random.choices(FILLER_ITEMS, weights=filler_weights, k=1)[0]
                 item_pool.append(self.create_item(choice.name))
@@ -366,6 +383,9 @@ class DwarfFortressWorld(World):
             "remains_great_king": self.options.remains_great_king.value,
             "deathlink": self.options.deathlink.value,
             "deathlink_threshold": self.options.deathlink_threshold.value,
+            "deathlink_split": self.options.deathlink_split.value,
+            "deathlink_receive_amount": self.options.deathlink_receive_amount.value,
+            "deathlink_send_threshold": self.options.deathlink_send_threshold.value,
             "seed": self.random.randint(12212, 15245354),
             "player_name": self.player_name,
             "crafting_locations": crafting_location_data,
@@ -383,6 +403,7 @@ class DwarfFortressWorld(World):
             "mining_depth": self.options.mining_depth.value,
             "shop_enabled": self.options.merchant_shop.value,
             "shop": shop_data,
+            "performance_assist": self.options.performance_assist.value,
             "version": f"{self.world_version.as_simple_string()}",
         }
 
