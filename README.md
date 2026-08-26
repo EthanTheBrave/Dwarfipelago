@@ -240,7 +240,7 @@ Five coffers gate the five treasury milestone checks. These thresholds measure t
 
 The **Legendary Wealth** goal also requires all 5 coffers and a treasury value at or above your configured `wealth_goal_amount` to complete.
 
-Coffers also gate the **Merchant's Shop**: the Archipelago caravan only stops if you hold at least one, and each coffer unlocks 10 more of the shop's 50 slots (see Merchant's Shop).
+Coffers also gate the **Merchant's Shop**: your first coffer establishes contact with the Archipelago (gorlak) caravan, and each coffer unlocks 10 more of the shop's 50 slots (see Merchant's Shop).
 
 #### Immigration Wave (x5) - Population Growth
 
@@ -489,18 +489,18 @@ The Merchant's Shop lets you **spend minted coins to buy multiworld items** — 
 
 ### The Archipelago caravan
 
-The shop is **caravan-only**. An Archipelago caravan visits your **trade depot** once a year (in spring) and, while it is docked, the shop is open. The caravan only stops if your fortress has **at least one Merchant's Coffer** to trade against - with none, it passes your fortress by and deems you "unworthy of a stop." (There is no longer a Merchant's Shrine to build; any temple you raise to Dwarfipelagius is now purely decorative.)
+The shop is a **native caravan from the Archipelago civilization** - a gorlak trading people who generate in your world. Receiving your **first Merchant's Coffer** establishes contact with them and summons their caravan to your **trade depot**; from then on they visit like any trade partner. Its merchants are gorlaks, and it carries **only the Archipelago shop goods** - your fortress's own caravans are unaffected.
 
-The caravan arrives as a small entourage - a lead merchant, a second trader, a couple of armed guards, and two pack mules - that stands at the depot for its stay and then packs up and departs as a group. If Energy Link is enabled you can also **call a caravan early** by spending energy (see Energy Link).
+The caravan arrives, stands at the depot for its stay, and departs as a group. If Energy Link is enabled you can also **call a caravan early** by spending energy (see Energy Link).
 
-**Dwarfipelagius**, the merchant god, is added to your civilization's worshippable deities, so you can dedicate a temple to them like any other god (purely for flavor and the decorative shrine floor marker).
+**Dwarfipelagius**, the merchant god, is added to your civilization's worshippable deities, so you can dedicate a temple to them like any other god (purely for flavor).
 
 ### Buying
 
-- Select the **trade depot** and press **Ctrl+A** (or use the panel's **Shop** tab) while a caravan is docked.
+- Trade on **DF's own trade screen**: select the **trade depot**, choose **Trade**, and trade for the goods while the Archipelago (gorlak) caravan is docked. The shop items appear grouped under **"AP Items (Tier N)"**; trading for one sends its multiworld location check.
 - The shop has **50 slots**; **10 unlock per Merchant's Coffer** you've received (so all 50 need all 5 coffers). Goods stay limited to the coffer tiers you have unlocked.
 - Each slot holds **one multiworld item at a coin price** (a value banded by tier). Buying deducts that value from your minted coins and sends the item's location check; each slot is bought once.
-- Console: `dwarfipelago buy-shop <slot>` (only works while a caravan is docked).
+- Console (debug): `dwarfipelago buy-shop <slot>` while the caravan is docked.
 
 ### Options
 

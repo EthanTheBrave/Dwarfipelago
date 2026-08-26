@@ -66,10 +66,7 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/unlock/sunlight_tonic` | `"1"` or absent | Lua | Set when the Sunlight Tonic is received; dwarves may then walk freely in sunlight (no cave-adaptation nausea) |
 | `dwarfipelago/craftlock/<flag>` | `"1"` or absent | Lua | Set when the Crafting Permit for `<flag>` is received. When `crafting_permits` is non-zero, jobs producing an item whose flag is unset are cancelled |
 | `dwarfipelago/depot_built` | `"1"` or absent | Lua | Set once the starting trade depot has been placed or adopted |
-| `dwarfipelago/shop_unlocked` | `"0"` or `"1"` | Lua | `"1"` while a temple to Dwarfipelagius stands (altar + container + bars + value ≥ 5000☼). **Vestigial:** the shop is caravan-only now, so this no longer gates buying - it only drives the decorative temple floor marker |
-| `dwarfipelago/shop_unlocked_announced` | `"1"` or `""` | Lua | **Vestigial** - the shrine "shop has opened" announcement was removed when the shop became caravan-only |
-| `dwarfipelago/shop_pending` | JSON `{slot: true}` | Lua | Slots the player has bought that await client confirmation; the panel/buy guard treat them as unavailable until the item is confirmed (then the slot's `bought` flag is set in `shop`) |
-| `dwarfipelago/shrine_progress` | JSON string | Lua | Temple-build progress (value/bars/altar/container). **Vestigial** since the shop went caravan-only; the panel's Shop tab no longer reads it |
+| `dwarfipelago/shop_pending` | JSON `{slot: true}` | Lua | Slots the player has bought that await client confirmation; treated as unavailable until the item is confirmed (then the slot's `bought` flag is set in `shop`) |
 | `dwarfipelago/megabeast/spawned` | `"1"` or absent | Lua | Set once the climax megabeast has been summoned. The summon is **player-initiated** (`dwarfipelago summon-beast` / the panel War tab's button), allowed only once the full war effort - 10 Military Training + Artifact Weapon + 2 Immigration Waves - is in hand. Prevents re-summoning on reload and stops roaming waves |
 | `dwarfipelago/megabeast/target_id` | Integer string | Lua | Unit ID of the pinned target megabeast; only this unit's death counts for the goal (natural megabeasts are cleared at load) |
 | `dwarfipelago/megabeast/champion` | `"1"` or absent | Lua | Set once the one-time veteran champion dwarf has joined (rare chance per Military Training, guaranteed at tier 8) |
@@ -107,7 +104,7 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/caravan_energy_cost` | Integer string | Lua | Energy cost (kJ) of a requested early caravan, for Python to deduct from the pool |
 | `dwarfipelago/request_caravan` | `"1"` or `"0"` | Lua | Set to `"1"` when the player requests an early caravan; Python deducts the cost and responds |
 | `dwarfipelago/spawn_caravan_approved` | `"1"` or `"0"` | Python | Python sets `"1"` once the energy cost is deducted; Lua spawns the caravan then clears it |
-| `dwarfipelago/ap_caravan_active` | `"1"` or `"0"` | Lua | `"1"` while an Archipelago caravan is docked at the depot. **This is the shop gate** - buying is only possible while set (the caravan replaced the shrine as the shop's key). A caravan visits each spring only if you hold ≥ 1 Merchant's Coffer |
+| `dwarfipelago/ap_caravan_active` | `"1"` or `"0"` | Lua | `"1"` while the Energy-Link-summoned caravan is docked; drives the panel's "[Caravan docked]" status. The AP **shop** itself is now the native gorlak Archipelago caravan (its goods ride DF's real trade screen), gated on Merchant's Coffers, not on this key |
 | `dwarfipelago/ap_caravan_units` | Comma-separated ids | Lua | The full caravan entourage (merchants, guards, pack animals) so departure retires them as a group |
 | `dwarfipelago/energy_deposit` | Integer string | Lua | Energy (joules) the player has deposited (ale/food/coins) awaiting send to the pool; Python reads and clears |
 | `dwarfipelago/use_energy_link` | `"Y"` or absent | Lua | Set when a deposit has occurred, signalling Python to process `energy_deposit` |
@@ -338,13 +335,13 @@ The popup is a resizable `widgets.Window` containing a `widgets.TabBar` + `widge
 each page a `widgets.Panel`. Tabs are built **dynamically** — several appear only when
 the matching feature is enabled for the slot — so their absolute index is not fixed.
 Full order:
-`{"Status", "Unlocks", "Progress", "Caves", "Crafts", "Controls", "Energy", "Permits", "Skills", "Shop", "War"}`
+`{"Status", "Goal", "Unlocks", "Checks", "Caves", "Crafts", "Controls", "Energy", "Permits", "Skills", "War"}`
 
 | Tab | Shown when | Contents |
 |-----|-----------|----------|
 | **Status** | always | enabled state, goal, completion, depot status |
+| **Goal** | always | live goal progress (wealth/population/remains toward target) |
 | **Unlocks** | always | progression unlock counts/flags — **built dynamically** from `items.UNLOCK_DEFS` |
-| **Progress** | always | goal progress (wealth/population/remains toward target) |
 | **Checks** | always | the 122 static milestone checks grouped by category, each done/open with per-category counts — an in-fort tracker so you don't need the AP tracker (per-item craft/skill checks are client-side and not listed) |
 | **Caves** | custom caves on | custom-cave discovery and hint status |
 | **Crafts** | craftsanity on | craftsanity craft counts vs thresholds |
@@ -352,7 +349,6 @@ Full order:
 | **Energy** | `energy_enabled` | Energy Link pool balance (MJ + raw kJ), Deposit Ale/Food/Coins, and call-a-caravan |
 | **Permits** | craftpermits on | crafting-permit (craftlock) status per item |
 | **Skills** | skillsanity on | skillsanity per-skill level progress |
-| **Shop** | `merchant_shop` on | Merchant's Shop slots/prices, caravan-docked status, and buy controls |
 | **War** | slay_megabeast goal | War Readiness, barracks/soldier status, and the **Summon the Megabeast** button |
 
 `open_panel()` toggles: calling it again while open dismisses the existing instance.
@@ -434,7 +430,8 @@ dwarfipelago deposit-food
 dwarfipelago call-caravan
 dwarfipelago dismiss-caravan
 
-# Buy Merchant's Shop slot N (requires a docked Archipelago caravan)
+# Buy Merchant's Shop slot N directly (debug; normally you buy by trading the
+# AP good on the native trade screen while the gorlak caravan is docked)
 dwarfipelago buy-shop 3
 
 # Summon the target megabeast (slay_megabeast goal; needs the full war effort:
@@ -443,8 +440,10 @@ dwarfipelago summon-beast
 
 # Run a mechanic verification test (no name = list them). Tests:
 #   spawn [RACE] | find <substr> | goblin | cavebear | vermin | spider
-#   megabeast | migrants | caravan [dwarf|elf|human|goblin]
-dwarfipelago test caravan elf
+#   megabeast | migrants | caravan [dwarf|elf|human|goblin|gorlak]
+# ('caravan gorlak' grants a coffer if you have none, establishing contact and
+#  summoning the gorlak Archipelago (AP shop) caravan)
+dwarfipelago test caravan gorlak
 
 # Peek at any storage key
 lua print(dfhack.persistent.getWorldDataString("dwarfipelago/pending_item_created"))
