@@ -104,8 +104,7 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/caravan_energy_cost` | Integer string | Lua | Energy cost (kJ) of a requested early caravan, for Python to deduct from the pool |
 | `dwarfipelago/request_caravan` | `"1"` or `"0"` | Lua | Set to `"1"` when the player requests an early caravan; Python deducts the cost and responds |
 | `dwarfipelago/spawn_caravan_approved` | `"1"` or `"0"` | Python | Python sets `"1"` once the energy cost is deducted; Lua spawns the caravan then clears it |
-| `dwarfipelago/ap_caravan_active` | `"1"` or `"0"` | Lua | `"1"` while the Energy-Link-summoned caravan is docked; drives the panel's "[Caravan docked]" status. The AP **shop** itself is now the native gorlak Archipelago caravan (its goods ride DF's real trade screen), gated on Merchant's Coffers, not on this key |
-| `dwarfipelago/ap_caravan_units` | Comma-separated ids | Lua | The full caravan entourage (merchants, guards, pack animals) so departure retires them as a group |
+| `dwarfipelago/ap_caravan_active` | `"1"` or `"0"` | Lua | Maintained by the poll: `"1"` while **any** caravan is docked at the depot - the gorlak shop caravan, an Energy-Link-called caravan, or a natural visit. Drives the panel's "[Caravan docked]" status and the Energy-Link call/dismiss guard. (Energy-Link's "call caravan" summons a normal caravan from your own civ, not the gorlak shop caravan) |
 | `dwarfipelago/energy_deposit` | Integer string | Lua | Energy (joules) the player has deposited (ale/food/coins) awaiting send to the pool; Python reads and clears |
 | `dwarfipelago/use_energy_link` | `"Y"` or absent | Lua | Set when a deposit has occurred, signalling Python to process `energy_deposit` |
 | `dwarfipelago/deathlink_threshold` | Integer string | Python | Dwarves (or % of pop) per DeathLink send/receive; option max is 50 |

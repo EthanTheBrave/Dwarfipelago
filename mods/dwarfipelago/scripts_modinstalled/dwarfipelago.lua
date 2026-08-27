@@ -660,6 +660,11 @@ local function poll_ap_caravan()
         apcaravan.clear_ap_goods()   -- caravan left: pull back any unbought AP goods
     end
     _ap_caravan_was_docked = docked
+    -- Panel/Energy-Link status: "[Caravan docked]" means any caravan is at the
+    -- depot (the gorlak shop caravan, an Energy-Link-called one, or a natural
+    -- visit), so the player knows one is present and not to call another.
+    dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active",
+        docked and "1" or "0")
 end
 
 -- ability to force a caravan
@@ -671,6 +676,8 @@ local function getCiv(civ)
 end
 
 local function spawnCaravan()
+    -- Energy-Link "call caravan" summons a normal caravan from your own (dwarven)
+    -- civ - a regular early trade caravan, not the Archipelago (gorlak) shop.
     local civ = getCiv("MOUNTAIN")  -- FOREST = Elves / PLAINS = humans / MOUNTAIN = dwarves
     if not civ then
         dfhack.gui.showAnnouncement("[AP] Cannot summon caravan: no dwarven civilization found.", COLOR_RED, true)
@@ -764,9 +771,14 @@ local function dismiss_ap_caravan()
         dfhack.gui.showAnnouncement("[AP] No AP caravan is currently docked.", COLOR_YELLOW, true)
         return
     end
-    dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "0")
-    dfhack.gui.showAnnouncement("[AP] The AP caravan has been dismissed.", COLOR_YELLOW, true)
-    print("[Dwarfipelago] AP caravan dismissed.")
+    -- Send the docked gorlak caravan on its way; poll_ap_caravan clears the flag
+    -- once it has actually left.
+    if apcaravan.depart_ap_caravan() then
+        dfhack.gui.showAnnouncement("[AP] The Archipelago caravan is packing up to leave.", COLOR_YELLOW, true)
+        print("[Dwarfipelago] AP caravan dismissed (departing).")
+    else
+        dfhack.gui.showAnnouncement("[AP] Could not dismiss the caravan.", COLOR_YELLOW, true)
+    end
 end
 
 -- Poll: once Python approves the energy deduction, spawn the caravan.
@@ -777,12 +789,12 @@ local function _check_spawn_caravan_approved()
         dfhack.gui.showAnnouncement("[AP] Caravan approved but spawn failed.", COLOR_RED, true)
         return
     end
-    dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "1")
+    -- ap_caravan_active is set by poll_ap_caravan once the caravan actually docks.
     local cost = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/caravan_energy_cost") or "0") or 0
     announce_caravan(
-        ("[AP] The Archipelago caravan has arrived! (%s spent)"):format(fmt_energy(cost)),
+        ("[AP] An Archipelago caravan is on its way! (%s spent)"):format(fmt_energy(cost)),
         COLOR_GREEN)
-    print("[Dwarfipelago] AP caravan spawned.")
+    print("[Dwarfipelago] AP caravan summoned.")
 end
 
 -- ── Energy deposits: ale, food, coins ─────────────────────────────────────────
@@ -1380,56 +1392,6 @@ local function abs_tick()
     return df.global.cur_year * TICKS_PER_YEAR + df.global.cur_year_tick
 end
 
--- ── Archipelago caravan: seasonal (spring) visit while the shrine is active ────
--- The AP shop is always reachable at the shrine altar; on top of that, each
--- spring a neutral "Archipelago Merchant" dwarf stands at the trade depot for a
--- while, exposing the same shop from a depot button (dwarfipelago-overlays). No
--- real caravan is spawned - just the one NPC, whose presence gates the button.
-local AP_CARAVAN_STAY_TICKS = 24000  -- ~20 days at the depot before it departs
-local function detect_ap_caravan()
-    local coffers = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/unlock/wealth_coffers")) or 0
-    local active  = dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_active") == "1"
-    local now = abs_tick()
-    if active then
-        local arrive  = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_arrive")) or 0
-        local present = items.ap_merchant_present()
-        -- Depart when the stay is up or the merchant is gone (e.g. killed).
-        if not present or now - arrive >= AP_CARAVAN_STAY_TICKS then
-            items.despawn_ap_merchant()
-            items.remove_trade_session()
-            dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "0")
-            if present then
-                announce_caravan("[AP] The Archipelago caravan packs up and departs.", COLOR_YELLOW)
-            end
-        else
-            items.ensure_trade_session()  -- keep DF's "move goods to depot" enabled
-        end
-        return
-    end
-    -- Arrive once per year in spring (season 0), independent of the shrine. The
-    -- caravan only stops if the fort has at least one Merchant's Coffer to trade
-    -- against; with none it passes by (announced once, so the year is marked
-    -- either way). Goods offered stay limited to the unlocked coffer tiers.
-    if _cur_season() == 0 then
-        local last = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/ap_caravan_year")) or -1
-        if df.global.cur_year > last then
-            if coffers >= 1 and items.spawn_ap_merchant() then
-                items.ensure_trade_session()
-                dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_year", tostring(df.global.cur_year))
-                dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "1")
-                dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_arrive", tostring(now))
-                announce_caravan(
-                    "[AP] An Archipelago caravan has arrived at your trade depot!", COLOR_GREEN)
-            elseif coffers < 1 then
-                dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_year", tostring(df.global.cur_year))
-                dfhack.gui.showAnnouncement(
-                    "[AP] An Archipelago caravan passes by - with no Merchant's Coffer to trade against, they deem your fortress unworthy of a stop.",
-                    COLOR_YELLOW, true)
-            end
-        end
-    end
-end
-
 -- Crash-diagnosis breadcrumb: note the building sheet the player is viewing (on
 -- change) so the log's tail shows the last screen before an overlay/DF crash.
 -- (Full DF/DFHack crashes are captured separately in <DF>/crashlog/.)
@@ -1855,7 +1817,6 @@ local function poll_checks()
     guard("harnessed_power", detect_harnessed_power)
     guard("completed_trade", detect_completed_trade)
     guard("tamed_beast",     detect_tamed_beast)
-    guard("apcaravan",     detect_ap_caravan)
     guard("focus_log",     log_building_focus)
     guard("spawn_caravan", _check_spawn_caravan_approved)
     guard("skills",        checks.update_skill_levels)
