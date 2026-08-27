@@ -485,7 +485,7 @@ The thresholds are based on your own world's cavern/magma z-levels as they're di
 <details>
 <summary>Merchant's Shop</summary>
 
-The Merchant's Shop lets you **spend minted coins to buy multiworld items** — a way to turn your economy into progress when the checks dry up. It's on by default; disable it with `merchant_shop: false`.
+The Merchant's Shop lets you **trade your goods for multiworld items** — a way to turn your economy into progress when the checks dry up. It's on by default; disable it with `merchant_shop: false`.
 
 ### The Archipelago caravan
 
@@ -499,7 +499,7 @@ The caravan arrives, stands at the depot for its stay, and departs as a group. I
 
 - Trade on **DF's own trade screen**: select the **trade depot**, choose **Trade**, and trade for the goods while the Archipelago (gorlak) caravan is docked. The shop items appear grouped under **"AP Items (Tier N)"**; trading for one sends its multiworld location check.
 - The shop has **50 slots**; **10 unlock per Merchant's Coffer** you've received (so all 50 need all 5 coffers). Goods stay limited to the coffer tiers you have unlocked.
-- Each slot holds **one multiworld item at a coin price** (a value banded by tier). Buying deducts that value from your minted coins and sends the item's location check; each slot is bought once.
+- Each slot holds **one multiworld item at a set price** (a value banded by tier). You pay it like any caravan good — offer goods worth that value on the trade screen (coins, crafts, anything the caravan accepts) — which sends the item's location check; each slot is bought once.
 - Console (debug): `dwarfipelago buy-shop <slot>` while the caravan is docked.
 
 ### Options

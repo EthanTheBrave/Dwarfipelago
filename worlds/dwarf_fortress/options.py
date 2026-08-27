@@ -400,22 +400,23 @@ class ProgressiveMiningDepth(DefaultOnToggle):
     display_name = "Progressive Mining Depths"
 
 # ── Merchant's Shop ──────────────────────────────────────────────────────────
-# The Merchant's Shop lets you spend minted coins to buy AP items. It opens 10
-# slots per Merchant's Coffer received (up to 50 with all 5). Each slot holds one
-# multiworld item at a random coin-VALUE price, banded by coffer tier from the
-# range in locations.SHOP_PRICE_MIN/MAX, and is bought once.
+# The Merchant's Shop lets you trade for AP items on the native trade screen while
+# the Archipelago (gorlak) caravan is docked. It opens 10 slots per Merchant's
+# Coffer received (up to 50 with all 5). Each slot holds one multiworld item at a
+# random price, banded by coffer tier from the range in locations.SHOP_PRICE_MIN/
+# MAX, and is bought once.
 
 class MerchantShop(DefaultOnToggle):
     """
-    Enable the Merchant's Shop: spend minted coins to buy multiworld items from
-    50 shop slots (10 unlocked per Merchant's Coffer received).
-    When disabled, no shop slots are created and the shop tab stays empty.
+    Enable the Merchant's Shop: trade for multiworld items from 50 shop slots
+    (10 unlocked per Merchant's Coffer received) on the docked Archipelago
+    caravan's native trade screen. When disabled, no shop slots are created.
     """
     display_name = "Merchant's Shop"
 
 class ShopPriceMultiplier(Range):
     """
-    Scales every shop slot's coin price, as a percentage of the default range.
+    Scales every shop slot's price, as a percentage of the default range.
     100 = default prices, 50 = half price, 200 = double, etc. Has no effect when
     the Merchant's Shop is disabled.
     """

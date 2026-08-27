@@ -34,7 +34,7 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/pending_checks` | JSON `int[]` | Lua | AP location IDs ready to send to the server |
 | `dwarfipelago/pending_item_created` | JSON `ItemEvent[]` | Lua | Items created since last poll (see schema below) |
 | `dwarfipelago/pending_item_stockpiled` | JSON `ItemEvent[]` | Lua | Items placed into a stockpile since last poll |
-| `dwarfipelago/shop_buy` | JSON `int[]` | Lua | Merchant's Shop slot indices the player has purchased; Python fulfils each (deducts coins, sends the item) then clears the queue |
+| `dwarfipelago/shop_buy` | JSON `int[]` | Lua | Merchant's Shop slot indices the player has traded for on the native trade screen; Python fulfils each by sending the item's location check (DF already took payment at the depot), then clears the queue |
 
 ### State Flags (peek, do not clear)
 
@@ -124,7 +124,7 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/skillsanity_max_level` | Integer string | Python | Highest skill level that fires a check (1=Novice … 15=Legendary) |
 | `dwarfipelago/skillsanity_behaviour` | `"0"` or `"1"` | Python | Level mechanic for pre-skilled arrivals: `0`=leave untouched (all levels fire at once), `1`=lower to the next unclaimed check |
 | `dwarfipelago/shop_enabled` | `"0"` or `"1"` | Python | Whether the Merchant's Shop is enabled for this slot |
-| `dwarfipelago/shop` | JSON `{slot: {item, price, bought}}` | Python | The shop's slot contents — one multiworld item and its coin price per slot |
+| `dwarfipelago/shop` | JSON `{slot: {item, price, bought}}` | Python | The shop's slot contents — one multiworld item and its trade price per slot (baked into the good's material value for the native trade screen) |
 
 ---
 
