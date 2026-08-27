@@ -492,8 +492,6 @@ M.checks = {
     { id = 37370745, name = "First Patient Treated", fn = function() return M.production_flag("patient_treated") end },
 
     -- Biology / animals.
-    -- "First Eggs Hatched" (37370750) disabled: hatch detection unreliable on DF v50.
-    -- { id = 37370750, name = "First Eggs Hatched", fn = function() return M.production_flag("egg_hatched")     end },
     { id = 37370751, name = "Caged a Hostile Beast", fn = function() return M.production_flag("caged_hostile_beast") end },
     { id = 37370752, name = "First Birth",           fn = function() return M.production_flag("first_birth")        end },
 

@@ -645,9 +645,8 @@ local function detect_caravans()
     end
 end
 
--- Native AP shop: put the AP goods on a docked caravan as real items and detect
--- purchases. Piggybacks any caravan for now; will gate to the Archipelago civ
--- once that caravan is wired up.
+-- Native AP shop: put the AP goods on the docked gorlak Archipelago caravan as
+-- real items (gated to that civ) and detect purchases.
 local apcaravan = reqscript('internal/dwarfipelago/apcaravan')
 local _ap_caravan_was_docked = false
 local function poll_ap_caravan()
@@ -1217,34 +1216,6 @@ local function detect_pump_activity()
     end)
 end
 
--- ── Egg hatch detection ───────────────────────────────────────────────────────
--- DISABLED for now: no reliable hatch signal on DF v50 (no born_from_egg flag,
--- and the tame-baby-egg-layer scan didn't fire in testing). Re-enable together
--- with the "First Eggs Hatched" location/rule/check in the .py and checks.lua.
---[[
-local function caste_lays_eggs(unit)
-    local lays = false
-    pcall(function()
-        lays = df.creature_raw.find(unit.race).caste[unit.caste].flags.LAYS_EGGS
-    end)
-    return lays == true
-end
-
-local function detect_egg_hatch()
-    if checks.production_flag("egg_hatched") then return end
-    pcall(function()
-        for _, unit in ipairs(df.global.world.units.active) do
-            if dfhack.units.isTame(unit) and dfhack.units.isBaby(unit)
-                    and caste_lays_eggs(unit) then
-                checks.set_production_flag("egg_hatched")
-                dfhack.gui.showAnnouncement("[AP] Eggs have hatched in the fortress!", COLOR_GREEN, true)
-                return
-            end
-        end
-    end)
-end
---]]
-
 -- ── Cave adaptation suppression ──────────────────────────────────────────────
 local function suppress_cave_adaptation()
     if dfhack.persistent.getWorldDataString("dwarfipelago/unlock/sunlight_tonic") ~= "1" then return end
@@ -1805,7 +1776,6 @@ local function poll_checks()
     guard("ap_caravan",    poll_ap_caravan)
     guard("missions",      checks.detect_mission_checks)
     guard("pump",          detect_pump_activity)
-    -- detect_egg_hatch()  -- disabled: hatch detection unreliable on DF v50
     guard("caged_beast",   detect_caged_hostile_beast)
     guard("cave_adapt",    suppress_cave_adaptation)
     guard("sold_artifact", detect_sold_artifact)

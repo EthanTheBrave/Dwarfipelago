@@ -114,7 +114,6 @@ local function is_ap_caravan()
     local e = df.historical_entity.find(m.civ_id)
     return e ~= nil and e.entity_raw.code == "ARCHIPELAGO"
 end
-M.is_ap_caravan = is_ap_caravan
 
 -- Hide the caravan's own (non-AP) merchandise so only AP goods show on the trade
 -- screen. Clears the trader flag: immediate and non-destructive (caged livestock

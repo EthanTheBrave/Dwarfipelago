@@ -167,8 +167,6 @@ HEALTH_LOCATIONS: list[LocationData] = [
 
 # ── Biology / Animal Milestones ───────────────────────────────────────────────
 BIOLOGY_LOCATIONS: list[LocationData] = [
-    # "First Eggs Hatched" (BASE_ID + 750) disabled: hatch detection unreliable on DF v50.
-    # LocationData("First Eggs Hatched",  BASE_ID + 750, "Fortress"),
     LocationData("Caged a Hostile Beast",   BASE_ID + 751, "Fortress"),
     LocationData("First Birth",             BASE_ID + 752, "Fortress"),
 ]

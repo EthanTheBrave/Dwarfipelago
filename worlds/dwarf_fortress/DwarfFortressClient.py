@@ -726,26 +726,6 @@ class DwarfFortressCommandProcessor(ClientCommandProcessor):
         for line in install_mod_for_worldgen().splitlines():
             self.output(line)
 
-    # def _cmd_send_energy_link(self, amount: str = ""):
-    #     """Send energy to test energy link. usage: /send_energy_link <amount>"""
-    #     difference = int(amount)
-    #     if difference <= 0:
-    #         self.ctx.last_deplete = time.time()
-    #         async_start(self.ctx.send_msgs([{
-    #             "cmd": "Set", "key": self.ctx.energylink_key, "operations":
-    #                 [{"operation": "add", "value": difference},
-    #                 {"operation": "max", "value": 0}],
-    #             "last_deplete": self.ctx.last_deplete
-    #         }]))
-    #         logger.debug(f"EnergyLink: Used {format_SI_prefix(difference)}*")
-    #     else:
-    #         async_start(self.ctx.send_msgs([{
-    #             "cmd": "Set", "key": self.ctx.energylink_key, "operations":
-    #                 [{"operation": "add", "value": difference}]
-    #         }]))
-    #         logger.debug(f"EnergyLink: Sent {format_SI_prefix(difference)}*")
-        
-
 
 class DwarfFortressContext(CommonContext):
     """
