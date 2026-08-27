@@ -1756,7 +1756,9 @@ local function poll_warband_waves()
     if now >= next_tick - TICKS_PER_DAY
             and dfhack.persistent.getWorldDataString("dwarfipelago/megabeast/wave_warned") ~= "1" then
         dfhack.persistent.saveWorldDataString("dwarfipelago/megabeast/wave_warned", "1")
-        dfhack.gui.showAnnouncement(
+        -- showPopupAnnouncement (not showAnnouncement) so the warning uses DF's
+        -- modal, screen-stopping popup instead of a banner easy to miss (issue #177).
+        dfhack.gui.showPopupAnnouncement(
             "[AP] Scouts report a warband approaching - it will reach the fortress within a day.",
             COLOR_YELLOW, true)
     end

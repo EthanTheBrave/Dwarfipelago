@@ -2497,7 +2497,9 @@ local function spawn_warband(readiness, faction_key)
     end
 
     if spawned > 0 then
-        dfhack.gui.showAnnouncement(
+        -- showPopupAnnouncement (not showAnnouncement) so arrival uses DF's modal,
+        -- screen-stopping popup instead of a banner easy to miss (issue #177).
+        dfhack.gui.showPopupAnnouncement(
             ("[AP] %s %d enemies close on the fortress."):format(faction.announce, spawned),
             COLOR_RED, true)
         log.info(("Warband spawned: %s siege, readiness %d, %d enemies (defense x%.2f: %d traps, %d soldiers) at (%d,%d,%d)"):format(
