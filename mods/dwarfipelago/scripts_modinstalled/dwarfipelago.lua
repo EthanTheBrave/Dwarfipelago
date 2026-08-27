@@ -666,20 +666,14 @@ local function poll_ap_caravan()
         docked and "1" or "0")
 end
 
--- ability to force a caravan
-local function getCiv(civ)
-    civ = string.lower(tostring(civ))
-    for _,entity in ipairs(df.global.world.entities.all) do
-        if string.lower(entity.entity_raw.code) == civ then return entity end
-    end
-end
-
 local function spawnCaravan()
-    -- Energy-Link "call caravan" summons a normal caravan from your own (dwarven)
-    -- civ - a regular early trade caravan, not the Archipelago (gorlak) shop.
-    local civ = getCiv("MOUNTAIN")  -- FOREST = Elves / PLAINS = humans / MOUNTAIN = dwarves
+    -- Energy-Link "call caravan" summons an early trade caravan from your OWN
+    -- civilization. Must be the fortress's civ (plotinfo.civ_id): a foreign dwarf
+    -- civ's caravan can't reach your fort, so it spawns off-map and departs
+    -- without ever arriving (an arbitrary MOUNTAIN entity is often not yours).
+    local civ = df.historical_entity.find(df.global.plotinfo.civ_id)
     if not civ then
-        dfhack.gui.showAnnouncement("[AP] Cannot summon caravan: no dwarven civilization found.", COLOR_RED, true)
+        dfhack.gui.showAnnouncement("[AP] Cannot summon caravan: fortress civilization not found.", COLOR_RED, true)
         return false
     end
     df.global.timed_events:insert('#', {
