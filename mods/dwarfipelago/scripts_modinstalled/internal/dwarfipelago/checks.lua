@@ -1512,11 +1512,24 @@ function M.find_fortress_drinks()
 end
 
 -- Return all accessible food items in fortress stocks.
+-- Edible fortress food Energy Link accepts as a "food" deposit: prepared meals
+-- plus raw eats (meat, fish, cheese, eggs, harvested plants). Drinks have their
+-- own deposit (deposit-ale); seeds are excluded so planting stock is preserved.
+local FOOD_DEPOSIT_TYPES = {
+    [df.item_type.FOOD]     = true,  -- prepared meals
+    [df.item_type.MEAT]     = true,
+    [df.item_type.FISH]     = true,
+    [df.item_type.FISH_RAW] = true,
+    [df.item_type.CHEESE]   = true,
+    [df.item_type.EGG]      = true,
+    [df.item_type.PLANT]    = true,
+}
+
 function M.find_fortress_food()
     local food = {}
     for _, item in ipairs(df.global.world.items.all) do
         local ok, t = pcall(function() return item:getType() end)
-        if ok and t == df.item_type.FOOD
+        if ok and FOOD_DEPOSIT_TYPES[t]
                 and not item.flags.removed
                 and not item.flags.trader
                 and not item.flags.in_inventory
