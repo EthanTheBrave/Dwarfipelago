@@ -1711,7 +1711,7 @@ class DwarfFortressContext(CommonContext):
             return
         shop_list = [
             {"slot": e["slot"], "item": e.get("item", ""), "player": e.get("player", ""),
-             "tier": e.get("tier", 1)}
+             "tier": e.get("tier", 1), "price": e.get("price")}
             for e in entries.values()
         ]
         apraws.generate(shop_list, os.path.join(mod, "objects"), os.path.join(mod, "graphics"))
