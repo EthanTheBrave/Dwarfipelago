@@ -21,3 +21,6 @@ Thumbs.db
 
 # Local dev scripts
 deploy.ps1
+
+# Local hotfix scripts / patches - never tracked
+patches/
