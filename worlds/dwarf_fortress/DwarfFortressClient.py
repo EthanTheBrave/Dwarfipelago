@@ -358,10 +358,15 @@ def install_worldgen_preset() -> str:
 
 
 def install_mod_for_worldgen() -> str:
-    """Wipe every stale/duplicate dwarfipelago install and copy a fresh raws
-    build into <DF>/data/installed_mods so world-gen always reads the current
-    files -- no NUMERIC_VERSION bump needed. Scripts are intentionally left out
-    (they load from <DF>/mods) so this can't double-load them.
+    """Wipe every stale/duplicate dwarfipelago install and copy a fresh, COMPLETE
+    build (raws + scripts) into <DF>/data/installed_mods so world-gen always reads
+    the current files -- no NUMERIC_VERSION bump needed.
+
+    Scripts are included on purpose: since this wipes the existing install first,
+    a raws-only copy would strip the mod's scripts, and a world generated with it
+    would bake raws-only into the save -- leaving the fort with no mod logic. (It
+    worked on the dev machine only because scripts happened to live in a second
+    installed_mods folder the wipe didn't reach.)
 
     Source is <DF>/mods/dwarfipelago (the working mod copy). Returns a status
     message for the AP client console.
@@ -399,16 +404,17 @@ def install_mod_for_worldgen() -> str:
     except OSError:
         pass
 
-    # Copy a fresh raws-only install (info + objects + graphics; no scripts).
+    # Copy a fresh, complete install: info + raws (objects/graphics) + scripts, so
+    # a world generated with it bakes both raws and scripts into the save.
     dst = os.path.join(installed, f"dwarfipelago ({version})")
     os.makedirs(dst, exist_ok=True)
     shutil.copy2(os.path.join(src, "info.txt"), dst)
-    for sub in ("objects", "graphics"):
+    for sub in ("objects", "graphics", "scripts_modinstalled"):
         s = os.path.join(src, sub)
         if os.path.isdir(s):
             shutil.copytree(s, os.path.join(dst, sub))
 
-    return (f"Installed dwarfipelago raws for world-gen -> {dst}\n"
+    return (f"Installed dwarfipelago (raws + scripts) for world-gen -> {dst}\n"
             f"(cleared {len(removed)} old install(s): {', '.join(removed) or 'none'})\n"
             f"Restart DF, then enable 'Dwarfipelago' in the mod list when you generate a world.")
 
