@@ -12,7 +12,6 @@
 local overlay = require('plugins.overlay')
 local widgets = require('gui.widgets')
 local to_pen  = dfhack.pen.parse
-local trade   = reqscript('internal/dwarfipelago/trade')
 
 -- ── Shared keyword matching ───────────────────────────────────────────────────
 
@@ -549,40 +548,12 @@ function CraftsanityOverlay:onRenderBody(dc)
     end
 end
 
--- ── Caravan trade overlay ─────────────────────────────────────────────────────
--- The AP shop is caravan-only: while an Archipelago caravan is docked (spring
--- visit), a button on the trade depot opens the merchant shop window. There is
--- no shop button on the temple altar. The window lives in trade.lua.
-DepotTradeOverlay = defclass(DepotTradeOverlay, overlay.OverlayWidget)
-DepotTradeOverlay.ATTRS{
-    desc            = "Dwarfipelago: button on the trade depot to shop a visiting Archipelago caravan",
-    default_pos     = {x = 58, y = 18},
-    default_enabled = true,
-    viewscreens     = {'dwarfmode/ViewSheets/BUILDING/TradeDepot'},
-    frame           = {w = 40, h = 1},
-}
-
-function DepotTradeOverlay:init()
-    self:addviews{
-        widgets.TextButton{
-            view_id     = 'open',
-            frame       = {t = 0, l = 0, h = 1},
-            label       = 'Trade with Archipelago Caravan',
-            key         = 'CUSTOM_CTRL_A',
-            visible     = function()
-                return trade.ap_caravan_docked()
-                    and trade.is_trade_depot(dfhack.gui.getSelectedBuilding())
-            end,
-            on_activate = function() trade.open("depot") end,
-        },
-    }
-end
-
 -- Auto-discovery table - DFHack registers these when the script is loaded.
 -- Widget names: "dwarfipelago-overlays.permits", "dwarfipelago-overlays.buildmenu".
+-- The AP shop now trades on DF's native trade screen (the gorlak caravan carries
+-- the AP goods), so there is no custom depot/altar trade button.
 OVERLAY_WIDGETS = {
     permits   = PermitOverlay,
     buildmenu = BuildMenuOverlay,
     craftsanity = CraftsanityOverlay,
-    depottrade = DepotTradeOverlay,
 }

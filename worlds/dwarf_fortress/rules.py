@@ -282,10 +282,6 @@ def set_rules(world: "DwarfFortressWorld") -> None:
                 loc.access_rule = lambda state: (dynamic_rules.metal_furniture(state)) #ability to make any metal furniture
     
     # ── Biology / Animal Milestones ───────────────────────────────────────────────
-    # "First Eggs Hatched" disabled: hatch detection unreliable on DF v50. Re-enable
-    # together with the location in locations.py and the check in checks.lua.
-    # loc = multiworld.get_location("First Eggs Hatched", player)
-    # loc.access_rule = lambda state: dynamic_rules.craftdwarf_workshop(state)
 
     # Catching a hostile beast needs a cage trap = a cage plus a mechanism (built
     # at the Mechanic's Workshop), so require both.

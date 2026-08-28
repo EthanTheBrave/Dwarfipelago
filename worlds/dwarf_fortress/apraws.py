@@ -24,6 +24,11 @@ MAT_PREFIX = "AP_SHOP_"                # per-slot inorganic carrying the good na
 TILE_PAGE = "DWARFIPELAGO_ITEMS"       # shared AP-logo tile page (tile_page_dwarfipelago.txt)
 MAX_TIER = 5
 _MAX_NAME = 48                         # keep DF name tokens sane
+# DF values a tool as (item [VALUE]) x (material MATERIAL_VALUE). The tier tools
+# carry TOOL_VALUE; the per-slot material carries MATERIAL_VALUE = price/TOOL_VALUE,
+# so the native trade screen charges each slot's rolled price (tier-banded and
+# scaled by shop_price_multiplier at gen time).
+TOOL_VALUE = 100
 
 
 def sanitize_name(text: str) -> str:
@@ -44,10 +49,20 @@ def _clamp_tier(v) -> int:
     return max(1, min(MAX_TIER, t))
 
 
+def _material_value(price) -> int:
+    """The MATERIAL_VALUE that makes DF value this good at `price` on the trade
+    screen (item value = TOOL_VALUE x MATERIAL_VALUE). Quantized to TOOL_VALUE."""
+    try:
+        p = int(price)
+    except (TypeError, ValueError):
+        return 1
+    return max(1, round(p / TOOL_VALUE))
+
+
 def build_shop_goods(shop_entries):
-    """shop_entries: iterable of dicts with slot, item, player, tier. Returns
-    [{slot, tier, mat_id, name}] -- one custom inorganic per slot, named after
-    the good (tagged with the recipient so identical goods stay distinct)."""
+    """shop_entries: iterable of dicts with slot, item, player, tier, price.
+    Returns [{slot, tier, mat_id, name, material_value}] -- one custom inorganic
+    per slot, named after the good and priced via its material value."""
     goods = []
     for e in shop_entries:
         slot = int(e["slot"])
@@ -60,6 +75,7 @@ def build_shop_goods(shop_entries):
             "tier": _clamp_tier(e.get("tier", 1)),
             "mat_id": f"{MAT_PREFIX}{slot}",
             "name": name,
+            "material_value": _material_value(e.get("price")),
         })
     goods.sort(key=lambda g: g["slot"])
     return goods
@@ -77,7 +93,7 @@ def render_item_raws() -> str:
         out += [
             f"[ITEM_TOOL:{TOOL_PREFIX}{tier}]",
             f"\t[NAME:{name}:{name}]",
-            "\t[VALUE:100]",
+            f"\t[VALUE:{TOOL_VALUE}]",
             "\t[TILE:15]",
             "\t[HARD_MAT]",
             "\t[SIZE:200]",
@@ -99,6 +115,9 @@ def render_inorganic_raws(goods) -> str:
             f"[INORGANIC:{g['mat_id']}]",
             "\t[USE_MATERIAL_TEMPLATE:STONE_TEMPLATE]",
             f"\t[STATE_NAME_ADJ:ALL_SOLID:{g['name']}]",
+            # Prices the good on the native trade screen: item value =
+            # TOOL_VALUE x MATERIAL_VALUE (see TOOL_VALUE).
+            f"\t[MATERIAL_VALUE:{g['material_value']}]",
             "\t[DISPLAY_COLOR:7:0:0]",
             "\t[IS_STONE]",
             "",

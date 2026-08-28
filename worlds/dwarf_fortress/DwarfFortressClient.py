@@ -310,85 +310,104 @@ WORLD_GEN_PRESET = (
 )
 
 
-def _find_worldgen_prefs_path() -> Optional[str]:
-    """
-    Locate the DF prefs/world_gen.txt file across platforms.
+def _df_data_roots() -> list:
+    """Every DF data root that might hold installed_mods / prefs / mods, so we can
+    install where DF actually reads regardless of how it's installed. Covers the
+    Steam user-data dir (Windows %APPDATA%, macOS Application Support, Linux
+    ~/.local/share) AND the classic "alongside the executable" layout. Returns
+    existing directories only, most-likely first, de-duplicated."""
+    roots, seen = [], set()
 
-    Steam DF on Windows redirects user prefs to %APPDATA%\\Bay 12 Games\\Dwarf
-    Fortress\\ rather than the install directory. Linux/macOS keep prefs
-    alongside the install, so we derive it from the DF executable location.
-    """
+    def add(r):
+        if r and r not in seen and os.path.isdir(r):
+            seen.add(r)
+            roots.append(r)
+
+    home = os.path.expanduser("~")
     if sys.platform == "win32":
-        appdata = os.environ.get("APPDATA")
-        if not appdata:
-            return None
-        return os.path.join(appdata, "Bay 12 Games", "Dwarf Fortress", "prefs", "world_gen.txt")
-
+        add(os.path.join(os.environ.get("APPDATA", ""), "Bay 12 Games", "Dwarf Fortress"))
+    elif sys.platform == "darwin":
+        add(os.path.join(home, "Library", "Application Support", "Bay 12 Games", "Dwarf Fortress"))
+    else:
+        add(os.path.join(home, ".local", "share", "Bay 12 Games", "Dwarf Fortress"))
     exe = _get_df_executable()
-    if not exe:
-        return None
-    return os.path.join(os.path.dirname(exe), "prefs", "world_gen.txt")
+    if exe:
+        add(os.path.dirname(exe))
+    return roots
+
+
+def _find_worldgen_prefs_paths() -> list:
+    """All prefs/world_gen.txt paths across the DF data roots (the file may live in
+    the Steam user-data dir and/or alongside the install)."""
+    return [os.path.join(r, "prefs", "world_gen.txt") for r in _df_data_roots()]
 
 
 def install_worldgen_preset() -> str:
     """
-    Append the Dwarfipelago world-gen preset to the player's world_gen.txt if it
-    isn't already present. Safe to call repeatedly. Returns a status message
-    for printing to the AP client console.
+    Append the Dwarfipelago world-gen preset to the player's world_gen.txt,
+    wherever DF keeps prefs (Steam user-data dir and/or alongside the install),
+    if it isn't already present. Safe to call repeatedly. Returns a status message
+    for the AP client console.
     """
-    prefs_path = _find_worldgen_prefs_path()
-    if not prefs_path:
-        return ("Could not locate prefs/world_gen.txt - set 'game_path' in host.yaml "
-                 "to your Dwarf Fortress executable and try again.")
+    roots = _df_data_roots()
+    if not roots:
+        return ("Could not locate the DF install - set 'game_path' in host.yaml "
+                "to your Dwarf Fortress executable and try again.")
 
-    existing = ""
-    if os.path.isfile(prefs_path):
-        with open(prefs_path, "r", encoding="utf-8") as f:
-            existing = f.read()
+    # DF keeps world_gen.txt under prefs/; target every root that already has one,
+    # falling back to creating it under the most-likely root.
+    targets = [os.path.join(r, "prefs", "world_gen.txt")
+               for r in roots if os.path.isdir(os.path.join(r, "prefs"))]
+    if not targets:
+        targets = [os.path.join(roots[0], "prefs", "world_gen.txt")]
 
-    if WORLD_GEN_PRESET_TITLE in existing:
-        return f"World gen preset is already installed in {prefs_path}"
+    wrote, already = [], []
+    for path in targets:
+        existing = ""
+        if os.path.isfile(path):
+            with open(path, "r", encoding="utf-8") as f:
+                existing = f.read()
+        if WORLD_GEN_PRESET_TITLE in existing:
+            already.append(path)
+            continue
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(WORLD_GEN_PRESET)
+        wrote.append(path)
 
-    os.makedirs(os.path.dirname(prefs_path), exist_ok=True)
-    with open(prefs_path, "a", encoding="utf-8") as f:
-        f.write(WORLD_GEN_PRESET)
-
-    return (f"World gen preset installed to {prefs_path}\n"
-            f"Restart Dwarf Fortress for 'DwarfipelagoWorld' to appear in the preset list.")
+    if wrote:
+        return ("World gen preset installed to:\n  " + "\n  ".join(wrote)
+                + "\nRestart Dwarf Fortress for 'DwarfipelagoWorld' to appear in the preset list.")
+    return "World gen preset already installed (" + ", ".join(already) + ")"
 
 
 def install_mod_for_worldgen() -> str:
-    """Wipe every stale/duplicate dwarfipelago install and copy a fresh raws
-    build into <DF>/data/installed_mods so world-gen always reads the current
-    files -- no NUMERIC_VERSION bump needed. Scripts are intentionally left out
-    (they load from <DF>/mods) so this can't double-load them.
+    """Wipe every stale/duplicate dwarfipelago install and copy a fresh, COMPLETE
+    build (raws + scripts) into <DF>/data/installed_mods so world-gen always reads
+    the current files -- no NUMERIC_VERSION bump needed.
+
+    Scripts are included on purpose: since this wipes the existing install first,
+    a raws-only copy would strip the mod's scripts, and a world generated with it
+    would bake raws-only into the save -- leaving the fort with no mod logic. (It
+    worked on the dev machine only because scripts happened to live in a second
+    installed_mods folder the wipe didn't reach.)
 
     Source is <DF>/mods/dwarfipelago (the working mod copy). Returns a status
     message for the AP client console.
     """
-    exe = _get_df_executable()
-    if not exe:
+    roots = _df_data_roots()
+    if not roots:
         return ("Could not locate the DF install - set 'game_path' in host.yaml to "
                 "your Dwarf Fortress executable and try again.")
-    df_dir = os.path.dirname(exe)
-    src = os.path.join(df_dir, "mods", "dwarfipelago")
-    if not os.path.isdir(src):
-        return f"dwarfipelago mod not found at {src} - install the mod there first."
 
-    installed = os.path.join(df_dir, "data", "installed_mods")
-    os.makedirs(installed, exist_ok=True)
+    # The working mod copy lives at <root>/mods/dwarfipelago; use the first found.
+    src = next((os.path.join(r, "mods", "dwarfipelago") for r in roots
+                if os.path.isdir(os.path.join(r, "mods", "dwarfipelago"))), None)
+    if not src:
+        return (f"dwarfipelago mod not found under any DF data root's mods/ folder "
+                f"(looked in: {', '.join(roots)}) - install the mod there first.")
 
-    # Remove any existing dwarfipelago install(s) so DF can't "use the first
-    # encountered" stale copy or warn about duplicate id+version.
-    removed = []
-    for name in os.listdir(installed):
-        if name.lower().startswith("dwarfipelago"):
-            shutil.rmtree(os.path.join(installed, name), ignore_errors=True)
-            removed.append(name)
-
-    # DF's mod manager only recognizes installed mods whose folder is named
-    # "<id> (<numeric_version>)"; a plain "dwarfipelago" folder is ignored. Read
-    # the version from the source info.txt and name the install to match.
+    # DF names installs "<id> (<numeric_version>)"; read the version from the source.
     version = "0"
     try:
         with open(os.path.join(src, "info.txt"), encoding="latin-1") as f:
@@ -399,18 +418,91 @@ def install_mod_for_worldgen() -> str:
     except OSError:
         pass
 
-    # Copy a fresh raws-only install (info + objects + graphics; no scripts).
-    dst = os.path.join(installed, f"dwarfipelago ({version})")
-    os.makedirs(dst, exist_ok=True)
-    shutil.copy2(os.path.join(src, "info.txt"), dst)
-    for sub in ("objects", "graphics"):
-        s = os.path.join(src, sub)
-        if os.path.isdir(s):
-            shutil.copytree(s, os.path.join(dst, sub))
+    # Install a complete copy into every DF data dir DF may read from (game dir
+    # and/or the Steam user-data dir), so world-gen finds it wherever DF looks.
+    results = []
+    for r in roots:
+        data = os.path.join(r, "data")
+        if not os.path.isdir(data):
+            continue
+        installed = os.path.join(data, "installed_mods")
+        os.makedirs(installed, exist_ok=True)
+        # Wipe stale/duplicate installs so DF can't use an older copy or warn.
+        removed = 0
+        for name in os.listdir(installed):
+            if name.lower().startswith("dwarfipelago"):
+                shutil.rmtree(os.path.join(installed, name), ignore_errors=True)
+                removed += 1
+        dst = os.path.join(installed, f"dwarfipelago ({version})")
+        os.makedirs(dst, exist_ok=True)
+        shutil.copy2(os.path.join(src, "info.txt"), dst)
+        for sub in ("objects", "graphics", "scripts_modinstalled"):
+            s = os.path.join(src, sub)
+            if os.path.isdir(s):
+                shutil.copytree(s, os.path.join(dst, sub))
+        results.append(f"{dst} (cleared {removed} stale)")
 
-    return (f"Installed dwarfipelago raws for world-gen -> {dst}\n"
-            f"(cleared {len(removed)} old install(s): {', '.join(removed) or 'none'})\n"
-            f"Restart DF, then enable 'Dwarfipelago' in the mod list when you generate a world.")
+    if not results:
+        return "No DF data/installed_mods directory found to install into."
+    return ("Installed dwarfipelago (raws + scripts) for world-gen to:\n  "
+            + "\n  ".join(results)
+            + "\nRestart DF, then enable 'Dwarfipelago' in the mod list when you generate a world.")
+
+
+def _strip_worldgen_preset(text: str) -> tuple:
+    """Remove the DwarfipelagoWorld preset from a world_gen.txt body. Returns
+    (new_text, removed?). Tries the exact appended block first, then falls back to
+    dropping any [WORLD_GEN] block titled DwarfipelagoWorld (in case it was edited
+    or reordered)."""
+    if WORLD_GEN_PRESET in text:
+        return text.replace(WORLD_GEN_PRESET, ""), True
+    title = f"[TITLE:{WORLD_GEN_PRESET_TITLE}]"
+    if title not in text:
+        return text, False
+    parts = text.split("[WORLD_GEN]")
+    out = parts[0]
+    for block in parts[1:]:
+        if title in block:
+            continue  # drop our preset block
+        out += "[WORLD_GEN]" + block
+    return out, True
+
+
+def uninstall_mod() -> str:
+    """Undo the client's world-gen footprint: delete the dwarfipelago installed-mod
+    folder(s) and strip the DwarfipelagoWorld preset from world_gen.txt, across
+    every DF data root. Leaves the mods/dwarfipelago working copy and existing
+    saves untouched (a world already generated with the mod keeps its baked raws)."""
+    roots = _df_data_roots()
+    if not roots:
+        return ("Could not locate the DF install - set 'game_path' in host.yaml to "
+                "your Dwarf Fortress executable and try again.")
+
+    removed_mods, cleared_presets = [], []
+    for r in roots:
+        installed = os.path.join(r, "data", "installed_mods")
+        if os.path.isdir(installed):
+            for name in os.listdir(installed):
+                if name.lower().startswith("dwarfipelago"):
+                    shutil.rmtree(os.path.join(installed, name), ignore_errors=True)
+                    removed_mods.append(os.path.join(installed, name))
+        prefs = os.path.join(r, "prefs", "world_gen.txt")
+        if os.path.isfile(prefs):
+            with open(prefs, "r", encoding="utf-8") as f:
+                text = f.read()
+            new_text, changed = _strip_worldgen_preset(text)
+            if changed:
+                with open(prefs, "w", encoding="utf-8") as f:
+                    f.write(new_text)
+                cleared_presets.append(prefs)
+
+    if not removed_mods and not cleared_presets:
+        return "Nothing to uninstall - no dwarfipelago install or preset found."
+    lines = ["Removed Dwarfipelago's world-gen footprint:"]
+    lines += [f"  deleted mod: {m}" for m in removed_mods]
+    lines += [f"  stripped preset from: {p}" for p in cleared_presets]
+    lines.append("(Your mods/dwarfipelago copy and existing saves are untouched.)")
+    return "\n".join(lines)
 
 
 # ── DFHack connection ─────────────────────────────────────────────────────────
@@ -726,25 +818,13 @@ class DwarfFortressCommandProcessor(ClientCommandProcessor):
         for line in install_mod_for_worldgen().splitlines():
             self.output(line)
 
-    # def _cmd_send_energy_link(self, amount: str = ""):
-    #     """Send energy to test energy link. usage: /send_energy_link <amount>"""
-    #     difference = int(amount)
-    #     if difference <= 0:
-    #         self.ctx.last_deplete = time.time()
-    #         async_start(self.ctx.send_msgs([{
-    #             "cmd": "Set", "key": self.ctx.energylink_key, "operations":
-    #                 [{"operation": "add", "value": difference},
-    #                 {"operation": "max", "value": 0}],
-    #             "last_deplete": self.ctx.last_deplete
-    #         }]))
-    #         logger.debug(f"EnergyLink: Used {format_SI_prefix(difference)}*")
-    #     else:
-    #         async_start(self.ctx.send_msgs([{
-    #             "cmd": "Set", "key": self.ctx.energylink_key, "operations":
-    #                 [{"operation": "add", "value": difference}]
-    #         }]))
-    #         logger.debug(f"EnergyLink: Sent {format_SI_prefix(difference)}*")
-        
+    def _cmd_dfuninstall(self):
+        """Remove Dwarfipelago's world-gen footprint: delete the installed-mod
+        folder(s) and strip the DwarfipelagoWorld preset from prefs/world_gen.txt,
+        across every DF data location. Does not touch your mods/dwarfipelago copy
+        or existing saves. Usage: /dfuninstall"""
+        for line in uninstall_mod().splitlines():
+            self.output(line)
 
 
 class DwarfFortressContext(CommonContext):
@@ -1711,7 +1791,7 @@ class DwarfFortressContext(CommonContext):
             return
         shop_list = [
             {"slot": e["slot"], "item": e.get("item", ""), "player": e.get("player", ""),
-             "tier": e.get("tier", 1)}
+             "tier": e.get("tier", 1), "price": e.get("price")}
             for e in entries.values()
         ]
         apraws.generate(shop_list, os.path.join(mod, "objects"), os.path.join(mod, "graphics"))

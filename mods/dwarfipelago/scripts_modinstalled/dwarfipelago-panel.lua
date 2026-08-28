@@ -779,16 +779,6 @@ function DwarfipelagoPanel:onInput(keys)
     return DwarfipelagoPanel.super.onInput(self, keys)
 end
 
--- Live-refresh the Shop tab (shrine status can change while the panel is open).
--- Throttled so we rebuild the list only a couple of times a second.
-function DwarfipelagoPanel:onRenderFrame(dc, rect)
-    DwarfipelagoPanel.super.onRenderFrame(self, dc, rect)
-    self._refresh_tick = (self._refresh_tick or 0) + 1
-    if self._shop_refresh and self._refresh_tick % 30 == 0 then
-        pcall(self._shop_refresh)
-    end
-end
-
 function DwarfipelagoPanel:init()
     local enabled  = state.is_enabled()
     local version  = ps("version",       "?")
@@ -1122,107 +1112,6 @@ function DwarfipelagoPanel:init()
         }
     end
 
-    -- ── Tab 9: Shop ───────────────────────────────────────────────────
-    -- Coffer-gated merchant shop status + goods browser. Buying now happens in the
-    -- caravan-style trade window opened at the shrine altar (select it, Ctrl+T);
-    -- this tab is read-only. Slot data is written by the AP client (dwarfipelago/shop).
-    function ShopTab()
-        table.insert(tab_list, "Shop")
-        local sjson = require('json')
-
-        local function read_state()
-            local sraw = ps("shop", "")
-            local shop = (sraw ~= "" and sjson.decode(sraw)) or {}
-            local praw = ps("shop_pending", "")
-            local pending = (praw ~= "" and sjson.decode(praw)) or {}
-            local coffers = tonumber(ps("unlock/wealth_coffers", "0")) or 0
-            local _, total_j = nil, 0
-            pcall(function() _, total_j = checks.find_fortress_coins_energy() end)
-            local coins = math.floor((total_j or 0) / 1000)
-            local unlocked = ps("ap_caravan_active", "0") == "1"
-            return shop, pending, coffers, coins, unlocked
-        end
-
-        local function build_choices(shop, pending, coffers, coins, unlocked)
-            local choices, slots = {}, {}
-            for k in pairs(shop) do table.insert(slots, tonumber(k)) end
-            table.sort(slots)
-            for _, sn in ipairs(slots) do
-                local e = shop[tostring(sn)]
-                local price = tonumber(e.price) or 0
-                local state, pen, buyable
-                if e.bought == 1 then
-                    state, pen = "SOLD", COLOR_DARKGRAY
-                elseif pending[tostring(sn)] then
-                    state, pen = "PENDING", COLOR_LIGHTBLUE
-                elseif not unlocked then
-                    state, pen = "no caravan", COLOR_DARKGRAY
-                elseif coffers < (e.tier or 1) then
-                    state, pen = ("need %d AP coffers"):format(e.tier or 1), COLOR_RED
-                elseif coins < price then
-                    state, pen = "need coins", COLOR_YELLOW
-                else
-                    state, pen, buyable = "BUY", COLOR_GREEN, true
-                end
-                local text = ("%-30.30s -> %-12.12s %8s* [%s]"):format(
-                    tostring(e.item or "?"), tostring(e.player or "?"), fmt_num(price), state)
-                table.insert(choices, {text = text, pen = pen, slot = sn, buyable = buyable})
-            end
-            if #choices == 0 then
-                table.insert(choices, {text = "(waiting for the AP client -- shop items load shortly)",
-                                       pen = COLOR_DARKGRAY})
-            end
-            return choices
-        end
-
-        local shop_head, coin_label, shop_list
-
-        -- The shop is caravan-only; the header shows whether a caravan is docked.
-        local function head_text(unlocked)
-            if unlocked then
-                return {{text="Shop: OPEN", pen=COLOR_GREEN}, "  - an Archipelago caravan is docked"}
-            end
-            return {{text="Shop: CLOSED", pen=COLOR_RED},
-                    "  - trades only while a caravan is docked (needs a Merchant's Coffer)"}
-        end
-
-        local function coin_text(coffers, coins)
-            return {
-                "  Coins: ", {text=fmt_num(coins).."*",      pen=COLOR_YELLOW},
-                "   AP Coffers: ",    {text=tostring(coffers).."/5",  pen=COLOR_CYAN},
-                "   (Trade at the depot with a docked caravan)",
-            }
-        end
-
-        local function refresh()
-            local shop, pending, coffers, coins, unlocked = read_state()
-            if shop_head  then shop_head:setText(head_text(unlocked)) end
-            if coin_label then coin_label:setText(coin_text(coffers, coins)) end
-            if shop_list  then
-                shop_list:setChoices(build_choices(shop, pending, coffers, coins, unlocked),
-                                     shop_list:getSelected())
-            end
-        end
-
-        local shop0, pending0, coffers0, coins0, unlocked0 = read_state()
-
-        shop_head  = widgets.Label{frame={t=0, l=0}, text=head_text(unlocked0)}
-        coin_label = widgets.Label{frame={t=2, l=0}, text=coin_text(coffers0, coins0)}
-        shop_list = widgets.List{
-            frame      = {t=4, b=0},
-            text_pen   = COLOR_WHITE,
-            cursor_pen = COLOR_CYAN,
-            choices    = build_choices(shop0, pending0, coffers0, coins0, unlocked0),
-            on_submit  = function()
-                dfhack.gui.showAnnouncement(
-                    "[AP] Buying is at the trade depot: select the depot and press Ctrl+A while an Archipelago caravan is docked.",
-                    COLOR_YELLOW, true)
-            end,
-        }
-        self._shop_refresh = refresh   -- onRenderFrame calls this to live-update
-        return widgets.Panel{subviews={shop_head, coin_label, shop_list}}
-    end
-
     -- ── Tab: War Effort (Slay Megabeast goal only) ────────────────────────────
     -- War status plus the player-initiated "summon the beast" button: the beast is
     -- never forced - the player chooses when to face it once the war effort
@@ -1293,10 +1182,6 @@ function DwarfipelagoPanel:init()
     if ps("skillsanity_enabled", "0") ~= "0" then
         table.insert(tabviews, SkillsTab())
     end
-    -- Shop tab is always present so the shrine status shows immediately; the slot
-    -- list fills in once the AP client writes shop data (refreshed by onRenderFrame).
-    table.insert(tabviews, ShopTab())
-
     local pages = widgets.Pages{
         frame = {t=4, b=2},
         subviews = tabviews,

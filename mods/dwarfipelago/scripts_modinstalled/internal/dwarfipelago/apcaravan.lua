@@ -114,7 +114,6 @@ local function is_ap_caravan()
     local e = df.historical_entity.find(m.civ_id)
     return e ~= nil and e.entity_raw.code == "ARCHIPELAGO"
 end
-M.is_ap_caravan = is_ap_caravan
 
 -- Hide the caravan's own (non-AP) merchandise so only AP goods show on the trade
 -- screen. Clears the trader flag: immediate and non-destructive (caged livestock
@@ -134,6 +133,28 @@ function M.hide_caravan_goods()
         end
     end
     return n
+end
+
+-- Send the currently docked caravan on its way (Energy-Link dismiss): flip its
+-- caravan_state to Leaving so DF retires it normally. Works on whatever caravan
+-- is at the depot - the gorlak shop caravan or an Energy-Link-called one.
+-- Returns true if a caravan was told to leave.
+function M.depart_ap_caravan()
+    local m = a_merchant()
+    local civ = m and m.civ_id
+    if not civ then return false end
+    local n = 0
+    for _, c in ipairs(df.global.plotinfo.caravans) do
+        pcall(function()
+            if c.entity == civ
+                    and (c.trade_state == df.caravan_state.T_trade_state.AtDepot
+                         or c.trade_state == df.caravan_state.T_trade_state.Approaching) then
+                c.trade_state = df.caravan_state.T_trade_state.Leaving
+                n = n + 1
+            end
+        end)
+    end
+    return n > 0
 end
 
 -- Create one AP good as a trader-flagged tool item at the depot.
