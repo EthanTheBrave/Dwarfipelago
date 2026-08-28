@@ -449,6 +449,62 @@ def install_mod_for_worldgen() -> str:
             + "\nRestart DF, then enable 'Dwarfipelago' in the mod list when you generate a world.")
 
 
+def _strip_worldgen_preset(text: str) -> tuple:
+    """Remove the DwarfipelagoWorld preset from a world_gen.txt body. Returns
+    (new_text, removed?). Tries the exact appended block first, then falls back to
+    dropping any [WORLD_GEN] block titled DwarfipelagoWorld (in case it was edited
+    or reordered)."""
+    if WORLD_GEN_PRESET in text:
+        return text.replace(WORLD_GEN_PRESET, ""), True
+    title = f"[TITLE:{WORLD_GEN_PRESET_TITLE}]"
+    if title not in text:
+        return text, False
+    parts = text.split("[WORLD_GEN]")
+    out = parts[0]
+    for block in parts[1:]:
+        if title in block:
+            continue  # drop our preset block
+        out += "[WORLD_GEN]" + block
+    return out, True
+
+
+def uninstall_mod() -> str:
+    """Undo the client's world-gen footprint: delete the dwarfipelago installed-mod
+    folder(s) and strip the DwarfipelagoWorld preset from world_gen.txt, across
+    every DF data root. Leaves the mods/dwarfipelago working copy and existing
+    saves untouched (a world already generated with the mod keeps its baked raws)."""
+    roots = _df_data_roots()
+    if not roots:
+        return ("Could not locate the DF install - set 'game_path' in host.yaml to "
+                "your Dwarf Fortress executable and try again.")
+
+    removed_mods, cleared_presets = [], []
+    for r in roots:
+        installed = os.path.join(r, "data", "installed_mods")
+        if os.path.isdir(installed):
+            for name in os.listdir(installed):
+                if name.lower().startswith("dwarfipelago"):
+                    shutil.rmtree(os.path.join(installed, name), ignore_errors=True)
+                    removed_mods.append(os.path.join(installed, name))
+        prefs = os.path.join(r, "prefs", "world_gen.txt")
+        if os.path.isfile(prefs):
+            with open(prefs, "r", encoding="utf-8") as f:
+                text = f.read()
+            new_text, changed = _strip_worldgen_preset(text)
+            if changed:
+                with open(prefs, "w", encoding="utf-8") as f:
+                    f.write(new_text)
+                cleared_presets.append(prefs)
+
+    if not removed_mods and not cleared_presets:
+        return "Nothing to uninstall - no dwarfipelago install or preset found."
+    lines = ["Removed Dwarfipelago's world-gen footprint:"]
+    lines += [f"  deleted mod: {m}" for m in removed_mods]
+    lines += [f"  stripped preset from: {p}" for p in cleared_presets]
+    lines.append("(Your mods/dwarfipelago copy and existing saves are untouched.)")
+    return "\n".join(lines)
+
+
 # ── DFHack connection ─────────────────────────────────────────────────────────
 
 class DFHackConnection:
@@ -760,6 +816,14 @@ class DwarfFortressCommandProcessor(ClientCommandProcessor):
         for line in install_worldgen_preset().splitlines():
             self.output(line)
         for line in install_mod_for_worldgen().splitlines():
+            self.output(line)
+
+    def _cmd_dfuninstall(self):
+        """Remove Dwarfipelago's world-gen footprint: delete the installed-mod
+        folder(s) and strip the DwarfipelagoWorld preset from prefs/world_gen.txt,
+        across every DF data location. Does not touch your mods/dwarfipelago copy
+        or existing saves. Usage: /dfuninstall"""
+        for line in uninstall_mod().splitlines():
             self.output(line)
 
 
