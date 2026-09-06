@@ -650,6 +650,10 @@ end
 local apcaravan = reqscript('internal/dwarfipelago/apcaravan')
 local _ap_caravan_was_docked = false
 local function poll_ap_caravan()
+    -- Name and price this seed's goods in the loaded materials. Cheap and
+    -- idempotent (a no-op once applied), and re-applied here because DF reloads
+    -- the raws from the save every time a fortress is loaded.
+    apcaravan.apply_shop_materials()
     local docked = apcaravan.caravan_docked()
     if docked then
         apcaravan.inject_ap_goods()

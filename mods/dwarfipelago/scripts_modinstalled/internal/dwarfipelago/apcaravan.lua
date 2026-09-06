@@ -2,8 +2,9 @@
 -- Native Archipelago caravan: put the AP shop goods on a docked caravan as real
 -- tool items (so DF's own trade screen renders them with the AP-logo sprite and
 -- their real names), then detect when the player trades for one and grant the
--- AP purchase. Item defs are baked at world-gen by the client (apraws.py); this
--- module only spawns instances of them and watches the trade.
+-- AP purchase. The mod's raws ship SHOP_SLOTS placeholder materials (apraws.py);
+-- this module writes each slot's real name and price into the loaded material,
+-- spawns instances of the goods, and watches the trade.
 --
 -- Data it reads/writes (dfhack persistent world data):
 --   dwarfipelago/shop            {slot: {item,player,price,tier,bought}}  (AP client)
@@ -26,6 +27,107 @@ local function decode(raw, default)
     if not raw then return default end
     local ok, v = pcall(json.decode, raw)
     return (ok and type(v) == "table") and v or default
+end
+
+-- ── Shop materials ───────────────────────────────────────────────────────────
+-- Each shop slot is an ITEM_TOOL_AP_TIER<tier> made of INORGANIC:AP_SHOP_<slot>.
+-- The material carries both the good's display name and its price, and the raws
+-- only ship placeholders for them, so this module writes the real values into the
+-- loaded materials. That is what makes the shop work in *any* world generated
+-- with the mod, whether or not the AP client had scouted the shop before
+-- world-gen (the client's per-seed raw bake is a fallback for the same values).
+
+-- DF values a tool as (itemdef VALUE) x (material MATERIAL_VALUE); the AP tier
+-- tools carry VALUE:100 (apraws.TOOL_VALUE).
+local TOOL_VALUE = 100
+
+-- slot(string) -> index into world.raws.inorganics, built on first use.
+local _slot_mat = nil
+
+local function build_slot_mat()
+    local map = {}
+    for i, raw in ipairs(df.global.world.raws.inorganics) do
+        local slot = raw.id:match("^AP_SHOP_(%d+)$")
+        if slot then map[slot] = i end
+    end
+    _slot_mat = map
+    return map
+end
+
+-- The inorganic raw for a slot, or nil when this world has no such material.
+-- Re-checks the cached index against its id so loading a different save (which
+-- reloads the raws) rebuilds the map instead of writing to the wrong material.
+local function inorganic_for(slot_str)
+    local want = "AP_SHOP_" .. slot_str
+    local map = _slot_mat or build_slot_mat()
+    local idx = map[slot_str]
+    local raw = idx and df.global.world.raws.inorganics[idx]
+    if raw and raw.id == want then return raw end
+    map = build_slot_mat()
+    idx = map[slot_str]
+    raw = idx and df.global.world.raws.inorganics[idx]
+    return (raw and raw.id == want) and raw or nil
+end
+
+-- One warning per session for a world whose raws predate the shop materials.
+local function warn_missing_raws(n)
+    if M._warned_missing_raws then return end
+    M._warned_missing_raws = true
+    log.warn(("%d shop slot(s) have no AP_SHOP material in this world's raws, so their "):format(n)
+        .. "goods trade as unnamed iron at a flat price. This world was generated with a mod "
+        .. "build that predates the shop materials - regenerate the world with the current "
+        .. "Dwarfipelago mod enabled.")
+end
+
+-- Write this seed's name and price into every shop slot's material. In-memory
+-- only: DF reloads raws from the save on each load, so this re-applies from the
+-- poll loop and is never written back. Compare-then-write makes it a no-op after
+-- the first tick and self-healing after a reload. Returns the number of fields
+-- changed.
+function M.apply_shop_materials()
+    local shop = decode(ps("shop"), {})
+    if not next(shop) then return 0 end
+    local changed, missing = 0, 0
+    for slot_str, e in pairs(shop) do
+        local raw = inorganic_for(slot_str)
+        if not raw then
+            missing = missing + 1
+        else
+            local mat = raw.material
+            local name = tostring(e.item or "")
+            local player = tostring(e.player or "")
+            if name ~= "" and player ~= "" then name = name .. " (" .. player .. ")" end
+            if name ~= "" and mat.state_name.Solid ~= name then
+                if pcall(function()
+                            mat.state_name.Solid = name
+                            mat.state_adj.Solid = name
+                        end) then
+                    changed = changed + 1
+                else
+                    M._write_failed = true
+                end
+            end
+            local price = tonumber(e.price)
+            if price and price > 0 then
+                local value = math.max(1, math.floor(price / TOOL_VALUE + 0.5))
+                if mat.material_value ~= value then
+                    if pcall(function() mat.material_value = value end) then
+                        changed = changed + 1
+                    else
+                        M._write_failed = true
+                    end
+                end
+            end
+        end
+    end
+    if missing > 0 then warn_missing_raws(missing) end
+    if M._write_failed and not M._warned_write_failed then
+        M._warned_write_failed = true
+        log.warn("Could not write shop names/prices into the loaded materials; the goods "
+            .. "keep whatever the world's raws hold. If those are placeholders, connect the "
+            .. "AP client before generating a world so it bakes the names in.")
+    end
+    return changed
 end
 
 local function find_depot()
@@ -93,8 +195,8 @@ end
 
 -- Resolve a material token (e.g. "INORGANIC:AP_SHOP_7") to type/index. Each shop
 -- slot has its own inorganic whose name is the good; falls back to iron.
--- Third return is false when the fallback was used - the world was generated
--- without this seed's shop raws, so the good has no name and no price.
+-- Third return is false when the fallback was used - this world's raws predate
+-- the shop materials, so the good has no name and no price.
 local function material_for(mat_token)
     local mi = dfhack.matinfo.find(mat_token)
     if mi then return mi.type, mi.index, true end
@@ -191,6 +293,7 @@ function M.inject_ap_goods()
     if not is_ap_caravan() then return 0 end   -- AP goods only on the gorlak caravan
     local depot = find_depot()
     local owner_ent = caravan_owner_entity(depot)
+    M.unnamed_goods = 0
     local shop = decode(ps("shop"), {})
     local pending = decode(ps("shop_pending"), {})
     local injected = decode(ps("ap_caravan_items"), {})   -- item_id(str) -> slot
@@ -217,13 +320,7 @@ function M.inject_ap_goods()
         end
     end
     pset("ap_caravan_items", json.encode(injected))
-    if (M.unnamed_goods or 0) > 0 and not M._warned_unnamed then
-        M._warned_unnamed = true
-        log.warn(("%d shop good(s) have no AP_SHOP material in this world's raws, so they "):format(M.unnamed_goods)
-            .. "trade as unnamed iron at a flat price. This world was generated before the AP "
-            .. "client baked the shop raws - connect the client, check for the 'baked N shop "
-            .. "good(s)' line, then generate a new world.")
-    end
+    if M.unnamed_goods > 0 then warn_missing_raws(M.unnamed_goods) end
     return n
 end
 

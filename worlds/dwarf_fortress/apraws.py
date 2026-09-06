@@ -9,8 +9,16 @@ Layout (chosen so DF's own trade screen groups the goods under one header per
 tier): every good is a copy of a shared per-tier AP-logo tool, so DF files them
 all under a single "AP Items (Tier N)" category. The good's individual name rides
 in a custom inorganic material (one per slot), so the trade row reads
-"<good name> AP Items (Tier N)". Five tier tools are static; the materials are
-per-seed.
+"<good name> AP Items (Tier N)".
+
+The world's raws only have to supply the *slots*: SHOP_SLOTS placeholder
+inorganics ship with the mod, and apcaravan.lua writes each one's real name and
+price into the loaded material at runtime. So a world generated with the mod
+enabled always works, whether or not the client had scouted the shop first.
+
+What this module writes on top of that is a per-seed bake of the same names and
+prices, as a fallback for when the runtime write cannot be applied. Every file it
+emits is complete: slots with no scouted good keep their placeholder.
 
 No entity is granted these tools, so no civilization crafts or trades them -- they
 only exist when the mod DFHack-creates one for the Archipelago caravan.
@@ -29,6 +37,11 @@ _MAX_NAME = 48                         # keep DF name tokens sane
 # so the native trade screen charges each slot's rolled price (tier-banded and
 # scaled by shop_price_multiplier at gen time).
 TOOL_VALUE = 100
+# Every slot needs a material in the raws even before its good is known, so the
+# shipped file always defines this many. Mirrors locations.SHOP_SLOTS; raise both
+# together (and regenerate the shipped inorganic file) if the shop ever grows.
+SHOP_SLOTS = 50
+PLACEHOLDER_VALUE = 1                  # until apcaravan.lua writes the real price
 
 
 # Punctuation other games use that NFKD leaves alone; without these a name like
@@ -91,7 +104,7 @@ def build_shop_goods(shop_entries):
         slot = int(e["slot"])
         # A slot whose scout reply has not arrived still gets its material, so the
         # price is always baked; only the name falls back to the slot number.
-        base = sanitize_name(e.get("item") or "", f"Archipelago Item (Slot {slot})")
+        base = sanitize_name(e.get("item") or "", placeholder_name(slot))
         player = sanitize_name(e.get("player") or "", "")
         name = f"{base} ({player})" if player else base
         name = name[:_MAX_NAME]
@@ -129,20 +142,38 @@ def render_item_raws() -> str:
     return "\n".join(out) + "\n"
 
 
-def render_inorganic_raws(goods) -> str:
+def placeholder_name(slot: int) -> str:
+    """The name a slot carries until its good is known. apcaravan.lua overwrites
+    it in the loaded material; seeing it in game means neither the runtime write
+    nor the per-seed bake reached this slot."""
+    return f"Archipelago Item (Slot {slot})"
+
+
+def render_inorganic_raws(goods=()) -> str:
     """One inorganic per slot; its solid-state name is the good's display name,
-    so the trade row reads "<good name> AP Items (Tier N)"."""
+    so the trade row reads "<good name> AP Items (Tier N)".
+
+    Always emits every slot up to SHOP_SLOTS -- a slot with no good yet gets its
+    placeholder rather than being left out, so the material always exists for
+    apcaravan.lua to write the real name and price into. Called with no goods it
+    renders exactly the placeholder table shipped with the mod."""
+    by_slot = {int(g["slot"]): g for g in goods}
     out = ["inorganic_dwarfipelago_shop", "", "[OBJECT:INORGANIC]", ""]
     out.append("\tOne stone per shop slot, named after the good it stands for.")
+    out.append("\tapcaravan.lua writes each slot's real name and price into the")
+    out.append("\tloaded material, so these are only the starting values.")
     out.append("")
-    for g in goods:
+    for slot in range(1, max([SHOP_SLOTS, *by_slot]) + 1):
+        g = by_slot.get(slot)
+        name = g["name"] if g else placeholder_name(slot)
+        value = g["material_value"] if g else PLACEHOLDER_VALUE
         out += [
-            f"[INORGANIC:{g['mat_id']}]",
+            f"[INORGANIC:{MAT_PREFIX}{slot}]",
             "\t[USE_MATERIAL_TEMPLATE:STONE_TEMPLATE]",
-            f"\t[STATE_NAME_ADJ:ALL_SOLID:{g['name']}]",
+            f"\t[STATE_NAME_ADJ:ALL_SOLID:{name}]",
             # Prices the good on the native trade screen: item value =
             # TOOL_VALUE x MATERIAL_VALUE (see TOOL_VALUE).
-            f"\t[MATERIAL_VALUE:{g['material_value']}]",
+            f"\t[MATERIAL_VALUE:{value}]",
             "\t[DISPLAY_COLOR:7:0:0]",
             "\t[IS_STONE]",
             "",
