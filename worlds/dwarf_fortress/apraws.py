@@ -15,9 +15,9 @@ per-seed.
 No entity is granted these tools, so no civilization crafts or trades them -- they
 only exist when the mod DFHack-creates one for the Archipelago caravan.
 """
-import json
 import os
 import re
+import unicodedata
 
 TOOL_PREFIX = "ITEM_TOOL_AP_TIER"      # shared per-tier grouping tool
 MAT_PREFIX = "AP_SHOP_"                # per-slot inorganic carrying the good name
@@ -31,14 +31,37 @@ _MAX_NAME = 48                         # keep DF name tokens sane
 TOOL_VALUE = 100
 
 
-def sanitize_name(text: str) -> str:
-    """Make an arbitrary multiworld item name safe for a DF name token:
-    drop the token delimiters [ ] :, collapse whitespace, and cap the length."""
-    text = re.sub(r"[\[\]:|]", " ", str(text))
+# Punctuation other games use that NFKD leaves alone; without these a name like
+# "Hero’s Laurels" has no ASCII form at all.
+_PUNCT = {
+    "\u2018": "'", "\u2019": "'", "\u201a": "'", "\u201b": "'",
+    "\u201c": '"', "\u201d": '"', "\u201e": '"', "\u201f": '"',
+    "\u2013": "-", "\u2014": "-", "\u2015": "-", "\u2212": "-", "\u00b7": "-",
+    "\u2026": "...", "\u00d7": "x", "\u00f7": "/", "\u00a0": " ",
+    "\u2122": "TM", "\u00ae": "(R)", "\u00a9": "(C)",
+    "\u00e6": "ae", "\u00c6": "AE", "\u0153": "oe", "\u0152": "OE",
+    "\u00df": "ss", "\u00f8": "o", "\u00d8": "O", "\u0142": "l", "\u0141": "L",
+    "\u00f0": "d", "\u00d0": "D", "\u00fe": "th", "\u00de": "Th",
+}
+
+
+def sanitize_name(text: str, fallback: str = "Archipelago Item") -> str:
+    """Make an arbitrary multiworld item name safe for a DF name token.
+
+    DF raws are single-byte text, so the name has to survive as ASCII: accents are
+    folded (Pokémon -> Pokemon), the punctuation above is mapped, and anything
+    still outside printable ASCII (CJK, emoji, box drawing) is dropped. Also drops
+    the token delimiters [ ] : |, collapses whitespace, and caps the length.
+    Returns `fallback` when nothing usable is left -- an unrenderable name must not
+    produce an empty token."""
+    text = "".join(_PUNCT.get(ch, ch) for ch in str(text))
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = "".join(ch if 32 <= ord(ch) < 127 else " " for ch in text)
+    text = re.sub(r"[\[\]:|]", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
-    if not text:
-        text = "Archipelago Item"
-    return text[:_MAX_NAME]
+    text = text.strip(" -")   # dropped scripts can leave a dangling separator
+    return (text or fallback)[:_MAX_NAME]
 
 
 def _clamp_tier(v) -> int:
@@ -66,8 +89,10 @@ def build_shop_goods(shop_entries):
     goods = []
     for e in shop_entries:
         slot = int(e["slot"])
-        base = sanitize_name(e.get("item", "Archipelago Item"))
-        player = str(e.get("player", "")).strip()
+        # A slot whose scout reply has not arrived still gets its material, so the
+        # price is always baked; only the name falls back to the slot number.
+        base = sanitize_name(e.get("item") or "", f"Archipelago Item (Slot {slot})")
+        player = sanitize_name(e.get("player") or "", "")
         name = f"{base} ({player})" if player else base
         name = name[:_MAX_NAME]
         goods.append({
@@ -134,27 +159,35 @@ def render_graphics_raws() -> str:
     return "\n".join(out) + "\n"
 
 
+def _write_raw(path, text):
+    """Write one raw file. DF reads raws as single-byte text; errors="replace" is a
+    backstop so a character sanitize_name missed degrades to "?" instead of raising
+    mid-write and leaving the file truncated (which silently costs every good its
+    name and price)."""
+    with open(path, "w", encoding="latin-1", errors="replace") as f:
+        f.write(text)
+
+
 def generate(shop_entries, objects_dir, graphics_dir):
     """Write the per-seed shop raws and return the slot -> {tier, mat_id} map the
     in-game side uses to create the right tool+material per slot."""
     goods = build_shop_goods(shop_entries)
     os.makedirs(objects_dir, exist_ok=True)
     os.makedirs(graphics_dir, exist_ok=True)
-    with open(os.path.join(objects_dir, "item_dwarfipelago_shop.txt"), "w", encoding="latin-1") as f:
-        f.write(render_item_raws())
-    with open(os.path.join(objects_dir, "inorganic_dwarfipelago_shop.txt"), "w", encoding="latin-1") as f:
-        f.write(render_inorganic_raws(goods))
-    with open(os.path.join(graphics_dir, "graphics_dwarfipelago_shop.txt"), "w", encoding="latin-1") as f:
-        f.write(render_graphics_raws())
+    _write_raw(os.path.join(objects_dir, "item_dwarfipelago_shop.txt"), render_item_raws())
+    _write_raw(os.path.join(objects_dir, "inorganic_dwarfipelago_shop.txt"),
+               render_inorganic_raws(goods))
+    _write_raw(os.path.join(graphics_dir, "graphics_dwarfipelago_shop.txt"), render_graphics_raws())
     return {str(g["slot"]): {"tier": g["tier"], "mat_id": g["mat_id"]} for g in goods}
 
 
 if __name__ == "__main__":
     import tempfile
     sample = [
-        {"slot": 1, "item": "Forge Blueprint", "player": "You", "tier": 1},
-        {"slot": 2, "item": "Progressive Sword: Tier [3]", "player": "Alice", "tier": 2},
-        {"slot": 3, "item": "50 Rupees", "player": "Bob", "tier": 5},
+        {"slot": 1, "item": "Forge Blueprint", "player": "You", "tier": 1, "price": 2500},
+        {"slot": 2, "item": "Progressive Sword: Tier [3]", "player": "Alice", "tier": 2, "price": 30000},
+        {"slot": 3, "item": "Hero\u2019s Laurels \u2014 Pok\u00e9mon", "player": "Bob", "tier": 5, "price": 90000},
+        {"slot": 4, "item": "", "player": "", "tier": 3, "price": 50000},  # scout not in yet
     ]
     d = tempfile.mkdtemp()
     m = generate(sample, d, d)

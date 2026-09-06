@@ -336,6 +336,19 @@ def _df_data_roots() -> list:
     return roots
 
 
+def _mod_source_dirs() -> list:
+    """Every <DF data root>/mods/dwarfipelago that exists, in _df_data_roots order.
+
+    The working mod copy can live under the Steam user-data dir OR alongside the
+    executable, and players do both. The per-seed shop raws are baked into *all* of
+    them and install_mod_for_worldgen sources from the first, so the copy world-gen
+    installs is always one that has the freshly baked goods. (Baking only into the
+    exe-dir copy while installing from the user-data copy left Windows players with
+    nameless, unpriced shop goods.)"""
+    return [d for d in (os.path.join(r, "mods", "dwarfipelago") for r in _df_data_roots())
+            if os.path.isdir(d)]
+
+
 def _find_worldgen_prefs_paths() -> list:
     """All prefs/world_gen.txt paths across the DF data roots (the file may live in
     the Steam user-data dir and/or alongside the install)."""
@@ -401,8 +414,9 @@ def install_mod_for_worldgen() -> str:
                 "your Dwarf Fortress executable and try again.")
 
     # The working mod copy lives at <root>/mods/dwarfipelago; use the first found.
-    src = next((os.path.join(r, "mods", "dwarfipelago") for r in roots
-                if os.path.isdir(os.path.join(r, "mods", "dwarfipelago"))), None)
+    # Same resolver the shop-raw bake writes to, so the copy installed here always
+    # carries this seed's baked shop goods.
+    src = next(iter(_mod_source_dirs()), None)
     if not src:
         return (f"dwarfipelago mod not found under any DF data root's mods/ folder "
                 f"(looked in: {', '.join(roots)}) - install the mod there first.")
@@ -813,6 +827,14 @@ class DwarfFortressCommandProcessor(ClientCommandProcessor):
         Fortress prefs/world_gen.txt, and (re)install the Dwarfipelago mod raws
         into installed_mods so world-gen picks up the current files. Run before
         generating a new world. Usage: /dfinstall"""
+        # Re-bake this seed's shop goods first (no-op when not connected), so the
+        # install below copies current names and prices rather than a stale set.
+        try:
+            entries = self.ctx._build_shop_entries(include_unscouted=True)
+            if entries:
+                self.ctx._write_shop_item_raws(entries)
+        except Exception as e:
+            logger.warning(f"Shop raw bake before /dfinstall failed: {e}")
         for line in install_worldgen_preset().splitlines():
             self.output(line)
         for line in install_mod_for_worldgen().splitlines():
@@ -1659,25 +1681,34 @@ class DwarfFortressContext(CommonContext):
                         f"{self._coffers_hinted + 1}-{coffers}")
         self._coffers_hinted = coffers
 
-    def _build_shop_entries(self) -> dict:
-        """Assemble the shop table from scouted location info. Slots whose scout
-        reply hasn't arrived yet are omitted. Shared by the pre-launch raw bake
-        and the in-game shop sync. AP data only (no DFHack)."""
-        shop = self.slot_data.get("shop", {})
+    def _build_shop_entries(self, include_unscouted: bool = False) -> dict:
+        """Assemble the shop table from scouted location info. Shared by the
+        pre-launch raw bake and the in-game shop sync. AP data only (no DFHack).
+
+        Slots whose scout reply hasn't arrived are omitted by default (the in-game
+        shop tab has nothing to show for them). With include_unscouted, they are
+        emitted with an empty name instead: tier and price come from slot_data, not
+        from the scout, so the raw bake can still price every slot correctly even
+        when scout replies are slow -- only the name falls back to a placeholder."""
+        # slot_data only exists once connected; /dfinstall may run before that.
+        shop = getattr(self, "slot_data", {}).get("shop", {})
         if not shop:
             return {}
         entries: dict[str, Any] = {}
         for k in shop.keys():
             sid = int(k)
             info = self.locations_info.get(sid)
-            if not info:
+            if not info and not include_unscouted:
                 continue  # scout reply not in yet for this slot
             meta = shop[str(sid)]
-            try:
-                item_name = self.item_names.lookup_in_slot(info.item, info.player)
-            except Exception:
-                item_name = str(info.item)
-            player_name = self.player_names.get(info.player, str(info.player))
+            item_name, player_name, flags = "", "", 0
+            if info:
+                try:
+                    item_name = self.item_names.lookup_in_slot(info.item, info.player)
+                except Exception:
+                    item_name = str(info.item)
+                player_name = self.player_names.get(info.player, str(info.player))
+                flags = int(getattr(info, "flags", 0) or 0)
             entries[str(meta["slot"])] = {
                 "id": sid,
                 "slot": meta["slot"],
@@ -1685,17 +1716,18 @@ class DwarfFortressContext(CommonContext):
                 "price": meta["price"],
                 "item": item_name,
                 "player": player_name,
-                "flags": int(getattr(info, "flags", 0) or 0),
+                "flags": flags,
                 "bought": 1 if sid in self.checked_locations else 0,
             }
         return entries
 
-    async def _scout_and_bake_shop_raws(self, timeout: float = 12.0):
+    async def _scout_and_bake_shop_raws(self, timeout: float = 20.0):
         """Before launching DF: scout the shop locations from the AP server and
-        bake each good's name into the mod raws, so the world about to be
+        bake each good's name and price into the mod raws, so the world about to be
         generated shows this seed's shop items (not a prior session's). AP-only
-        (no DFHack), so it runs before DF starts. Best-effort: bakes whatever
-        scout replies arrive within the timeout."""
+        (no DFHack), so it runs before DF starts. Every slot is always baked --
+        names come from the scouts, prices from slot_data -- so a scout reply that
+        misses the timeout costs that slot its name, never its price."""
         shop = self.slot_data.get("shop", {})
         if not shop:
             return
@@ -1713,15 +1745,14 @@ class DwarfFortressContext(CommonContext):
             if all(sid in self.locations_info for sid in shop_ids):
                 break
             await asyncio.sleep(0.2)
-        entries = self._build_shop_entries()
-        want, have = len(shop_ids), len(entries)
-        if not entries:
-            logger.warning("Shop: no scout replies arrived before launch; skipping raw "
-                           "bake (the generated world may show prior shop names).")
-            return
-        if have < want:
-            logger.warning(f"Shop: only {have}/{want} scout replies in before launch; "
-                           f"baking what we have.")
+        # Bake every slot, not just the scouted ones: tier and price come from
+        # slot_data, so a slow scout costs a slot its name but never its price.
+        entries = self._build_shop_entries(include_unscouted=True)
+        want = len(shop_ids)
+        named = sum(1 for e in entries.values() if e.get("item"))
+        if named < want:
+            logger.warning(f"Shop: only {named}/{want} scout replies in before launch; the "
+                           f"rest will show as 'Archipelago Item (Slot N)' at their real price.")
         try:
             self._write_shop_item_raws(entries)
         except Exception as e:
@@ -1764,9 +1795,9 @@ class DwarfFortressContext(CommonContext):
         # a freshly generated world renders their real names. Best-effort; preps
         # the *next* world-gen.
         try:
-            self._write_shop_item_raws(entries)
+            self._write_shop_item_raws(self._build_shop_entries(include_unscouted=True))
         except Exception as e:
-            logger.debug(f"shop item raw generation skipped: {e}")
+            logger.warning(f"Shop item raw generation failed: {e}")
         escaped = payload.replace("\\", "\\\\").replace('"', '\\"')
         await asyncio.get_event_loop().run_in_executor(
             None,
@@ -1778,24 +1809,31 @@ class DwarfFortressContext(CommonContext):
         logger.info(f"Shop: wrote {len(entries)} slot(s) to DFHack storage")
 
     def _write_shop_item_raws(self, entries):
-        """Generate one AP-logo tool raw per scouted shop good into the mod
-        (<DF>/mods/dwarfipelago), so the next world-gen bakes their real names.
-        The auto-install on client launch (or /dfinstall) copies them into
-        installed_mods; apcaravan.lua then spawns them onto the caravan."""
+        """Bake this seed's shop goods (name + price) into the mod's raws, so the
+        next world-gen renders them on the native trade screen. Written to every
+        <DF>/mods/dwarfipelago copy, because install_mod_for_worldgen may source
+        from any of them; the install (on client launch or /dfinstall) then copies
+        them into installed_mods and apcaravan.lua spawns them onto the caravan."""
         from . import apraws
-        exe = _get_df_executable()
-        if not exe:
-            return
-        mod = os.path.join(os.path.dirname(exe), "mods", "dwarfipelago")
-        if not os.path.isdir(mod):
+        mods = _mod_source_dirs()
+        if not mods:
+            logger.warning(
+                "Shop: no 'mods/dwarfipelago' folder found under any Dwarf Fortress data "
+                "directory, so this seed's shop goods were NOT baked - they would trade as "
+                "unnamed iron items at a flat price. Copy the mod into your DF mods/ folder "
+                "(or set game_path in host.yaml) and reconnect before generating a world.")
             return
         shop_list = [
             {"slot": e["slot"], "item": e.get("item", ""), "player": e.get("player", ""),
              "tier": e.get("tier", 1), "price": e.get("price")}
             for e in entries.values()
         ]
-        apraws.generate(shop_list, os.path.join(mod, "objects"), os.path.join(mod, "graphics"))
-        logger.info(f"Native caravan: generated {len(shop_list)} AP item raw(s) into {mod}.")
+        for mod in mods:
+            apraws.generate(shop_list, os.path.join(mod, "objects"),
+                            os.path.join(mod, "graphics"))
+        prices = [int(e.get("price") or 0) for e in entries.values()] or [0]
+        logger.info(f"Native caravan: baked {len(shop_list)} shop good(s), prices "
+                    f"{min(prices)}-{max(prices)}, into: " + ", ".join(mods))
 
     async def _check_shop_purchase(self, status: dict):
         """

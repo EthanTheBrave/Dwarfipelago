@@ -109,11 +109,25 @@ Dwarf Fortress:
 
 ### 5. Launch and Connect
 
-1. In the Archipelago launcher, click **Dwarf Fortress** to launch the game
-2. Load or embark on a fortress
-3. Click **Dwarf Fortress Client** in the launcher and connect to your server
+**Connect the client before you generate your world.** On connect it refreshes the
+world gen preset, bakes this seed's Merchant's Shop goods (their names *and* their
+prices) into the mod raws, reinstalls the mod so world gen reads the fresh files,
+and then opens Dwarf Fortress for you.
+
+1. Click **Dwarf Fortress Client** in the Archipelago launcher and connect to your server
+2. Wait for the client to print `Native caravan: baked N shop good(s), prices …` — that
+   line is your confirmation the shop is ready. DF opens on its own; you do not need the
+   launcher's **Dwarf Fortress** button
+3. In DF, generate a **new world** with the **DwarfipelagoWorld** preset and the
+   **Dwarfipelago** mod enabled, then embark
 
 The mod starts automatically once a world is loaded — no DFHack console commands needed.
+
+> **Generating the world before connecting** (or reusing a world made for a different
+> seed) leaves the shop goods with no names and a flat price — DF can only render names
+> that were in the raws when the world was generated. The mod writes a warning to
+> `<Dwarf Fortress>/dwarfipelago.log` when it spots this; the fix is to connect the
+> client, confirm the `baked N shop good(s)` line, and generate a new world.
 
 ---
 
@@ -150,6 +164,7 @@ On the first poll tick after your fortress loads, the mod automatically places a
 | **Trade depot not appearing** | See the Trade Depot section above |
 | **Items not arriving** | Check the client log window; items are delivered via DFHack RPC once the depot is established |
 | **Checks fire immediately on world load** | Ensure you are running Archipelago 0.6.7 and the latest mod version |
+| **Shop goods have no names / all cost the same** | The world was generated before the client baked the shop raws. Connect the client, wait for `Native caravan: baked N shop good(s)`, then generate a new world (see step 5) |
 
 ### Where to find errors
 

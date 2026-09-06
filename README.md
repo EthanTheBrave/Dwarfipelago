@@ -502,6 +502,13 @@ The caravan arrives, stands at the depot for its stay, and departs as a group. I
 - Each slot holds **one multiworld item at a set price** (a value banded by tier). You pay it like any caravan good — offer goods worth that value on the trade screen (coins, crafts, anything the caravan accepts) — which sends the item's location check; each slot is bought once.
 - Console (debug): `dwarfipelago buy-shop <slot>` while the caravan is docked.
 
+> **Connect the AP client before you generate the world.** DF can only render item names
+> and values that existed in the raws at world gen, so on connect the client bakes this
+> seed's goods (names *and* prices) into the mod and reinstalls it. Look for
+> `Native caravan: baked N shop good(s), prices …` in the client log. Generating the world
+> first — or reusing a world from another seed — leaves the goods unnamed and flat-priced;
+> the mod logs a warning to `dwarfipelago.log` when it detects that.
+
 ### Options
 
 | Option | Description | Default |

@@ -13,6 +13,7 @@
 --   dwarfipelago/shop_pending    {slot: true}       awaiting AP confirmation
 
 local json = require('json')
+local log = reqscript("internal/dwarfipelago/log")
 local M = {}
 
 local function ps(key)
@@ -92,12 +93,14 @@ end
 
 -- Resolve a material token (e.g. "INORGANIC:AP_SHOP_7") to type/index. Each shop
 -- slot has its own inorganic whose name is the good; falls back to iron.
+-- Third return is false when the fallback was used - the world was generated
+-- without this seed's shop raws, so the good has no name and no price.
 local function material_for(mat_token)
     local mi = dfhack.matinfo.find(mat_token)
-    if mi then return mi.type, mi.index end
+    if mi then return mi.type, mi.index, true end
     mi = dfhack.matinfo.find("INORGANIC:IRON")
-    if mi then return mi.type, mi.index end
-    return 0, 0
+    if mi then return mi.type, mi.index, false end
+    return 0, 0, false
 end
 
 -- A real caravan is docked when merchant units and a depot both exist.
@@ -163,7 +166,8 @@ local function spawn_good(tool_id, mat_token, depot, owner_ent)
     local sub = tool_subtype(tool_id)
     if not sub then return nil end
     local merchant = a_merchant()
-    local mt, mi = material_for(mat_token)
+    local mt, mi, named = material_for(mat_token)
+    if not named then M.unnamed_goods = (M.unnamed_goods or 0) + 1 end
     local res = dfhack.items.createItem(merchant, df.item_type.TOOL, sub, mt, mi)
     local it = (type(res) == "table" and res[1]) or res
     if not it then return nil end
@@ -213,6 +217,13 @@ function M.inject_ap_goods()
         end
     end
     pset("ap_caravan_items", json.encode(injected))
+    if (M.unnamed_goods or 0) > 0 and not M._warned_unnamed then
+        M._warned_unnamed = true
+        log.warn(("%d shop good(s) have no AP_SHOP material in this world's raws, so they "):format(M.unnamed_goods)
+            .. "trade as unnamed iron at a flat price. This world was generated before the AP "
+            .. "client baked the shop raws - connect the client, check for the 'baked N shop "
+            .. "good(s)' line, then generate a new world.")
+    end
     return n
 end
 
