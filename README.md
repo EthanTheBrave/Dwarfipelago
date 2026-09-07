@@ -31,9 +31,11 @@ Dwarfipelago is balanced for a **Small world** (65×65 region tiles). A recommen
 
 ### Setup
 
-1. Launch the **Dwarf Fortress Client** from the AP launcher and run `/dfinstall` once to add the preset to your `prefs/world_gen.txt`
-2. When creating a new world in DF, open the world gen menu and select **"DwarfipelagoWorld"** from the saved presets list
+1. Connect the **Dwarf Fortress Client** from the AP launcher. It installs the preset, refreshes the mod snapshot, and launches DF for you — `/dfinstall` only exists for doing that by hand
+2. In DF choose **Create New World**, select **"DwarfipelagoWorld"** from the saved presets, and **tick `Dwarfipelago` in the mod list**
 3. Generate and embark as normal
+
+> Enabling the mod at world gen is what writes its raws into the save. A world generated without it has no Archipelago civilization and no Merchant's Shop, and no later install can add them — see [`setup_en.md`](worlds/dwarf_fortress/docs/setup_en.md).
 
 ### What the preset does
 
@@ -75,7 +77,7 @@ When you load a fortress with Dwarfipelago active, the mod automatically places 
 
 ### If the depot is not appearing
 
-- Make sure the mod is enabled in DF's mod manager and the installed_mods snapshot is up to date (see setup step 2)
+- Make sure the mod was enabled in DF's mod manager when the world was generated (the client keeps the installed_mods snapshot current on its own)
 - You can build a Trade Depot manually in any location - the mod will detect and adopt it on the next poll tick
 - To force a retry, run in the DFHack console:
   ```
