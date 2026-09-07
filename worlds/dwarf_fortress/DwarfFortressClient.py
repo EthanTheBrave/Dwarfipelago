@@ -1837,11 +1837,12 @@ class DwarfFortressContext(CommonContext):
 
     async def _check_shop_purchase(self, status: dict):
         """
-        Buy bridge (mirrors _check_caravan_request): the Lua 'buy-shop' command
-        charges the minted coins and appends the slot number to the JSON queue at
-        dwarfipelago/shop_buy (read here from the aggregated status blob). We drain
-        the queue and send those slots' location checks, releasing each item to its
-        recipient. (A queue, not a single value, so two quick purchases can't
+        Buy bridge (mirrors _check_caravan_request): when the player trades for an
+        AP good on the gorlak caravan's native trade screen, apcaravan.detect_ap_trades
+        appends that slot to the JSON queue at dwarfipelago/shop_buy (read here from
+        the aggregated status blob). DF already took payment at the depot, so we just
+        drain the queue and send those slots' location checks, releasing each item to
+        its recipient. (A queue, not a single value, so two quick purchases can't
         clobber each other.)
         """
         shop = self.slot_data.get("shop", {})

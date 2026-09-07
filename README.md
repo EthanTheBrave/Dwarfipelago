@@ -503,7 +503,6 @@ The caravan arrives, stands at the depot for its stay, and departs as a group. U
 - The shop has **50 slots**; **10 unlock per Merchant's Coffer** you've received (so all 50 need all 5 coffers).
 - A caravan carries **a rotating handful** of your unlocked slots, not all of them at once - so which AP goods are on offer changes from visit to visit. The rotation is drawn without replacement, so every unlocked slot comes up within about **three visits** and none can be missed no matter how the dice fall.
 - Each slot holds **one multiworld item at a set price** (a value banded by tier). You pay it like any caravan good — offer goods worth that value on the trade screen (coins, crafts, anything the caravan accepts) — which sends the item's location check; each slot is bought once.
-- Console (debug): `dwarfipelago buy-shop <slot>` while the caravan is docked. Note this path is a leftover of the old coin economy - it requires and consumes **minted coins** worth the slot's price, unlike the trade screen, which takes any goods.
 
 > **How the goods get their names and prices.** Each slot is a per-tier AP tool made of
 > that slot's own material, and the material carries both the display name and the value.

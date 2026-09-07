@@ -431,12 +431,6 @@ dwarfipelago deposit-food
 dwarfipelago call-caravan
 dwarfipelago dismiss-caravan
 
-# Buy Merchant's Shop slot N directly (debug; normally you buy by trading the
-# AP good on the native trade screen while the gorlak caravan is docked).
-# Charges MINTED COINS worth the slot price - a leftover of the old coin
-# economy, and unlike the trade screen, which accepts any goods.
-dwarfipelago buy-shop 3
-
 # Summon the target megabeast (slay_megabeast goal; needs the full war effort:
 # 10 Military Training + Artifact Weapon + 2 Immigration Waves)
 dwarfipelago summon-beast
