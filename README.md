@@ -489,7 +489,7 @@ The Merchant's Shop lets you **trade your goods for multiworld items** — a way
 
 ### The Archipelago caravan
 
-The shop is a **native caravan from the Archipelago civilization** - a gorlak trading people who generate in your world. Receiving your **first Merchant's Coffer** establishes contact with them and summons their caravan to your **trade depot**; from then on they visit like any trade partner. Its merchants are gorlaks, and it carries **only the Archipelago shop goods** - your fortress's own caravans are unaffected.
+The shop is a **native caravan from the Archipelago civilization** - a gorlak trading people who generate in your world. Receiving your **first Merchant's Coffer** establishes contact with them and summons their caravan to your **trade depot**; from then on they visit like any trade partner. Its merchants are gorlaks, and it trades **its own wares like any caravan**, with the Archipelago shop goods sprinkled in among them - your fortress's own caravans are unaffected.
 
 The caravan arrives, stands at the depot for its stay, and departs as a group. If Energy Link is enabled you can also **call a caravan early** by spending energy (see Energy Link).
 
@@ -498,7 +498,8 @@ The caravan arrives, stands at the depot for its stay, and departs as a group. I
 ### Buying
 
 - Trade on **DF's own trade screen**: select the **trade depot**, choose **Trade**, and trade for the goods while the Archipelago (gorlak) caravan is docked. The shop items appear grouped under **"AP Items (Tier N)"**; trading for one sends its multiworld location check.
-- The shop has **50 slots**; **10 unlock per Merchant's Coffer** you've received (so all 50 need all 5 coffers). Goods stay limited to the coffer tiers you have unlocked.
+- The shop has **50 slots**; **10 unlock per Merchant's Coffer** you've received (so all 50 need all 5 coffers).
+- A caravan carries **a rotating handful** of your unlocked slots, not all of them at once - so which AP goods are on offer changes from visit to visit. The rotation is drawn without replacement, so every unlocked slot comes up within about **three visits** and none can be missed no matter how the dice fall.
 - Each slot holds **one multiworld item at a set price** (a value banded by tier). You pay it like any caravan good — offer goods worth that value on the trade screen (coins, crafts, anything the caravan accepts) — which sends the item's location check; each slot is bought once.
 - Console (debug): `dwarfipelago buy-shop <slot>` while the caravan is docked.
 

@@ -220,26 +220,6 @@ local function is_ap_caravan()
     return e ~= nil and e.entity_raw.code == "ARCHIPELAGO"
 end
 
--- Hide the caravan's own (non-AP) merchandise so only AP goods show on the trade
--- screen. Clears the trader flag: immediate and non-destructive (caged livestock
--- is only un-flagged, never removed, so no animals are loosed). Runs each poll
--- tick because the caravan unloads its goods from the wagons gradually. Only acts
--- on the AP (gorlak) caravan.
-function M.hide_caravan_goods()
-    if not is_ap_caravan() then return 0 end
-    local subset = ap_tool_subtypes()
-    local n = 0
-    for _, it in ipairs(df.global.world.items.all) do
-        local t = false
-        pcall(function() t = it.flags.trader end)
-        if t and not is_ap_tool(it, subset) then
-            pcall(function() it.flags.trader = false end)
-            n = n + 1
-        end
-    end
-    return n
-end
-
 -- Send the currently docked caravan on its way (Energy-Link dismiss): flip its
 -- caravan_state to Leaving so DF retires it normally. Works on whatever caravan
 -- is at the depot - the gorlak shop caravan or an Energy-Link-called one.
@@ -286,8 +266,73 @@ local function spawn_good(tool_id, mat_token, depot, owner_ent)
     return it
 end
 
--- Inject every unlocked, unbought, not-yet-injected shop good onto the caravan.
--- Coffer-gated: only slots whose tier <= current coffers are offered.
+-- ── Which goods this visit carries ───────────────────────────────────────────
+-- The gorlaks trade their own wares; the AP goods are sprinkled in among them, a
+-- rotating handful per visit rather than the whole unlocked shop at once. Sized
+-- so every unlocked slot is offered within VISITS_TO_CYCLE visits however many
+-- coffers you hold, which keeps rules.py's "reachable once you have the coffers"
+-- promise honest - a slot can look random without ever being starved out.
+local MIN_GOODS_PER_VISIT = 3
+local VISITS_TO_CYCLE = 3
+
+-- Fisher-Yates, matching caves.lua's shuffle.
+local function shuffle(t)
+    for i = #t, 2, -1 do
+        local j = math.random(i)
+        t[i], t[j] = t[j], t[i]
+    end
+    return t
+end
+
+-- Slots that could be offered right now: unlocked by coffer tier, not bought,
+-- not awaiting the client's purchase confirmation.
+local function eligible_slots(shop, pending, coffers)
+    local out = {}
+    for slot_str, e in pairs(shop) do
+        local tier = math.max(1, math.min(5, tonumber(e.tier) or 1))
+        if tier <= coffers and (tonumber(e.bought) or 0) == 0 and not pending[slot_str] then
+            out[#out + 1] = slot_str
+        end
+    end
+    table.sort(out, function(a, b) return tonumber(a) < tonumber(b) end)
+    return out
+end
+
+-- This visit's goods, drawn from a persisted shuffled rotation: the pick looks
+-- random, but the queue is only refilled once it empties, so every eligible slot
+-- comes up before any repeats.
+local function choose_visit_slots(shop, pending, coffers)
+    local elig = eligible_slots(shop, pending, coffers)
+    if #elig == 0 then return {} end
+    local is_elig = {}
+    for _, s in ipairs(elig) do is_elig[s] = true end
+    local want = math.max(MIN_GOODS_PER_VISIT, math.ceil(#elig / VISITS_TO_CYCLE))
+
+    local queue = decode(ps("shop_offer_queue"), {})
+    local picked, seen, refills = {}, {}, 0
+    while #picked < want and refills < 2 do
+        if #queue == 0 then
+            -- Cycle finished: reshuffle whatever is still eligible and unpicked.
+            local rest = {}
+            for _, s in ipairs(elig) do
+                if not seen[s] then rest[#rest + 1] = s end
+            end
+            if #rest == 0 then break end
+            queue = shuffle(rest)
+            refills = refills + 1
+        end
+        local s = table.remove(queue, 1)
+        -- Stale queue entries (bought or pending since it was built) just fall out.
+        if is_elig[s] and not seen[s] then
+            seen[s] = true
+            picked[#picked + 1] = s
+        end
+    end
+    pset("shop_offer_queue", json.encode(queue))
+    return picked
+end
+
+-- Inject this visit's AP goods onto the docked caravan, alongside its own wares.
 function M.inject_ap_goods()
     if not M.caravan_docked() then return 0 end
     if not is_ap_caravan() then return 0 end   -- AP goods only on the gorlak caravan
@@ -299,19 +344,29 @@ function M.inject_ap_goods()
     local injected = decode(ps("ap_caravan_items"), {})   -- item_id(str) -> slot
     local coffers = tonumber(ps("unlock/wealth_coffers")) or 0
 
+    -- Chosen once, when the caravan docks, and held until it leaves
+    -- (clear_ap_goods drops the selection). An empty pick is re-tried each tick,
+    -- so a coffer arriving mid-visit puts goods out straight away.
+    local visit = decode(ps("shop_visit_slots"), {})
+    if #visit == 0 then
+        visit = choose_visit_slots(shop, pending, coffers)
+        pset("shop_visit_slots", json.encode(visit))
+    end
+
     -- which slots already have a live injected item?
     local live = {}
     for _, slot in pairs(injected) do live[tostring(slot)] = true end
 
     local n = 0
-    for slot_str, e in pairs(shop) do
-        local tier = math.max(1, math.min(5, tonumber(e.tier) or 1))
+    for _, slot_str in ipairs(visit) do
+        local e = shop[slot_str]
         -- shared per-tier tool (grouping header) + per-slot material (the name),
         -- matching apraws.py's ITEM_TOOL_AP_TIER<n> and INORGANIC:AP_SHOP_<slot>.
-        local tool = "ITEM_TOOL_AP_TIER" .. tier
+        local tier = e and math.max(1, math.min(5, tonumber(e.tier) or 1))
+        local tool = tier and ("ITEM_TOOL_AP_TIER" .. tier)
         local mat = "INORGANIC:AP_SHOP_" .. slot_str
-        if tool_subtype(tool) and (tonumber(e.bought) or 0) == 0 and not pending[slot_str]
-                and not live[slot_str] and tier <= coffers then
+        if e and tool_subtype(tool) and (tonumber(e.bought) or 0) == 0
+                and not pending[slot_str] and not live[slot_str] then
             local it = spawn_good(tool, mat, depot, owner_ent)
             if it then
                 injected[tostring(it.id)] = tonumber(slot_str)
@@ -370,6 +425,8 @@ function M.clear_ap_goods()
         end
     end
     pset("ap_caravan_items", json.encode({}))
+    -- Next caravan draws a fresh selection from the rotation.
+    pset("shop_visit_slots", json.encode({}))
 end
 
 for k, v in pairs(M) do _ENV[k] = v end

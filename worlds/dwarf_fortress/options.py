@@ -410,7 +410,9 @@ class MerchantShop(DefaultOnToggle):
     """
     Enable the Merchant's Shop: trade for multiworld items from 50 shop slots
     (10 unlocked per Merchant's Coffer received) on the docked Archipelago
-    caravan's native trade screen. When disabled, no shop slots are created.
+    caravan's native trade screen, mixed in among the caravan's own wares. Each
+    visit carries a rotating selection of your unlocked slots rather than all of
+    them. When disabled, no shop slots are created.
     """
     display_name = "Merchant's Shop"
 

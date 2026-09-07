@@ -66,6 +66,8 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/unlock/sunlight_tonic` | `"1"` or absent | Lua | Set when the Sunlight Tonic is received; dwarves may then walk freely in sunlight (no cave-adaptation nausea) |
 | `dwarfipelago/craftlock/<flag>` | `"1"` or absent | Lua | Set when the Crafting Permit for `<flag>` is received. When `crafting_permits` is non-zero, jobs producing an item whose flag is unset are cancelled |
 | `dwarfipelago/depot_built` | `"1"` or absent | Lua | Set once the starting trade depot has been placed or adopted |
+| `dwarfipelago/shop_offer_queue` | JSON `str[]` | Lua | Slots still to be offered in the current rotation cycle, shuffled; drained a visit at a time and refilled from the eligible slots once empty, so every unlocked slot is offered before any repeats |
+| `dwarfipelago/shop_visit_slots` | JSON `str[]` | Lua | The slots the currently docked caravan is carrying; chosen once when it docks and cleared when it leaves |
 | `dwarfipelago/shop_pending` | JSON `{slot: true}` | Lua | Slots the player has bought that await client confirmation; treated as unavailable until the item is confirmed (then the slot's `bought` flag is set in `shop`) |
 | `dwarfipelago/megabeast/spawned` | `"1"` or absent | Lua | Set once the climax megabeast has been summoned. The summon is **player-initiated** (`dwarfipelago summon-beast` / the panel War tab's button), allowed only once the full war effort - 10 Military Training + Artifact Weapon + 2 Immigration Waves - is in hand. Prevents re-summoning on reload and stops roaming waves |
 | `dwarfipelago/megabeast/target_id` | Integer string | Lua | Unit ID of the pinned target megabeast; only this unit's death counts for the goal (natural megabeasts are cleared at load) |
