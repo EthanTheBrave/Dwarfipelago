@@ -47,7 +47,8 @@ from Utils import async_start, format_SI_prefix
 #     re-generation.
 # Versions that don't share a group fall back to requiring an exact match.
 COMPATIBLE_VERSION_GROUPS: list[set[str]] = [
-    {"1.3.0", "1.3.1", "1.3.2"},   # current datapackage line
+    {"1.3.0", "1.3.1", "1.3.2"},   # retired line - 2.0 changed locations, items and logic
+    {"2.0.0"},                     # current datapackage line
 ]
 
 
