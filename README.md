@@ -491,7 +491,9 @@ The Merchant's Shop lets you **trade your goods for multiworld items** — a way
 
 The shop is a **native caravan from the Archipelago civilization** - a gorlak trading people who generate in your world. Receiving your **first Merchant's Coffer** establishes contact with them and summons their caravan to your **trade depot**; from then on they visit like any trade partner. Its merchants are gorlaks, and it trades **its own wares like any caravan**, with the Archipelago shop goods sprinkled in among them - your fortress's own caravans are unaffected.
 
-The caravan arrives, stands at the depot for its stay, and departs as a group. If Energy Link is enabled you can also **call a caravan early** by spending energy (see Energy Link).
+The caravan arrives, stands at the depot for its stay, and departs as a group. Unbought AP goods leave with it and come back on a later visit.
+
+> Energy Link's **call a caravan** does *not* summon the gorlaks - it brings **your own civilization's** trade caravan early, which carries no AP goods. There is no way to hurry the Archipelago caravan; it visits on its own schedule once you have made contact.
 
 **Dwarfipelagius**, the merchant god, is added to your civilization's worshippable deities, so you can dedicate a temple to them like any other god (purely for flavor).
 
@@ -501,7 +503,7 @@ The caravan arrives, stands at the depot for its stay, and departs as a group. I
 - The shop has **50 slots**; **10 unlock per Merchant's Coffer** you've received (so all 50 need all 5 coffers).
 - A caravan carries **a rotating handful** of your unlocked slots, not all of them at once - so which AP goods are on offer changes from visit to visit. The rotation is drawn without replacement, so every unlocked slot comes up within about **three visits** and none can be missed no matter how the dice fall.
 - Each slot holds **one multiworld item at a set price** (a value banded by tier). You pay it like any caravan good — offer goods worth that value on the trade screen (coins, crafts, anything the caravan accepts) — which sends the item's location check; each slot is bought once.
-- Console (debug): `dwarfipelago buy-shop <slot>` while the caravan is docked.
+- Console (debug): `dwarfipelago buy-shop <slot>` while the caravan is docked. Note this path is a leftover of the old coin economy - it requires and consumes **minted coins** worth the slot's price, unlike the trade screen, which takes any goods.
 
 > **How the goods get their names and prices.** Each slot is a per-tier AP tool made of
 > that slot's own material, and the material carries both the display name and the value.
@@ -524,7 +526,7 @@ The caravan arrives, stands at the depot for its stay, and departs as a group. I
 <details>
 <summary>Energy Link</summary>
 
-Energy Link connects your fortress to the multiworld's shared energy pool. You contribute surplus production into the pool, and spend energy to call a caravan early when you need to trade.
+Energy Link connects your fortress to the multiworld's shared energy pool. You contribute surplus production into the pool, and spend energy to call one of your own civilization's caravans early when you need to trade.
 
 Enable it with `energy_link: true` in your options YAML (off by default).
 
@@ -542,7 +544,7 @@ Deposited energy is sent to the shared pool and is available to every Energy Lin
 
 ### Calling a caravan early
 
-Spend energy from the pool to **request a caravan** before its normal seasonal arrival. The mod calculates the energy cost, the client deducts it from the shared pool if you can afford it, and the caravan is then spawned and arrives - leaving again on its own schedule like any normal caravan. If the pool can't cover the cost, the request is declined.
+Spend energy from the pool to **request one of your own civilization's caravans** before its normal seasonal arrival. (This is a dwarven trade caravan, not the Archipelago gorlaks - see Merchant's Shop.) The mod calculates the energy cost, the client deducts it from the shared pool if you can afford it, and the caravan is then spawned and arrives - leaving again on its own schedule like any normal caravan. If the pool can't cover the cost, the request is declined.
 
 ### Console commands
 

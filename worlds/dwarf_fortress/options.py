@@ -401,10 +401,11 @@ class ProgressiveMiningDepth(DefaultOnToggle):
 
 # ── Merchant's Shop ──────────────────────────────────────────────────────────
 # The Merchant's Shop lets you trade for AP items on the native trade screen while
-# the Archipelago (gorlak) caravan is docked. It opens 10 slots per Merchant's
-# Coffer received (up to 50 with all 5). Each slot holds one multiworld item at a
-# random price, banded by coffer tier from the range in locations.SHOP_PRICE_MIN/
-# MAX, and is bought once.
+# the Archipelago (gorlak) caravan is docked. The caravan trades its own wares too;
+# the AP goods are sprinkled among them, a rotating handful per visit. It opens 10
+# slots per Merchant's Coffer received (up to 50 with all 5). Each slot holds one
+# multiworld item at a random price, banded by coffer tier from the range in
+# locations.SHOP_PRICE_MIN/MAX, and is bought once.
 
 class MerchantShop(DefaultOnToggle):
     """

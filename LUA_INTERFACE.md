@@ -126,7 +126,7 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/skillsanity_max_level` | Integer string | Python | Highest skill level that fires a check (1=Novice … 15=Legendary) |
 | `dwarfipelago/skillsanity_behaviour` | `"0"` or `"1"` | Python | Level mechanic for pre-skilled arrivals: `0`=leave untouched (all levels fire at once), `1`=lower to the next unclaimed check |
 | `dwarfipelago/shop_enabled` | `"0"` or `"1"` | Python | Whether the Merchant's Shop is enabled for this slot |
-| `dwarfipelago/shop` | JSON `{slot: {item, price, bought}}` | Python | The shop's slot contents — one multiworld item and its trade price per slot (baked into the good's material value for the native trade screen) |
+| `dwarfipelago/shop` | JSON `{slot: {id, slot, tier, price, item, player, flags, bought}}` | Python | The shop's slot contents — the multiworld item, its recipient, its trade price and its coffer tier per slot. `tier` gates which slots the gorlak caravan may offer; `item`/`player` become the good's material name and `price` its material value, written into the loaded material by `apply_shop_materials()` |
 
 ---
 
@@ -432,7 +432,9 @@ dwarfipelago call-caravan
 dwarfipelago dismiss-caravan
 
 # Buy Merchant's Shop slot N directly (debug; normally you buy by trading the
-# AP good on the native trade screen while the gorlak caravan is docked)
+# AP good on the native trade screen while the gorlak caravan is docked).
+# Charges MINTED COINS worth the slot price - a leftover of the old coin
+# economy, and unlike the trade screen, which accepts any goods.
 dwarfipelago buy-shop 3
 
 # Summon the target megabeast (slay_megabeast goal; needs the full war effort:
