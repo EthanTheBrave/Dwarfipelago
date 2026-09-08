@@ -16,8 +16,6 @@ trade with on DF's own trade screen.
   civilization and 50 shop materials) that only enter a save at world-gen. The
   mod jumps to `NUMERIC_VERSION:15` with `EARLIEST_COMPATIBLE` raised to match,
   so DF flags older saves instead of loading them into a world that has none of it.
-- **`dwarfipelago buy-shop` is gone**, along with its minted-coin payment path.
-  You buy by trading on the caravan's trade screen.
 
 ### The Merchant's Shop is now a real caravan
 
@@ -39,9 +37,6 @@ trade with on DF's own trade screen.
   prices regardless of when you connected the client.
 - **Dwarfipelagius**, the merchant god, joins your civilization's worshippable
   deities.
-- Retired along the way: `trade.lua`, the depot overlay, the panel Shop tab, the
-  shrine detector and marker, the standing merchant NPC, and the spring
-  pseudo-caravan.
 
 ### New checks and content
 
@@ -76,7 +71,7 @@ trade with on DF's own trade screen.
 
 ### Items and traps
 
-- **Stress Blockers** (renamed from Happy Pills): resets the unhappiest dwarf,
+- **Stress Blockers**: resets the unhappiest dwarf,
   children included, and clears mental-break moods.
 - **Miracle Cure**: fully heals a random injured dwarf.
 - Traps merged into a single weighted list, all gated by `trap_item_weight`, with
@@ -110,7 +105,7 @@ trade with on DF's own trade screen.
 
 ### Fixes
 
-- Trade depots no longer spawn in mid-air.
+- Trade depots no longer spawn in mid-air. (again..........)
 - Cave floors are repathed after carving so dwarves can walk on them.
 - `Sold an Artifact` handles caravan-carried and contained items; `Caged a
   Hostile Beast` no longer relies on the removed `isEnemy`.
