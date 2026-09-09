@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.0.1
+
+Bugfix. 2.0.0 seeds and worlds remain playable — no regeneration required to
+install this, though see the caveat below.
+
+### Fixes
+
+- **Shield, Mace and Tactics skill checks never fired.** All 45 locations (three
+  skills x 15 tiers) were dead. The skill flag is maintained in two places —
+  `df_item` in the apworld's `locations.py` and `skill` in the mod's
+  `checks.lua` — and three of them disagreed by a letter (`shieldwarf` vs
+  `shielddwarf`, `macedwarf` vs `macerdwarf`, `tatics` vs `tactics`). The client
+  builds the DFHack storage key it polls from the seed, so it was watching an
+  address the mod never wrote to: no error, just silence. All 87 flags are now
+  verified identical on both sides, and both lists carry a comment explaining the
+  coupling.
+
+> **Mace** is fixed on existing seeds — the mod held the wrong spelling there.
+> **Shield and Tactics** are not: their flag lives in the apworld and is baked
+> into `slot_data` at generation, so those 30 locations stay dead on a seed rolled
+> under 2.0.0. Regenerate to pick them up.
+
 ## 2.0.0
 
 136 commits since 1.3.2. The headline is that the Merchant's Shop stopped being a
