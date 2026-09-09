@@ -1578,6 +1578,12 @@ end
 
 local SKILL_COUNT_PREFIX = "dwarfipelago/skill/"
 
+-- The `skill` field is the storage key suffix, and it MUST match the df_item
+-- of that skill's locations in the apworld's locations.py (JOB_SKILLS /
+-- COMBAT_SKILLS). The client builds the key it polls from the seed's slot_data,
+-- so any spelling drift between the two lists silently kills all 15 tiers of
+-- that skill - no error, the key is just never written. (Shield, Mace and
+-- Tactics all shipped broken this way in 2.0.)
 local SKILL_LIST = {
     { key = df.job_skill["CUT_STONE"], skill = "stonecutter", name = "Stonecutter"},
     { key = df.job_skill["ENGRAVE_STONE"], skill = "engraver", name = "Engraver"},
@@ -1652,7 +1658,7 @@ local SKILL_LIST = {
     { key = df.job_skill["DISCIPLINE"], skill = "discipline", name = "Discipline"},
     { key = df.job_skill["MELEE_COMBAT"], skill = "fighter", name = "Fighter"},
     { key = df.job_skill["HAMMER"], skill = "hammerdwarf", name = "Hammerdwarf"},
-    { key = df.job_skill["MACE"], skill = "macerdwarf", name = "Macedwarf"},
+    { key = df.job_skill["MACE"], skill = "macedwarf", name = "Macedwarf"},
     { key = df.job_skill["SPEAR"], skill = "speardwarf", name = "Speardwarf"},
     { key = df.job_skill["SWORD"], skill = "sworddwarf", name = "Sworddwarf"},
     { key = df.job_skill["ARMOR"], skill = "armordwarf", name = "Armordwarf"},
