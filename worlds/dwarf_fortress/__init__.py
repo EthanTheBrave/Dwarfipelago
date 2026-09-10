@@ -401,6 +401,7 @@ class DwarfFortressWorld(World):
             "deathlink_percentage": self.options.deathlink_percentage.value,
             "energy_link": self.options.energy_link.value,
             "mining_depth": self.options.mining_depth.value,
+            "trades_inlogic": self.options.trades_inlogic.value,
             "shop_enabled": self.options.merchant_shop.value,
             "shop": shop_data,
             "performance_assist": self.options.performance_assist.value,

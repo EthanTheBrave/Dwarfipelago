@@ -131,6 +131,12 @@ SLOT_DATA_TO_OPTION = {
     "craftsanity_enabled": "craftsanity",
     "craftsanity_materials": "craftsanity_materials",
     "skillsanity_enabled": "skillsanity",
+    # Any option a rule branches on has to be here. MockOptions reads an unmapped
+    # option as 0, which silently takes the *other* branch: mining_depth missing
+    # made can_mine_adamantine fall through to "no depth system" and return True,
+    # so Mined Adamantine showed reachable from the first tick.
+    "mining_depth": "mining_depth",
+    "trades_inlogic": "trades_inlogic",
 }
 
 
