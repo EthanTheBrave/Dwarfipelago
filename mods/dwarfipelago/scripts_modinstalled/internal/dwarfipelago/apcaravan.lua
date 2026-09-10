@@ -379,33 +379,59 @@ function M.inject_ap_goods()
     return n
 end
 
--- Detect AP goods that were traded to the fort (trader flag cleared or item
--- gone) and queue their purchases for the AP client. Call from the poll loop.
+-- True while a merchant is carrying the item, i.e. the caravan is packing it back
+-- onto the wagons. Not a purchase. A dwarf hauling a bought good also has a
+-- holder, so the holder must specifically be a merchant.
+local function held_by_merchant(it)
+    local u
+    pcall(function() u = dfhack.items.getHolderUnit(it) end)
+    if not u then return false end
+    local m = false
+    pcall(function() m = u.flags1.merchant end)
+    return m == true
+end
+
+-- Detect AP goods the player actually traded for, and queue those purchases for
+-- the AP client. Call from the poll loop.
+--
+-- A good counts as bought ONLY when it is still on the map, its trader flag is
+-- cleared, and no merchant is holding it. Every other state means the caravan
+-- still owns it.
+--
+-- In particular a *missing* item is NOT a purchase. Merchants stay in
+-- units.active while they pack up and walk off, so caravan_docked() is still true
+-- during departure and this runs while DF removes the goods it is taking home.
+-- Treating "item gone" as "traded" fired location checks for goods the player
+-- never bought (and could not afford), permanently consuming those slots.
 function M.detect_ap_trades()
     local injected = decode(ps("ap_caravan_items"), {})
     if not next(injected) then return 0 end
     local pending = decode(ps("shop_pending"), {})
     local queue = decode(ps("shop_buy"), {})
-    local n = 0
+    local n, dropped = 0, 0
     for id_str, slot in pairs(injected) do
         local it = df.item.find(tonumber(id_str))
-        local traded = false
         if not it then
-            traded = true                     -- consumed/removed after trade
-        else
-            local tr = false
-            pcall(function() tr = it.flags.trader end)
-            if not tr then traded = true end   -- now fort-owned
-        end
-        if traded then
-            pending[tostring(slot)] = true
-            queue[#queue + 1] = slot
+            -- Left with the caravan. Stop tracking it; the slot stays unbought
+            -- and comes back around on a later visit via the rotation.
             injected[id_str] = nil
-            n = n + 1
+            dropped = dropped + 1
+        else
+            -- Default true so a failed read never reads as a purchase.
+            local tr = true
+            pcall(function() tr = it.flags.trader end)
+            if not tr and not held_by_merchant(it) then
+                pending[tostring(slot)] = true
+                queue[#queue + 1] = slot
+                injected[id_str] = nil
+                n = n + 1
+            end
         end
     end
-    if n > 0 then
+    if n > 0 or dropped > 0 then
         pset("ap_caravan_items", json.encode(injected))
+    end
+    if n > 0 then
         pset("shop_pending", json.encode(pending))
         pset("shop_buy", json.encode(queue))
     end
