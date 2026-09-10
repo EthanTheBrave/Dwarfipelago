@@ -648,7 +648,6 @@ end
 -- Native AP shop: put the AP goods on the docked gorlak Archipelago caravan as
 -- real items (gated to that civ) and detect purchases.
 local apcaravan = reqscript('internal/dwarfipelago/apcaravan')
-local _ap_caravan_was_docked = false
 local function poll_ap_caravan()
     -- Name and price this seed's goods in the loaded materials. Cheap and
     -- idempotent (a no-op once applied), and re-applied here because DF reloads
@@ -658,10 +657,13 @@ local function poll_ap_caravan()
     if docked then
         apcaravan.inject_ap_goods()      -- AP goods sprinkled among the gorlaks' own wares
         apcaravan.detect_ap_trades()
-    elseif _ap_caravan_was_docked then
-        apcaravan.clear_ap_goods()   -- caravan left: pull back any unbought AP goods
+    else
+        -- No caravan: retire any AP goods still on the books. Called every tick
+        -- rather than on a docked->undocked edge, so a save/reload across the
+        -- departure cannot strand them (it returns at once when there is nothing
+        -- to do).
+        apcaravan.clear_ap_goods()
     end
-    _ap_caravan_was_docked = docked
     -- Panel/Energy-Link status: "[Caravan docked]" means any caravan is at the
     -- depot (the gorlak shop caravan, an Energy-Link-called one, or a natural
     -- visit), so the player knows one is present and not to call another.

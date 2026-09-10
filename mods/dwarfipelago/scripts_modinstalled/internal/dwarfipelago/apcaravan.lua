@@ -440,19 +440,40 @@ end
 
 -- On caravan departure, remove any AP goods the player did not buy so they never
 -- linger in the fort, and clear the injected-item record.
+-- Safe to call every tick while no caravan is docked: it returns immediately once
+-- there is nothing on the books. Level-triggered on purpose - the old edge-
+-- triggered call (a docked->undocked transition held in a Lua local) was skipped
+-- whenever the script reloaded across a departure, stranding entries that the
+-- NEXT caravan's detect pass then misread as purchases a year later.
 function M.clear_ap_goods()
     local injected = decode(ps("ap_caravan_items"), {})
-    for id_str in pairs(injected) do
+    local visit = decode(ps("shop_visit_slots"), {})
+    if not next(injected) and not next(visit) then return 0 end
+
+    local remaining, n = {}, 0
+    for id_str, slot in pairs(injected) do
         local it = df.item.find(tonumber(id_str))
         if it then
             local tr = false
             pcall(function() tr = it.flags.trader end)
-            if tr then pcall(function() dfhack.items.remove(it) end) end
+            if tr then
+                pcall(function() dfhack.items.remove(it) end)
+                -- items.remove is a no-op while the game is paused. Keep anything
+                -- that did not actually go on the books so a later tick retries,
+                -- rather than forgetting it and leaving it in the fort forever.
+                local gone = false
+                pcall(function()
+                    local still = df.item.find(tonumber(id_str))
+                    gone = (still == nil) or (still.flags.garbage_collect == true)
+                end)
+                if gone then n = n + 1 else remaining[id_str] = slot end
+            end
         end
     end
-    pset("ap_caravan_items", json.encode({}))
+    pset("ap_caravan_items", json.encode(remaining))
     -- Next caravan draws a fresh selection from the rotation.
     pset("shop_visit_slots", json.encode({}))
+    return n
 end
 
 for k, v in pairs(M) do _ENV[k] = v end
