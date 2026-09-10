@@ -30,6 +30,13 @@ install this, though see the caveat below.
     and stranded the bookkeeping. Those entries then sat until the *next* caravan
     arrived — a year later in one report — and were misread in a batch. Cleanup
     now runs on any idle tick instead, so nothing can be stranded.
+- **The Checks tab showed Mined Adamantine as reachable without any mining
+  depth.** The in-game tracker builds its options from `slot_data`, and its
+  mapping table never listed `mining_depth` — unmapped options read as 0, so the
+  adamantine rule took its "no depth system" branch and returned true outright.
+  `trades_inlogic` had the same hole and was missing from `slot_data` entirely;
+  both are now carried through, and the table says why anything a rule branches
+  on has to be listed.
 - Unbought goods left in a caravan's stock now correctly return to the rotation
   and come back around on a later visit.
 - Goods a paused game failed to remove are retried instead of being forgotten and
@@ -40,8 +47,8 @@ install this, though see the caveat below.
 > into `slot_data` at generation, so those 30 locations stay dead on a seed rolled
 > under 2.0.0. Regenerate to pick them up.
 >
-> The Merchant's Shop fixes are all mod-side and apply to existing seeds
-> immediately. Shop slots already consumed by a false purchase cannot be given
+> The Merchant's Shop and Checks tab fixes are all client- and mod-side, and
+> apply to existing seeds immediately. Shop slots already consumed by a false purchase cannot be given
 > back, though — those checks are server-side truth once sent.
 
 ## 2.0.0
