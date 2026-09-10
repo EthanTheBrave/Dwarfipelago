@@ -2,74 +2,76 @@
 
 ## 2.0.1
 
-Bugfix. 2.0.0 seeds and worlds remain playable — no regeneration required to
-install this, though see the caveat below.
+Bugfix release. 2.0.0 seeds and worlds remain playable and installing this requires
+no regeneration — see **What carries over** for the two exceptions.
 
-### Fixes
+### Merchant's Shop
 
-- **Shield, Mace and Tactics skill checks never fired.** All 45 locations (three
-  skills x 15 tiers) were dead. The skill flag is maintained in two places —
-  `df_item` in the apworld's `locations.py` and `skill` in the mod's
-  `checks.lua` — and three of them disagreed by a letter (`shieldwarf` vs
-  `shielddwarf`, `macedwarf` vs `macerdwarf`, `tatics` vs `tactics`). The client
-  builds the DFHack storage key it polls from the seed, so it was watching an
-  address the mod never wrote to: no error, just silence. All 87 flags are now
-  verified identical on both sides, and both lists carry a comment explaining the
-  coupling.
+- **Goods you never bought were being marked as purchased.** Location checks fired
+  for items left behind in the caravan's stock, permanently consuming those slots
+  and releasing the items to their recipients for free. Two independent causes:
+  - A good counted as sold the moment its item left the map — which is also
+    exactly what happens when the caravan packs it up and takes it home. A sale
+    now requires the item to still exist, to have its trader flag cleared, and to
+    not be held by a merchant.
+  - Cleanup of a departed caravan's goods ran on a docked-to-undocked transition
+    held in memory, so a save/reload across the departure skipped it and stranded
+    the bookkeeping. Those entries then sat untouched until the *next* caravan
+    docked — a year later in one report — and were misread in a batch. Cleanup now
+    runs on any idle tick, so nothing can be stranded.
+- Unbought goods left in a caravan's stock return to the rotation properly and come
+  back around on a later visit.
+- Goods that a paused game failed to remove are retried, instead of being forgotten
+  and left in the fortress permanently.
 
-- **The Merchant's Shop charged you for goods you never bought.** Location checks
-  fired for items left behind in the caravan's stock, permanently consuming those
-  slots and releasing the items to their recipients for free. Two causes, both
-  fixed:
-  - A good was counted as sold the moment its item vanished from the map — which
-    is also exactly what happens when the caravan packs it up and takes it home. A
-    purchase now requires the item to still exist, to have its trader flag
-    cleared, and to not be held by a merchant.
-  - Cleanup of a departed caravan's goods was triggered on a docked-to-undocked
-    transition held in memory, so a save/reload across the departure skipped it
-    and stranded the bookkeeping. Those entries then sat until the *next* caravan
-    arrived — a year later in one report — and were misread in a batch. Cleanup
-    now runs on any idle tick instead, so nothing can be stranded.
-- **The Checks tab showed Mined Adamantine as reachable without any mining
-  depth.** The in-game tracker builds its options from `slot_data`, and its
-  mapping table never listed `mining_depth` — unmapped options read as 0, so the
-  adamantine rule took its "no depth system" branch and returned true outright.
-  `trades_inlogic` had the same hole and was missing from `slot_data` entirely;
-  both are now carried through, and the table says why anything a rule branches
-  on has to be listed.
-- **Establishing contact with the gorlaks was a single silent attempt.** It ran
-  only on Merchant's Coffer #1, marked itself successful *before* checking whether
-  the civilization even existed, and reported failure to the DFHack console only —
-  so a world without the Archipelago civ produced no caravan, no shop and no
-  visible explanation for the rest of the run. Contact is now marked only when it
-  actually succeeds, retried on every later coffer until it does, and both failure
-  modes (no civ / summon failed) announce themselves in game.
-- **A world with no Archipelago civilization no longer silently eats your run.**
-  If the Merchant's Shop is enabled and the world has no gorlak civ — meaning it
-  was generated without the mod ticked in DF's world-gen mod list — the client now
-  refuses to bind the run's seed to that world and keeps saying why, and the mod
-  raises a screen-stopping popup in game followed by repeating reminders. Leaving
-  the world unbound means the same seed is still usable once a correct world is
-  generated.
-- `dwarfipelago test worldcheck` now also verifies the **gorlak (Archipelago)
-  civilization** exists, and reminds you that they additionally have to be a
-  neighbor of your embark to send caravans at all. The setup guide gained a
-  "Choosing an embark site" section covering it — without a gorlak neighbor the
-  Merchant's Shop is unreachable for the whole fortress, which was previously
-  documented nowhere.
-- Unbought goods left in a caravan's stock now correctly return to the rotation
-  and come back around on a later visit.
-- Goods a paused game failed to remove are retried instead of being forgotten and
-  left in the fort forever.
+### The Archipelago caravan
 
-> **Mace** is fixed on existing seeds — the mod held the wrong spelling there.
-> **Shield and Tactics** are not: their flag lives in the apworld and is baked
-> into `slot_data` at generation, so those 30 locations stay dead on a seed rolled
-> under 2.0.0. Regenerate to pick them up.
->
-> The Merchant's Shop and Checks tab fixes are all client- and mod-side, and
-> apply to existing seeds immediately. Shop slots already consumed by a false purchase cannot be given
-> back, though — those checks are server-side truth once sent.
+- **Establishing contact with the gorlaks was a single silent attempt.** It ran only
+  on Merchant's Coffer #1, marked itself successful *before* checking whether the
+  civilization even existed, and reported failure to the DFHack console alone — so a
+  world without the Archipelago civ produced no caravan, no shop, and no visible
+  explanation for the rest of the run. Contact is now recorded only when it actually
+  succeeds, retried on each later coffer until it does, and both failure modes (no
+  civ / summon failed) announce themselves in game.
+- **A world with no Archipelago civilization no longer quietly consumes your run.**
+  With the shop enabled and no gorlak civ present — meaning the world was generated
+  without the mod ticked in DF's world-gen mod list — the client refuses to bind the
+  run's seed to that world and keeps saying why, while the mod raises a
+  screen-stopping popup followed by repeating reminders. The world stays unbound, so
+  the same multiworld seed is still usable once a correct world exists.
+- `dwarfipelago test worldcheck` now verifies the gorlak civilization exists, and
+  notes that they must additionally be a **neighbor of your embark** to send
+  caravans at all.
+- The setup guide gained a "Choosing an embark site" section, and an "If you got it
+  wrong" table separating the two failure modes: a non-neighbor embark is fixed by
+  **re-embarking elsewhere in the same world** (the seed is stored against the world,
+  so the run carries over and received items are re-delivered), while a missing civ
+  needs a new world. Neither was documented anywhere before.
+
+### Logic and checks
+
+- **Shield, Mace and Tactics skill checks never fired** — 45 locations dead, three
+  skills at 15 tiers each. The skill flag is maintained in two places, `df_item` in
+  the apworld's `locations.py` and `skill` in the mod's `checks.lua`, and three of
+  them disagreed by a letter (`shieldwarf`/`shielddwarf`, `macedwarf`/`macerdwarf`,
+  `tatics`/`tactics`). The client derives the storage key it polls from the seed, so
+  it was watching an address the mod never wrote to: no error, just silence. All 87
+  flags are now verified identical on both sides, and each list carries a comment
+  explaining the coupling.
+- **The Checks tab showed Mined Adamantine as reachable with no mining depth.** The
+  in-game tracker builds its options from `slot_data`, and its mapping table never
+  listed `mining_depth`; unmapped options read as 0, so the adamantine rule took its
+  "no depth system" branch and returned true outright. `trades_inlogic` had the same
+  hole and was missing from `slot_data` entirely. Both are carried through now, and
+  the table documents why anything a rule branches on has to be listed.
+
+### What carries over
+
+| | |
+|---|---|
+| **Applies to existing seeds immediately** | Every Merchant's Shop fix, the Checks tab fix, caravan contact, the missing-civ failsafe, and the Mace skill checks — all client- and mod-side. |
+| **Needs a regenerated seed** | Shield and Tactics. Their flag lives in the apworld and is baked into `slot_data` at generation, so those 30 locations stay dead on a seed rolled under 2.0.0. |
+| **Cannot be recovered** | Shop slots already consumed by a false purchase. Those checks are server-side truth once sent. |
 
 ## 2.0.0
 
