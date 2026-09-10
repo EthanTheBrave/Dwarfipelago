@@ -493,7 +493,7 @@ The Merchant's Shop lets you **trade your goods for multiworld items** — a way
 
 ### The Archipelago caravan
 
-The shop is a **native caravan from the Archipelago civilization** - a gorlak trading people who generate in your world. They must be a **neighbor of your embark** for their caravans to reach you (check the Neighbors panel when choosing a site); otherwise the shop never opens beyond the one visit your first coffer forces. Receiving your **first Merchant's Coffer** establishes contact with them and summons their caravan to your **trade depot**; from then on they visit like any trade partner. Its merchants are gorlaks, and it trades **its own wares like any caravan**, with the Archipelago shop goods sprinkled in among them - your fortress's own caravans are unaffected.
+The shop is a **native caravan from the Archipelago civilization** - a gorlak trading people who generate in your world. They must be a **neighbor of your embark** for their caravans to reach you (check the Neighbors panel when choosing a site). If they are not, retire and **re-embark elsewhere in the same world** — the seed is stored against the world rather than the site, so your run carries over intact and your received items are re-delivered. Receiving your **first Merchant's Coffer** establishes contact with them and summons their caravan to your **trade depot**; from then on they visit like any trade partner. Its merchants are gorlaks, and it trades **its own wares like any caravan**, with the Archipelago shop goods sprinkled in among them - your fortress's own caravans are unaffected.
 
 The caravan arrives, stands at the depot for its stay, and departs as a group. Unbought AP goods leave with it and come back on a later visit.
 

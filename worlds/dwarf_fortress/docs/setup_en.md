@@ -179,11 +179,24 @@ The gorlaks settle **grassland, savanna and shrubland** and build cities, so emb
 within reach of open temperate land is the reliable way to get them as a neighbor.
 A remote glacier or a deep mountain range is the usual way to lose them.
 
-> **If you embark in a world with no gorlak civilization at all** (generated without
-> the mod ticked), the client will refuse to bind your run to that world and will keep
-> saying so, and the mod will keep warning you in game. That is deliberate: an unbound
-> world costs you only the time already spent, and the same multiworld seed still works
-> once you generate a correct world. Nothing you can do in the broken fortress fixes it.
+#### If you got it wrong
+
+The two failure modes are **not** equally bad, and it is worth knowing which one you
+have before you throw anything away:
+
+| Problem | Recoverable? | What to do |
+|---------|--------------|------------|
+| The gorlaks exist in the world, but are **not a neighbor of your embark** | **Yes** | Retire or abandon the fortress and **re-embark elsewhere in the same world**, somewhere the Neighbors panel lists gorlaks. Your run is unaffected: the seed is stored against the *world*, not the site, so it still matches, and the mod re-delivers everything you had already received. |
+| The world has **no gorlak civilization at all** | No | A new world is required. The client refuses to bind your run to such a world, so the multiworld seed is unspent — generate a world with the mod ticked and reconnect with the same seed. |
+
+To tell them apart, run `dwarfipelago test worldcheck`: it reports whether the
+Archipelago civ exists in the world. Existing but never visiting is the neighbor
+problem; missing entirely is the world-gen problem.
+
+> A world with no gorlak civilization makes the client refuse to bind your run and keep
+> saying so, while the mod raises a popup and repeating warnings in game. That is
+> deliberate — it costs you only the time already spent, and nothing done inside that
+> fortress can fix it.
 
 > Receiving your first Merchant's Coffer asks the game to summon a gorlak caravan
 > immediately. That request can fail silently: if the gorlaks are not a neighbor the
