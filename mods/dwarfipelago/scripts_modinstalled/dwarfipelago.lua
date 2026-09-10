@@ -645,10 +645,66 @@ local function detect_caravans()
     end
 end
 
+-- ── Archipelago civ presence ─────────────────────────────────────────────────
+-- The Merchant's Shop rides entirely on a caravan from the ARCHIPELAGO (gorlak)
+-- civ. If the world was generated without the mod's raws that civ does not exist,
+-- and NOTHING about the shop can ever work - not even the coffer's forced summon.
+-- Record it so the AP client can refuse to bind a run to this world, and nag the
+-- player in game so the mistake is not silent.
+local function scan_gorlak_civ()
+    local found = false
+    pcall(function()
+        local creatures = df.global.world.raws.creatures.all
+        for _, ent in ipairs(df.global.world.entities.all) do
+            if ent.race >= 0 and ent.race < #creatures
+                    and creatures[ent.race].creature_id == "GORLAK"
+                    and ent.type == df.historical_entity_type.Civilization then
+                found = true
+                break
+            end
+        end
+    end)
+    return found
+end
+
+-- Cached in world data (a world cannot gain a civ), so this scans once per world.
+local function gorlak_civ_present()
+    local v = dfhack.persistent.getWorldDataString("dwarfipelago/gorlak_civ_present")
+    if v == "1" or v == "0" then return v == "1" end
+    local present = scan_gorlak_civ()
+    dfhack.persistent.saveWorldDataString("dwarfipelago/gorlak_civ_present",
+                                          present and "1" or "0")
+    return present
+end
+
+local GORLAK_NAG_POLLS = 20     -- ~2000 ticks between reminders
+local _gorlak_nag_in = 0
+local _gorlak_popped = false
+local function nag_missing_gorlaks()
+    if dfhack.persistent.getWorldDataString("dwarfipelago/shop_enabled") ~= "1" then return end
+    if gorlak_civ_present() then return end
+    local msg = "This world has no Archipelago (gorlak) civilization, so the Merchant's "
+        .. "Shop can never work here - no caravan will ever bring AP goods. The world was "
+        .. "generated without the Dwarfipelago mod enabled. Generate a NEW world with the "
+        .. "mod ticked in the world-gen mod list; this fortress cannot be fixed in place."
+    if not _gorlak_popped then
+        _gorlak_popped = true
+        pcall(function() dfhack.gui.showPopupAnnouncement("[AP] " .. msg, COLOR_RED, true) end)
+        return
+    end
+    if _gorlak_nag_in > 0 then
+        _gorlak_nag_in = _gorlak_nag_in - 1
+        return
+    end
+    _gorlak_nag_in = GORLAK_NAG_POLLS
+    pcall(function() dfhack.gui.showAnnouncement("[AP] " .. msg, COLOR_RED, true) end)
+end
+
 -- Native AP shop: put the AP goods on the docked gorlak Archipelago caravan as
 -- real items (gated to that civ) and detect purchases.
 local apcaravan = reqscript('internal/dwarfipelago/apcaravan')
 local function poll_ap_caravan()
+    nag_missing_gorlaks()
     -- Name and price this seed's goods in the loaded materials. Cheap and
     -- idempotent (a no-op once applied), and re-applied here because DF reloads
     -- the raws from the save every time a fortress is loaded.
@@ -2487,6 +2543,8 @@ end
 local function start()
     state.set_enabled(true)
     dfhack.persistent.saveWorldDataString("dwarfipelago/version", SCRIPT_VERSION)
+    -- Publish before the first poll so the client can check it on connect.
+    gorlak_civ_present()
     log.info(("Started (v%s). Log file: %s"):format(SCRIPT_VERSION, log.path()))
     -- Register hooks
     eventful.onJobCompleted[SCRIPT_NAME]        = on_job_completed

@@ -1424,6 +1424,47 @@ class DwarfFortressContext(CommonContext):
         # A blank/"nil" stored seed means this world has no AP identity yet (fresh,
         # or cleared via "dwarfipelago resetseed"), so adopt this slot's seed.
         seed_is_fresh = current_seed in ("nil", "", "None")
+
+        # Failsafe: the Merchant's Shop rides entirely on the ARCHIPELAGO (gorlak)
+        # civ, which only exists if the world was generated with the mod's raws
+        # enabled. Without it the shop can never function, so refuse to BIND this
+        # run's seed to that world - an unbound world costs the player nothing but
+        # the time already spent, and the same seed still works in a correct world.
+        # Unknown/absent flag (older mod, or the poll has not published it yet)
+        # reads as present: this must never block a legitimate world.
+        shop_enabled = slot_data.get("shop_enabled", 1)
+        # Written before the failsafe below, not inside the bind block: the mod's
+        # in-game nag is gated on this flag, and a blocked world never reaches the
+        # bind block, so writing it there would leave the player with no warning.
+        self.dfhack.run_command(
+            "lua",
+            f'dfhack.persistent.saveWorldDataString("dwarfipelago/shop_enabled",'
+            f' "{1 if shop_enabled else 0}")')
+        gorlak_flag = (self.dfhack.run_command(
+            "lua",
+            'print(dfhack.persistent.getWorldDataString("dwarfipelago/gorlak_civ_present"))'
+        ) or "").strip()
+        self._gorlak_missing = bool(shop_enabled) and gorlak_flag == "0"
+        if self._gorlak_missing:
+            now = time.time()
+            if now - getattr(self, "_gorlak_warned_at", 0) > 60:
+                self._gorlak_warned_at = now
+                logger.error(
+                    "This world has NO Archipelago (gorlak) civilization, so the Merchant's "
+                    "Shop cannot work in it. The world was generated without the Dwarfipelago "
+                    "mod enabled in DF's world-gen mod list.")
+                if seed_is_fresh:
+                    logger.error(
+                        "Refusing to bind this run's seed to this world. Generate a NEW world "
+                        "with the mod ticked, embark with gorlaks in the Neighbors list, and "
+                        "reconnect - this seed is still usable.")
+                else:
+                    logger.error(
+                        "This world is already bound to the run. The shop's 50 locations are "
+                        "unreachable here; a new world (and seed) is the only fix.")
+            if seed_is_fresh:
+                return
+
         self._deathlink_threshold  = int(dl_threshold)
         self._deathlink_percentage = bool(int(dl_percentage))
         self._deathlink_split      = bool(int(dl_split))
@@ -1455,9 +1496,6 @@ class DwarfFortressContext(CommonContext):
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/energy_enabled", "{1 if self.energy_link_enabled else 0}")')
                 # Mining Depth flag - Lua reads this to know the feature is on.
                 self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/mining_depth", "{1 if mining_depth else 0}")')
-                # Merchant's Shop flag - Lua reads this to know whether the shop is enabled.
-                shop_enabled = slot_data.get("shop_enabled", 1)
-                self.dfhack.run_command("lua", f'dfhack.persistent.saveWorldDataString("dwarfipelago/shop_enabled", "{1 if shop_enabled else 0}")')
                 # Performance Assist flag - Lua reads this to drive every FPS helper
                 # (fast-heat, deteriorate, spatter cleanup, and timestream).
                 perf_assist = slot_data.get("performance_assist", 0)

@@ -44,6 +44,13 @@ install this, though see the caveat below.
   visible explanation for the rest of the run. Contact is now marked only when it
   actually succeeds, retried on every later coffer until it does, and both failure
   modes (no civ / summon failed) announce themselves in game.
+- **A world with no Archipelago civilization no longer silently eats your run.**
+  If the Merchant's Shop is enabled and the world has no gorlak civ — meaning it
+  was generated without the mod ticked in DF's world-gen mod list — the client now
+  refuses to bind the run's seed to that world and keeps saying why, and the mod
+  raises a screen-stopping popup in game followed by repeating reminders. Leaving
+  the world unbound means the same seed is still usable once a correct world is
+  generated.
 - `dwarfipelago test worldcheck` now also verifies the **gorlak (Archipelago)
   civilization** exists, and reminds you that they additionally have to be a
   neighbor of your embark to send caravans at all. The setup guide gained a

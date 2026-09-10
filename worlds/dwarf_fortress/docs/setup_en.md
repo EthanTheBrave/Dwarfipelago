@@ -179,6 +179,12 @@ The gorlaks settle **grassland, savanna and shrubland** and build cities, so emb
 within reach of open temperate land is the reliable way to get them as a neighbor.
 A remote glacier or a deep mountain range is the usual way to lose them.
 
+> **If you embark in a world with no gorlak civilization at all** (generated without
+> the mod ticked), the client will refuse to bind your run to that world and will keep
+> saying so, and the mod will keep warning you in game. That is deliberate: an unbound
+> world costs you only the time already spent, and the same multiworld seed still works
+> once you generate a correct world. Nothing you can do in the broken fortress fixes it.
+
 > Receiving your first Merchant's Coffer asks the game to summon a gorlak caravan
 > immediately. That request can fail silently: if the gorlaks are not a neighbor the
 > caravan may be spawned off-map and never arrive, and if the civilization does not
