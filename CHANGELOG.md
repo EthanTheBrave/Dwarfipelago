@@ -17,10 +17,32 @@ install this, though see the caveat below.
   verified identical on both sides, and both lists carry a comment explaining the
   coupling.
 
+- **The Merchant's Shop charged you for goods you never bought.** Location checks
+  fired for items left behind in the caravan's stock, permanently consuming those
+  slots and releasing the items to their recipients for free. Two causes, both
+  fixed:
+  - A good was counted as sold the moment its item vanished from the map — which
+    is also exactly what happens when the caravan packs it up and takes it home. A
+    purchase now requires the item to still exist, to have its trader flag
+    cleared, and to not be held by a merchant.
+  - Cleanup of a departed caravan's goods was triggered on a docked-to-undocked
+    transition held in memory, so a save/reload across the departure skipped it
+    and stranded the bookkeeping. Those entries then sat until the *next* caravan
+    arrived — a year later in one report — and were misread in a batch. Cleanup
+    now runs on any idle tick instead, so nothing can be stranded.
+- Unbought goods left in a caravan's stock now correctly return to the rotation
+  and come back around on a later visit.
+- Goods a paused game failed to remove are retried instead of being forgotten and
+  left in the fort forever.
+
 > **Mace** is fixed on existing seeds — the mod held the wrong spelling there.
 > **Shield and Tactics** are not: their flag lives in the apworld and is baked
 > into `slot_data` at generation, so those 30 locations stay dead on a seed rolled
 > under 2.0.0. Regenerate to pick them up.
+>
+> The Merchant's Shop fixes are all mod-side and apply to existing seeds
+> immediately. Shop slots already consumed by a false purchase cannot be given
+> back, though — those checks are server-side truth once sent.
 
 ## 2.0.0
 
