@@ -100,7 +100,14 @@ After generating a world (and before embarking), run this command in the DFHack 
 dwarfipelago test worldcheck
 ```
 
-This checks world size, history length, the presence of Dwarf/Human/Elf/Goblin civilizations, and active volcano count. If any check fails, consider rerolling — a world missing a key civilization will make certain AP goals impossible.
+This checks world size, history length, the presence of Dwarf/Human/Elf/Goblin **and
+gorlak (Archipelago)** civilizations, and active volcano count. If any check fails,
+consider rerolling — a world missing a key civilization will make certain AP goals
+impossible, and a world with no gorlak civ has no Merchant's Shop at all.
+
+> `worldcheck` can only tell you the gorlaks **exist somewhere in the world**. Whether
+> they will actually trade with you depends on their being a *neighbor of your embark*,
+> which is a site-selection decision — see "Choosing an embark site" below.
 
 ---
 
@@ -152,9 +159,30 @@ will not see any of that.
    - **tick `Dwarfipelago` in the mod list.** This is the step people miss. Enabling
      the mod here is what writes its raws into the save; a world generated without it
      has no Archipelago civilization and no Merchant's Shop, permanently.
-4. Generate the world, then embark as normal.
+4. Generate the world.
+5. **Pick an embark site with the gorlaks as neighbors** — see below — then embark.
 
 The mod starts automatically once a fortress loads — no DFHack console commands needed.
+
+#### Choosing an embark site
+
+Dwarf Fortress only sends you caravans from civilizations whose territory borders your
+embark. The Merchant's Shop rides on a caravan from the **Archipelago civilization**, a
+gorlak trading people, so if they are not your neighbor **they will never visit and the
+entire shop is unreachable** — all 50 slots, for the whole fortress.
+
+On the embark site-selection screen, check the **Neighbors** panel and confirm
+**gorlaks** are listed alongside the usual dwarves/humans/elves/goblins. If they are
+missing, move the embark rectangle elsewhere on the map until they appear.
+
+The gorlaks settle **grassland, savanna and shrubland** and build cities, so embarking
+within reach of open temperate land is the reliable way to get them as a neighbor.
+A remote glacier or a deep mountain range is the usual way to lose them.
+
+> Receiving your first Merchant's Coffer force-summons one gorlak caravan regardless of
+> neighbor status, so a bad embark still gets a single visit. It is the *annual* visits
+> after that which never come — which makes this easy to miss until the shop quietly
+> stops appearing.
 Within a few ticks you should see the trade depot announcement below.
 
 > **Merchant's Shop goods** are named and priced by the mod while your fortress runs, so

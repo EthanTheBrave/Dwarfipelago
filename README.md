@@ -37,6 +37,8 @@ Dwarfipelago is balanced for a **Small world** (65×65 region tiles). A recommen
 
 > Enabling the mod at world gen is what writes its raws into the save. A world generated without it has no Archipelago civilization and no Merchant's Shop, and no later install can add them — see [`setup_en.md`](worlds/dwarf_fortress/docs/setup_en.md).
 
+> **At embark, check the Neighbors panel for `gorlaks`.** DF only sends caravans from civilizations bordering your embark, and the Merchant's Shop rides on the gorlak (Archipelago) caravan — no gorlak neighbor means no shop for the whole fortress. They settle grassland, savanna and shrubland, so embark within reach of open temperate land. Run `dwarfipelago test worldcheck` after world gen to confirm the civ exists at all.
+
 ### What the preset does
 
 | Setting | Value | Reason |
@@ -491,7 +493,7 @@ The Merchant's Shop lets you **trade your goods for multiworld items** — a way
 
 ### The Archipelago caravan
 
-The shop is a **native caravan from the Archipelago civilization** - a gorlak trading people who generate in your world. Receiving your **first Merchant's Coffer** establishes contact with them and summons their caravan to your **trade depot**; from then on they visit like any trade partner. Its merchants are gorlaks, and it trades **its own wares like any caravan**, with the Archipelago shop goods sprinkled in among them - your fortress's own caravans are unaffected.
+The shop is a **native caravan from the Archipelago civilization** - a gorlak trading people who generate in your world. They must be a **neighbor of your embark** for their caravans to reach you (check the Neighbors panel when choosing a site); otherwise the shop never opens beyond the one visit your first coffer forces. Receiving your **first Merchant's Coffer** establishes contact with them and summons their caravan to your **trade depot**; from then on they visit like any trade partner. Its merchants are gorlaks, and it trades **its own wares like any caravan**, with the Archipelago shop goods sprinkled in among them - your fortress's own caravans are unaffected.
 
 The caravan arrives, stands at the depot for its stay, and departs as a group. Unbought AP goods leave with it and come back on a later visit.
 

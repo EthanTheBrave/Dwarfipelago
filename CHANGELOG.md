@@ -37,6 +37,12 @@ install this, though see the caveat below.
   `trades_inlogic` had the same hole and was missing from `slot_data` entirely;
   both are now carried through, and the table says why anything a rule branches
   on has to be listed.
+- `dwarfipelago test worldcheck` now also verifies the **gorlak (Archipelago)
+  civilization** exists, and reminds you that they additionally have to be a
+  neighbor of your embark to send caravans at all. The setup guide gained a
+  "Choosing an embark site" section covering it — without a gorlak neighbor the
+  Merchant's Shop is unreachable for the whole fortress, which was previously
+  documented nowhere.
 - Unbought goods left in a caravan's stock now correctly return to the rotation
   and come back around on a later visit.
 - Goods a paused game failed to remove are retried instead of being forgotten and

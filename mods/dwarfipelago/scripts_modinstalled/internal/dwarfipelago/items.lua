@@ -3223,8 +3223,10 @@ local TEST_LIST = {
                            end
                        end
 
-                       -- 3. Civilization presence
-                       local civs = { DWARF=false, HUMAN=false, ELF=false, GOBLIN=false }
+                       -- 3. Civilization presence. GORLAK is the ARCHIPELAGO civ,
+                       -- which carries the whole Merchant's Shop - without it there
+                       -- is no AP caravan and the 50 shop slots are unreachable.
+                       local civs = { DWARF=false, HUMAN=false, ELF=false, GOBLIN=false, GORLAK=false }
                        local total_ents = 0
                        pcall(function()
                            local creatures = df.global.world.raws.creatures.all
@@ -3242,6 +3244,15 @@ local TEST_LIST = {
                            else
                                fail("Civ: " .. race .. " not found - related AP goals may be impossible")
                            end
+                       end
+                       if civs.GORLAK then
+                           pass("Civ: GORLAK (Archipelago) - Merchant's Shop caravan can exist")
+                           print("[worldcheck]       NOTE: the gorlaks must also be a NEIGHBOR of your")
+                           print("[worldcheck]       embark, or they will never send caravans. Check the")
+                           print("[worldcheck]       Neighbors list on the embark screen for 'gorlaks'.")
+                       else
+                           fail("Civ: GORLAK (Archipelago) not found - the Merchant's Shop caravan " ..
+                                "cannot exist in this world; reroll with the Dwarfipelago mod enabled")
                        end
                        print(("[worldcheck]       (%d total entities in world)"):format(total_ents))
 
