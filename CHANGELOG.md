@@ -37,6 +37,13 @@ install this, though see the caveat below.
   `trades_inlogic` had the same hole and was missing from `slot_data` entirely;
   both are now carried through, and the table says why anything a rule branches
   on has to be listed.
+- **Establishing contact with the gorlaks was a single silent attempt.** It ran
+  only on Merchant's Coffer #1, marked itself successful *before* checking whether
+  the civilization even existed, and reported failure to the DFHack console only —
+  so a world without the Archipelago civ produced no caravan, no shop and no
+  visible explanation for the rest of the run. Contact is now marked only when it
+  actually succeeds, retried on every later coffer until it does, and both failure
+  modes (no civ / summon failed) announce themselves in game.
 - `dwarfipelago test worldcheck` now also verifies the **gorlak (Archipelago)
   civilization** exists, and reminds you that they additionally have to be a
   neighbor of your embark to send caravans at all. The setup guide gained a

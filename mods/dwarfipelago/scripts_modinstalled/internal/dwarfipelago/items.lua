@@ -2358,15 +2358,30 @@ M.spawn_warband = spawn_warband
 -- the AP shop becomes reachable. Merchants are natively gorlak because the
 -- sending civ is gorlak. No-op if no gorlak civ exists in this world.
 local function contact_gorlak_caravan()
-    dfhack.persistent.saveWorldDataString("dwarfipelago/gorlak_contacted", "1")
     local id = find_civ_id("GORLAK")
     if not id then
+        -- The world was generated without the mod's raws, so the civ that carries
+        -- the entire Merchant's Shop does not exist. Say so in game: this used to
+        -- fail with nothing but a console line, leaving players wondering why no
+        -- caravan ever came.
         log.warn("contact_gorlak_caravan: no GORLAK/ARCHIPELAGO civ in this world")
+        dfhack.gui.showAnnouncement(
+            "[AP] No Archipelago (gorlak) civilization exists in this world, so the "
+            .. "Merchant's Shop caravan can never arrive. Regenerate the world with "
+            .. "the Dwarfipelago mod enabled.", COLOR_RED, true)
         return false
     end
     local ok = pcall(function() dfhack.run_command("force", "Caravan", tostring(id)) end)
     if ok then
+        -- Only now is contact real. Setting the flag before this check meant a
+        -- failed attempt still counted as done.
+        dfhack.persistent.saveWorldDataString("dwarfipelago/gorlak_contacted", "1")
         announce("The Archipelago has heard of your fortress - a gorlak caravan is on its way!")
+    else
+        log.warn("contact_gorlak_caravan: force Caravan failed for civ id " .. tostring(id))
+        dfhack.gui.showAnnouncement(
+            "[AP] Could not summon the Archipelago caravan. If none arrives, the gorlaks "
+            .. "are most likely not a neighbor of this embark.", COLOR_YELLOW, true)
     end
     return ok
 end
@@ -2378,9 +2393,11 @@ local function recv_merchants_coffer()
     dfhack.persistent.saveWorldDataString(key, tostring(n))
     announce(("Merchant's Coffer received! Wealth tier %d/5 unlocked"):format(n))
     -- The first coffer establishes contact with the Archipelago (gorlak) civ and
-    -- summons their caravan, which carries the AP shop. Later coffers only raise
-    -- the tier cap.
-    if n == 1 then
+    -- summons their caravan, which carries the AP shop; later coffers raise the
+    -- tier cap. Contact is retried on every coffer until it actually succeeds -
+    -- it used to fire on coffer #1 only, so a single failed attempt cost the shop
+    -- for the rest of the run with nothing but a console warning to show for it.
+    if dfhack.persistent.getWorldDataString("dwarfipelago/gorlak_contacted") ~= "1" then
         contact_gorlak_caravan()
     end
 end

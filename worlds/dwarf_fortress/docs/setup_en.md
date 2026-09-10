@@ -179,10 +179,12 @@ The gorlaks settle **grassland, savanna and shrubland** and build cities, so emb
 within reach of open temperate land is the reliable way to get them as a neighbor.
 A remote glacier or a deep mountain range is the usual way to lose them.
 
-> Receiving your first Merchant's Coffer force-summons one gorlak caravan regardless of
-> neighbor status, so a bad embark still gets a single visit. It is the *annual* visits
-> after that which never come — which makes this easy to miss until the shop quietly
-> stops appearing.
+> Receiving your first Merchant's Coffer asks the game to summon a gorlak caravan
+> immediately. That request can fail silently: if the gorlaks are not a neighbor the
+> caravan may be spawned off-map and never arrive, and if the civilization does not
+> exist at all nothing is summoned. Either way you get **no caravan and no shop**, so
+> do not count on the forced visit to rescue a bad site. The mod now says so in game
+> rather than only in the log, and retries on each later coffer.
 Within a few ticks you should see the trade depot announcement below.
 
 > **Merchant's Shop goods** are named and priced by the mod while your fortress runs, so
