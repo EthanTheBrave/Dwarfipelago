@@ -1244,20 +1244,51 @@ end
 -- and chained war dogs are in ordinary (non-trader) cages, so they are untouched.
 -- Loose pack/draft animals aren't held by a trade good, so wagon-pullers survive.
 -- Fires once, then disarms. Called from caravan detection; returns true if it fired.
+-- Only these actually rot. The curse used to set flags.rotten on EVERY trader
+-- item on the assumption it was "inert on non-organic goods" - that was never
+-- verified, and blanket-rotting 400+ bars, stones and cages is exactly the sort
+-- of bulk state mutation that produces a delayed native crash.
+local ROTTABLE_ITEM_TYPES = {
+    FOOD = true, MEAT = true, FISH = true, FISH_RAW = true, CHEESE = true,
+    EGG = true, PLANT = true, PLANT_GROWTH = true, GLOB = true,
+    CORPSE = true, CORPSEPIECE = true, REMAINS = true,
+}
+
+-- Wear is only meaningful on things that can be worn out. Setting it on a metal
+-- bar or a boulder is at best a no-op and at worst drives DF down a damage path
+-- the item was never meant to take.
+local WEARABLE_ITEM_TYPES = {
+    ARMOR = true, SHOES = true, HELM = true, GLOVES = true, PANTS = true,
+    SHIELD = true, WEAPON = true, AMMO = true, TRAPCOMP = true, BOX = true,
+    BAG = true, CLOTH = true, BACKPACK = true, QUIVER = true,
+}
+
 local function trigger_lost_caravan_curse()
     if dfhack.persistent.getWorldDataString(LOST_CARAVAN_FLAG) ~= "1" then return false end
-    local goods, killed = 0, 0
+    local spoiled, worn, killed = 0, 0, 0
     for _, it in ipairs(df.global.world.items.all) do
-        if it.flags.trader then
-            it.flags.rotten = true            -- spoils perishables; inert on non-organic goods
-            pcall(function() it.wear = 3 end)  -- guts the value of metal/stone/craft goods
-            goods = goods + 1
+        local trader = false
+        pcall(function() trader = it.flags.trader end)
+        if trader then
+            local tn
+            pcall(function() tn = df.item_type[it:getType()] end)
+            if tn and ROTTABLE_ITEM_TYPES[tn] then
+                if pcall(function() it.flags.rotten = true end) then spoiled = spoiled + 1 end
+            elseif tn and WEARABLE_ITEM_TYPES[tn] then
+                if pcall(function() it.wear = 3 end) then worn = worn + 1 end
+            end
             -- Kill any animal held inside this trade good (caged/tethered livestock).
             for _, r in ipairs(it.general_refs) do
                 if df.general_ref_contains_unitst:is_instance(r) then
                     local u = df.unit.find(r.unit_id)
                     if u and dfhack.units.isAlive(u) and not is_sapient(u) then
-                        pcall(function() u.body.blood_count = 0 end)  -- bleeds out, leaving a corpse
+                        -- Matches DFHack's own destroyUnit: draining blood alone does
+                        -- not reliably finish a unit, so pair it with the vanish
+                        -- countdown failsafe rather than leaving a half-dead animal.
+                        pcall(function()
+                            u.body.blood_count = 0
+                            u.animal.vanish_countdown = 2
+                        end)
                         killed = killed + 1
                     end
                 end
@@ -1266,7 +1297,8 @@ local function trigger_lost_caravan_curse()
     end
     dfhack.persistent.saveWorldDataString(LOST_CARAVAN_FLAG, "")  -- disarm
     announce("A caravan got lost on its way here, and unfortunately couldn't keep the cargo alive.")
-    log.info(("Lost Caravan curse: spoiled %d trade goods, lost %d livestock"):format(goods, killed))
+    log.info(("Lost Caravan curse: spoiled %d perishable(s), wore out %d good(s), lost %d livestock")
+        :format(spoiled, worn, killed))
     return true
 end
 M.trigger_lost_caravan_curse = trigger_lost_caravan_curse

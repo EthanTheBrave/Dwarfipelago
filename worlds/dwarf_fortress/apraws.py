@@ -153,6 +153,15 @@ def render_inorganic_raws(goods=()) -> str:
     """One inorganic per slot; its solid-state name is the good's display name,
     so the trade row reads "<good name> AP Items (Tier N)".
 
+    Deliberately does NOT use STONE_TEMPLATE and does NOT set [IS_STONE]. Those
+    two made every shop good selectable as a crafting material: [IS_STONE] put
+    them in stone pickers (they showed up in "Make rock blocks" alongside
+    Alabaster and Andesite) and the template's [ITEMS_HARD]/[ITEMS_QUERN] offered
+    them to any hard-material job. Beyond being nonsense to pick, it leaked the
+    whole shop -- the picker lists each good's real multiworld name, so the
+    contents were readable without buying anything. With no usage flags at all,
+    nothing in game can select these materials.
+
     Always emits every slot up to SHOP_SLOTS -- a slot with no good yet gets its
     placeholder rather than being left out, so the material always exists for
     apcaravan.lua to write the real name and price into. Called with no goods it
@@ -169,13 +178,21 @@ def render_inorganic_raws(goods=()) -> str:
         value = g["material_value"] if g else PLACEHOLDER_VALUE
         out += [
             f"[INORGANIC:{MAT_PREFIX}{slot}]",
-            "\t[USE_MATERIAL_TEMPLATE:STONE_TEMPLATE]",
             f"\t[STATE_NAME_ADJ:ALL_SOLID:{name}]",
             # Prices the good on the native trade screen: item value =
             # TOOL_VALUE x MATERIAL_VALUE (see TOOL_VALUE).
             f"\t[MATERIAL_VALUE:{value}]",
             "\t[DISPLAY_COLOR:7:0:0]",
-            "\t[IS_STONE]",
+            # Temperature/density copied from STONE_TEMPLATE so the good behaves
+            # sanely, WITHOUT inheriting the template (see the note above).
+            "\t[SPEC_HEAT:800]",
+            "\t[IGNITE_POINT:NONE]",
+            "\t[MELTING_POINT:11500]",
+            "\t[BOILING_POINT:14000]",
+            "\t[HEATDAM_POINT:NONE]",
+            "\t[COLDDAM_POINT:NONE]",
+            "\t[MAT_FIXED_TEMP:NONE]",
+            "\t[SOLID_DENSITY:2670]",
             "",
         ]
     return "\n".join(out) + "\n"

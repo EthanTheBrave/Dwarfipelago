@@ -1,5 +1,29 @@
 # Changelog
 
+## 2.0.2
+
+### Fixes
+
+- **Shop goods were selectable as a crafting material, and leaked the shop.** The
+  per-slot materials carried `[IS_STONE]` and inherited `STONE_TEMPLATE`'s
+  `[ITEMS_HARD]`/`[ITEMS_QUERN]`, so every good appeared in stone and
+  hard-material pickers — "Make rock blocks" listed them between Alabaster and
+  Andesite. Worse, those entries show each good's **real multiworld item name**,
+  so the entire shop could be read without buying anything. The materials now
+  carry no usage flags at all and nothing in game can select them.
+- **The Lost Caravan trap no longer blanket-mutates every trade good.** It set
+  `flags.rotten` on *all* trader items — 400+ bars, stones and cages in one
+  report — on the untested assumption that this was "inert on non-organic goods",
+  and set wear on items that cannot be worn. Rot is now limited to genuinely
+  perishable item types and wear to wearable ones. Caged livestock is killed the
+  way DFHack's own `destroyUnit` does it, since draining blood alone does not
+  reliably finish a unit.
+- **The mod was searched for in the wrong folder.** The DF data root was taken as
+  `dirname(game_path)`, but `game_path` may legitimately point at `dfhack.exe` —
+  and the standalone DFHack Steam app lives in `.../common/DFHack/hack/`, nowhere
+  near DF. The client now locates the real DF base folder by looking for DF's own
+  markers and by checking the sibling install in the same Steam library.
+
 ## 2.0.1
 
 Bugfix release. 2.0.0 seeds and worlds remain playable and installing this requires
