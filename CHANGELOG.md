@@ -1,29 +1,5 @@
 # Changelog
 
-## 2.0.2
-
-### Fixes
-
-- **Shop goods were selectable as a crafting material, and leaked the shop.** The
-  per-slot materials carried `[IS_STONE]` and inherited `STONE_TEMPLATE`'s
-  `[ITEMS_HARD]`/`[ITEMS_QUERN]`, so every good appeared in stone and
-  hard-material pickers — "Make rock blocks" listed them between Alabaster and
-  Andesite. Worse, those entries show each good's **real multiworld item name**,
-  so the entire shop could be read without buying anything. The materials now
-  carry no usage flags at all and nothing in game can select them.
-- **The Lost Caravan trap no longer blanket-mutates every trade good.** It set
-  `flags.rotten` on *all* trader items — 400+ bars, stones and cages in one
-  report — on the untested assumption that this was "inert on non-organic goods",
-  and set wear on items that cannot be worn. Rot is now limited to genuinely
-  perishable item types and wear to wearable ones. Caged livestock is killed the
-  way DFHack's own `destroyUnit` does it, since draining blood alone does not
-  reliably finish a unit.
-- **The mod was searched for in the wrong folder.** The DF data root was taken as
-  `dirname(game_path)`, but `game_path` may legitimately point at `dfhack.exe` —
-  and the standalone DFHack Steam app lives in `.../common/DFHack/hack/`, nowhere
-  near DF. The client now locates the real DF base folder by looking for DF's own
-  markers and by checking the sibling install in the same Steam library.
-
 ## 2.0.1
 
 Bugfix release. 2.0.0 seeds and worlds remain playable and installing this requires
@@ -47,6 +23,13 @@ no regeneration — see **What carries over** for the two exceptions.
   back around on a later visit.
 - Goods that a paused game failed to remove are retried, instead of being forgotten
   and left in the fortress permanently.
+- **Shop goods were selectable as a crafting material, and leaked the whole shop.**
+  The per-slot materials carried `[IS_STONE]` and inherited `STONE_TEMPLATE`'s
+  `[ITEMS_HARD]`/`[ITEMS_QUERN]`, so every good turned up in stone and
+  hard-material pickers — "Make rock blocks" listed them between Alabaster and
+  Andesite. Those entries show each good's **real multiworld item name**, so the
+  entire shop could be read without buying anything. The materials now carry no
+  usage flags at all, so nothing in game can select them.
 
 ### The Archipelago caravan
 
@@ -89,12 +72,31 @@ no regeneration — see **What carries over** for the two exceptions.
   hole and was missing from `slot_data` entirely. Both are carried through now, and
   the table documents why anything a rule branches on has to be listed.
 
+### Traps
+
+- **The Lost Caravan trap no longer blanket-mutates every trade good.** It set
+  `flags.rotten` on *all* trader items — 400+ bars, stones and cages in one
+  report — on the untested assumption that this was "inert on non-organic goods",
+  and set wear on items that cannot be worn. Rot is now limited to genuinely
+  perishable item types and wear to wearable ones, and caged livestock is killed
+  the way DFHack's own `destroyUnit` does it, since draining blood alone does not
+  reliably finish a unit.
+
+### Install
+
+- **The mod was searched for in the wrong folder.** The DF data root was taken as
+  `dirname(game_path)`, but `game_path` may legitimately point at `dfhack.exe` —
+  and the standalone DFHack Steam app lives in `.../common/DFHack/hack/`, nowhere
+  near DF. The client now locates the real DF base folder by looking for DF's own
+  markers, then by checking the sibling install in the same Steam library.
+
 ### What carries over
 
 | | |
 |---|---|
 | **Applies to existing seeds immediately** | Every Merchant's Shop fix, the Checks tab fix, caravan contact, the missing-civ failsafe, and the Mace skill checks — all client- and mod-side. |
 | **Needs a regenerated seed** | Shield and Tactics. Their flag lives in the apworld and is baked into `slot_data` at generation, so those 30 locations stay dead on a seed rolled under 2.0.0. |
+| **Needs a regenerated world** | The shop-material fix. Raws are written into a save at world generation, so an existing world keeps the selectable, name-leaking materials. |
 | **Cannot be recovered** | Shop slots already consumed by a false purchase. Those checks are server-side truth once sent. |
 
 ## 2.0.0
