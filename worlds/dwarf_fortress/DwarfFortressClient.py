@@ -311,6 +311,49 @@ WORLD_GEN_PRESET = (
 )
 
 
+# A real DF install has these; DFHack's own folder has none of them. Used to stop
+# us treating whatever directory game_path happens to sit in as a DF root.
+_DF_ROOT_MARKERS = (("data", "vanilla"), ("data", "init"), ("mods",), ("prefs",))
+
+
+def _looks_like_df_root(d: str) -> bool:
+    return bool(d) and any(os.path.isdir(os.path.join(d, *m)) for m in _DF_ROOT_MARKERS)
+
+
+def _df_root_from_exe(exe: str) -> Optional[str]:
+    """The Dwarf Fortress base folder for a configured executable.
+
+    game_path may legitimately point at dfhack.exe, and on Windows the standalone
+    DFHack Steam app installs to .../steamapps/common/DFHack/hack/ - nowhere near
+    DF. Taking dirname(exe) there yielded .../DFHack/hack and the mod was looked
+    for in a folder that can never contain it. So: walk up looking for something
+    that actually looks like a DF install, then fall back to the sibling
+    "Dwarf Fortress" inside the same Steam library."""
+    if not exe:
+        return None
+    d = exe if os.path.isdir(exe) else os.path.dirname(exe)
+
+    # 1. The executable's own folder, or an ancestor, being a DF install.
+    probe = d
+    for _ in range(4):
+        if _looks_like_df_root(probe):
+            return probe
+        parent = os.path.dirname(probe)
+        if not parent or parent == probe:
+            break
+        probe = parent
+
+    # 2. A sibling of another app in the same Steam library.
+    parts = os.path.normpath(d).replace("\\", os.sep).split(os.sep)
+    for i in range(len(parts) - 1, 0, -1):
+        if parts[i].lower() == "common":
+            sibling = os.path.join(os.sep.join(parts[: i + 1]), "Dwarf Fortress")
+            if _looks_like_df_root(sibling):
+                return sibling
+            break
+    return None
+
+
 def _df_data_roots() -> list:
     """Every DF data root that might hold installed_mods / prefs / mods, so we can
     install where DF actually reads regardless of how it's installed. Covers the
@@ -333,7 +376,8 @@ def _df_data_roots() -> list:
         add(os.path.join(home, ".local", "share", "Bay 12 Games", "Dwarf Fortress"))
     exe = _get_df_executable()
     if exe:
-        add(os.path.dirname(exe))
+        # Never add dirname(exe) unchecked - see _df_root_from_exe.
+        add(_df_root_from_exe(exe))
     return roots
 
 
