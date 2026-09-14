@@ -703,7 +703,22 @@ end
 -- Native AP shop: put the AP goods on the docked gorlak Archipelago caravan as
 -- real items (gated to that civ) and detect purchases.
 local apcaravan = reqscript('internal/dwarfipelago/apcaravan')
+
+-- Debug override for bisecting bug reports: set dwarfipelago/shop_override_off
+-- to "1" and the mod does nothing shop-related - no materials written, no goods
+-- injected, no purchase detection. The AP client never writes this key, so unlike
+-- clearing dwarfipelago/shop it survives a reconnect. Any goods already on the
+-- caravan are still cleared, so turning it on does not strand items in the fort.
+local function shop_overridden_off()
+    return dfhack.persistent.getWorldDataString("dwarfipelago/shop_override_off") == "1"
+end
+
 local function poll_ap_caravan()
+    if shop_overridden_off() then
+        if not apcaravan.caravan_docked() then apcaravan.clear_ap_goods() end
+        dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "0")
+        return
+    end
     nag_missing_gorlaks()
     -- Name and price this seed's goods in the loaded materials. Cheap and
     -- idempotent (a no-op once applied), and re-applied here because DF reloads
