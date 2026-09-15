@@ -23,6 +23,13 @@ no regeneration — see **What carries over** for the two exceptions.
   back around on a later visit.
 - Goods that a paused game failed to remove are retried, instead of being forgotten
   and left in the fortress permanently.
+- **Runtime naming and pricing of shop goods never actually ran.** The lookup
+  that maps each slot to its material iterated `world.raws.inorganics`, but that
+  is a struct whose list lives in `.all` — iterating the struct yields nothing and
+  raises no error, so every slot looked absent. Goods fell back to unnamed iron at
+  a flat price and the mod wrongly reported "this world's raws predate the shop
+  materials" even on worlds that had them. Two other raws scans (diamond variants,
+  sand for glassmaking) had the same defect and silently found nothing.
 - **Shop goods were selectable as a crafting material, and leaked the whole shop.**
   The per-slot materials carried `[IS_STONE]` and inherited `STONE_TEMPLATE`'s
   `[ITEMS_HARD]`/`[ITEMS_QUERN]`, so every good turned up in stone and

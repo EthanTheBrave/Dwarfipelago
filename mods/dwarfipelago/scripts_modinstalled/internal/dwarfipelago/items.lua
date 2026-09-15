@@ -216,7 +216,8 @@ local function recv_cut_diamond()
         "INORGANIC:DIAMOND_CLEAR", "INORGANIC:DIAMOND_BLUE", "INORGANIC:DIAMOND_RED",
         "INORGANIC:DIAMOND_YELLOW", "INORGANIC:DIAMOND_BROWN", "INORGANIC:DIAMOND_BLACK",
     }
-    for _, raw in ipairs(df.global.world.raws.inorganics) do
+    -- .all, not the struct itself - see the note in apcaravan.build_slot_mat.
+    for _, raw in ipairs(df.global.world.raws.inorganics.all) do
         local id = raw.id or ""
         if id:find("DIAMOND") then table.insert(tokens, "INORGANIC:" .. id) end
     end
@@ -386,7 +387,8 @@ local function recv_bag_of_sand()
         local ct, ci = find_mat({ "CREATURE_MAT:COW:LEATHER", "PLANT_MAT:GRASS_TAIL_PIG:THREAD" })  -- leather: moveToContainer works (thread fails)
         -- Sand: any inorganic flagged SOIL_SAND (what the glass furnace accepts).
         local st, si
-        for i, raw in ipairs(df.global.world.raws.inorganics) do
+        -- .all, not the struct itself - see the note in apcaravan.build_slot_mat.
+        for i, raw in ipairs(df.global.world.raws.inorganics.all) do
             if raw.flags and raw.flags.SOIL_SAND then st, si = 0, i; break end
         end
         if not st then
@@ -1263,8 +1265,10 @@ local WEARABLE_ITEM_TYPES = {
     BAG = true, CLOTH = true, BACKPACK = true, QUIVER = true,
 }
 
-local function trigger_lost_caravan_curse()
-    if dfhack.persistent.getWorldDataString(LOST_CARAVAN_FLAG) ~= "1" then return false end
+-- Mutates flags on hundreds of items and kills units in a single pass, so it is
+-- run inside log.scope: if DF dies mid-curse the log stops at
+-- "> lost_caravan_curse" with no closing "<", pointing straight here.
+local function lost_caravan_curse_body()
     local spoiled, worn, killed = 0, 0, 0
     for _, it in ipairs(df.global.world.items.all) do
         local trader = false
@@ -1300,6 +1304,11 @@ local function trigger_lost_caravan_curse()
     log.info(("Lost Caravan curse: spoiled %d perishable(s), wore out %d good(s), lost %d livestock")
         :format(spoiled, worn, killed))
     return true
+end
+
+local function trigger_lost_caravan_curse()
+    if dfhack.persistent.getWorldDataString(LOST_CARAVAN_FLAG) ~= "1" then return false end
+    return log.scope("lost_caravan_curse", lost_caravan_curse_body) == true
 end
 M.trigger_lost_caravan_curse = trigger_lost_caravan_curse
 

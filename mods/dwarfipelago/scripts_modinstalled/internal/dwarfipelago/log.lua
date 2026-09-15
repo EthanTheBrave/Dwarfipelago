@@ -69,6 +69,38 @@ function M.warn(msg)
     dfhack.printerr("[Dwarfipelago] WARN: " .. tostring(msg))
 end
 
+-- Bracket a risky operation: writes "> name" before and "< name" after.
+--
+-- A hard DF crash produces NO Lua traceback - the process is simply gone - so the
+-- only forensic signal left is what the mod was doing at the time. Every line is
+-- flushed on write (write_line opens/appends/closes), so a log that ends at
+-- "> name" with no matching "< name" says the crash happened inside that
+-- operation. Reserve it for rare, bulk or memory-touching work; do NOT wrap
+-- anything that runs every poll tick.
+function M.scope(name, fn, ...)
+    maybe_rotate()
+    write_line("SCOPE", "> " .. name)
+    local res = table.pack(pcall(fn, ...))
+    if res[1] then
+        write_line("SCOPE", "< " .. name)
+        return table.unpack(res, 2, res.n)
+    end
+    M.error(("%s raised: %s"):format(name, tostring(res[2])))
+    return nil
+end
+
+-- One block at startup describing the environment, so a bug report is
+-- self-describing instead of needing archaeology across three log files.
+-- `facts` is an ordered list of {label, value} pairs supplied by the caller.
+function M.session(facts)
+    maybe_rotate()
+    write_line("INFO", "---- session ----")
+    for _, kv in ipairs(facts) do
+        write_line("INFO", ("  %-22s %s"):format(kv[1], tostring(kv[2])))
+    end
+    write_line("INFO", "-----------------")
+end
+
 function M.error(msg)
     maybe_rotate()
     write_line("ERROR", msg)

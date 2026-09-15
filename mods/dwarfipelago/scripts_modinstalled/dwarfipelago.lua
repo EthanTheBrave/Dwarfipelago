@@ -2555,11 +2555,59 @@ end
 
 -- ── Start / stop ──────────────────────────────────────────────────────────────
 
+-- Everything a crash report needs, written once per fortress load. Chasing the
+-- last round of reports meant inferring the player's setup from scattered hints
+-- across three log files; most of what mattered (which mod copies were loadable,
+-- whether the world even had the shop materials) is recorded here directly.
+local function log_session_header()
+    local function q(fn, default)
+        local ok, v = pcall(fn)
+        if ok and v ~= nil then return v end
+        return default
+    end
+    local paths = {}
+    q(function()
+        for _, p in ipairs(dfhack.internal.getScriptPaths()) do
+            if p:lower():find("dwarfipelago") then paths[#paths + 1] = p end
+        end
+    end)
+    local pget = function(k) return dfhack.persistent.getWorldDataString("dwarfipelago/" .. k) end
+    local facts = {
+        { "mod version",   SCRIPT_VERSION },
+        { "DF",            q(dfhack.getDFVersion, "?") },
+        { "DFHack",        q(dfhack.getDFHackVersion, "?") },
+        { "OS",            q(dfhack.getOSType, "?") },
+        { "save",          q(function() return df.global.world.cur_savegame.save_dir end, "?") },
+        -- More than one path means two mod copies are loadable and DFHack may run
+        -- either; that alone invalidates any other conclusion from this log.
+        { "script paths",  #paths .. (#paths > 1 and "  *** MULTIPLE INSTALLS ***" or "") },
+        { "AP seed",       pget("seed") },
+        { "goal",          pget("goal") },
+        { "shop enabled",  pget("shop_enabled") },
+        { "shop override", pget("shop_override_off") },
+        { "gorlak civ",    pget("gorlak_civ_present") },
+        -- Absent means the world predates the shop materials: goods fall back to
+        -- iron and every shop symptom that follows is explained by this line.
+        { "AP_SHOP raws",  tostring(q(function()
+                               return dfhack.matinfo.find("INORGANIC:AP_SHOP_1") ~= nil
+                           end, false)) },
+        { "mining depth",  pget("mining_depth") },
+        { "craft permits", pget("crafting_permits") },
+        { "craftsanity",   pget("craftsanity_enabled") },
+        { "perf assist",   pget("perf_assist") },
+        { "items / units", tostring(q(function() return #df.global.world.items.all end, "?"))
+                           .. " / " .. tostring(q(function() return #df.global.world.units.active end, "?")) },
+    }
+    for i, p in ipairs(paths) do facts[#facts + 1] = { "  path " .. i, p } end
+    pcall(log.session, facts)
+end
+
 local function start()
     state.set_enabled(true)
     dfhack.persistent.saveWorldDataString("dwarfipelago/version", SCRIPT_VERSION)
     -- Publish before the first poll so the client can check it on connect.
     gorlak_civ_present()
+    log_session_header()
     log.info(("Started (v%s). Log file: %s"):format(SCRIPT_VERSION, log.path()))
     -- Register hooks
     eventful.onJobCompleted[SCRIPT_NAME]        = on_job_completed

@@ -46,7 +46,10 @@ local _slot_mat = nil
 
 local function build_slot_mat()
     local map = {}
-    for i, raw in ipairs(df.global.world.raws.inorganics) do
+    -- world.raws.inorganics is a struct, not a vector: the list is .all. Iterating
+    -- the struct yields nothing AND raises no error, so this scan silently found
+    -- zero matches on every DF build.
+    for i, raw in ipairs(df.global.world.raws.inorganics.all) do
         local slot = raw.id:match("^AP_SHOP_(%d+)$")
         if slot then map[slot] = i end
     end
@@ -244,6 +247,9 @@ end
 
 -- Create one AP good as a trader-flagged tool item at the depot.
 -- Returns the item, or nil.
+-- Item creation and removal are the mod's most memory-touching operations, so
+-- they are bracketed in the log. Only ever called when there is real work to do -
+-- never per poll tick - so this stays quiet in a healthy fort.
 local function spawn_good(tool_id, mat_token, depot, owner_ent)
     local sub = tool_subtype(tool_id)
     if not sub then return nil end
