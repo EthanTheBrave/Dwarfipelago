@@ -1780,7 +1780,7 @@ local function poll_checks()
                     end
                 end
                 local msg = spawned
-                    and "[AP] Trap Cave! Hostile creatures lurk within — you've been warned!"
+                    and "[AP] Trap Cave! Hostile creatures lurk within - you've been warned!"
                     or  "[AP] Trap Cave! Something feels deeply wrong about this place..."
                 dfhack.gui.showAnnouncement(msg, COLOR_RED, true)
             else

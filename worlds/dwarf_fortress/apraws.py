@@ -45,7 +45,7 @@ PLACEHOLDER_VALUE = 1                  # until apcaravan.lua writes the real pri
 
 
 # Punctuation other games use that NFKD leaves alone; without these a name like
-# "Hero’s Laurels" has no ASCII form at all.
+# a right single quote (U+2019) has no ASCII form at all.
 _PUNCT = {
     "\u2018": "'", "\u2019": "'", "\u201a": "'", "\u201b": "'",
     "\u201c": '"', "\u201d": '"', "\u201e": '"', "\u201f": '"',
@@ -62,7 +62,7 @@ def sanitize_name(text: str, fallback: str = "Archipelago Item") -> str:
     """Make an arbitrary multiworld item name safe for a DF name token.
 
     DF raws are single-byte text, so the name has to survive as ASCII: accents are
-    folded (Pokémon -> Pokemon), the punctuation above is mapped, and anything
+    folded to their base letters, the punctuation above is mapped, and anything
     still outside printable ASCII (CJK, emoji, box drawing) is dropped. Also drops
     the token delimiters [ ] : |, collapses whitespace, and caps the length.
     Returns `fallback` when nothing usable is left -- an unrenderable name must not
