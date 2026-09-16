@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.0.2 (unreleased)
+
+### Performance
+
+- **The completed-check guard was re-reading and re-parsing the whole
+  checked-locations set on every check, every poll.** `is_location_checked` did a
+  persistent read plus a full JSON decode per call, and the poll calls it once per
+  check - 122 static ones plus every craft and skill check. That is
+  O(checks x checked) per tick, and it grows as a run progresses, so it was worst
+  on large craftsanity/skillsanity seeds where the fort is already struggling. The
+  set is now decoded once per frame and kept coherent on write: **122 reads and
+  122 decodes per poll become 1 and 1**.
+
 ## 2.0.1
 
 Bugfix release. 2.0.0 seeds and worlds remain playable and installing this requires

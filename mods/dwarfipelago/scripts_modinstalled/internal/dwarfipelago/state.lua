@@ -41,17 +41,50 @@ end
 
 -- ── Checked locations ─────────────────────────────────────────────────────────
 
--- Returns a set (table with location_id → true) of already-checked locations.
+-- Cached decode of the checked-locations set.
+--
+-- is_location_checked runs once per check per poll - 122 static checks plus every
+-- craft and skill check - and each call used to do a persistent read AND a full
+-- JSON decode of the whole set. That is O(checks x checked) every tick, and it
+-- grows as the run progresses: worst on craftsanity/skillsanity seeds where the
+-- set reaches thousands of entries, which is exactly when the fort is already
+-- struggling. Every writer of KEY_CHECKED lives in this file, so the cache is
+-- updated in place on write and additionally expires once per frame.
+local _checked, _checked_frame = nil, -1
+
+local function current_frame()
+    local f = -1
+    pcall(function() f = df.global.world.frame_counter or -1 end)
+    return f
+end
+
+local function checked_set()
+    local frame = current_frame()
+    if _checked and _checked_frame == frame then return _checked end
+    _checked = read_table(KEY_CHECKED)
+    _checked_frame = frame
+    return _checked
+end
+
+local function invalidate_checked()
+    _checked, _checked_frame = nil, -1
+end
+
+-- Returns a set (table with location_id -> true) of already-checked locations.
+-- Shared with the cache: callers read it, only this file mutates it.
 function M.get_checked_locations()
-    return read_table(KEY_CHECKED)
+    return checked_set()
 end
 
 -- Mark a location as checked.
 function M.mark_location_checked(location_id)
-    local checked = M.get_checked_locations()
+    local checked = checked_set()
     if not checked[tostring(location_id)] then
         checked[tostring(location_id)] = true
         write_table(KEY_CHECKED, checked)
+        -- Keep the cache authoritative rather than dropping it: the set we just
+        -- mutated IS the cached table, so it already reflects the write.
+        _checked_frame = current_frame()
         return true  -- newly checked
     end
     return false  -- already checked
@@ -202,6 +235,7 @@ function M.dump()
 end
 
 function M.reset()
+    invalidate_checked()
     dfhack.persistent.saveWorldDataString(KEY_CHECKED, "")
     dfhack.persistent.saveWorldDataString(KEY_RECEIVED, "")
     dfhack.persistent.saveWorldDataString(KEY_ENABLED, "")
