@@ -20,6 +20,15 @@
   citizens, **9,831 unit lookups per poll drop to 5,311 at half maxed and to zero
   once all are.** The skill-lowering behaviour still scans, since it actively caps
   units rather than only observing them.
+- **The FPS backoff only engaged below 30 FPS**, so a fort that had dropped from
+  100 to 50-60 - the range people actually report - kept polling at full rate.
+  Anything under 60 now polls at half rate. The low-end factors are unchanged on
+  purpose: the poll interval is measured in ticks, so a slow fort already stretches
+  each poll in real time, and raising them further would delay checks more than it
+  saves.
+- The client no longer resolves every received item's name on each poll merely to
+  decide that nothing had changed; the change signature is keyed on item ids and
+  names are resolved only when a recompute actually happens.
 
 ## 2.0.1
 

@@ -1615,12 +1615,20 @@ local function poll_backing_off()
         _poll_skip_remaining = _poll_skip_remaining - 1
         return true
     end
+    -- Backoff bands. The old table only engaged below 30 FPS, so a fort that had
+    -- dropped from 100 to 50-60 - the range players actually complain about - got
+    -- no relief at all. Anything under 60 now polls at half rate.
+    --
+    -- The low-end factors are deliberately NOT raised: POLL_TICKS is measured in
+    -- ticks, so a slow fort already stretches each poll in real time. At 12 FPS
+    -- the existing factor of 4 is ~33 real seconds between polls; pushing it
+    -- higher would delay checks and caravan handling more than it saves.
     local factor = 1
     local ok, fps = pcall(dfhack.internal.getUnpausedFps)
     if ok and type(fps) == "number" and fps > 0 then
         if     fps < 12 then factor = 4
         elseif fps < 20 then factor = 3
-        elseif fps < 30 then factor = 2
+        elseif fps < 60 then factor = 2
         end
     end
     _poll_skip_remaining = factor - 1   -- run this cycle, then skip the next (factor-1)
