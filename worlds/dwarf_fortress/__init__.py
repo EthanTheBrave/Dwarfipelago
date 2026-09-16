@@ -185,6 +185,26 @@ class DwarfFortressWorld(World):
     # ── Generation lifecycle ──────────────────────────────────────────────────
 
 
+    def _set_early_items(self) -> None:
+        """Nudge the treasury on-ramp into an early sphere for Legendary Wealth.
+
+        That goal is scored in minted coins and cut gems, but nothing can enter the
+        treasury until the fort can make one of them. In test generations the first
+        Merchant's Coffer landed in sphere 1 while the Jeweler's Workshop and the
+        Coins permit sat in sphere 14, so the goal showed no possible progress for
+        most of the run.
+
+        Only the Jeweler's Workshop is nudged, deliberately. Gems are the low-tech
+        treasury route - rough gems come from mining and there is no gem permit - so
+        one item opens the on-ramp. The metal chain is left alone: it is genuinely
+        mid-game industry, and it is a two-to-four item chain with OR branches
+        (Smelter or Magma Smelter, Forge or Magma Forge) that early_items cannot
+        express without over-constraining the fill.
+        """
+        if self.options.goal != DwarfFortressGoal.option_legendary_wealth:
+            return
+        self.multiworld.early_items[self.player]["Jeweler's Workshop Blueprint"] = 1
+
     def create_regions(self) -> None:
         menu = Region("Menu", self.player, self.multiworld)
         fortress = Region("Fortress", self.player, self.multiworld)
@@ -220,6 +240,7 @@ class DwarfFortressWorld(World):
         self.multiworld.regions += [menu, fortress]
 
     def create_items(self) -> None:
+        self._set_early_items()
         location_count = len(self.active_location_names)
         trap_weight = self.options.trap_item_weight.value / 100.0
 
