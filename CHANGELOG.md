@@ -14,6 +14,13 @@
 
 ### Performance
 
+- **Manual send mode.** A fort paying more FPS for live checks than it wants can
+  now switch the mod's scanning off entirely: the Status tab has a `Manual send`
+  toggle (Shift-M) and a `Send now` button (Shift-N) that runs exactly one check
+  pass. Also available as `dwarfipelago manual-send on|off` and
+  `dwarfipelago send-now`. Item delivery and the client link are unaffected -
+  only the mod's own per-poll scanning pauses.
+
 - **The completed-check guard was re-reading and re-parsing the whole
   checked-locations set on every check, every poll.** `is_location_checked` did a
   persistent read plus a full JSON decode per call, and the poll calls it once per

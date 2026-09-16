@@ -855,6 +855,31 @@ function DwarfipelagoPanel:init()
                         {text=dl_detail, pen=COLOR_WHITE},
                     },
                 },
+                widgets.HotkeyLabel{
+                    frame       = {t=8, l=0},
+                    key         = "CUSTOM_SHIFT_M",
+                    label       = function()
+                        return ps("manual_send", "") == "1"
+                            and "Manual send: ON  (checks paused)"
+                            or  "Manual send: off (checks send live)"
+                    end,
+                    on_activate = function()
+                        local on = ps("manual_send", "") == "1"
+                        dfhack.persistent.saveWorldDataString(
+                            "dwarfipelago/manual_send", on and "" or "1")
+                    end,
+                },
+                widgets.HotkeyLabel{
+                    frame       = {t=9, l=0},
+                    key         = "CUSTOM_SHIFT_N",
+                    label       = "Send now",
+                    enabled     = function() return ps("manual_send", "") == "1" end,
+                    on_activate = function()
+                        dfhack.persistent.saveWorldDataString("dwarfipelago/send_now", "1")
+                        dfhack.gui.showAnnouncement("[AP] Running one check pass...",
+                                                    COLOR_GREEN, true)
+                    end,
+                },
                 (function()
                     local energy_on = ps("energy_enabled", "0") == "1"
                     if not energy_on then return widgets.Label{frame={t=6,l=0}, text=""} end
