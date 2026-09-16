@@ -12,6 +12,14 @@
   on large craftsanity/skillsanity seeds where the fort is already struggling. The
   set is now decoded once per frame and kept coherent on write: **122 reads and
   122 decodes per poll become 1 and 1**.
+- **Skillsanity kept scanning every citizen for skills that were already maxed.**
+  `update_skill_levels` walked all ~87 tracked skills against every living citizen
+  on every poll, including skills already recorded at `skillsanity_max_level`,
+  which can never rise again. Maxed skills are now filtered out before any unit is
+  touched, so the cost falls as a run progresses instead of staying flat: with 113
+  citizens, **9,831 unit lookups per poll drop to 5,311 at half maxed and to zero
+  once all are.** The skill-lowering behaviour still scans, since it actively caps
+  units rather than only observing them.
 
 ## 2.0.1
 
