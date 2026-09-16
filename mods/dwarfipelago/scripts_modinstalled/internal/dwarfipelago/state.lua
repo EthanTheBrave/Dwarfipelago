@@ -41,15 +41,9 @@ end
 
 -- ── Checked locations ─────────────────────────────────────────────────────────
 
--- Cached decode of the checked-locations set.
---
--- is_location_checked runs once per check per poll - 122 static checks plus every
--- craft and skill check - and each call used to do a persistent read AND a full
--- JSON decode of the whole set. That is O(checks x checked) every tick, and it
--- grows as the run progresses: worst on craftsanity/skillsanity seeds where the
--- set reaches thousands of entries, which is exactly when the fort is already
--- struggling. Every writer of KEY_CHECKED lives in this file, so the cache is
--- updated in place on write and additionally expires once per frame.
+-- Cached so the per-poll check loop doesn't re-read and re-decode the whole set
+-- once per check. Every writer of KEY_CHECKED is in this file, so the cache is
+-- updated on write; it also expires each frame.
 local _checked, _checked_frame = nil, -1
 
 local function current_frame()
