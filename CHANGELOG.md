@@ -14,6 +14,10 @@
 
 ### Performance
 
+- The **Controls** tab is gone; its three buttons moved onto **Status**, which had
+  the room. `Reset all AP state` and `Reset seed` now ask for confirmation first -
+  they fired on a single keypress before, and they now sit on the tab the panel
+  opens on.
 - **Manual send mode.** A fort paying more FPS for live checks than it wants can
   now switch the mod's scanning off entirely: the Status tab has a `Manual send`
   toggle (Shift-M) and a `Send now` button (Shift-N) that runs exactly one check

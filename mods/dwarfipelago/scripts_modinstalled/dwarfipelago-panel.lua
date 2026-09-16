@@ -880,6 +880,47 @@ function DwarfipelagoPanel:init()
                                                     COLOR_GREEN, true)
                     end,
                 },
+                widgets.Label{frame={t=11, l=0}, text="Controls:"},
+                widgets.HotkeyLabel{
+                    frame = {t=12, l=2},
+                    key   = "CUSTOM_SHIFT_S",
+                    label = enabled and "Restart mod" or "Start mod",
+                    on_activate = function()
+                        if enabled then
+                            dfhack.run_command("dwarfipelago", "stop")
+                        end
+                        dfhack.run_command("dwarfipelago", "start")
+                        self:dismiss()
+                    end,
+                },
+                -- Confirmed: these are unrecoverable, and they now sit on the tab
+                -- the panel opens on rather than one you had to navigate to.
+                widgets.HotkeyLabel{
+                    frame = {t=13, l=2},
+                    key   = "CUSTOM_SHIFT_R",
+                    label = "Reset all AP state",
+                    on_activate = function()
+                        self:dismiss()
+                        dialogs.showYesNoPrompt("Reset all AP state",
+                            "Erase every check, unlock and received item this world\n"
+                            .. "has recorded? This cannot be undone.",
+                            COLOR_RED,
+                            function() dfhack.run_command("dwarfipelago", "progress-wipe") end)
+                    end,
+                },
+                widgets.HotkeyLabel{
+                    frame = {t=14, l=2},
+                    key   = "CUSTOM_SHIFT_D",
+                    label = "Reset seed",
+                    on_activate = function()
+                        self:dismiss()
+                        dialogs.showYesNoPrompt("Reset seed",
+                            "Unlink this world from its Archipelago seed?\n"
+                            .. "The next client to connect will claim it.",
+                            COLOR_YELLOW,
+                            function() dfhack.run_command("dwarfipelago", "resetseed") end)
+                    end,
+                },
                 (function()
                     local energy_on = ps("energy_enabled", "0") == "1"
                     if not energy_on then return widgets.Label{frame={t=6,l=0}, text=""} end
@@ -949,49 +990,6 @@ function DwarfipelagoPanel:init()
         table.insert(tab_list, "Crafts")
         return widgets.Panel{
             subviews = { make_list(build_crafts_lines()) },
-        }
-    end
-
-    -- ── Tab 5: Controls ──────────────────────────────────────────────
-
-    local function ControlsTab()
-        table.insert(tab_list, "Controls")
-        return widgets.Panel{
-            subviews = {
-                widgets.Label{frame={t=0, l=0}, text="Controls:"},
-                widgets.HotkeyLabel{
-                    frame = {t=2, l=2},
-                    key   = "CUSTOM_SHIFT_S",
-                    label = enabled and "Restart mod" or "Start mod",
-                    on_activate = function()
-                        if enabled then
-                            dfhack.run_command("dwarfipelago", "stop")
-                            dfhack.run_command("dwarfipelago", "start")
-                        else
-                            dfhack.run_command("dwarfipelago", "start")
-                        end
-                        self:dismiss()
-                    end,
-                },
-                widgets.HotkeyLabel{
-                    frame = {t=3, l=2},
-                    key   = "CUSTOM_SHIFT_R",
-                    label = "Reset all AP state",
-                    on_activate = function()
-                        dfhack.run_command("dwarfipelago", "progress-wipe")
-                        self:dismiss()
-                    end,
-                },
-                widgets.HotkeyLabel{
-                    frame = {t=4, l=2},
-                    key   = "CUSTOM_SHIFT_D",
-                    label = "Reset seed",
-                    on_activate = function()
-                        dfhack.run_command("dwarfipelago", "resetseed")
-                        self:dismiss()
-                    end,
-                },
-            },
         }
     end
 
@@ -1197,7 +1195,6 @@ function DwarfipelagoPanel:init()
     if ps("craftsanity_enabled", "0") ~= "0" then
         table.insert(tabviews, CraftsanityTab())
     end   
-    table.insert(tabviews, ControlsTab())
     if ps("energy_enabled", "0") ~= "0" then
         table.insert(tabviews, EnergyTab())
     end
