@@ -2,6 +2,16 @@
 
 ## 2.0.2 (unreleased)
 
+### Logic
+
+- **The Legendary Wealth goal now requires the means to produce a treasury.** The
+  goal is measured in minted coins and cut gems, but its completion condition
+  asked only for the Codex, five coffers and immigration waves. The metal chain
+  (Smelter + fuel or magma smelting, plus a Forge or magma forge, and the Coins
+  permit when permits are on) and the Jeweler's Workshop blueprint are now part of
+  it, so those blueprints are treated as goal progression and land in the
+  progression spheres instead of looking optional to the fill.
+
 ### Performance
 
 - **The completed-check guard was re-reading and re-parsing the whole
