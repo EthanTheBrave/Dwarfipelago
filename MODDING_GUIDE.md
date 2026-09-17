@@ -29,8 +29,9 @@ DFHack 53.x**.
 16. [DFHack: overlays on DF's own screens](#16-dfhack-overlays-on-dfs-own-screens)
 17. [DFHack: building a panel](#17-dfhack-building-a-panel)
 18. [Cross-game state: DeathLink and Energy Link](#18-cross-game-state-deathlink-and-energy-link)
-19. [Performance](#19-performance)
-20. [Debugging](#20-debugging)
+19. [Spawning a siege that actually works](#19-spawning-a-siege-that-actually-works)
+20. [Performance](#20-performance)
+21. [Debugging](#21-debugging)
 
 ---
 
@@ -1327,7 +1328,189 @@ the whole batch on the next poll, which for DeathLink means killing twice.
 
 ---
 
-## 19. Performance
+## 19. Spawning a siege that actually works
+
+Creating a hostile unit is easy. Creating one that walks to the fortress, fights
+the dwarves, and does not attack its own side takes three separate fixes, none of
+which are obvious and all of which fail quietly.
+
+### Creating the unit
+
+```lua
+local unit = dfhack.units.create(race_idx, 0)   -- caste 0
+```
+
+`dfhack.units.create` builds the body, soul and mind and adds the unit to
+`world.units.all`, **but not to `world.units.active`, and with no map position**.
+A unit in that state exists and does nothing at all. You have to finish the job:
+
+```lua
+if not dfhack.units.teleport(unit, {x=x, y=y, z=z}) then
+    unit.pos.x, unit.pos.y, unit.pos.z = x, y, z   -- fallback
+end
+df.global.world.units.active:insert('#', unit)
+```
+
+`teleport` also sets tile occupancy, which the direct assignment does not, so
+prefer it and treat the manual write as a fallback.
+
+Resolve the race index from the creature token, and accept a list so a token
+missing from this world's raws does not kill the spawn:
+
+```lua
+local function resolve_race(tokens)
+    for _, tok in ipairs(tokens) do
+        for i, cr in ipairs(df.global.world.raws.creatures.all) do
+            if cr.creature_id == tok then return i, tok end
+        end
+    end
+end
+```
+
+Note `modtools/create-unit` is not a reliable route on modern DFHack. On 53.x it
+errors with `Cannot read field world.arena_spawn`. The direct API above works.
+
+### Making it hostile
+
+A freshly created unit is neutral wildlife. It stands there.
+
+```lua
+unit.flags1.active_invader = true   -- treated as a hostile that seeks targets
+unit.flags1.marauder       = true   -- roams and attacks rather than fleeing
+pcall(function() unit.animal.population.region_x = -1 end)  -- detach from wild pop
+```
+
+Both flags matter. `active_invader` alone gets you something the fort recognises
+as an enemy but which may not come looking for anyone.
+
+### Spawning at the edge so they path in
+
+The interesting part. You do not want them appearing inside the fort, and you do
+want them to walk in like a real siege. Pick a random tile in a band along one of
+the four map edges, find the surface z of that column, and then apply the check
+that makes the whole thing work:
+
+```lua
+local fg = fort_walk_group()          -- the fortress's walkable group
+for _ = 1, 150 do
+    local x, y = edge_gens[math.random(4)]()
+    local z = column_surface_z(x, y, z_hi, z_lo)
+    if z and dfhack.maps.getWalkableGroup({x=x, y=y, z=z}) == fg then
+        return x, y, z                -- can actually reach the fort
+    end
+end
+```
+
+**`dfhack.maps.getWalkableGroup` is the key.** DF partitions the map into regions
+that are mutually reachable on foot. If the spawn tile is in a different group
+from the fortress, the attackers are stranded on a plateau or across a chasm and
+will mill about forever. Comparing groups gives you the same guarantee a natural
+siege has.
+
+Keep a margin of a few tiles off the true edge to avoid bounds problems, and scan
+the full z range rather than a window near the depot, or a steep embark will have
+its edges missed entirely.
+
+Have a fallback that drops the group check after N attempts. A wave landing
+outdoors but fenced off is still better than no wave, and it will never be inside
+the fort.
+
+### Why the whole wave needs one civ id
+
+This is the subtle one, and it is what the question at the top of this section is
+really about.
+
+```lua
+-- A civ_id of -1 (wild) makes a unit hostile to EVERYONE, its own siege
+-- included, so beasts, wall-breakers and champions would infight.
+local civ_id = find_civ_id("GOBLIN") or any_enemy_civ_id()
+```
+
+`civ_id = -1` means wild, and wild means hostile to all. Spawn a goblin warband
+plus a couple of semi-megabeast champions as wild units and they will attack each
+other, usually before they reach your walls. The siege destroys itself and the
+player sees a confusing brawl in a field.
+
+The fix is to give **every unit in the wave the same civ id**, including the
+beasts. Borrow an existing enemy civ as a banner: find the goblin civ, or fall
+back to any civ hostile to the fort. They then read as one army, fight the fort
+rather than each other, and your semi-megabeasts function as champions attached
+to the warband instead of a third faction.
+
+This also means a creature that is normally solitary wildlife can be recruited
+into an organised siege without touching its raws.
+
+### Arming them
+
+Newly created units spawn empty-handed. Equip through the inventory API, and note
+both constraints from section 11: you need an explicit body part id, and the
+creating call needs `no_floor = false`.
+
+```lua
+local grasps = find_body_parts(unit, "GRASP")   -- usually two
+
+equip_item(unit, df.item_type.WEAPON, weapon_subtype, mat,
+           df.inv_item_role_type.Weapon, grasps[1])
+
+if give_shield and grasps[2] then
+    equip_item(unit, df.item_type.SHIELD, shield_subtype, mat,
+               df.inv_item_role_type.Weapon, grasps[2])
+end
+
+for _, piece in ipairs(armor_pieces(armor_kind)) do
+    equip_item(unit, piece.item_type, piece.subtype, mat,
+               df.inv_item_role_type.Worn, find_body_part(unit, piece.body_flag))
+end
+```
+
+Weapon and shield both use `inv_item_role_type.Weapon` and differ only by which
+grasp they occupy. Armour uses `Worn` and needs the body part that matches the
+piece.
+
+Resolve every itemdef subtype by token with a fallback, because a world may not
+have the weapon you asked for:
+
+```lua
+local sub = itemdef_subtype(W.weapons, "ITEM_WEAPON_PIKE")
+if not sub then sub = itemdef_subtype(W.weapons, "ITEM_WEAPON_SWORD_SHORT") end
+```
+
+Clear `item.flags.forbid` on anything you create, or the loot the attackers drop
+is unusable without the player manually unforbidding it.
+
+### Making them competent
+
+Equipment without skill produces a mob that flails. Raise the relevant skill on
+the unit's soul:
+
+```lua
+local function set_skill(unit, skill_id, level)
+    local soul = unit.status and unit.status.current_soul
+    if not soul then return end
+    for _, sk in ipairs(soul.skills) do
+        if sk.id == skill_id then
+            if sk.rating < level then sk.rating = level end
+            return
+        end
+    end
+    soul.skills:insert('#', {new = true, id = skill_id, rating = level})
+end
+```
+
+Match the skill to the weapon you actually gave them. Scaling skill with wave
+number is a cleaner difficulty curve than scaling unit count alone, which just
+costs FPS.
+
+### Scale to the fort, not to the clock
+
+Waves that ignore what the player has built are either trivial or unfair. Read
+the fort's actual defences (trap count, standing army size) and use that as a
+multiplier alongside the wave tier. A player who turtles behind traps and one who
+fields a militia both get a fight.
+
+---
+
+## 20. Performance
 
 Your mod runs inside DF's main loop. Time you spend is frames the player loses.
 
@@ -1380,7 +1563,7 @@ Counters only accumulate while **unpaused**, so a paused game reports zeros.
 
 ---
 
-## 20. Debugging
+## 21. Debugging
 
 ### The console eats double quotes
 
