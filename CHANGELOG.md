@@ -1,6 +1,22 @@
 # Changelog
 
-## 2.0.2 (unreleased)
+## 2.1.0
+
+A feature release: manual send mode, a reworked Status tab, and a round of check
+and poll refactors. **2.0.x seeds and worlds remain playable**; the location and
+item tables are unchanged and the in-fort win condition is the same, so nothing
+needs regenerating to install this.
+
+### Features
+
+- **Manual send mode.** See Performance below. The Status tab gained a
+  `Manual send` toggle and a `Send now` button, and the **Controls** tab was
+  folded into **Status** now that it has the room. `Reset all AP state` and
+  `Reset seed` ask for confirmation before firing.
+- **A modding guide.** [`MODDING_GUIDE.md`](MODDING_GUIDE.md) documents how this
+  mod's raws, overlays, panel, sieges and DFHack scripting actually work, aimed at
+  anyone modding DF themselves. `LUA_INTERFACE.md` gained a recipe for adding a
+  storage key and a walkthrough of the DFHack remote API handshake.
 
 ### Logic
 
