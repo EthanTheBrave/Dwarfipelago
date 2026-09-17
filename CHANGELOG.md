@@ -22,8 +22,12 @@
   now switch the mod's scanning off entirely: the Status tab has a `Manual send`
   toggle (Shift-M) and a `Send now` button (Shift-N) that runs exactly one check
   pass. Also available as `dwarfipelago manual-send on|off` and
-  `dwarfipelago send-now`. Item delivery and the client link are unaffected -
-  only the mod's own per-poll scanning pauses.
+  `dwarfipelago send-now`. Item delivery and the client link are unaffected.
+  Three things stay live while paused: trade-depot placement (it gates all AP
+  item delivery), incoming DeathLinks, and the Archipelago caravan, so a docked
+  caravan still stocks its goods and still registers purchases. The event hooks
+  that record production, crafts and deaths are not part of the poll and keep
+  running too, so a `Send now` flushes real progress rather than starting cold.
 
 - **The completed-check guard was re-reading and re-parsing the whole
   checked-locations set on every check, every poll.** `is_location_checked` did a

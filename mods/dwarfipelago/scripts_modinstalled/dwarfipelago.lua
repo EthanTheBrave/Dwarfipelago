@@ -1698,7 +1698,19 @@ local function poll_checks()
     -- during world-loading screens.  Do nothing until the fortress map is
     -- fully live and the simulation is running.
     if not dfhack.isMapLoaded() then return end
-    if manual_send_blocking() then return end
+    -- Manual send pauses the scan pass, but not these three: the depot gates all
+    -- AP item delivery, incoming DeathLinks should land when they arrive, and a
+    -- docked caravan needs its goods injected and purchases seen or the player
+    -- sits through the whole visit with an empty shop.
+    if manual_send_blocking() then
+        if dfhack.persistent.getWorldDataString("dwarfipelago/depot_built") ~= "1" then
+            pcall(ensure_trade_depot)
+        else
+            pcall(apply_pending_recv_deathlinks)
+            pcall(poll_ap_caravan)
+        end
+        return
+    end
 
     -- Timestream (opt-in) is the anti-lag tool, so engage it promptly - before the
     -- backoff gate - as soon as the map is live.
