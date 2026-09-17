@@ -28,6 +28,9 @@
   caravan still stocks its goods and still registers purchases. The event hooks
   that record production, crafts and deaths are not part of the poll and keep
   running too, so a `Send now` flushes real progress rather than starting cold.
+  While it is on, the Checks tab paints every open check **blue** and reports how
+  many are being held, so it is obvious the list is frozen by choice rather than
+  stalled. Locked checks stay red - AP logic blocks those regardless.
 
 - **The completed-check guard was re-reading and re-parsing the whole
   checked-locations set on every check, every poll.** `is_location_checked` did a

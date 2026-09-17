@@ -211,6 +211,9 @@ end
 local function build_checks_lines()
     local BASE = 37370000
     local locked_set = read_locked_set()   -- nil until the client pushes AP logic
+    -- Manual send holds detection back, so an open check cannot fire until the
+    -- player sends. Locked stays red: AP logic blocks those regardless.
+    local paused = ps("manual_send", "") == "1"
     local excluded = goal_excluded_set()   -- checks not active for the current goal
     -- Sort rank when "actionable first" is on: open (do now) < locked < done.
     local function check_rank(id)
@@ -236,6 +239,7 @@ local function build_checks_lines()
         if not placed then table.insert(other, c) end
     end
     local lines, tdone, tlocked, texcluded, tactive = {""}, 0, 0, 0, 0   -- lines[1] is the summary
+    local tpaused = 0
     local function emit(catname, list)
         if not list or #list == 0 then return end
         table.sort(list, order)
@@ -252,6 +256,8 @@ local function build_checks_lines()
                     done = done + 1; tdone = tdone + 1; mark, pen = "[x]", COLOR_GREEN
                 elseif locked then
                     tlocked = tlocked + 1; mark, pen = "[ ]", COLOR_LIGHTRED   -- red = can't do it yet
+                elseif paused then
+                    tpaused = tpaused + 1; mark, pen = "[ ]", COLOR_LIGHTBLUE
                 else
                     mark, pen = "[ ]", COLOR_WHITE
                 end
@@ -265,12 +271,19 @@ local function build_checks_lines()
     end
     for i, cat in ipairs(CHECK_CATEGORIES) do emit(cat.name, by_cat[i]) end
     emit("Other", other)
+    if paused then
+        table.insert(lines, {text = ("Manual send is ON - %d open check(s) held. Status tab: Send now.")
+            :format(tpaused), pen = COLOR_LIGHTBLUE})
+    end
     if locked_set then
         lines[1] = {text = ("Milestones sent: %d / %d    reachable: %d    locked: %d")
             :format(tdone, tactive, tactive - tdone - tlocked, tlocked), pen = COLOR_YELLOW}
-        table.insert(lines, {text = "[x] done   [ ] open   red = can't do yet", pen = COLOR_DARKGRAY})
+        table.insert(lines, {text = paused
+            and "[x] done   blue = held by manual send   red = can't do yet"
+            or  "[x] done   [ ] open   red = can't do yet", pen = COLOR_DARKGRAY})
     else
-        lines[1] = {text = ("Milestones sent: %d / %d      [x] done   [ ] open"):format(tdone, tactive), pen = COLOR_YELLOW}
+        lines[1] = {text = ("Milestones sent: %d / %d      [x] done   %s"):format(
+            tdone, tactive, paused and "blue = held" or "[ ] open"), pen = COLOR_YELLOW}
         table.insert(lines, {text = "Connect the AP client to see which locked checks AP logic is gating.", pen = COLOR_DARKGRAY})
     end
     if texcluded > 0 then
