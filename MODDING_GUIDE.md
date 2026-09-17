@@ -19,15 +19,15 @@ DFHack 53.x**.
 6. [Graphics and tile pages](#6-graphics-and-tile-pages)
 7. [World gen presets](#7-world-gen-presets)
 8. [Splitting a mod into modules with `reqscript`](#8-splitting-a-mod-into-modules-with-reqscript)
-9. [persistent state](#9-persistent-state)
-10. [reading raws at runtime](#10-reading-raws-at-runtime)
-11. [creating items](#11-creating-items)
-12. [creating buildings and reading zones](#12-creating-buildings-and-reading-zones)
-13. [inventing a god](#13-inventing-a-god)
-14. [reacting to events](#14-reacting-to-events)
+9. [Persistent state](#9-persistent-state)
+10. [Reading raws at runtime](#10-reading-raws-at-runtime)
+11. [Creating items](#11-creating-items)
+12. [Creating buildings and reading zones](#12-creating-buildings-and-reading-zones)
+13. [Inventing a god](#13-inventing-a-god)
+14. [Reacting to events](#14-reacting-to-events)
 15. [Detecting that an item was made](#15-detecting-that-an-item-was-made)
-16. [overlays on DF's own screens](#16-overlays-on-dfs-own-screens)
-17. [building a panel](#17-building-a-panel)
+16. [Overlays on DF's own screens](#16-overlays-on-dfs-own-screens)
+17. [Building a panel](#17-building-a-panel)
 18. [Cross-game state: DeathLink and Energy Link](#18-cross-game-state-deathlink-and-energy-link)
 19. [Spawning a siege that actually works](#19-spawning-a-siege-that-actually-works)
 20. [Performance](#20-performance)
@@ -512,7 +512,7 @@ that already".
 
 ---
 
-## 9. persistent state
+## 9. Persistent state
 
 DFHack gives you key-value storage scoped to the world, surviving save and
 reload:
@@ -537,7 +537,7 @@ the same world. If you want something to persist across re-embark, this is how.
 
 ---
 
-## 10. reading raws at runtime
+## 10. Reading raws at runtime
 
 ### The `.all` trap
 
@@ -596,7 +596,7 @@ Comparing `item.subtype` to a number silently never matches.
 
 ---
 
-## 11. creating items
+## 11. Creating items
 
 ```lua
 local made = dfhack.items.createItem(unit, item_type, subtype, mat_type, mat_index, false)
@@ -661,7 +661,7 @@ local gone = (still == nil) or (still.flags.garbage_collect == true)
 
 ---
 
-## 12. creating buildings and reading zones
+## 12. Creating buildings and reading zones
 
 Constructing a real, finished building:
 
@@ -700,7 +700,7 @@ computes per zone. Read it rather than recomputing from furniture.
 
 ---
 
-## 13. inventing a god
+## 13. Inventing a god
 
 Adding a worshippable deity is not a raw at all. DF builds the "dedicate a
 temple" list from **citizens' worship links**, so you create a historical figure
@@ -753,7 +753,7 @@ first, or every reload adds another god.
 
 ---
 
-## 14. reacting to events
+## 14. Reacting to events
 
 `eventful` gives callbacks instead of polling:
 
@@ -956,7 +956,7 @@ are created constantly and are almost never what you mean by "made".
 
 ---
 
-## 16. overlays on DF's own screens
+## 16. Overlays on DF's own screens
 
 An overlay is a widget DFHack draws on top of a DF screen. This is how you add
 information to vanilla UI you do not control: marking which workshop tasks are
@@ -1071,7 +1071,7 @@ drawing nothing rather than drawing in the wrong place.
 
 ---
 
-## 17. building a panel
+## 17. Building a panel
 
 For your own UI, rather than annotating DF's, build a window with `gui.widgets`.
 
