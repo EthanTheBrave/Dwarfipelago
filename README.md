@@ -17,6 +17,7 @@ Complete economic and production milestones in your fortress to send items to ot
 | AP World | `worlds/dwarf_fortress/` | Archipelago world definition - install into your AP `worlds/` folder or package as `.apworld` |
 | DFHack Mod | `mods/dwarfipelago/` | DFHack mod - copy into your DF installation's `mods/` folder |
 | AP Client | `worlds/dwarf_fortress/DwarfFortressClient.py` | Bundled inside the AP world package - launched automatically by the AP launcher |
+| Modding guide | [`MODDING_GUIDE.md`](MODDING_GUIDE.md) | How this mod's raws, overlays, panel and DFHack scripting actually work - written for anyone modding DF themselves |
 
 ---
 
