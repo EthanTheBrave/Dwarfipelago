@@ -1,15 +1,15 @@
-# Dwarfipelago — Lua ↔ Python Interface Reference
+# Dwarfipelago: the Lua / Python interface contract
 
 This document describes how the Python AP client (`DwarfFortressClient.py`) communicates
 with the Lua mod running inside DFHack. It is intended as a quick reference for Python-side
-development — you should not need to read through the Lua source to use this.
+development: you should not need to read the Lua source to use this.
 
 ---
 
 ## How it works
 
 The Lua mod runs inside DFHack and has no direct network access. All communication
-happens through **DFHack's world-level persistent storage** — a key/value store that
+happens through **DFHack's world-level persistent storage**, a key/value store that
 survives save/reload cycles.
 
 - **Lua writes** event queues and state flags as JSON strings.
@@ -18,8 +18,35 @@ survives save/reload cycles.
 - State flags follow a **peek pattern**: read without clearing.
 
 The Python client polls DFHack every `_poll_interval` seconds (default 5s). All
-persistent storage operations require an active loaded world — the client already
+persistent storage operations require an active loaded world, and the client already
 guards against this with the `_world_loaded` flag.
+
+Nothing but the key string connects the two sides. A key written in Lua and read in
+Python has no compile-time link, so a rename or typo on one side fails **silently**:
+no error, just a feature that never fires. That is why this file exists, and why a
+new key belongs in the table below before it belongs in either codebase.
+
+---
+
+## Adding a new key
+
+1. **Name it** `dwarfipelago/<area>/<thing>`, matching the existing groupings.
+2. **Add a row to the right table below** (queue, state flag, or config) with its
+   value format, its writer, and what it means. Do this first, so the contract is
+   agreed before either side is written.
+3. **Decide the shape.** A counter that both sides touch will lose updates: if the
+   event can happen twice between polls, use a JSON array and pop it. If only one
+   side ever writes, a flag or scalar is fine.
+4. **Pick the semantics and write them down.** Popped queues are cleared by the
+   reader; peeked flags never are. Mixing the two is the most common bug here.
+5. **Remember the three states.** A key never written reads back `nil`, a key
+   written empty reads `""`, and those mean different things. Decide which one
+   "not set" is.
+6. **Both sides use the same literal string.** Copy and paste it; do not retype it.
+
+If the value is read every poll, add it to the aggregated status chunk in
+`_build_status_lua()` rather than issuing a separate RPC. One RPC per poll is the
+budget, not one per key.
 
 ---
 
@@ -51,25 +78,25 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/craft_count_index` | JSON `string[]` | Lua | Every craft flag that has been incremented this world; lets `status` enumerate dynamic material-split keys |
 | `dwarfipelago/skill/<name>` | Integer string | Lua | Highest level of skill `<name>` already counted toward skillsanity checks (so re-scans don't re-fire levels already sent) |
 | `dwarfipelago/blueprint/<name>` | `"1"` or absent | Lua | Set when a blueprint item has been received |
-| `dwarfipelago/unlock/wealth_coffers` | Integer string | Lua | How many Merchant's Coffers received (0–5); gates wealth tier checks. Coffers also cap coin minting / gem cutting, but **only when `goal` is `"1"` (legendary_wealth)** — under other goals minting/cutting is never blocked |
-| `dwarfipelago/unlock/immigration_waves` | Integer string | Lua | How many Immigration Waves received (0–5); gates title/population checks |
+| `dwarfipelago/unlock/wealth_coffers` | Integer string | Lua | How many Merchant's Coffers received (0-5); gates wealth tier checks. Coffers also cap coin minting / gem cutting, but **only when `goal` is `"1"` (legendary_wealth)** , under other goals minting/cutting is never blocked |
+| `dwarfipelago/unlock/immigration_waves` | Integer string | Lua | How many Immigration Waves received (0-5); gates title/population checks |
 | `dwarfipelago/unlock/baron_charter` | `"1"` or absent | Lua | Set when Baron's Charter received; gates Baron Appointed check |
 | `dwarfipelago/unlock/count_charter` | `"1"` or absent | Lua | Set when Count's Charter received; gates Count Appointed check |
 | `dwarfipelago/unlock/duke_charter` | `"1"` or absent | Lua | Set when Duke's Charter received; gates Duke Appointed check |
 | `dwarfipelago/unlock/monarch_invitation` | `"1"` or absent | Lua | Set when Monarch's Invitation received; gates Monarch Takes Residence check |
-| `dwarfipelago/unlock/military_training` | Integer string | Lua | How many Military Training items received (0–10); drives **War Readiness** for the slay_megabeast goal. Each grants an escalating war shipment (steel, adamantine at tiers 7+), a chance of bonus war material, and a one-time champion dwarf. Effective readiness past 4 is gated in-fort by a set-up barracks (5-6) and 4 soldiers at combat skill 10+ (7-9); roaming-warband difficulty scales with it |
+| `dwarfipelago/unlock/military_training` | Integer string | Lua | How many Military Training items received (0-10); drives **War Readiness** for the slay_megabeast goal. Each grants an escalating war shipment (steel, adamantine at tiers 7+), a chance of bonus war material, and a one-time champion dwarf. Effective readiness past 4 is gated in-fort by a set-up barracks (5-6) and 4 soldiers at combat skill 10+ (7-9); roaming-warband difficulty scales with it |
 | `dwarfipelago/unlock/artifact_weapon` | `"1"` or absent | Lua | Set when Artifact Weapon received; gates slay_megabeast and mountainhome goals |
 | `dwarfipelago/unlock/artifact_armor` | `"1"` or absent | Lua | Set when Artifact Armor received; gates population_boom prestige requirement |
 | `dwarfipelago/unlock/master_builders_codex` | `"1"` or absent | Lua | Set when Master Builder's Codex received; gates legendary_wealth, mountainhome, and population_boom goals |
 | `dwarfipelago/unlock/RotGK` | Integer string | Lua | How many Remains of the Great King received; the king_remains goal completes when this reaches `king_remains_goal` |
-| `dwarfipelago/unlock/mining_depth` | Integer string | Lua | How many Progressive Mining Depth items received (0–4); each lowers the allowed dig floor by one cavern tier (only enforced when config `mining_depth` is `"1"`) |
+| `dwarfipelago/unlock/mining_depth` | Integer string | Lua | How many Progressive Mining Depth items received (0-4); each lowers the allowed dig floor by one cavern tier (only enforced when config `mining_depth` is `"1"`) |
 | `dwarfipelago/unlock/sunlight_tonic` | `"1"` or absent | Lua | Set when the Sunlight Tonic is received; dwarves may then walk freely in sunlight (no cave-adaptation nausea) |
 | `dwarfipelago/craftlock/<flag>` | `"1"` or absent | Lua | Set when the Crafting Permit for `<flag>` is received. When `crafting_permits` is non-zero, jobs producing an item whose flag is unset are cancelled |
 | `dwarfipelago/depot_built` | `"1"` or absent | Lua | Set once the starting trade depot has been placed or adopted |
 | `dwarfipelago/manual_send` | `""` or `"1"` | Lua/panel | `"1"` pauses the mod's check-scanning pass; nothing is detected or queued until a send is requested. Depot placement, incoming DeathLinks and the AP caravan are exempt and keep running, as do the eventful hooks (production/craft/death), which are not part of the poll |
 | `dwarfipelago/send_now` | `""` or `"1"` | Lua/panel | Requests exactly one check pass while `manual_send` is on. The poll consumes and clears it, so each press runs one pass |
-| `dwarfipelago/shop_override_off` | `"0"` or `"1"` | manual | Debug override. `"1"` makes the mod skip everything shop-related — no material writes, no goods injected, no purchase detection — while still clearing goods already on a caravan. Never written by the client, so it survives reconnects; used to bisect whether the shop is implicated in a bug |
-| `dwarfipelago/gorlak_civ_present` | `"0"` or `"1"` | Lua | Whether an ARCHIPELAGO (gorlak) civilization exists in this world — scanned once per world and cached. `"0"` means the world was generated without the mod's raws, so the Merchant's Shop can never function: the mod nags in game and the client refuses to bind the run's seed to this world |
+| `dwarfipelago/shop_override_off` | `"0"` or `"1"` | manual | Debug override. `"1"` makes the mod skip everything shop-related (no material writes, no goods injected, no purchase detection) while still clearing goods already on a caravan. Never written by the client, so it survives reconnects; used to bisect whether the shop is implicated in a bug |
+| `dwarfipelago/gorlak_civ_present` | `"0"` or `"1"` | Lua | Whether an ARCHIPELAGO (gorlak) civilization exists in this world, scanned once per world and cached. `"0"` means the world was generated without the mod's raws, so the Merchant's Shop can never function: the mod nags in game and the client refuses to bind the run's seed to this world |
 | `dwarfipelago/shop_offer_queue` | JSON `str[]` | Lua | Slots still to be offered in the current rotation cycle, shuffled; drained a visit at a time and refilled from the eligible slots once empty, so every unlocked slot is offered before any repeats |
 | `dwarfipelago/shop_visit_slots` | JSON `str[]` | Lua | The slots the currently docked caravan is carrying; chosen once when it docks and cleared when it leaves |
 | `dwarfipelago/shop_pending` | JSON `{slot: true}` | Lua | Slots the player has bought that await client confirmation; treated as unavailable until the item is confirmed (then the slot's `bought` flag is set in `shop`) |
@@ -88,11 +115,11 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/mining/circus` | `"1"` or absent | Lua | Set when the Circus (underworld) is breached |
 | `dwarfipelago/farming/crop_count` | Integer string | Lua | Cumulative harvested crops (harvest milestones) |
 | `dwarfipelago/caves/generated` | `"1"` or absent | Lua | Set once all custom caves have been carved and stocked; prevents re-generation on reload |
-| `dwarfipelago/caves/fragment_index` | Integer string | Lua | How many Cave Map Fragment hints have been revealed so far (0–6); incremented by `caves.reveal_next()` each time a fragment item is received |
-| `dwarfipelago/cave/N/x` | Integer string | Lua | Map X coordinate of custom cave N (1–6); `-1` if the cave could not be placed |
+| `dwarfipelago/caves/fragment_index` | Integer string | Lua | How many Cave Map Fragment hints have been revealed so far (0-6); incremented by `caves.reveal_next()` each time a fragment item is received |
+| `dwarfipelago/cave/N/x` | Integer string | Lua | Map X coordinate of custom cave N (1-6); `-1` if the cave could not be placed |
 | `dwarfipelago/cave/N/y` | Integer string | Lua | Map Y coordinate of custom cave N |
 | `dwarfipelago/cave/N/z` | Integer string | Lua | Map Z coordinate (floor level) of custom cave N |
-| `dwarfipelago/cave/N/type` | `"treasure"` or `"trap"` | Lua | Type of custom cave N — treasure caves send an AP check on discovery; trap caves also spawn hostile underground creatures |
+| `dwarfipelago/cave/N/type` | `"treasure"` or `"trap"` | Lua | Type of custom cave N. Treasure caves send an AP check on discovery; trap caves also spawn hostile underground creatures |
 | `dwarfipelago/cave/N/discovered` | `"0"` or `"1"` | Lua | Set to `"1"` when a living citizen first walks within the cave footprint; read by the Python client to fire the matching AP location check |
 | `dwarfipelago/cave/N/revealed` | `"0"` or `"1"` | Lua | Set to `"1"` when a Cave Map Fragment hint for cave N has been announced (currently unused by the client; reserved for future UI) |
 
@@ -100,7 +127,7 @@ All keys are namespaced under `dwarfipelago/`.
 
 | Key | Format | Written by | Description |
 |-----|--------|------------|-------------|
-| `dwarfipelago/goal` | `"0"`–`"5"` | Python | Goal type from slot data (0=slay_megabeast, 1=legendary_wealth, 2=population_boom, 3=mountainhome, 4=king_remains, 5=dwarfsanity) |
+| `dwarfipelago/goal` | `"0"`-`"5"` | Python | Goal type from slot data (0=slay_megabeast, 1=legendary_wealth, 2=population_boom, 3=mountainhome, 4=king_remains, 5=dwarfsanity) |
 | `dwarfipelago/wealth_goal` | Integer string | Python | Wealth target for legendary_wealth goal |
 | `dwarfipelago/pop_goal` | Integer string | Python | Population target for population_boom goal |
 | `dwarfipelago/king_remains_goal` | Integer string | Python | Number of Remains of the Great King required for the king_remains goal |
@@ -115,7 +142,7 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/use_energy_link` | `"Y"` or absent | Lua | Set when a deposit has occurred, signalling Python to process `energy_deposit` |
 | `dwarfipelago/deathlink_threshold` | Integer string | Python | Dwarves (or % of pop) per DeathLink send/receive; option max is 50 |
 | `dwarfipelago/deathlink_percentage` | `"0"` or `"1"` | Python | When `"1"`, threshold is treated as % of current population instead of a flat count |
-| `dwarfipelago/seed` | Integer string | Python | World identity — used to scope AP storage keys and detect wrong-world loads |
+| `dwarfipelago/seed` | Integer string | Python | World identity, used to scope AP storage keys and detect wrong-world loads |
 | `dwarfipelago/received_index` | Integer string | Python | Count of received AP items already applied in-game; restored on reconnect so items aren't re-delivered (and counter-based progression items aren't double-counted) |
 | `dwarfipelago/version` | Version string | Lua | Mod version recorded on `start()` |
 | `dwarfipelago/craftsanity_enabled` | `"0"`, `"1"`, or `"2"` | Python | Craftsanity mode: 0=off, 1=on (crafted), 2=storage |
@@ -127,10 +154,10 @@ All keys are namespaced under `dwarfipelago/`.
 | `dwarfipelago/craftsanity_threshold` | Integer string | Python | Crafts per check (a check fires every N produced) |
 | `dwarfipelago/craftsanity_labels` | JSON `{flag: label}` | Python | Display name for each craft flag, shown on the panel's Crafts tab |
 | `dwarfipelago/skillsanity_enabled` | `"0"` or `"1"` | Python | Whether Skillsanity is enabled for this slot |
-| `dwarfipelago/skillsanity_max_level` | Integer string | Python | Highest skill level that fires a check (1=Novice … 15=Legendary) |
+| `dwarfipelago/skillsanity_max_level` | Integer string | Python | Highest skill level that fires a check (1=Novice ... 15=Legendary) |
 | `dwarfipelago/skillsanity_behaviour` | `"0"` or `"1"` | Python | Level mechanic for pre-skilled arrivals: `0`=leave untouched (all levels fire at once), `1`=lower to the next unclaimed check |
 | `dwarfipelago/shop_enabled` | `"0"` or `"1"` | Python | Whether the Merchant's Shop is enabled for this slot |
-| `dwarfipelago/shop` | JSON `{slot: {id, slot, tier, price, item, player, flags, bought}}` | Python | The shop's slot contents — the multiworld item, its recipient, its trade price and its coffer tier per slot. `tier` gates which slots the gorlak caravan may offer; `item`/`player` become the good's material name and `price` its material value, written into the loaded material by `apply_shop_materials()` |
+| `dwarfipelago/shop` | JSON `{slot: {id, slot, tier, price, item, player, flags, bought}}` | Python | The shop's slot contents: the multiworld item, its recipient, its trade price and its coffer tier per slot. `tier` gates which slots the gorlak caravan may offer; `item`/`player` become the good's material name and `price` its material value, written into the loaded material by `apply_shop_materials()` |
 
 ---
 
@@ -161,14 +188,14 @@ Produced by the `onItemCreated` eventful hook and by `StoreItemInStockpile` job 
 
 Skipped types (never queued): `CORPSE`, `CORPSEPIECE`, `REMAINS`, `VERMIN`, `PLANT`, `PLANT_GROWTH`, `FISH_RAW`, `BODY_PARTS`
 
-Queue is capped at 500 entries — if Python falls behind, oldest events are dropped.
+Queue is capped at 500 entries; if Python falls behind, the oldest events are dropped.
 
 ### Craft Counts
 Lua increments a counter in `dwarfipelago/craft_count/<flag>` each time a matching
 job completes. Python polls these counters and is responsible for deciding when a
 threshold is met and sending the location check to the AP server.
 
-Read a count with `dfhack.persistent.getWorldDataString("dwarfipelago/craft_count/<flag>")` —
+Read a count with `dfhack.persistent.getWorldDataString("dwarfipelago/craft_count/<flag>")`:
 returns an integer string.
 
 Initialized by Python to create the persistent storage for Lua to count the crafts to.
@@ -189,35 +216,35 @@ the suffix is the resolved material (also lowercase).
 
 `checks.job_to_craft_flag(job)` (in `checks.lua`) maps a finished job to the
 craft-count flag it should increment. The authoritative mapping lives in
-`checks.lua` and is built from these tables — refer to the source rather than
+`checks.lua` and is built from these tables, so refer to the source rather than
 duplicating the full list here, as it spans ~100 item types:
 
-- **`JOB_TO_CRAFT_FLAG`** (`cmap` calls) — maps a `df.job_type` directly to a
-  flag, e.g. `ConstructDoor → "door"`, `MakeCage → "cage"`,
-  `ConstructBlocks → "blocks"`, `MakeCrafts → "crafts"`,
-  `SmeltOre → "metal_bars"`, `MakeRawGlass → "glass"`.
-- **Subtype dispatch** — some jobs resolve to a flag via the item's
+- **`JOB_TO_CRAFT_FLAG`** (`cmap` calls) maps a `df.job_type` directly to a
+  flag, e.g. `ConstructDoor -> "door"`, `MakeCage -> "cage"`,
+  `ConstructBlocks -> "blocks"`, `MakeCrafts -> "crafts"`,
+  `SmeltOre -> "metal_bars"`, `MakeRawGlass -> "glass"`.
+- **Subtype dispatch**: some jobs resolve to a flag via the item's
   `item_subtype` using the `TOOL_SUBTYPE_FLAG`, `TRAP_SUBTYPE_FLAG`,
   `SHIELD_SUBTYPE_FLAG`, `WEAPON_SUBTYPE_FLAG`, `HELM_SUBTYPE_FLAG`,
   `GOBLET_SUBTYPE_FLAG`, `REACTION_SUBTYPE_FLAG`, `UARMOR_SUBTYPE_FLAG`,
   `GARMOR_SUBTYPE_FLAG`, and `LARMOR_SUBTYPE_FLAG` tables. For example a
   `MakeWeapon` job resolves to `"battle_axe"`, `"short_sword"`, etc. by subtype.
-- **Material split** — when `craftsanity_materials` is `"1"`, a material-relevant
+- **Material split**: when `craftsanity_materials` is `"1"`, a material-relevant
   item's flag gets a `_<material>` suffix (e.g. `table_wood`, `blocks_stone`).
   `mat_craft_flag(job)` resolves the material, token-first, with fallbacks so it
   works for both manual jobs and Manager work orders:
-  1. decode `job.mat_type`/`job.mat_index` and match the raw token —
-     `IS_METAL` flag → `metal`, `GLASS` → `glass`, `CLAY`/`KAOLINITE`/`PORCELAIN`
-     → `ceramic`, `INORGANIC` → `stone`, `:WOOD` → `wood`, `LEATHER` → `leather`,
-     `SILK`/`YARN` → `cloth`, `BONE` → `bone`;
+  1. decode `job.mat_type`/`job.mat_index` and match the raw token:
+     `IS_METAL` flag -> `metal`, `GLASS` -> `glass`, `CLAY`/`KAOLINITE`/`PORCELAIN`
+     -> `ceramic`, `INORGANIC` -> `stone`, `:WOOD` -> `wood`, `LEATHER` -> `leather`,
+     `SILK`/`YARN` -> `cloth`, `BONE` -> `bone`;
   2. else read the job's `material_category` bitfield (generic "any wood/stone" jobs);
   3. else scan the job's consumed/produced **items** for a usable material
      (manual workshop jobs often leave `mat_type = -1`);
-  4. last resort: builtin `mat_type` (0 → `stone`, 3–5 → `glass`).
+  4. last resort: builtin `mat_type` (0 -> `stone`, 3-5 -> `glass`).
 
 > **Note:** the flag strings produced here must match the storage-key suffixes
 > the Python client initializes in `init_crafting_locations` (derived from each
-> AP location's `item`/`material`, lowercased with spaces → underscores). If a
+> AP location's `item`/`material`, lowercased with spaces -> underscores). If a
 > craft count never increments, a flag/key-name mismatch between `checks.lua`
 > and the AP location data is the first thing to check.
 
@@ -228,27 +255,27 @@ duplicating the full list here, as it spans ~100 item types:
 ### Pop a queue (read + clear atomically)
 
 The existing `pop_pending_checks` in `DwarfFortressClient.py` is the reference
-implementation — follow its exact pattern for `pending_item_created` and
+implementation; follow its exact pattern for `pending_item_created` and
 `pending_item_stockpiled`. The inline Lua must read and clear in a single call
 so no events fall through between poll cycles.
 
 Keys to implement methods for:
-- `dwarfipelago/pending_item_created` → `pop_item_created_events() -> list[dict]`
-- `dwarfipelago/pending_item_stockpiled` → `pop_stockpile_events() -> list[dict]`
+- `dwarfipelago/pending_item_created` -> `pop_item_created_events() -> list[dict]`
+- `dwarfipelago/pending_item_stockpiled` -> `pop_stockpile_events() -> list[dict]`
 
 Call both inside the poll loop alongside `_process_new_checks()`.
 
 ### Peek at any key (read without clearing)
 
 Use `run_command("lua", ...)` with `dfhack.persistent.getWorldDataString` and
-`print()` to read a key without touching it. Useful for debugging — return the
+`print()` to read a key without touching it. Useful for debugging: return the
 stripped output string.
 
 ### Write config to Lua
 
 JSON sent through the inline Lua string must have its double-quotes escaped
 before embedding. Look at how `_sync_slot_data` writes the goal/wealth/pop
-values — any JSON config follows the same approach.
+values. Any JSON config follows the same approach.
 
 ---
 
@@ -262,33 +289,33 @@ Load them from Python via `reqscript("internal/dwarfipelago/<module>")`.
 | Symbol | Type | Description |
 |--------|------|-------------|
 | `checks` | table | List of all static AP location check definitions |
-| `production_flag(flag)` | fn → bool | True if a first-production flag has fired |
+| `production_flag(flag)` | fn -> bool | True if a first-production flag has fired |
 | `set_production_flag(flag)` | fn | Mark a first-production flag |
-| `trade_flag(flag)` | fn → bool | True if a trade/caravan flag has fired |
+| `trade_flag(flag)` | fn -> bool | True if a trade/caravan flag has fired |
 | `set_trade_flag(flag)` | fn | Mark a trade flag |
-| `job_to_production_flag(job)` | fn → string\|nil | Maps a completed job to its first-production flag |
-| `job_to_craft_flag(job)` | fn → string\|nil | Maps a completed job to its craft-count flag |
-| `increment_craft_count(flag)` | fn → int | Increment and persist a craft count (also records the flag in the craft index), returns new total |
-| `get_craft_count(flag)` | fn → int | Read current craft count for a flag |
-| `get_all_craft_counts()` | fn → table | `{flag = count}` for every flag in the craft index with count > 0 (used by `status`) |
+| `job_to_production_flag(job)` | fn -> string\|nil | Maps a completed job to its first-production flag |
+| `job_to_craft_flag(job)` | fn -> string\|nil | Maps a completed job to its craft-count flag |
+| `increment_craft_count(flag)` | fn -> int | Increment and persist a craft count (also records the flag in the craft index), returns new total |
+| `get_craft_count(flag)` | fn -> int | Read current craft count for a flag |
+| `get_all_craft_counts()` | fn -> table | `{flag = count}` for every flag in the craft index with count > 0 (used by `status`) |
 | `clear_craft_counts()` | fn | Wipe all recorded craft counts and the index (used by `reset`) |
-| `fortress_wealth()` | fn → int | Current total fortress wealth (items + buildings + stocks) |
-| `treasury_wealth()` | fn → int | Combined value of minted coins + cut gems **currently in fortress stocks** (live scan; used for the panel's wealth display) |
-| `treasury_created_wealth()` | fn → int | **Lifetime** value of all coins minted + gems cut this world (a running counter, unaffected by later spending). Drives the **legendary_wealth** goal and the wealth-tier checks |
+| `fortress_wealth()` | fn -> int | Current total fortress wealth (items + buildings + stocks) |
+| `treasury_wealth()` | fn -> int | Combined value of minted coins + cut gems **currently in fortress stocks** (live scan; used for the panel's wealth display) |
+| `treasury_created_wealth()` | fn -> int | **Lifetime** value of all coins minted + gems cut this world (a running counter, unaffected by later spending). Drives the **legendary_wealth** goal and the wealth-tier checks |
 
 ### `state`
 
 | Symbol | Type | Description |
 |--------|------|-------------|
-| `is_enabled()` | fn → bool | Whether the mod is active |
-| `mark_location_checked(id)` | fn → bool | Mark a location as checked; returns true if newly checked |
-| `is_location_checked(id)` | fn → bool | Check if a location ID has already been checked |
-| `increment_death_count()` | fn → int | Increment citizen death counter |
-| `get_death_count()` | fn → int | Read citizen death counter |
-| `get_deathlinks_sent()` | fn → int | Read DeathLinks-sent counter |
-| `get_pending_recv()` | fn → int | Read pending incoming DeathLinks |
-| `is_goal_complete()` | fn → bool | True if fortress has won |
-| `mark_goal_complete()` | fn → bool | Set goal complete; returns true if first time |
+| `is_enabled()` | fn -> bool | Whether the mod is active |
+| `mark_location_checked(id)` | fn -> bool | Mark a location as checked; returns true if newly checked |
+| `is_location_checked(id)` | fn -> bool | Check if a location ID has already been checked |
+| `increment_death_count()` | fn -> int | Increment citizen death counter |
+| `get_death_count()` | fn -> int | Read citizen death counter |
+| `get_deathlinks_sent()` | fn -> int | Read DeathLinks-sent counter |
+| `get_pending_recv()` | fn -> int | Read pending incoming DeathLinks |
+| `is_goal_complete()` | fn -> bool | True if fortress has won |
+| `mark_goal_complete()` | fn -> bool | Set goal complete; returns true if first time |
 | `dump()` | fn | Print full state summary to DFHack console |
 | `reset()` | fn | Wipe all persistent state (use with care) |
 
@@ -300,11 +327,11 @@ Only active when `dwarfipelago/custom_caves` is `"1"`.
 | Symbol | Type | Description |
 |--------|------|-------------|
 | `generate()` | fn | Carve and stock all custom caves on a fresh seed. No-ops if already done (`caves/generated == "1"`) or if cavern ceilings haven't been measured yet (`mining/ceilings_done != "1"`). Called from `poll_checks()` in `dwarfipelago.lua` after `compute_cavern_ceilings()`. |
-| `check_discoveries()` | fn → table | Poll for living citizens within ±4 tiles of any undiscovered cave centre. Returns a list of `{index, cave_type, x, y, z}` for newly discovered caves and marks them as discovered in persistent storage. Called every poll cycle from `dwarfipelago.lua`. |
-| `get_hint(idx)` | fn → string | Return a displayable hint string for cave `idx` (1–6). Treasure caves return an approximate coordinate string; trap caves return a cardinal-direction warning. Returns a "too worn to read" string if the cave was never placed. |
+| `check_discoveries()` | fn -> table | Poll for living citizens within +/-4 tiles of any undiscovered cave centre. Returns a list of `{index, cave_type, x, y, z}` for newly discovered caves and marks them as discovered in persistent storage. Called every poll cycle from `dwarfipelago.lua`. |
+| `get_hint(idx)` | fn -> string | Return a displayable hint string for cave `idx` (1-6). Treasure caves return an approximate coordinate string; trap caves return a cardinal-direction warning. Returns a "too worn to read" string if the cave was never placed. |
 | `reveal_next()` | fn | Increment `caves/fragment_index` and announce the next cave hint via `dfhack.gui.showAnnouncement`. Called from `items.lua` when a Cave Map Fragment is received. Extra calls past index 6 show a "all caves already revealed" notice. |
 
-Cave shapes are organic ovals carved with a random horizontal radius rx ∈ {3, 4} and vertical radius ry ∈ {2, 3}. Edge tiles are probabilistically included/excluded so the silhouette is irregular. The vaulted centre (dist² < 0.5 from ellipse centre) is 3 z-levels tall; outer tiles are 2 z-levels tall.
+Cave shapes are organic ovals carved with a random horizontal radius rx in {3, 4} and vertical radius ry in {2, 3}. Edge tiles are probabilistically included/excluded so the silhouette is irregular. The vaulted centre (dist^2 < 0.5 from ellipse centre) is 3 z-levels tall; outer tiles are 2 z-levels tall.
 
 ---
 
@@ -320,7 +347,7 @@ the console when the mod starts.
 | `info(msg)` | fn | Log at INFO; mirrors to console via `print` |
 | `warn(msg)` | fn | Log at WARN; mirrors to console via `printerr` |
 | `error(msg)` | fn | Log at ERROR; mirrors to console via `printerr` |
-| `path()` | fn → string | Absolute path to the active log file |
+| `path()` | fn -> string | Absolute path to the active log file |
 
 ---
 
@@ -337,8 +364,8 @@ It is a DFHack overlay widget + ZScreen popup. Open it three ways:
 - Run `dwarfipelago-panel` directly from the DFHack console
 
 The popup is a resizable `widgets.Window` containing a `widgets.TabBar` + `widgets.Pages`,
-each page a `widgets.Panel`. Tabs are built **dynamically** — several appear only when
-the matching feature is enabled for the slot — so their absolute index is not fixed.
+each page a `widgets.Panel`. Tabs are built **dynamically**: several appear only when
+the matching feature is enabled for the slot, so their absolute index is not fixed.
 Full order:
 `{"Status", "Goal", "Unlocks", "Checks", "Caves", "Crafts", "Controls", "Energy", "Permits", "Skills", "War"}`
 
@@ -346,8 +373,8 @@ Full order:
 |-----|-----------|----------|
 | **Status** | always | enabled state, goal, completion, depot status |
 | **Goal** | always | live goal progress (wealth/population/remains toward target) |
-| **Unlocks** | always | progression unlock counts/flags — **built dynamically** from `items.UNLOCK_DEFS` |
-| **Checks** | always | the 122 static milestone checks grouped by category, each done/open with per-category counts — an in-fort tracker so you don't need the AP tracker (per-item craft/skill checks are client-side and not listed) |
+| **Unlocks** | always | progression unlock counts/flags, **built dynamically** from `items.UNLOCK_DEFS` |
+| **Checks** | always | the 122 static milestone checks grouped by category, each done/open with per-category counts. An in-fort tracker so you don't need the AP tracker (per-item craft/skill checks are client-side and not listed) |
 | **Caves** | custom caves on | custom-cave discovery and hint status |
 | **Crafts** | craftsanity on | craftsanity craft counts vs thresholds |
 | **Controls** | always | Restart/Start (`Shift+S`), Reset all AP state (`Shift+R`), Reset seed (`Shift+D`) |
@@ -368,13 +395,13 @@ keys with the local `ps(key, default)` helper; read the enabled flag via
 
 ### Adding a progression unlock
 
-You usually **don't** edit the panel — add an entry to `items.UNLOCK_DEFS` (in
+You usually **don't** edit the panel. Add an entry to `items.UNLOCK_DEFS` (in
 `items.lua`) with `{ key, label, max? }` and it appears on the Unlocks tab
 automatically (and in `dwarfipelago status`).
 
 ### Adding a control button
 
-Add a `widgets.HotkeyLabel` to the **Controls** page's `subviews` (locate the page by its `"Controls"` label — the tab order is dynamic, so don't assume a fixed index):
+Add a `widgets.HotkeyLabel` to the **Controls** page's `subviews` (locate the page by its `"Controls"` label; the tab order is dynamic, so don't assume a fixed index):
 ```lua
 widgets.HotkeyLabel{
     frame = {t=5, l=2},           -- next free row under the existing controls
@@ -387,7 +414,7 @@ widgets.HotkeyLabel{
 },
 ```
 
-Available `CUSTOM_SHIFT_*` keys: A–Z. Taken: **S** (Restart/Start), **R** (Reset), **D** (Reset seed).
+Available `CUSTOM_SHIFT_*` keys: A-Z. Taken: **S** (Restart/Start), **R** (Reset), **D** (Reset seed).
 
 ### Moving the `[AP]` hotspot button
 
@@ -397,7 +424,7 @@ default_pos = {x=6, y=2},   -- x= column from left, y= row from top (1-indexed)
 ```
 
 Negative values count from the bottom-right edge (e.g. `{x=-5, y=-2}`).
-The position only takes effect on first load — if DFHack has already saved a position for this widget, edit `dfhack-config/overlay.json` in your DF install and remove the `dwarfipelago-panel.hotspot` entry to reset it.
+The position only takes effect on first load; if DFHack has already saved a position for this widget, edit `dfhack-config/overlay.json` in your DF install and remove the `dwarfipelago-panel.hotspot` entry to reset it.
 
 ---
 
