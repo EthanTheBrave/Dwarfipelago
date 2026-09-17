@@ -24,11 +24,12 @@ DFHack 53.x**.
 11. [DFHack: creating buildings and reading zones](#11-dfhack-creating-buildings-and-reading-zones)
 12. [DFHack: inventing a god](#12-dfhack-inventing-a-god)
 13. [DFHack: reacting to events](#13-dfhack-reacting-to-events)
-14. [DFHack: overlays on DF's own screens](#14-dfhack-overlays-on-dfs-own-screens)
-15. [DFHack: building a panel](#15-dfhack-building-a-panel)
-16. [Cross-game state: DeathLink and Energy Link](#16-cross-game-state-deathlink-and-energy-link)
-17. [Performance](#17-performance)
-18. [Debugging](#18-debugging)
+14. [Detecting that an item was made](#14-detecting-that-an-item-was-made)
+15. [DFHack: overlays on DF's own screens](#15-dfhack-overlays-on-dfs-own-screens)
+16. [DFHack: building a panel](#16-dfhack-building-a-panel)
+17. [Cross-game state: DeathLink and Energy Link](#17-cross-game-state-deathlink-and-energy-link)
+18. [Performance](#18-performance)
+19. [Debugging](#19-debugging)
 
 ---
 
@@ -652,15 +653,190 @@ eventful.onItemCreated[MY_MOD_NAME] = function(item_id) ... end
 - **Key handlers by a unique name** so you can unregister cleanly
   (`eventful.onJobCompleted[MY_MOD_NAME] = nil`).
 - Manager work orders do **not** fire `onJobCompleted`. If you count produced
-  items, poll `df.global.world.manager_orders` as well or you will miss
-  everything made through the manager.
+  items, see section 14, which covers that gap and the rest of the item-detection
+  problem in full.
 
 Prefer events to polling wherever the game will tell you. They are far cheaper
 than scanning, and they keep working when your poll loop is throttled.
 
 ---
 
-## 14. DFHack: overlays on DF's own screens
+## 14. Detecting that an item was made
+
+"Count how many X the fort has produced" sounds like one question. It is actually
+three, and each has a different answer with different blind spots.
+
+### There is no single reliable signal
+
+| Signal | Fires for | Misses |
+|---|---|---|
+| `onJobCompleted` | manual workshop jobs | manager work orders |
+| `onItemCreated` | anything DF creates | nothing, but fires for far more than crafting |
+| polling `manager_orders` | manager work orders | everything else |
+
+**Manager work orders do not fire `onJobCompleted`.** That single fact is the
+reason this section exists. A player who queues everything through the manager,
+which is most players past the first year, would register nothing at all.
+
+So you need at least two of the three, and you need to be careful that an item
+made through a path covered by two of them is not counted twice.
+
+### Both events must be enabled explicitly
+
+```lua
+local eventful = require('plugins.eventful')
+
+eventful.enableEvent(eventful.eventType.ITEM_CREATED, 1)
+eventful.enableEvent(eventful.eventType.JOB_COMPLETED, 1)
+
+eventful.onItemCreated[MY_MOD]   = on_item_created
+eventful.onJobCompleted[MY_MOD]  = on_job_completed
+```
+
+`enableEvent` initialises the handler table. Without it your assignment lands in
+a table nobody reads, and you get silence rather than an error. The second
+argument is how many ticks between checks; `1` means every tick.
+
+Unregister by setting the same keys to `nil` when your mod stops, or a reload
+leaves a stale handler pointing at dead state.
+
+### `onItemCreated` gives you an id, not an item
+
+```lua
+local function on_item_created(item_id)
+    if not state.is_enabled() then return end
+    local item = df.item.find(item_id)
+    if not item then return end
+    local ok, type_name = pcall(function() return df.item_type[item:getType()] end)
+    ...
+end
+```
+
+The hook fires for **everything**: crafted output, butchery results, plants
+harvested, loot on a dead goblin, items your own script creates. Filtering is
+your job, and `item:getType()` is the main tool.
+
+Watch for the self-inflicted case. If your mod creates items, its own creations
+come back through this hook. When a gifted adamantine weapon would otherwise fire
+"you mined adamantine", you need an explicit exclusion.
+
+### Prefer the item over the job where you can
+
+Counting from the produced item is more robust than counting from the job:
+
+```lua
+-- A mechanism is a TRAPPARTS item. Detecting the item is robust to HOW it was
+-- made: manual job, manager order, anything. The job path (ConstructMechanisms)
+-- misses manager orders entirely.
+if type_name == "TRAPPARTS" and not production_flag("mechanism") then
+    set_production_flag("mechanism")
+end
+```
+
+The item exists no matter which route produced it. Use the job path only when the
+item type alone cannot tell you what you need, such as when one item type has
+several meanings.
+
+### Job names changed in DF 50
+
+If you do map job types, map both spellings:
+
+```lua
+map("MakeTable",      "table")   -- pre-50 / Classic
+map("ConstructTable", "table")   -- DF 50+
+map("CarveStatue",    "crafted_item")
+map("CarveFurniture", "crafted_item")
+```
+
+A mod that only knows one set silently counts nothing on the other version.
+
+### Catching manager orders by polling
+
+Manager orders expose remaining and total counts, so you watch them fall:
+
+```lua
+for _, order in ipairs(df.global.world.manager_orders.all) do
+    local prev = _order_amounts[order.id]
+    if prev and order.amount_left < prev.left then
+        local delta = prev.left - order.amount_left
+        -- A player shrinking an order (x50 -> x25) also reduces amount_left.
+        -- Subtract the change in total, or resizing counts as production.
+        if prev.total and order.amount_total < prev.total then
+            delta = delta - (prev.total - order.amount_total)
+        end
+        if delta > 0 then count(delta) end
+    end
+    _order_amounts[order.id] = {left = order.amount_left, total = order.amount_total}
+end
+```
+
+The resize correction is the non-obvious part. Without it, a player trimming a
+work order is indistinguishable from completing several jobs.
+
+Note `manager_orders` is one of the struct-with-`.all` cases from section 9, and
+older builds expose it directly, hence `mo.all or mo` if you support both.
+
+### Storing counts
+
+Counters go in persistent storage, one key per thing you count:
+
+```lua
+local key = "yourmod/craft_count/" .. flag
+local raw = dfhack.persistent.getWorldDataString(key)
+if raw == nil then return end          -- not tracked this game; do not create it
+dfhack.persistent.saveWorldDataString(key, tostring((tonumber(raw) or 0) + 1))
+```
+
+**Only count what something asked you to count.** Pre-create keys for the things
+this playthrough cares about, and treat a missing key as "not tracked" rather
+than starting at zero. Otherwise every unrelated workshop job creates a key and
+your persistent data grows without limit.
+
+That distinction relies on `nil` versus `""` from section 8: a key that was never
+written is genuinely absent, which is exactly the signal you need here.
+
+### Passing item details to an external tool
+
+If something outside DF needs the details, flatten the item at capture time.
+Holding a `df.item` pointer across ticks is not safe:
+
+```lua
+local function item_to_info(item)
+    local type_name = df.item_type[item:getType()] or "UNKNOWN"
+    if SKIP_ITEM_TYPES[type_name] then return nil end
+    local mat = "unknown"
+    local ok, m = pcall(dfhack.matinfo.decode, item)
+    if ok and m then mat = m:toString() or mat end
+    local quality = 0
+    pcall(function() quality = item.quality end)   -- not every item struct has it
+    return {id = item.id, type = type_name, material = mat,
+            quality = quality, artifact = item.flags.artifact == true}
+end
+```
+
+`item.quality` does not exist on every item struct, so guard it. Then append to a
+capped JSON queue so a slow or absent consumer cannot grow your save forever:
+
+```lua
+local ITEM_EVENT_CAP = 500
+
+local function queue_item_event(key, entry)
+    local queue = json.decode(dfhack.persistent.getWorldDataString(key) or "[]") or {}
+    table.insert(queue, entry)
+    if #queue > ITEM_EVENT_CAP then table.remove(queue, 1) end
+    dfhack.persistent.saveWorldDataString(key, json.encode(queue))
+end
+```
+
+Dropping the oldest entry is the right trade: an unbounded queue in world data
+bloats every save and eventually stalls whatever parses it.
+
+A skip list is worth having too. Corpses, body parts, vermin and harvested plants
+are created constantly and are almost never what you mean by "made".
+
+---
+
+## 15. DFHack: overlays on DF's own screens
 
 An overlay is a widget DFHack draws on top of a DF screen. This is how you add
 information to vanilla UI you do not control: marking which workshop tasks are
@@ -775,7 +951,7 @@ drawing nothing rather than drawing in the wrong place.
 
 ---
 
-## 15. DFHack: building a panel
+## 16. DFHack: building a panel
 
 For your own UI, rather than annotating DF's, build a window with `gui.widgets`.
 
@@ -903,7 +1079,7 @@ Call that from whatever mutated the state, rather than rebuilding every frame.
 
 ---
 
-## 16. Cross-game state: DeathLink and Energy Link
+## 17. Cross-game state: DeathLink and Energy Link
 
 These are Archipelago concepts, but the DF-side problems are general: how do you
 make a game event leave the fort, and how do you apply an outside event to it
@@ -1042,7 +1218,7 @@ the whole batch on the next poll, which for DeathLink means killing twice.
 
 ---
 
-## 17. Performance
+## 18. Performance
 
 Your mod runs inside DF's main loop. Time you spend is frames the player loses.
 
@@ -1095,7 +1271,7 @@ Counters only accumulate while **unpaused**, so a paused game reports zeros.
 
 ---
 
-## 18. Debugging
+## 19. Debugging
 
 ### The console eats double quotes
 
