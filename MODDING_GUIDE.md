@@ -30,8 +30,11 @@ DFHack 53.x**.
 17. [Building a panel](#17-building-a-panel)
 18. [Cross-game state: DeathLink and Energy Link](#18-cross-game-state-deathlink-and-energy-link)
 19. [Spawning a siege that actually works](#19-spawning-a-siege-that-actually-works)
-20. [Performance](#20-performance)
-21. [Debugging](#21-debugging)
+20. [Telling the player something](#20-telling-the-player-something)
+21. [Taking control away from the player](#21-taking-control-away-from-the-player)
+22. [Carving terrain and making citizens](#22-carving-terrain-and-making-citizens)
+23. [Performance](#23-performance)
+24. [Debugging](#24-debugging)
 
 ---
 
@@ -1520,7 +1523,208 @@ fields a militia both get a fight.
 
 ---
 
-## 20. Performance
+## 20. Telling the player something
+
+DFHack has several announcement calls and they are not interchangeable. Picking
+the wrong one is how a message gets ignored or, worse, interrupts play.
+
+```lua
+-- Coloured line in the announcement log. The default.
+dfhack.gui.showAnnouncement("[AP] Something happened.", COLOR_GREEN, true)
+
+-- Same, but clickable: selecting the log line zooms the view to pos.
+dfhack.gui.showZoomAnnouncement(df.announcement_type.CARAVAN_ARRIVAL, pos,
+                                "[AP] Goods arrived.", COLOR_GREEN, true)
+
+-- Modal box that stops the screen. Use sparingly.
+dfhack.gui.showPopupAnnouncement("[AP] This world cannot work.", COLOR_RED, true)
+```
+
+The third argument to the first two is `recenter`. The `announcement_type` picks
+which log category and sound DF treats it as, so borrow one that matches the
+tone; `CARAVAN_ARRIVAL` reads as neutral good news.
+
+Rules of thumb that held up in practice:
+
+- **Routine events**: `showAnnouncement`. Cheap and ignorable.
+- **Something the player will want to look at**: `showZoomAnnouncement` with a
+  position. A clickable line beats describing where a thing is.
+- **Something that invalidates the session**: `showPopupAnnouncement`. A banner
+  scrolls away unseen; a modal does not. Reserve it for "this cannot work", not
+  for "you got an item".
+
+Wrap zoom announcements with a plain fallback, since a bad position or a missing
+announcement type will throw:
+
+```lua
+local ok = pcall(function()
+    dfhack.gui.showZoomAnnouncement(atype, pos, msg, COLOR_GREEN, true)
+end)
+if not ok then dfhack.gui.showAnnouncement(msg, COLOR_GREEN, true) end
+```
+
+Prefix everything with a short tag like `[AP]`. Players run many mods, and an
+unattributed message in the log is impossible to report a bug about.
+
+---
+
+## 21. Taking control away from the player
+
+Gating what the player may build, dig or craft is a common mod goal and a good way
+to crash DF if you do it at the wrong moment.
+
+### Cancel the job, do not fight the UI
+
+Let the player queue the action, then remove it:
+
+```lua
+local function on_job_initiated(job)
+    if job.job_type ~= df.job_type.ConstructBuilding then return end
+    local bld = dfhack.job.getHolder(job)
+    if not bld or is_allowed(bld) then return end
+
+    dfhack.gui.showAnnouncement("[AP] Cannot build that yet.", COLOR_YELLOW, true)
+
+    -- Defer by one tick. Removing a job inline during onJobInitiated CRASHES DF,
+    -- because the engine is mid-update over the job list.
+    dfhack.timeout(1, "ticks", function()
+        pcall(function() dfhack.buildings.deconstruct(bld) end)
+    end)
+end
+```
+
+**The deferral is not optional.** Mutating the job or building list from inside
+the event that is iterating it is a hard crash, not a Lua error. `dfhack.timeout`
+with one tick puts the work on the next update, where it is safe.
+
+This is a general rule for event handlers: announce immediately so feedback feels
+instant, defer anything structural.
+
+### Identify what is being built
+
+The building is on the job, and the type depends on the class:
+
+```lua
+if df.building_workshopst:is_instance(bld) then
+    name = WORKSHOP_BLUEPRINTS[bld.type]
+    if not name and bld.type == df.workshop_type.Custom then
+        -- Custom workshops share one type; the real identity is the raw code.
+        local def = df.global.world.raws.buildings.all[bld.custom_type]
+        if def then name = CUSTOM_WORKSHOP_BLUEPRINTS[def.code] end
+    end
+elseif df.building_furnacest:is_instance(bld) then
+    name = FURNACE_BLUEPRINTS[bld.type]
+elseif df.building_farmplotst:is_instance(bld) then
+    name = "Farm Plot"
+end
+if not name then return end   -- not gated, allow it
+```
+
+Custom workshops are the trap: every modded workshop is `workshop_type.Custom`,
+so `bld.type` cannot distinguish them. Go through `custom_type` into the building
+raws and match on `def.code`.
+
+### Blocking a designation rather than a job
+
+Digging is a designation, so clear the designation as well as the job, or the
+dwarf simply re-takes it:
+
+```lua
+local blk = dfhack.maps.getTileBlock(job.pos.x, job.pos.y, job.pos.z)
+if blk then
+    blk.designation[job.pos.x % 16][job.pos.y % 16].dig = df.tile_dig_designation.No
+end
+dfhack.timeout(1, "ticks", function() pcall(function() dfhack.job.removeJob(job) end) end)
+```
+
+Note the `% 16`: block designations are indexed by position **within the 16x16
+block**, not by world coordinate. Getting this wrong silently edits a different
+tile, which is maddening to debug because everything looks correct.
+
+Also remember a channel designation opens the level *below* its tile, so a depth
+limit has to block it one z higher than an ordinary dig.
+
+---
+
+## 22. Carving terrain and making citizens
+
+Two more things that look harder than they are, with one sharp edge each.
+
+### Writing tiles
+
+```lua
+local function set_tile(x, y, z, tt)
+    local b = dfhack.maps.getTileBlock(x, y, z)
+    if not b then return end
+    local lx, ly = x % 16, y % 16
+    b.tiletype[lx][ly] = tt
+    b.designation[lx][ly].feature_local  = false
+    b.designation[lx][ly].feature_global = false
+    dfhack.maps.enableBlockUpdates(b, false, false)
+end
+```
+
+Again the `% 16` block-local indexing. Clearing the feature flags matters when you
+carve near a cavern or the magma sea: leave them set and DF treats your new floor
+as part of that feature, which can trigger breach events you did not intend.
+
+Do not hardcode tiletype ids. Names differ between builds, so find one by its
+attributes:
+
+```lua
+for i = df.tiletype._first_item, df.tiletype._last_item do
+    local a = df.tiletype.attrs[i]
+    if a and a.shape == df.tiletype_shape.FLOOR
+         and a.material == df.tiletype_material.STONE then
+        return i
+    end
+end
+```
+
+### The stale passability cache
+
+This one cost a real bug. Writing tiletypes directly does **not** update DF's
+pathfinding cache, so dwarves keep treating your newly carved floor as solid.
+Nothing errors; they just refuse to walk there, and it looks like a pathing bug in
+the game rather than in your mod.
+
+```lua
+df.global.world.reindex_pathfinding = true
+```
+
+Set it once after a carving pass, not per tile. Any script that edits tiles needs
+this, which is why DFHack's own tile-editing scripts do the same.
+
+### Creating a citizen
+
+Same three steps as any unit (section 19), plus enlistment:
+
+```lua
+local unit = dfhack.units.create(race_idx, caste)
+unit.birth_year = df.global.cur_year - math.random(20, 40)   -- else you spawn a baby
+dfhack.units.teleport(unit, pos)
+df.global.world.units.active:insert('#', unit)
+
+dfhack.units.makeown(unit)    -- the actual enlistment
+```
+
+`dfhack.units.makeown` is the whole trick. On DF 53.x it fully integrates the
+unit as a fortress member: civ, nobility eligibility, the units list, everything.
+Getting there via `modtools/create-unit` fails on this build.
+
+Two things `makeown` does not do, which you probably want:
+
+```lua
+enable_labors(unit)      -- otherwise they stand around doing nothing
+set_name(unit, ...)      -- otherwise they are an unnamed generic dwarf
+```
+
+And set `birth_year` before enlisting, or you get a baby that cannot work and
+needs care.
+
+---
+
+## 23. Performance
 
 Your mod runs inside DF's main loop. Time you spend is frames the player loses.
 
@@ -1573,7 +1777,7 @@ Counters only accumulate while **unpaused**, so a paused game reports zeros.
 
 ---
 
-## 21. Debugging
+## 24. Debugging
 
 ### The console eats double quotes
 
