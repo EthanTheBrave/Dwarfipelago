@@ -26,8 +26,9 @@ DFHack 53.x**.
 13. [DFHack: reacting to events](#13-dfhack-reacting-to-events)
 14. [DFHack: overlays on DF's own screens](#14-dfhack-overlays-on-dfs-own-screens)
 15. [DFHack: building a panel](#15-dfhack-building-a-panel)
-16. [Performance](#16-performance)
-17. [Debugging](#17-debugging)
+16. [Cross-game state: DeathLink and Energy Link](#16-cross-game-state-deathlink-and-energy-link)
+17. [Performance](#17-performance)
+18. [Debugging](#18-debugging)
 
 ---
 
@@ -40,7 +41,7 @@ it anywhere near prominently enough.
 
 When you generate a world, DF copies the enabled mods' raws **into the save**.
 From then on, that save reads its own copy. Editing `mods/yourmod/objects/*.txt`
-afterwards changes nothing for existing saves — not on reload, not on a DFHack
+afterwards changes nothing for existing saves: not on reload, not on a DFHack
 restart, not ever.
 
 So:
@@ -91,7 +92,7 @@ than assuming.
 
 And do not assume the DF folder is `dirname(path_to_executable)`. Players
 legitimately point tools at `dfhack.exe`, and the standalone DFHack Steam app
-installs to `steamapps/common/DFHack/hack/` — a completely different tree. Look
+installs to `steamapps/common/DFHack/hack/`, a completely different tree. Look
 for DF's own markers (`data/vanilla`, `prefs`, `mods`) to confirm you found the
 real thing.
 
@@ -125,7 +126,7 @@ mods/yourmod/
   it when content changes.
 - `EARLIEST_COMPATIBLE_NUMERIC_VERSION` controls whether DF will load an existing
   save made with an older version of your mod. Raising it to the current version
-  makes DF refuse older saves — correct when your raws changed in a way that
+  makes DF refuse older saves. That is correct when your raws changed in a way that
   breaks them, unkind otherwise.
 
 **`scripts_modinstalled/` is added to DFHack's script path automatically** when
@@ -139,12 +140,12 @@ DF reads raws as single-byte text, not UTF-8. A curly apostrophe or an em dash i
 a `[NAME:...]` token renders as garbage.
 
 This bites hardest when generating raws programmatically. Writing with strict
-`latin-1` will *raise* on the first non-encodable character — and if you opened
+`latin-1` will *raise* on the first non-encodable character, and if you opened
 the file first, you have already truncated it to zero bytes. Transliterate to
 ASCII before writing, and use a replacing error handler as a backstop.
 
 Comments in Lua are fine (the lexer discards them), but anything that reaches
-DF — announcement text, item names, material names — should be ASCII.
+DF (announcement text, item names, material names) should be ASCII.
 
 ---
 
@@ -168,7 +169,7 @@ has no required combat or wear properties, and no entity has to be granted it.
 
 Points that are not obvious:
 
-- **`[NAME:singular:plural]`** — both are required.
+- **`[NAME:singular:plural]`**: both are required.
 - **`[NO_DEFAULT_JOB]`** stops the tool appearing as a craftable job at
   workshops. Without it, players can make your special item out of anything.
 - **If no entity has `[TOOL:ITEM_TOOL_YOURS]`, no civilization will ever craft or
@@ -233,7 +234,7 @@ A minimal inorganic:
 
 The obvious way to write that is `[USE_MATERIAL_TEMPLATE:STONE_TEMPLATE]` plus
 `[IS_STONE]`. Do that and your material shows up **in the player's crafting
-material pickers** — "Make rock blocks" will list it between Alabaster and
+material pickers**. "Make rock blocks" will list it between Alabaster and
 Andesite.
 
 Two separate causes:
@@ -261,7 +262,7 @@ mat.state_adj.Solid  = "Some New Name"
 mat.material_value   = 42
 ```
 
-This is in-memory only — DF reloads raws from the save on every load — so re-apply
+This is in-memory only, because DF reloads raws from the save on every load, so re-apply
 it from your poll loop. Compare before writing so it is a no-op after the first
 pass, and it will self-heal after a reload.
 
@@ -315,7 +316,7 @@ embark except by re-embarking elsewhere in the same world.
 ### The race is the civ's, not the unit's
 
 If you want merchants of a particular race, set `[CREATURE:X]` on the **entity**.
-Do not try to change `unit.race` on the merchants at runtime — DF re-derives it
+Do not try to change `unit.race` on the merchants at runtime. DF re-derives it
 from the sending civ every tick and your edit reverts on unpause.
 
 `[TRANSLATION:HUMAN]` is independent of race and just picks the name-generation
@@ -374,19 +375,19 @@ A world gen preset is an appended block in `prefs/world_gen.txt`:
 
 Useful things to know:
 
-- **`prefs/world_gen.txt` may live in either data root** (see §1). If a player
+- **`prefs/world_gen.txt` may live in either data root** (see section 1). If a player
   has both, install to both.
 - **Appending is safe.** Multiple `[WORLD_GEN]` blocks coexist; players pick by
   title. Do not rewrite the file.
 - **DF reads it at startup.** Restart DF before the preset appears.
-- **`REGION_COUNTS:<biome>:<count>:<min>:<max>`** — the last two are the minimum
+- **`REGION_COUNTS:<biome>:<count>:<min>:<max>`**: the last two are the minimum
   and maximum number of *regions* of that biome. Setting a minimum is how you
   guarantee a habitat exists for a civ that needs it.
 - **`PLAYABLE_CIVILIZATION_REQUIRED:1`** rejects worlds with no playable civ,
   which saves rerolling by hand.
 
 Presets constrain generation; they cannot guarantee any particular *embark* has
-what you need. See the neighbour problem in §5.
+what you need. See the neighbour problem in section 5.
 
 ---
 
@@ -407,8 +408,8 @@ Conventions worth adopting:
 - **Values are strings.** Numbers need `tonumber`; structures need JSON
   (`require('json')`).
 - **Three states, not two.** A key never written returns `nil`; a key written
-  empty returns `""`. That distinction is genuinely useful — "never armed" versus
-  "armed and then cleared" — but only if you are deliberate about it.
+  empty returns `""`. That distinction is genuinely useful ("never armed" versus
+  "armed and then cleared"), but only if you are deliberate about it.
 
 It is world data, not fort data, so it survives abandoning and re-embarking in
 the same world. If you want something to persist across re-embark, this is how.
@@ -450,7 +451,7 @@ if mi then print(mi.type, mi.index) end
 
 `matinfo.find` handles `INORGANIC:X`, `CREATURE_MAT:COW:LEATHER`,
 `PLANT_MAT:MUSHROOM_HELMET_PLUMP:MUSHROOM` and similar. It returns `nil` for
-anything not in this world's raws — which is how you detect "world generated
+anything not in this world's raws, which is how you detect "world generated
 without my mod".
 
 Item subtypes need a scan, because the numeric subtype is assigned at load:
@@ -498,7 +499,7 @@ dfhack.items.moveToGround(item, pos)
 
 `moveToInventory(item, unit[, use_mode[, body_part]])` defaults to
 `use_mode = Hauled` and `body_part = -1`, which is fine for "carry this". To
-actually **equip** an item — a weapon in a hand, armour on a torso — pass both an
+actually **equip** an item (a weapon in a hand, armour on a torso) pass both an
 explicit role and an explicit body part id; the `-1` default does not attach it.
 Find the id by scanning the caste's body parts for the flag you want (`GRASP` for
 hands, and note there are usually two).
@@ -552,7 +553,7 @@ dfhack.buildings.constructBuilding{
 }
 ```
 
-This creates it complete — no job, no materials, no dwarves. The position is the
+This creates it complete: no job, no materials, no dwarves. The position is the
 building's **top-left corner**, not its centre, and the tiles must be clear.
 Wrap it in `pcall` and be prepared for failure on uneven or occupied ground.
 
@@ -570,7 +571,7 @@ for _, z in ipairs(df.global.world.buildings.other.ANY_ZONE) do
 end
 ```
 
-Use `df.global.world.buildings.other.ANY_ZONE`, not `buildings.all` — the latter
+Use `df.global.world.buildings.other.ANY_ZONE`, not `buildings.all`. The latter
 is every building in the fort and much more expensive to walk.
 
 Room quality (the "Decent Quarters" / "Royal Bedroom" tiers) is a value DF
@@ -662,7 +663,7 @@ than scanning, and they keep working when your poll loop is throttled.
 ## 14. DFHack: overlays on DF's own screens
 
 An overlay is a widget DFHack draws on top of a DF screen. This is how you add
-information to vanilla UI you do not control — marking which workshop tasks are
+information to vanilla UI you do not control: marking which workshop tasks are
 locked, showing a progress counter next to a job, adding a button.
 
 ### Registering one
@@ -694,7 +695,7 @@ OVERLAY_WIDGETS = {
 
 - **`OVERLAY_WIDGETS` is the whole registration mechanism.** DFHack discovers the
   global table when the script loads. The widget's public name becomes
-  `<scriptname>.<key>` — here `yourmod-overlays.mywidget`, which is what
+  `<scriptname>.<key>`, here `yourmod-overlays.mywidget`, which is what
   `overlay enable` and `overlay disable` take.
 - **`viewscreens` scopes it.** The widget only renders on those focus strings, so
   an overlay bound to a workshop sheet costs nothing everywhere else. Find the
@@ -712,7 +713,7 @@ function MyOverlay:overlay_onupdate()    -- periodic, cheaper
 ```
 
 `onRenderBody` runs **every frame**. On your machine's own profile, overlays were
-the single largest DFHack cost — several times the Lua update total — precisely
+the single largest DFHack cost, several times the Lua update total, precisely
 because of this. Do drawing there and nothing else.
 
 ### Reading what DF has drawn
@@ -768,7 +769,7 @@ local LOCKED_PEN    = to_pen{ fg = COLOR_RED,   bg = COLOR_BLACK, bold = true }
 local COMPLETED_PEN = to_pen{ fg = COLOR_GREEN, bg = COLOR_BLACK }
 ```
 
-Scraping is fragile by nature — it breaks if DF changes its layout or the player
+Scraping is fragile by nature. It breaks if DF changes its layout or the player
 uses a different font width. Match loosely, guard with `pcall`, and degrade to
 drawing nothing rather than drawing in the wrong place.
 
@@ -817,7 +818,7 @@ end
 
 `Pages:init` sets every subview `visible = false` and shows only the selected
 one, and DFHack dispatches input only to visible children. So the **same hotkey
-can mean different things on different tabs** without conflicting — only the
+can mean different things on different tabs** without conflicting, because only the
 active tab ever receives the key.
 
 Useful, but it does mean a collision will not announce itself. Keep a list of
@@ -874,7 +875,7 @@ widgets.HotkeyLabel{
 }
 ```
 
-`label` and `enabled` accept functions, evaluated at render — so a button can
+`label` and `enabled` accept functions, evaluated at render, so a button can
 re-label itself from live state without you rebuilding the view.
 
 For anything destructive, confirm first:
@@ -902,7 +903,146 @@ Call that from whatever mutated the state, rather than rebuilding every frame.
 
 ---
 
-## 16. Performance
+## 16. Cross-game state: DeathLink and Energy Link
+
+These are Archipelago concepts, but the DF-side problems are general: how do you
+make a game event leave the fort, and how do you apply an outside event to it
+without corrupting your own bookkeeping.
+
+### DeathLink: counting deaths that are really yours
+
+The send side hangs off `onUnitDeath`. The whole difficulty is deciding what
+counts as a citizen death:
+
+```lua
+local function was_citizen(unit)
+    local ok, civ_ok = pcall(function()
+        return unit.civ_id == df.global.plotinfo.civ_id
+    end)
+    if not (ok and civ_ok) then return false end
+    -- Owned livestock share the fort civ_id, so butchering would otherwise
+    -- register as a citizen death.
+    local anim = false
+    pcall(function() anim = dfhack.units.isAnimal(unit) end)
+    if anim then return false end
+    if unit.flags1.merchant or unit.flags1.diplomat then return false end
+    if unit.flags2.visitor or unit.flags2.visitor_uninvited then return false end
+    if unit.flags2.resident then return false end
+    return true
+end
+```
+
+The livestock case is the one that bites. `civ_id` alone looks like the obvious
+test and is wrong: every owned animal shares it, so a butcher shop quietly
+becomes a death broadcaster.
+
+Note this deliberately does not use the normal "is a citizen" helper, because by
+the time the hook fires the unit is dead and liveness checks reject it. Death
+hooks generally need a different predicate from the live ones.
+
+### The re-entrancy trap
+
+Applying an incoming death means killing your own dwarves, which fires your own
+death hook, which wants to send a death out. Left alone, two linked games will
+ping-pong until everyone is dead.
+
+Mark the unit **before** killing it:
+
+```lua
+-- kill() may fire onUnitDeath synchronously here, or on a later tick.
+-- Either way this death must not count toward our outgoing threshold.
+deathlink_killed_ids[uid] = true
+
+local ok, err = pcall(function()
+    if dfhack.units.kill then
+        dfhack.units.kill(unit)
+    else
+        unit.body.blood_count = 0   -- older builds: bleed out
+    end
+end)
+if not ok then
+    deathlink_killed_ids[uid] = nil  -- kill failed, let a real death count
+end
+```
+
+Two details worth copying. The marking happens first because you cannot assume
+the hook fires later. And the mark is *rolled back* if the kill failed, so a
+dwarf who dies for real later still counts.
+
+`dfhack.units.kill` does not exist on every build, hence the fallback. The old
+`modtools/kill-unit` script is gone from modern DFHack.
+
+### Picking victims
+
+Collect living citizens, shuffle, then take from the front:
+
+```lua
+for i = #candidates, 2, -1 do
+    local j = math.random(i)
+    candidates[i], candidates[j] = candidates[j], candidates[i]
+end
+```
+
+A plain Fisher-Yates. Without the shuffle you kill in unit-list order, which is
+roughly arrival order, so the same unlucky dwarves die every time.
+
+### Energy Link: a shared pool
+
+Energy Link is a number several games add to and draw from. The DF side never
+talks to the network; it writes intent to persistent storage and an external
+client does the rest.
+
+Deposit, in the mod:
+
+```lua
+local prev = tonumber(dfhack.persistent.getWorldDataString("yourmod/energy_deposit") or "0") or 0
+dfhack.persistent.saveWorldDataString("yourmod/energy_deposit", tostring(prev + joules))
+dfhack.persistent.saveWorldDataString("yourmod/use_energy_link", "Y")
+```
+
+The client polls, sees the flag, forwards the amount, then clears both keys. The
+flag exists so the client can tell "nothing deposited" from "deposited zero".
+
+Spending is a request, not an action, because only the client knows the pool
+balance. The mod writes `request_caravan` and a cost; the client checks the pool,
+deducts if affordable, and writes back an approval the mod acts on. The mod never
+assumes it succeeded.
+
+### Accumulate in the mod, clear from the client
+
+The deposit key **adds to itself** rather than overwriting. Two deposits between
+polls must not lose one, and the poll interval is long enough for that to happen.
+Whoever consumes the value clears it, so the sequence is accumulate, read, zero,
+and nothing falls through the gap.
+
+The same shape works for any "tell the outside world something happened" queue.
+For events that can repeat quickly, use a JSON array rather than a counter, so
+two events in one interval cannot clobber each other:
+
+```lua
+local queue = json.decode(dfhack.persistent.getWorldDataString("yourmod/buy_queue") or "[]")
+table.insert(queue, slot)
+dfhack.persistent.saveWorldDataString("yourmod/buy_queue", json.encode(queue))
+```
+
+### Outside changes arrive as a count, not an event
+
+The client cannot call into your Lua, so it increments a pending counter and your
+poll drains it:
+
+```lua
+local pending = state.get_pending_recv()
+if pending <= 0 then return end
+state.clear_pending_recv()
+-- apply `pending` deaths
+```
+
+Clear before applying. If applying throws halfway, you would otherwise reapply
+the whole batch on the next poll, which for DeathLink means killing twice.
+
+---
+
+## 17. Performance
 
 Your mod runs inside DF's main loop. Time you spend is frames the player loses.
 
@@ -955,7 +1095,7 @@ Counters only accumulate while **unpaused**, so a paused game reports zeros.
 
 ---
 
-## 17. Debugging
+## 18. Debugging
 
 ### The console eats double quotes
 
@@ -986,17 +1126,17 @@ for scripted testing:
 ```
 
 Note it bypasses the console tokenizer, so quoting behaves differently there than
-in the in-game console — verify player-facing instructions in the real console.
+in the in-game console. Verify player-facing instructions in the real console.
 
 ### Log so a crash tells you something
 
-A hard DF crash produces **no Lua traceback** — the process is simply gone. The
+A hard DF crash produces **no Lua traceback**, because the process is simply gone. The
 only evidence is what you wrote before it died. Two habits that pay for
 themselves:
 
 - **A session header** at startup recording mod version, DF and DFHack versions,
   OS, and which script paths are loaded. Most "it doesn't work" reports are
-  answered by that block alone — especially duplicate installs, which are common
+  answered by that block alone, especially duplicate installs, which are common
   and invisible otherwise.
 - **Bracket risky operations.** Write a marker before and after bulk or
   memory-touching work. A log ending at the opening marker with no closing one
@@ -1032,13 +1172,13 @@ pcall(function() is_trader = item.flags.trader end)
 
 ## Further reading
 
-- [DF Wiki: Modding](https://dwarffortresswiki.org/index.php/Modding) — token
+- [DF Wiki: Modding](https://dwarffortresswiki.org/index.php/Modding): token
   reference; authoritative on what tokens exist
-- [DFHack Lua API](https://docs.dfhack.org/en/stable/docs/dev/Lua%20API.html) —
+- [DFHack Lua API](https://docs.dfhack.org/en/stable/docs/dev/Lua%20API.html):
   the API reference
-- `hack/lua/` in your DFHack install — the actual source, and often faster than
+- `hack/lua/` in your DFHack install: the actual source, and often faster than
   the docs for "what does this return"
-- `hack/scripts/` — real working examples of nearly everything
+- `hack/scripts/`: real working examples of nearly everything
 
 This repo is itself an extended example: `mods/dwarfipelago/` for raws and Lua,
 and `LUA_INTERFACE.md` for how a mod and an external client exchange state.
