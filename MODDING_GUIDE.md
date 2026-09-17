@@ -13,23 +13,24 @@ DFHack 53.x**.
 
 1. [The three rules that explain most confusion](#1-the-three-rules-that-explain-most-confusion)
 2. [Mod layout and `info.txt`](#2-mod-layout-and-infotxt)
-3. [Custom items: tools as a generic item chassis](#3-custom-items-tools-as-a-generic-item-chassis)
-4. [Custom materials, and how they leak](#4-custom-materials-and-how-they-leak)
-5. [Custom civilizations](#5-custom-civilizations)
-6. [Graphics and tile pages](#6-graphics-and-tile-pages)
-7. [World gen presets](#7-world-gen-presets)
-8. [DFHack: persistent state](#8-dfhack-persistent-state)
-9. [DFHack: reading raws at runtime](#9-dfhack-reading-raws-at-runtime)
-10. [DFHack: creating items](#10-dfhack-creating-items)
-11. [DFHack: creating buildings and reading zones](#11-dfhack-creating-buildings-and-reading-zones)
-12. [DFHack: inventing a god](#12-dfhack-inventing-a-god)
-13. [DFHack: reacting to events](#13-dfhack-reacting-to-events)
-14. [Detecting that an item was made](#14-detecting-that-an-item-was-made)
-15. [DFHack: overlays on DF's own screens](#15-dfhack-overlays-on-dfs-own-screens)
-16. [DFHack: building a panel](#16-dfhack-building-a-panel)
-17. [Cross-game state: DeathLink and Energy Link](#17-cross-game-state-deathlink-and-energy-link)
-18. [Performance](#18-performance)
-19. [Debugging](#19-debugging)
+3. [Splitting a mod into modules with `reqscript`](#3-splitting-a-mod-into-modules-with-reqscript)
+4. [Custom items: tools as a generic item chassis](#4-custom-items-tools-as-a-generic-item-chassis)
+5. [Custom materials, and how they leak](#5-custom-materials-and-how-they-leak)
+6. [Custom civilizations](#6-custom-civilizations)
+7. [Graphics and tile pages](#7-graphics-and-tile-pages)
+8. [World gen presets](#8-world-gen-presets)
+9. [DFHack: persistent state](#9-dfhack-persistent-state)
+10. [DFHack: reading raws at runtime](#10-dfhack-reading-raws-at-runtime)
+11. [DFHack: creating items](#11-dfhack-creating-items)
+12. [DFHack: creating buildings and reading zones](#12-dfhack-creating-buildings-and-reading-zones)
+13. [DFHack: inventing a god](#13-dfhack-inventing-a-god)
+14. [DFHack: reacting to events](#14-dfhack-reacting-to-events)
+15. [Detecting that an item was made](#15-detecting-that-an-item-was-made)
+16. [DFHack: overlays on DF's own screens](#16-dfhack-overlays-on-dfs-own-screens)
+17. [DFHack: building a panel](#17-dfhack-building-a-panel)
+18. [Cross-game state: DeathLink and Energy Link](#18-cross-game-state-deathlink-and-energy-link)
+19. [Performance](#19-performance)
+20. [Debugging](#20-debugging)
 
 ---
 
@@ -150,7 +151,115 @@ DF (announcement text, item names, material names) should be ASCII.
 
 ---
 
-## 3. Custom items: tools as a generic item chassis
+## 3. Splitting a mod into modules with `reqscript`
+
+Once a mod outgrows one file you want to split it up. DFHack's mechanism for this
+is `reqscript`, and it has one piece of required boilerplate that is very easy to
+get wrong because **the failure is silent**.
+
+### The two halves
+
+Every module needs a marker at the top:
+
+```lua
+--@ module = true
+```
+
+and an export line at the bottom:
+
+```lua
+local M = {}
+
+function M.do_something() ... end
+function M.do_another() ... end
+
+-- reqscript returns the script's _ENV; copy exports so callers can use them.
+for k, v in pairs(M) do _ENV[k] = v end
+return M
+```
+
+Then callers do:
+
+```lua
+local log = reqscript("internal/yourmod/log")
+log.info("hello")
+```
+
+### Why the `_ENV` line is needed
+
+This is the part that catches people. **`reqscript` returns the script's
+environment, not whatever you `return`.** The docs put it plainly: it "returns its
+environment (i.e., a table of all global functions and variables)".
+
+So a module that collects its functions in a local table `M` and ends with
+`return M` has exported *nothing*. `M` is a local; it never reached `_ENV`. The
+caller gets an environment table with no `do_something` in it, and the failure
+looks like `attempt to call a nil value (field 'do_something')` at some unrelated
+call site later.
+
+The loop copies each entry from your module table into the environment, which is
+what the caller actually receives. Keeping `return M` as well is harmless and
+makes the file readable as a normal Lua module.
+
+The alternative is to declare functions as globals directly (`function
+do_something()` with no `local`), which lands them in `_ENV` automatically. The
+`M` table plus the copy loop is tidier: everything exported is in one visible
+place, and anything not in `M` stays private.
+
+### The marker must be exactly right
+
+`reqscript` refuses to load a script without the marker, and the accepted spellings
+are stricter than they look:
+
+```lua
+--@ module = true    OK
+--@module = true     OK
+-- @module = true    NOT OK  (space after --)
+ --@module = true    NOT OK  (leading whitespace)
+---@module = true    NOT OK  (three dashes, so --@ is not at line start)
+```
+
+That last one is a real trap if you use a Lua language server, since `---@` is
+LuaLS annotation syntax and an editor may reformat your marker into something DF
+will not accept.
+
+### Guard your side effects
+
+`reqscript` executes the file. Anything at file scope runs on import, which is not
+what you want for a script that is both a module and a command:
+
+```lua
+-- function definitions above
+
+if dfhack_flags.module then
+    return
+end
+
+-- main script code with side effects below
+```
+
+Without this, importing your main script to reach one helper also runs its command
+line handling.
+
+### Paths and reloading
+
+The argument is a path relative to any registered script directory, without the
+`.lua`:
+
+```lua
+reqscript("internal/yourmod/state")   -- scripts_modinstalled/internal/yourmod/state.lua
+```
+
+Circular dependencies are supported, provided the modules have no load-time side
+effects. That is another reason to keep the `dfhack_flags.module` guard.
+
+Modules are cached. Editing a module file and re-running your command may keep the
+old version until the script is reloaded, which is a common source of "I fixed
+that already".
+
+---
+
+## 4. Custom items: tools as a generic item chassis
 
 `ITEM_TOOL` is the most flexible custom item type. Unlike weapons or armour it
 has no required combat or wear properties, and no entity has to be granted it.
@@ -210,7 +319,7 @@ them, not on the itemdef alone.
 
 ---
 
-## 4. Custom materials, and how they leak
+## 5. Custom materials, and how they leak
 
 A minimal inorganic:
 
@@ -273,7 +382,7 @@ worlds generated after some external step.
 
 ---
 
-## 5. Custom civilizations
+## 6. Custom civilizations
 
 An entity raw defines a civilization: what it is, what it makes, whether it
 trades with you.
@@ -329,7 +438,7 @@ an NPC trade partner.
 
 ---
 
-## 6. Graphics and tile pages
+## 7. Graphics and tile pages
 
 Two files. A tile page declares the sprite sheet:
 
@@ -358,7 +467,7 @@ start with a line matching the filename, then the `[OBJECT:...]` token.
 
 ---
 
-## 7. World gen presets
+## 8. World gen presets
 
 A world gen preset is an appended block in `prefs/world_gen.txt`:
 
@@ -388,11 +497,11 @@ Useful things to know:
   which saves rerolling by hand.
 
 Presets constrain generation; they cannot guarantee any particular *embark* has
-what you need. See the neighbour problem in section 5.
+what you need. See the neighbour problem in section 6.
 
 ---
 
-## 8. DFHack: persistent state
+## 9. DFHack: persistent state
 
 DFHack gives you key-value storage scoped to the world, surviving save and
 reload:
@@ -417,7 +526,7 @@ the same world. If you want something to persist across re-embark, this is how.
 
 ---
 
-## 9. DFHack: reading raws at runtime
+## 10. DFHack: reading raws at runtime
 
 ### The `.all` trap
 
@@ -476,7 +585,7 @@ Comparing `item.subtype` to a number silently never matches.
 
 ---
 
-## 10. DFHack: creating items
+## 11. DFHack: creating items
 
 ```lua
 local made = dfhack.items.createItem(unit, item_type, subtype, mat_type, mat_index, false)
@@ -541,7 +650,7 @@ local gone = (still == nil) or (still.flags.garbage_collect == true)
 
 ---
 
-## 11. DFHack: creating buildings and reading zones
+## 12. DFHack: creating buildings and reading zones
 
 Constructing a real, finished building:
 
@@ -580,7 +689,7 @@ computes per zone. Read it rather than recomputing from furniture.
 
 ---
 
-## 12. DFHack: inventing a god
+## 13. DFHack: inventing a god
 
 Adding a worshippable deity is not a raw at all. DF builds the "dedicate a
 temple" list from **citizens' worship links**, so you create a historical figure
@@ -633,7 +742,7 @@ first, or every reload adds another god.
 
 ---
 
-## 13. DFHack: reacting to events
+## 14. DFHack: reacting to events
 
 `eventful` gives callbacks instead of polling:
 
@@ -653,7 +762,7 @@ eventful.onItemCreated[MY_MOD_NAME] = function(item_id) ... end
 - **Key handlers by a unique name** so you can unregister cleanly
   (`eventful.onJobCompleted[MY_MOD_NAME] = nil`).
 - Manager work orders do **not** fire `onJobCompleted`. If you count produced
-  items, see section 14, which covers that gap and the rest of the item-detection
+  items, see section 15, which covers that gap and the rest of the item-detection
   problem in full.
 
 Prefer events to polling wherever the game will tell you. They are far cheaper
@@ -661,7 +770,7 @@ than scanning, and they keep working when your poll loop is throttled.
 
 ---
 
-## 14. Detecting that an item was made
+## 15. Detecting that an item was made
 
 "Count how many X the fort has produced" sounds like one question. It is actually
 three, and each has a different answer with different blind spots.
@@ -773,7 +882,7 @@ end
 The resize correction is the non-obvious part. Without it, a player trimming a
 work order is indistinguishable from completing several jobs.
 
-Note `manager_orders` is one of the struct-with-`.all` cases from section 9, and
+Note `manager_orders` is one of the struct-with-`.all` cases from section 10, and
 older builds expose it directly, hence `mo.all or mo` if you support both.
 
 ### Storing counts
@@ -792,7 +901,7 @@ this playthrough cares about, and treat a missing key as "not tracked" rather
 than starting at zero. Otherwise every unrelated workshop job creates a key and
 your persistent data grows without limit.
 
-That distinction relies on `nil` versus `""` from section 8: a key that was never
+That distinction relies on `nil` versus `""` from section 9: a key that was never
 written is genuinely absent, which is exactly the signal you need here.
 
 ### Passing item details to an external tool
@@ -836,7 +945,7 @@ are created constantly and are almost never what you mean by "made".
 
 ---
 
-## 15. DFHack: overlays on DF's own screens
+## 16. DFHack: overlays on DF's own screens
 
 An overlay is a widget DFHack draws on top of a DF screen. This is how you add
 information to vanilla UI you do not control: marking which workshop tasks are
@@ -951,7 +1060,7 @@ drawing nothing rather than drawing in the wrong place.
 
 ---
 
-## 16. DFHack: building a panel
+## 17. DFHack: building a panel
 
 For your own UI, rather than annotating DF's, build a window with `gui.widgets`.
 
@@ -1079,7 +1188,7 @@ Call that from whatever mutated the state, rather than rebuilding every frame.
 
 ---
 
-## 17. Cross-game state: DeathLink and Energy Link
+## 18. Cross-game state: DeathLink and Energy Link
 
 These are Archipelago concepts, but the DF-side problems are general: how do you
 make a game event leave the fort, and how do you apply an outside event to it
@@ -1218,7 +1327,7 @@ the whole batch on the next poll, which for DeathLink means killing twice.
 
 ---
 
-## 18. Performance
+## 19. Performance
 
 Your mod runs inside DF's main loop. Time you spend is frames the player loses.
 
@@ -1271,7 +1380,7 @@ Counters only accumulate while **unpaused**, so a paused game reports zeros.
 
 ---
 
-## 19. Debugging
+## 20. Debugging
 
 ### The console eats double quotes
 
