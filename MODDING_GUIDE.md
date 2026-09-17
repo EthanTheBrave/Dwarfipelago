@@ -13,21 +13,21 @@ DFHack 53.x**.
 
 1. [The three rules that explain most confusion](#1-the-three-rules-that-explain-most-confusion)
 2. [Mod layout and `info.txt`](#2-mod-layout-and-infotxt)
-3. [Splitting a mod into modules with `reqscript`](#3-splitting-a-mod-into-modules-with-reqscript)
-4. [Custom items: tools as a generic item chassis](#4-custom-items-tools-as-a-generic-item-chassis)
-5. [Custom materials, and how they leak](#5-custom-materials-and-how-they-leak)
-6. [Custom civilizations](#6-custom-civilizations)
-7. [Graphics and tile pages](#7-graphics-and-tile-pages)
-8. [World gen presets](#8-world-gen-presets)
-9. [DFHack: persistent state](#9-dfhack-persistent-state)
-10. [DFHack: reading raws at runtime](#10-dfhack-reading-raws-at-runtime)
-11. [DFHack: creating items](#11-dfhack-creating-items)
-12. [DFHack: creating buildings and reading zones](#12-dfhack-creating-buildings-and-reading-zones)
-13. [DFHack: inventing a god](#13-dfhack-inventing-a-god)
-14. [DFHack: reacting to events](#14-dfhack-reacting-to-events)
+3. [Custom items: tools as a generic item chassis](#3-custom-items-tools-as-a-generic-item-chassis)
+4. [Custom materials, and how they leak](#4-custom-materials-and-how-they-leak)
+5. [Custom civilizations](#5-custom-civilizations)
+6. [Graphics and tile pages](#6-graphics-and-tile-pages)
+7. [World gen presets](#7-world-gen-presets)
+8. [Splitting a mod into modules with `reqscript`](#8-splitting-a-mod-into-modules-with-reqscript)
+9. [persistent state](#9-persistent-state)
+10. [reading raws at runtime](#10-reading-raws-at-runtime)
+11. [creating items](#11-creating-items)
+12. [creating buildings and reading zones](#12-creating-buildings-and-reading-zones)
+13. [inventing a god](#13-inventing-a-god)
+14. [reacting to events](#14-reacting-to-events)
 15. [Detecting that an item was made](#15-detecting-that-an-item-was-made)
-16. [DFHack: overlays on DF's own screens](#16-dfhack-overlays-on-dfs-own-screens)
-17. [DFHack: building a panel](#17-dfhack-building-a-panel)
+16. [overlays on DF's own screens](#16-overlays-on-dfs-own-screens)
+17. [building a panel](#17-building-a-panel)
 18. [Cross-game state: DeathLink and Energy Link](#18-cross-game-state-deathlink-and-energy-link)
 19. [Spawning a siege that actually works](#19-spawning-a-siege-that-actually-works)
 20. [Performance](#20-performance)
@@ -35,6 +35,11 @@ DFHack 53.x**.
 
 ---
 
+## Part 1: Raws and data files
+
+No DFHack required. These are the text files DF reads at world generation.
+
+---
 ## 1. The three rules that explain most confusion
 
 ### Raws enter a save at world generation, and never again
@@ -152,7 +157,254 @@ DF (announcement text, item names, material names) should be ASCII.
 
 ---
 
-## 3. Splitting a mod into modules with `reqscript`
+## 3. Custom items: tools as a generic item chassis
+
+`ITEM_TOOL` is the most flexible custom item type. Unlike weapons or armour it
+has no required combat or wear properties, and no entity has to be granted it.
+
+```
+[OBJECT:ITEM]
+
+[ITEM_TOOL:ITEM_TOOL_AP_TIER1]
+	[NAME:AP Items (Tier 1):AP Items (Tier 1)]
+	[VALUE:100]
+	[TILE:15]
+	[HARD_MAT]
+	[SIZE:200]
+	[MATERIAL_SIZE:1]
+	[NO_DEFAULT_JOB]
+```
+
+Points that are not obvious:
+
+- **`[NAME:singular:plural]`**: both are required.
+- **`[NO_DEFAULT_JOB]`** stops the tool appearing as a craftable job at
+  workshops. Without it, players can make your special item out of anything.
+- **If no entity has `[TOOL:ITEM_TOOL_YOURS]`, no civilization will ever craft or
+  trade it.** That is the cleanest way to make an item that only exists when your
+  script creates one.
+
+### Item value is item value x material value
+
+```
+item value = [VALUE:n] on the itemdef  x  [MATERIAL_VALUE:m] on the material
+```
+
+A `VALUE:100` tool made of a `MATERIAL_VALUE:10` material is worth 1000. This is
+the lever for pricing custom items: keep the itemdef value fixed and vary the
+material, or vice versa.
+
+Watch out on the trade screen: **DF hides true values behind an estimate based on
+your broker's Appraisal skill.** Above a skill-dependent cap it shows a single
+capped number for *everything*, so a 2,000 and a 100,000 item look identical.
+With no appraiser the cap is around 1,500. If you are debugging prices, read the
+material value directly instead of trusting the screen:
+
+```lua
+dfhack.matinfo.find("INORGANIC:YOUR_MAT").material.material_value
+```
+
+And note that the raw item value is not the trade price. `dfhack.items.getValue`
+takes an optional caravan:
+
+```lua
+dfhack.items.getValue(item)                 -- base value
+dfhack.items.getValue(item, caravan_state)  -- modified by civ + trade agreements
+```
+
+So what a caravan charges depends on who it is and what you have agreed with
+them, not on the itemdef alone.
+
+---
+
+## 4. Custom materials, and how they leak
+
+A minimal inorganic:
+
+```
+[OBJECT:INORGANIC]
+
+[INORGANIC:YOUR_MAT]
+	[STATE_NAME_ADJ:ALL_SOLID:your material]
+	[MATERIAL_VALUE:10]
+	[DISPLAY_COLOR:7:0:0]
+	[SPEC_HEAT:800]
+	[IGNITE_POINT:NONE]
+	[MELTING_POINT:11500]
+	[BOILING_POINT:14000]
+	[HEATDAM_POINT:NONE]
+	[COLDDAM_POINT:NONE]
+	[MAT_FIXED_TEMP:NONE]
+	[SOLID_DENSITY:2670]
+```
+
+### The trap: templates and usage flags make your material selectable
+
+The obvious way to write that is `[USE_MATERIAL_TEMPLATE:STONE_TEMPLATE]` plus
+`[IS_STONE]`. Do that and your material shows up **in the player's crafting
+material pickers**. "Make rock blocks" will list it between Alabaster and
+Andesite.
+
+Two separate causes:
+
+- `[IS_STONE]` puts it in stone pickers.
+- `STONE_TEMPLATE` silently grants `[ITEMS_HARD]` and `[ITEMS_QUERN]`, which
+  offer it to any hard-material job.
+
+If your material exists to carry a name or a value rather than to be crafted
+with, **inherit no template and set no usage flags.** Copy the temperature and
+density tokens literally, as above, so the material still behaves sanely.
+
+This matters beyond tidiness. If the material's name is content the player should
+not see yet, a crafting picker will happily display the whole list.
+
+### Materials can be renamed and repriced at runtime
+
+Raws are fixed at world gen, but the loaded material struct is not. You can
+rewrite a material's display name and value while the game runs:
+
+```lua
+local mat = dfhack.matinfo.find("INORGANIC:YOUR_MAT").material
+mat.state_name.Solid = "Some New Name"
+mat.state_adj.Solid  = "Some New Name"
+mat.material_value   = 42
+```
+
+This is in-memory only, because DF reloads raws from the save on every load, so re-apply
+it from your poll loop. Compare before writing so it is a no-op after the first
+pass, and it will self-heal after a reload.
+
+Ship N placeholder materials in your raws, then write real names into them at
+runtime. Your mod then works in any world generated with it, rather than only in
+worlds generated after some external step.
+
+---
+
+## 5. Custom civilizations
+
+An entity raw defines a civilization: what it is, what it makes, whether it
+trades with you.
+
+```
+[OBJECT:ENTITY]
+
+[ENTITY:ARCHIPELAGO]
+	[CREATURE:GORLAK]
+	[TRANSLATION:HUMAN]
+	[DEFAULT_SITE_TYPE:CITY]
+	[LIKES_SITE:CITY]
+	[START_BIOME:ANY_GRASSLAND]
+	[START_BIOME:ANY_SAVANNA]
+	[BIOME_SUPPORT:ANY_FOREST:2]
+	[ACTIVE_SEASON:SUMMER]
+	[PROGRESS_TRIGGER_TRADE:1]
+	[MERCHANT_NOBILITY]
+	[MERCHANT_BODYGUARDS]
+	[CURRENCY:COPPER:1]
+	[TOOL:ITEM_TOOL_JUG]
+	[PERMITTED_JOB:TRADER]
+```
+
+### Whether a civ's caravan ever reaches you
+
+Three conditions, all required, and all easy to miss:
+
+1. **The civ exists in the world.** Determined at world gen from `START_BIOME`
+   and site preferences. A civ whose biomes never generated will not exist.
+2. **It is a neighbour of your embark.** DF only sends caravans from civs whose
+   territory borders your embark site. Check the **Neighbors** panel on the
+   embark screen.
+3. **Your fort is worth the trip.** `PROGRESS_TRIGGER_TRADE` and friends gate
+   when they bother.
+
+Condition 2 catches people out badly: the civ exists, the mod is installed,
+everything looks right, and no caravan ever comes. It cannot be fixed after
+embark except by re-embarking elsewhere in the same world.
+
+### The race is the civ's, not the unit's
+
+If you want merchants of a particular race, set `[CREATURE:X]` on the **entity**.
+Do not try to change `unit.race` on the merchants at runtime. DF re-derives it
+from the sending civ every tick and your edit reverts on unpause.
+
+`[TRANSLATION:HUMAN]` is independent of race and just picks the name-generation
+language.
+
+`[ALL_MAIN_POPS_CONTROLLABLE]` and `SITE_CONTROLLABLE` affect whether the player
+can embark *as* this civ. Leave `SITE_CONTROLLABLE` off if you only want them as
+an NPC trade partner.
+
+---
+
+## 6. Graphics and tile pages
+
+Two files. A tile page declares the sprite sheet:
+
+```
+[OBJECT:TILE_PAGE]
+
+[TILE_PAGE:YOURMOD_ITEMS]
+	[FILE:images/your_items.png]
+	[TILE_DIM:32:32]
+	[PAGE_DIM:1:1]
+```
+
+`TILE_DIM` is the pixel size of one tile; `PAGE_DIM` is the sheet size in tiles.
+`FILE` is relative to the `graphics/` folder.
+
+Then bind sprites to objects:
+
+```
+[OBJECT:GRAPHICS]
+
+[TOOL_GRAPHICS:YOURMOD_ITEMS:0:0:ITEM_TOOL_YOURS]
+```
+
+The two numbers are the tile's x and y **in tiles, not pixels**. Both files must
+start with a line matching the filename, then the `[OBJECT:...]` token.
+
+---
+
+## 7. World gen presets
+
+A world gen preset is an appended block in `prefs/world_gen.txt`:
+
+```
+[WORLD_GEN]
+	[TITLE:YourPreset]
+	[DIM:65:65]
+	[END_YEAR:120]
+	[TOTAL_CIV_NUMBER:20]
+	[PLAYABLE_CIVILIZATION_REQUIRED:1]
+	[REGION_COUNTS:FOREST:264:2:2]
+	[VOLCANO_MIN:5]
+	[CAVERN_LAYER_COUNT:3]
+```
+
+Useful things to know:
+
+- **`prefs/world_gen.txt` may live in either data root** (see section 1). If a player
+  has both, install to both.
+- **Appending is safe.** Multiple `[WORLD_GEN]` blocks coexist; players pick by
+  title. Do not rewrite the file.
+- **DF reads it at startup.** Restart DF before the preset appears.
+- **`REGION_COUNTS:<biome>:<count>:<min>:<max>`**: the last two are the minimum
+  and maximum number of *regions* of that biome. Setting a minimum is how you
+  guarantee a habitat exists for a civ that needs it.
+- **`PLAYABLE_CIVILIZATION_REQUIRED:1`** rejects worlds with no playable civ,
+  which saves rerolling by hand.
+
+Presets constrain generation; they cannot guarantee any particular *embark* has
+what you need. See the neighbour problem in section 5.
+
+---
+
+## Part 2: DFHack scripting
+
+Everything below needs DFHack. These run while the game is running.
+
+---
+## 8. Splitting a mod into modules with `reqscript`
 
 Once a mod outgrows one file you want to split it up. DFHack's mechanism for this
 is `reqscript`, and it has one piece of required boilerplate that is very easy to
@@ -260,249 +512,7 @@ that already".
 
 ---
 
-## 4. Custom items: tools as a generic item chassis
-
-`ITEM_TOOL` is the most flexible custom item type. Unlike weapons or armour it
-has no required combat or wear properties, and no entity has to be granted it.
-
-```
-[OBJECT:ITEM]
-
-[ITEM_TOOL:ITEM_TOOL_AP_TIER1]
-	[NAME:AP Items (Tier 1):AP Items (Tier 1)]
-	[VALUE:100]
-	[TILE:15]
-	[HARD_MAT]
-	[SIZE:200]
-	[MATERIAL_SIZE:1]
-	[NO_DEFAULT_JOB]
-```
-
-Points that are not obvious:
-
-- **`[NAME:singular:plural]`**: both are required.
-- **`[NO_DEFAULT_JOB]`** stops the tool appearing as a craftable job at
-  workshops. Without it, players can make your special item out of anything.
-- **If no entity has `[TOOL:ITEM_TOOL_YOURS]`, no civilization will ever craft or
-  trade it.** That is the cleanest way to make an item that only exists when your
-  script creates one.
-
-### Item value is item value x material value
-
-```
-item value = [VALUE:n] on the itemdef  x  [MATERIAL_VALUE:m] on the material
-```
-
-A `VALUE:100` tool made of a `MATERIAL_VALUE:10` material is worth 1000. This is
-the lever for pricing custom items: keep the itemdef value fixed and vary the
-material, or vice versa.
-
-Watch out on the trade screen: **DF hides true values behind an estimate based on
-your broker's Appraisal skill.** Above a skill-dependent cap it shows a single
-capped number for *everything*, so a 2,000 and a 100,000 item look identical.
-With no appraiser the cap is around 1,500. If you are debugging prices, read the
-material value directly instead of trusting the screen:
-
-```lua
-dfhack.matinfo.find("INORGANIC:YOUR_MAT").material.material_value
-```
-
-And note that the raw item value is not the trade price. `dfhack.items.getValue`
-takes an optional caravan:
-
-```lua
-dfhack.items.getValue(item)                 -- base value
-dfhack.items.getValue(item, caravan_state)  -- modified by civ + trade agreements
-```
-
-So what a caravan charges depends on who it is and what you have agreed with
-them, not on the itemdef alone.
-
----
-
-## 5. Custom materials, and how they leak
-
-A minimal inorganic:
-
-```
-[OBJECT:INORGANIC]
-
-[INORGANIC:YOUR_MAT]
-	[STATE_NAME_ADJ:ALL_SOLID:your material]
-	[MATERIAL_VALUE:10]
-	[DISPLAY_COLOR:7:0:0]
-	[SPEC_HEAT:800]
-	[IGNITE_POINT:NONE]
-	[MELTING_POINT:11500]
-	[BOILING_POINT:14000]
-	[HEATDAM_POINT:NONE]
-	[COLDDAM_POINT:NONE]
-	[MAT_FIXED_TEMP:NONE]
-	[SOLID_DENSITY:2670]
-```
-
-### The trap: templates and usage flags make your material selectable
-
-The obvious way to write that is `[USE_MATERIAL_TEMPLATE:STONE_TEMPLATE]` plus
-`[IS_STONE]`. Do that and your material shows up **in the player's crafting
-material pickers**. "Make rock blocks" will list it between Alabaster and
-Andesite.
-
-Two separate causes:
-
-- `[IS_STONE]` puts it in stone pickers.
-- `STONE_TEMPLATE` silently grants `[ITEMS_HARD]` and `[ITEMS_QUERN]`, which
-  offer it to any hard-material job.
-
-If your material exists to carry a name or a value rather than to be crafted
-with, **inherit no template and set no usage flags.** Copy the temperature and
-density tokens literally, as above, so the material still behaves sanely.
-
-This matters beyond tidiness. If the material's name is content the player should
-not see yet, a crafting picker will happily display the whole list.
-
-### Materials can be renamed and repriced at runtime
-
-Raws are fixed at world gen, but the loaded material struct is not. You can
-rewrite a material's display name and value while the game runs:
-
-```lua
-local mat = dfhack.matinfo.find("INORGANIC:YOUR_MAT").material
-mat.state_name.Solid = "Some New Name"
-mat.state_adj.Solid  = "Some New Name"
-mat.material_value   = 42
-```
-
-This is in-memory only, because DF reloads raws from the save on every load, so re-apply
-it from your poll loop. Compare before writing so it is a no-op after the first
-pass, and it will self-heal after a reload.
-
-Ship N placeholder materials in your raws, then write real names into them at
-runtime. Your mod then works in any world generated with it, rather than only in
-worlds generated after some external step.
-
----
-
-## 6. Custom civilizations
-
-An entity raw defines a civilization: what it is, what it makes, whether it
-trades with you.
-
-```
-[OBJECT:ENTITY]
-
-[ENTITY:ARCHIPELAGO]
-	[CREATURE:GORLAK]
-	[TRANSLATION:HUMAN]
-	[DEFAULT_SITE_TYPE:CITY]
-	[LIKES_SITE:CITY]
-	[START_BIOME:ANY_GRASSLAND]
-	[START_BIOME:ANY_SAVANNA]
-	[BIOME_SUPPORT:ANY_FOREST:2]
-	[ACTIVE_SEASON:SUMMER]
-	[PROGRESS_TRIGGER_TRADE:1]
-	[MERCHANT_NOBILITY]
-	[MERCHANT_BODYGUARDS]
-	[CURRENCY:COPPER:1]
-	[TOOL:ITEM_TOOL_JUG]
-	[PERMITTED_JOB:TRADER]
-```
-
-### Whether a civ's caravan ever reaches you
-
-Three conditions, all required, and all easy to miss:
-
-1. **The civ exists in the world.** Determined at world gen from `START_BIOME`
-   and site preferences. A civ whose biomes never generated will not exist.
-2. **It is a neighbour of your embark.** DF only sends caravans from civs whose
-   territory borders your embark site. Check the **Neighbors** panel on the
-   embark screen.
-3. **Your fort is worth the trip.** `PROGRESS_TRIGGER_TRADE` and friends gate
-   when they bother.
-
-Condition 2 catches people out badly: the civ exists, the mod is installed,
-everything looks right, and no caravan ever comes. It cannot be fixed after
-embark except by re-embarking elsewhere in the same world.
-
-### The race is the civ's, not the unit's
-
-If you want merchants of a particular race, set `[CREATURE:X]` on the **entity**.
-Do not try to change `unit.race` on the merchants at runtime. DF re-derives it
-from the sending civ every tick and your edit reverts on unpause.
-
-`[TRANSLATION:HUMAN]` is independent of race and just picks the name-generation
-language.
-
-`[ALL_MAIN_POPS_CONTROLLABLE]` and `SITE_CONTROLLABLE` affect whether the player
-can embark *as* this civ. Leave `SITE_CONTROLLABLE` off if you only want them as
-an NPC trade partner.
-
----
-
-## 7. Graphics and tile pages
-
-Two files. A tile page declares the sprite sheet:
-
-```
-[OBJECT:TILE_PAGE]
-
-[TILE_PAGE:YOURMOD_ITEMS]
-	[FILE:images/your_items.png]
-	[TILE_DIM:32:32]
-	[PAGE_DIM:1:1]
-```
-
-`TILE_DIM` is the pixel size of one tile; `PAGE_DIM` is the sheet size in tiles.
-`FILE` is relative to the `graphics/` folder.
-
-Then bind sprites to objects:
-
-```
-[OBJECT:GRAPHICS]
-
-[TOOL_GRAPHICS:YOURMOD_ITEMS:0:0:ITEM_TOOL_YOURS]
-```
-
-The two numbers are the tile's x and y **in tiles, not pixels**. Both files must
-start with a line matching the filename, then the `[OBJECT:...]` token.
-
----
-
-## 8. World gen presets
-
-A world gen preset is an appended block in `prefs/world_gen.txt`:
-
-```
-[WORLD_GEN]
-	[TITLE:YourPreset]
-	[DIM:65:65]
-	[END_YEAR:120]
-	[TOTAL_CIV_NUMBER:20]
-	[PLAYABLE_CIVILIZATION_REQUIRED:1]
-	[REGION_COUNTS:FOREST:264:2:2]
-	[VOLCANO_MIN:5]
-	[CAVERN_LAYER_COUNT:3]
-```
-
-Useful things to know:
-
-- **`prefs/world_gen.txt` may live in either data root** (see section 1). If a player
-  has both, install to both.
-- **Appending is safe.** Multiple `[WORLD_GEN]` blocks coexist; players pick by
-  title. Do not rewrite the file.
-- **DF reads it at startup.** Restart DF before the preset appears.
-- **`REGION_COUNTS:<biome>:<count>:<min>:<max>`**: the last two are the minimum
-  and maximum number of *regions* of that biome. Setting a minimum is how you
-  guarantee a habitat exists for a civ that needs it.
-- **`PLAYABLE_CIVILIZATION_REQUIRED:1`** rejects worlds with no playable civ,
-  which saves rerolling by hand.
-
-Presets constrain generation; they cannot guarantee any particular *embark* has
-what you need. See the neighbour problem in section 6.
-
----
-
-## 9. DFHack: persistent state
+## 9. persistent state
 
 DFHack gives you key-value storage scoped to the world, surviving save and
 reload:
@@ -527,7 +537,7 @@ the same world. If you want something to persist across re-embark, this is how.
 
 ---
 
-## 10. DFHack: reading raws at runtime
+## 10. reading raws at runtime
 
 ### The `.all` trap
 
@@ -586,7 +596,7 @@ Comparing `item.subtype` to a number silently never matches.
 
 ---
 
-## 11. DFHack: creating items
+## 11. creating items
 
 ```lua
 local made = dfhack.items.createItem(unit, item_type, subtype, mat_type, mat_index, false)
@@ -651,7 +661,7 @@ local gone = (still == nil) or (still.flags.garbage_collect == true)
 
 ---
 
-## 12. DFHack: creating buildings and reading zones
+## 12. creating buildings and reading zones
 
 Constructing a real, finished building:
 
@@ -690,7 +700,7 @@ computes per zone. Read it rather than recomputing from furniture.
 
 ---
 
-## 13. DFHack: inventing a god
+## 13. inventing a god
 
 Adding a worshippable deity is not a raw at all. DF builds the "dedicate a
 temple" list from **citizens' worship links**, so you create a historical figure
@@ -743,7 +753,7 @@ first, or every reload adds another god.
 
 ---
 
-## 14. DFHack: reacting to events
+## 14. reacting to events
 
 `eventful` gives callbacks instead of polling:
 
@@ -946,7 +956,7 @@ are created constantly and are almost never what you mean by "made".
 
 ---
 
-## 16. DFHack: overlays on DF's own screens
+## 16. overlays on DF's own screens
 
 An overlay is a widget DFHack draws on top of a DF screen. This is how you add
 information to vanilla UI you do not control: marking which workshop tasks are
@@ -1061,7 +1071,7 @@ drawing nothing rather than drawing in the wrong place.
 
 ---
 
-## 17. DFHack: building a panel
+## 17. building a panel
 
 For your own UI, rather than annotating DF's, build a window with `gui.widgets`.
 
