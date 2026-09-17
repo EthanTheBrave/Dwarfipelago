@@ -1615,12 +1615,14 @@ local function poll_backing_off()
         _poll_skip_remaining = _poll_skip_remaining - 1
         return true
     end
+    -- Low-end factors stay put: POLL_TICKS counts ticks, so a slow fort already
+    -- stretches each poll in real time (factor 4 at 12 FPS is ~33 real seconds).
     local factor = 1
     local ok, fps = pcall(dfhack.internal.getUnpausedFps)
     if ok and type(fps) == "number" and fps > 0 then
         if     fps < 12 then factor = 4
         elseif fps < 20 then factor = 3
-        elseif fps < 30 then factor = 2
+        elseif fps < 60 then factor = 2
         end
     end
     _poll_skip_remaining = factor - 1   -- run this cycle, then skip the next (factor-1)
@@ -1676,12 +1678,39 @@ local function run_timestream()
     end
 end
 
+-- Manual send: while on, poll_checks does nothing until "send now" sets the
+-- request flag, which this consumes for exactly one pass. Escape hatch for forts
+-- where the per-poll scanning costs more FPS than live checks are worth.
+local function manual_send_blocking()
+    if dfhack.persistent.getWorldDataString("dwarfipelago/manual_send") ~= "1" then
+        return false
+    end
+    if dfhack.persistent.getWorldDataString("dwarfipelago/send_now") == "1" then
+        dfhack.persistent.saveWorldDataString("dwarfipelago/send_now", "")
+        return false
+    end
+    return true
+end
+
 local function poll_checks()
     if not state.is_enabled() then return end
     -- repeatUtil fires the callback immediately on registration, and again
     -- during world-loading screens.  Do nothing until the fortress map is
     -- fully live and the simulation is running.
     if not dfhack.isMapLoaded() then return end
+    -- Manual send pauses the scan pass, but not these three: the depot gates all
+    -- AP item delivery, incoming DeathLinks should land when they arrive, and a
+    -- docked caravan needs its goods injected and purchases seen or the player
+    -- sits through the whole visit with an empty shop.
+    if manual_send_blocking() then
+        if dfhack.persistent.getWorldDataString("dwarfipelago/depot_built") ~= "1" then
+            pcall(ensure_trade_depot)
+        else
+            pcall(apply_pending_recv_deathlinks)
+            pcall(poll_ap_caravan)
+        end
+        return
+    end
 
     -- Timestream (opt-in) is the anti-lag tool, so engage it promptly - before the
     -- backoff gate - as soon as the map is live.
@@ -2713,6 +2742,16 @@ elseif cmd == "deposit-food" then
     deposit_food(tonumber(args[2]))
 elseif cmd == "deposit-coins" then
     deposit_coins(tonumber(args[2]))
+elseif cmd == "manual-send" then
+    local on = (args[2] or ""):lower()
+    if on == "on" or on == "off" then
+        dfhack.persistent.saveWorldDataString("dwarfipelago/manual_send", on == "on" and "1" or "")
+    end
+    print("Manual send is " ..
+        (dfhack.persistent.getWorldDataString("dwarfipelago/manual_send") == "1" and "ON" or "OFF"))
+elseif cmd == "send-now" then
+    dfhack.persistent.saveWorldDataString("dwarfipelago/send_now", "1")
+    print("Queued one check pass.")
 elseif cmd == "summon-beast" then
     summon_megabeast()
 elseif cmd == "receive" then
@@ -2726,5 +2765,5 @@ elseif cmd == "test" then
     -- Manual mechanic verification: dwarfipelago test <name> [args]
     items.run_test(args[2], { table.unpack(args, 3) })
 else
-    print("Usage: dwarfipelago [start|stop|restart|status|progress-wipe|resetseed|panel|call-caravan|dismiss-caravan|deposit-ale [n]|deposit-food [n]|deposit-coins <value>|summon-beast|receive <item>|test <name>]")
+    print("Usage: dwarfipelago [start|stop|restart|status|progress-wipe|resetseed|panel|call-caravan|dismiss-caravan|deposit-ale [n]|deposit-food [n]|deposit-coins <value>|manual-send [on|off]|send-now|summon-beast|receive <item>|test <name>]")
 end

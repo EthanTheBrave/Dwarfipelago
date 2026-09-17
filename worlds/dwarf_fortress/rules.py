@@ -400,10 +400,26 @@ def set_rules(world: "DwarfFortressWorld") -> None:
 
     elif options.goal == DwarfFortressGoal.option_legendary_wealth:
         # Legendary Wealth requires the Blueprint, all five coffers, and a workforce.
+        #
+        # The treasury it measures is minted coins plus cut gems, so the goal also
+        # needs the full ability to produce them - the whole blueprint chain, not
+        # just the permits:
+        #   coins: dynamic_rules.metal = a Smelter blueprint with fuel (or magma
+        #          smelting) AND a Forge blueprint (or a magma forge). With permits
+        #          on, metal_coins layers the Coins permit on top of that chain.
+        #   gems:  the Jeweler's Workshop blueprint, the same gate "First Gem Cut"
+        #          uses - rough gems come from mining, which needs no item.
+        # Without these the goal reads as reachable in a state that can neither
+        # mint nor cut, so the treasury could never grow at all.
+        can_mint_coins = (dynamic_rules.metal
+                          if options.craftpermits == CraftingPermits.option_off
+                          else dynamic_rules.metal_coins)
         goal_location.access_rule = lambda state: (
             state.has("Master Builder's Codex", player)
             and state.count("Merchant's Coffer", player) >= 5
             and state.count("Immigration Wave", player) >= 3
+            and can_mint_coins(state)
+            and state.has("Jeweler's Workshop Blueprint", player)
         )
 
     elif options.goal == DwarfFortressGoal.option_mountainhome:

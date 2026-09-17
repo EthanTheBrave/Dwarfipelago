@@ -211,6 +211,9 @@ end
 local function build_checks_lines()
     local BASE = 37370000
     local locked_set = read_locked_set()   -- nil until the client pushes AP logic
+    -- Manual send holds detection back, so an open check cannot fire until the
+    -- player sends. Locked stays red: AP logic blocks those regardless.
+    local paused = ps("manual_send", "") == "1"
     local excluded = goal_excluded_set()   -- checks not active for the current goal
     -- Sort rank when "actionable first" is on: open (do now) < locked < done.
     local function check_rank(id)
@@ -236,6 +239,7 @@ local function build_checks_lines()
         if not placed then table.insert(other, c) end
     end
     local lines, tdone, tlocked, texcluded, tactive = {""}, 0, 0, 0, 0   -- lines[1] is the summary
+    local tpaused = 0
     local function emit(catname, list)
         if not list or #list == 0 then return end
         table.sort(list, order)
@@ -252,6 +256,8 @@ local function build_checks_lines()
                     done = done + 1; tdone = tdone + 1; mark, pen = "[x]", COLOR_GREEN
                 elseif locked then
                     tlocked = tlocked + 1; mark, pen = "[ ]", COLOR_LIGHTRED   -- red = can't do it yet
+                elseif paused then
+                    tpaused = tpaused + 1; mark, pen = "[ ]", COLOR_LIGHTBLUE
                 else
                     mark, pen = "[ ]", COLOR_WHITE
                 end
@@ -265,12 +271,19 @@ local function build_checks_lines()
     end
     for i, cat in ipairs(CHECK_CATEGORIES) do emit(cat.name, by_cat[i]) end
     emit("Other", other)
+    if paused then
+        table.insert(lines, {text = ("Manual send is ON - %d open check(s) held. Status tab: Send now.")
+            :format(tpaused), pen = COLOR_LIGHTBLUE})
+    end
     if locked_set then
         lines[1] = {text = ("Milestones sent: %d / %d    reachable: %d    locked: %d")
             :format(tdone, tactive, tactive - tdone - tlocked, tlocked), pen = COLOR_YELLOW}
-        table.insert(lines, {text = "[x] done   [ ] open   red = can't do yet", pen = COLOR_DARKGRAY})
+        table.insert(lines, {text = paused
+            and "[x] done   blue = held by manual send   red = can't do yet"
+            or  "[x] done   [ ] open   red = can't do yet", pen = COLOR_DARKGRAY})
     else
-        lines[1] = {text = ("Milestones sent: %d / %d      [x] done   [ ] open"):format(tdone, tactive), pen = COLOR_YELLOW}
+        lines[1] = {text = ("Milestones sent: %d / %d      [x] done   %s"):format(
+            tdone, tactive, paused and "blue = held" or "[ ] open"), pen = COLOR_YELLOW}
         table.insert(lines, {text = "Connect the AP client to see which locked checks AP logic is gating.", pen = COLOR_DARKGRAY})
     end
     if texcluded > 0 then
@@ -855,6 +868,72 @@ function DwarfipelagoPanel:init()
                         {text=dl_detail, pen=COLOR_WHITE},
                     },
                 },
+                widgets.HotkeyLabel{
+                    frame       = {t=8, l=0},
+                    key         = "CUSTOM_SHIFT_M",
+                    label       = function()
+                        return ps("manual_send", "") == "1"
+                            and "Manual send: ON  (checks paused)"
+                            or  "Manual send: off (checks send live)"
+                    end,
+                    on_activate = function()
+                        local on = ps("manual_send", "") == "1"
+                        dfhack.persistent.saveWorldDataString(
+                            "dwarfipelago/manual_send", on and "" or "1")
+                    end,
+                },
+                widgets.HotkeyLabel{
+                    frame       = {t=9, l=0},
+                    key         = "CUSTOM_SHIFT_N",
+                    label       = "Send now",
+                    enabled     = function() return ps("manual_send", "") == "1" end,
+                    on_activate = function()
+                        dfhack.persistent.saveWorldDataString("dwarfipelago/send_now", "1")
+                        dfhack.gui.showAnnouncement("[AP] Running one check pass...",
+                                                    COLOR_GREEN, true)
+                    end,
+                },
+                widgets.Label{frame={t=11, l=0}, text="Controls:"},
+                widgets.HotkeyLabel{
+                    frame = {t=12, l=2},
+                    key   = "CUSTOM_SHIFT_S",
+                    label = enabled and "Restart mod" or "Start mod",
+                    on_activate = function()
+                        if enabled then
+                            dfhack.run_command("dwarfipelago", "stop")
+                        end
+                        dfhack.run_command("dwarfipelago", "start")
+                        self:dismiss()
+                    end,
+                },
+                -- Confirmed: these are unrecoverable, and they now sit on the tab
+                -- the panel opens on rather than one you had to navigate to.
+                widgets.HotkeyLabel{
+                    frame = {t=13, l=2},
+                    key   = "CUSTOM_SHIFT_R",
+                    label = "Reset all AP state",
+                    on_activate = function()
+                        self:dismiss()
+                        dialogs.showYesNoPrompt("Reset all AP state",
+                            "Erase every check, unlock and received item this world\n"
+                            .. "has recorded? This cannot be undone.",
+                            COLOR_RED,
+                            function() dfhack.run_command("dwarfipelago", "progress-wipe") end)
+                    end,
+                },
+                widgets.HotkeyLabel{
+                    frame = {t=14, l=2},
+                    key   = "CUSTOM_SHIFT_D",
+                    label = "Reset seed",
+                    on_activate = function()
+                        self:dismiss()
+                        dialogs.showYesNoPrompt("Reset seed",
+                            "Unlink this world from its Archipelago seed?\n"
+                            .. "The next client to connect will claim it.",
+                            COLOR_YELLOW,
+                            function() dfhack.run_command("dwarfipelago", "resetseed") end)
+                    end,
+                },
                 (function()
                     local energy_on = ps("energy_enabled", "0") == "1"
                     if not energy_on then return widgets.Label{frame={t=6,l=0}, text=""} end
@@ -924,49 +1003,6 @@ function DwarfipelagoPanel:init()
         table.insert(tab_list, "Crafts")
         return widgets.Panel{
             subviews = { make_list(build_crafts_lines()) },
-        }
-    end
-
-    -- ── Tab 5: Controls ──────────────────────────────────────────────
-
-    local function ControlsTab()
-        table.insert(tab_list, "Controls")
-        return widgets.Panel{
-            subviews = {
-                widgets.Label{frame={t=0, l=0}, text="Controls:"},
-                widgets.HotkeyLabel{
-                    frame = {t=2, l=2},
-                    key   = "CUSTOM_SHIFT_S",
-                    label = enabled and "Restart mod" or "Start mod",
-                    on_activate = function()
-                        if enabled then
-                            dfhack.run_command("dwarfipelago", "stop")
-                            dfhack.run_command("dwarfipelago", "start")
-                        else
-                            dfhack.run_command("dwarfipelago", "start")
-                        end
-                        self:dismiss()
-                    end,
-                },
-                widgets.HotkeyLabel{
-                    frame = {t=3, l=2},
-                    key   = "CUSTOM_SHIFT_R",
-                    label = "Reset all AP state",
-                    on_activate = function()
-                        dfhack.run_command("dwarfipelago", "progress-wipe")
-                        self:dismiss()
-                    end,
-                },
-                widgets.HotkeyLabel{
-                    frame = {t=4, l=2},
-                    key   = "CUSTOM_SHIFT_D",
-                    label = "Reset seed",
-                    on_activate = function()
-                        dfhack.run_command("dwarfipelago", "resetseed")
-                        self:dismiss()
-                    end,
-                },
-            },
         }
     end
 
@@ -1172,7 +1208,6 @@ function DwarfipelagoPanel:init()
     if ps("craftsanity_enabled", "0") ~= "0" then
         table.insert(tabviews, CraftsanityTab())
     end   
-    table.insert(tabviews, ControlsTab())
     if ps("energy_enabled", "0") ~= "0" then
         table.insert(tabviews, EnergyTab())
     end

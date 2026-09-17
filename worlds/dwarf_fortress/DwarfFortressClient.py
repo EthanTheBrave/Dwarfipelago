@@ -1348,7 +1348,24 @@ class DwarfFortressContext(CommonContext):
         received = self.items_received
         if not received:
             return
-        # Resolve received item ids -> names, same lookup order as delivery.
+        # Fold the rule-relevant options into the signature so the first
+        # slot_data arrival (options {} -> populated) forces one recompute.
+        sd = getattr(self, "slot_data", {}) or {}
+        opts_sig = tuple(
+            (k, sd.get(k)) for k in
+            ("goal", "crafting_permits", "craftsanity_enabled",
+             "skillsanity_enabled", "craftsanity_materials")
+        )
+        # Count-sensitive: a new stackable item (e.g. Immigration Wave) bumps a
+        # count without adding a name, so key on (id,count) pairs, not a name set.
+        # Keyed on ids rather than names so the change check costs nothing: this
+        # runs every poll, and resolving every received item to a name just to
+        # decide "nothing changed" was work done purely to be discarded.
+        from collections import Counter
+        sig = hash((frozenset(Counter(ni.item for ni in received).items()), opts_sig))
+        if sig == self._accessible_sig:
+            return
+        # Only now that something actually changed, resolve ids -> names.
         names = []
         for ni in received:
             try:
@@ -1360,20 +1377,6 @@ class DwarfFortressContext(CommonContext):
                     names.append(str(ni.item))
             except Exception:
                 continue
-        # Fold the rule-relevant options into the signature so the first
-        # slot_data arrival (options {} -> populated) forces one recompute.
-        sd = getattr(self, "slot_data", {}) or {}
-        opts_sig = tuple(
-            (k, sd.get(k)) for k in
-            ("goal", "crafting_permits", "craftsanity_enabled",
-             "skillsanity_enabled", "craftsanity_materials")
-        )
-        # Count-sensitive: a new stackable item (e.g. Immigration Wave) bumps a
-        # count without adding a name, so key on (name,count) pairs, not names.
-        from collections import Counter
-        sig = hash((frozenset(Counter(names).items()), opts_sig))
-        if sig == self._accessible_sig:
-            return
         # Build one representative dynamic craft location per unique flag so the
         # craftsanity rows can be gated too. flag = item[_material] lowercased,
         # matching init_crafting_locations' craft_count keys and the panel labels.

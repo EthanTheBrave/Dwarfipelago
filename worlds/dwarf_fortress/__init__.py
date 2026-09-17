@@ -185,6 +185,13 @@ class DwarfFortressWorld(World):
     # ── Generation lifecycle ──────────────────────────────────────────────────
 
 
+    def _set_early_items(self) -> None:
+        # Legendary Wealth scores coins and cut gems, so give the treasury an early
+        # on-ramp. Gems, not metal: one item, vs a 2-4 item chain with OR branches.
+        if self.options.goal != DwarfFortressGoal.option_legendary_wealth:
+            return
+        self.multiworld.early_items[self.player]["Jeweler's Workshop Blueprint"] = 1
+
     def create_regions(self) -> None:
         menu = Region("Menu", self.player, self.multiworld)
         fortress = Region("Fortress", self.player, self.multiworld)
@@ -220,6 +227,7 @@ class DwarfFortressWorld(World):
         self.multiworld.regions += [menu, fortress]
 
     def create_items(self) -> None:
+        self._set_early_items()
         location_count = len(self.active_location_names)
         trap_weight = self.options.trap_item_weight.value / 100.0
 

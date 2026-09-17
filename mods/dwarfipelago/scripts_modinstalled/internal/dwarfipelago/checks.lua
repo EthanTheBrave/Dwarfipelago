@@ -1736,6 +1736,26 @@ function M.update_skill_levels()
     local max_level = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/skillsanity_max_level")) or 15
     local behaviour = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/skillsanity_behaviour")) or 0
 
+    -- Decide what actually needs looking at BEFORE touching any unit. A skill
+    -- already recorded at max_level can never go higher, so scanning every
+    -- citizen for it again each poll is pure waste - and skillsanity tracks ~87
+    -- skills, so at a mature fort that was 87 x every citizen per tick forever.
+    -- Behaviour 1 is the exception: it actively caps units, so it keeps working.
+    local todo = {}
+    for _, st in ipairs(SKILL_LIST) do
+        if st.key ~= nil then  -- skip any job_skill name absent in this DF build
+            local key = SKILL_COUNT_PREFIX .. st.skill
+            local cur = dfhack.persistent.getWorldDataString(key)
+            if cur ~= nil and cur ~= "" then  -- only enabled/tracked skills
+                local recorded = tonumber(cur) or 0
+                if behaviour == 1 or recorded < max_level then
+                    todo[#todo + 1] = { st = st, key = key, recorded = recorded }
+                end
+            end
+        end
+    end
+    if #todo == 0 then return end   -- every tracked skill is maxed: nothing to scan
+
     -- Living citizens, gathered once and reused for every tracked skill.
     local citizens = {}
     for _, unit in ipairs(df.global.world.units.active) do
@@ -1744,29 +1764,23 @@ function M.update_skill_levels()
         end
     end
 
-    for _, st in ipairs(SKILL_LIST) do
-        if st.key ~= nil then  -- skip any job_skill name absent in this DF build
-            local key = SKILL_COUNT_PREFIX .. st.skill
-            local cur = dfhack.persistent.getWorldDataString(key)
-            if cur ~= nil and cur ~= "" then  -- only enabled/tracked skills
-                local recorded = tonumber(cur) or 0
-                local cap = (behaviour == 1) and math.min(recorded + 1, max_level) or max_level
+    for _, work in ipairs(todo) do
+        local st, key, recorded = work.st, work.key, work.recorded
+        local cap = (behaviour == 1) and math.min(recorded + 1, max_level) or max_level
 
-                local best = 0
-                for _, unit in ipairs(citizens) do
-                    local r = unit_skill_rating(unit, st.key)
-                    if behaviour == 1 and r > cap then
-                        lower_unit_skill(unit, st.key, cap)
-                        r = cap
-                    end
-                    if r > best then best = r end
-                end
-
-                local newrec = math.max(recorded, math.min(best, max_level))
-                if newrec ~= recorded then
-                    dfhack.persistent.saveWorldDataString(key, tostring(newrec))
-                end
+        local best = 0
+        for _, unit in ipairs(citizens) do
+            local r = unit_skill_rating(unit, st.key)
+            if behaviour == 1 and r > cap then
+                lower_unit_skill(unit, st.key, cap)
+                r = cap
             end
+            if r > best then best = r end
+        end
+
+        local newrec = math.max(recorded, math.min(best, max_level))
+        if newrec ~= recorded then
+            dfhack.persistent.saveWorldDataString(key, tostring(newrec))
         end
     end
 end

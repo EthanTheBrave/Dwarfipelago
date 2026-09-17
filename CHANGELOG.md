@@ -1,5 +1,63 @@
 # Changelog
 
+## 2.0.2 (unreleased)
+
+### Logic
+
+- **The Legendary Wealth goal now requires the means to produce a treasury.** The
+  goal is measured in minted coins and cut gems, but its completion condition
+  asked only for the Codex, five coffers and immigration waves. The metal chain
+  (Smelter + fuel or magma smelting, plus a Forge or magma forge, and the Coins
+  permit when permits are on) and the Jeweler's Workshop blueprint are now part of
+  it, so those blueprints are treated as goal progression and land in the
+  progression spheres instead of looking optional to the fill.
+
+### Performance
+
+- The **Controls** tab is gone; its three buttons moved onto **Status**, which had
+  the room. `Reset all AP state` and `Reset seed` now ask for confirmation first -
+  they fired on a single keypress before, and they now sit on the tab the panel
+  opens on.
+- **Manual send mode.** A fort paying more FPS for live checks than it wants can
+  now switch the mod's scanning off entirely: the Status tab has a `Manual send`
+  toggle (Shift-M) and a `Send now` button (Shift-N) that runs exactly one check
+  pass. Also available as `dwarfipelago manual-send on|off` and
+  `dwarfipelago send-now`. Item delivery and the client link are unaffected.
+  Three things stay live while paused: trade-depot placement (it gates all AP
+  item delivery), incoming DeathLinks, and the Archipelago caravan, so a docked
+  caravan still stocks its goods and still registers purchases. The event hooks
+  that record production, crafts and deaths are not part of the poll and keep
+  running too, so a `Send now` flushes real progress rather than starting cold.
+  While it is on, the Checks tab paints every open check **blue** and reports how
+  many are being held, so it is obvious the list is frozen by choice rather than
+  stalled. Locked checks stay red - AP logic blocks those regardless.
+
+- **The completed-check guard was re-reading and re-parsing the whole
+  checked-locations set on every check, every poll.** `is_location_checked` did a
+  persistent read plus a full JSON decode per call, and the poll calls it once per
+  check - 122 static ones plus every craft and skill check. That is
+  O(checks x checked) per tick, and it grows as a run progresses, so it was worst
+  on large craftsanity/skillsanity seeds where the fort is already struggling. The
+  set is now decoded once per frame and kept coherent on write: **122 reads and
+  122 decodes per poll become 1 and 1**.
+- **Skillsanity kept scanning every citizen for skills that were already maxed.**
+  `update_skill_levels` walked all ~87 tracked skills against every living citizen
+  on every poll, including skills already recorded at `skillsanity_max_level`,
+  which can never rise again. Maxed skills are now filtered out before any unit is
+  touched, so the cost falls as a run progresses instead of staying flat: with 113
+  citizens, **9,831 unit lookups per poll drop to 5,311 at half maxed and to zero
+  once all are.** The skill-lowering behaviour still scans, since it actively caps
+  units rather than only observing them.
+- **The FPS backoff only engaged below 30 FPS**, so a fort that had dropped from
+  100 to 50-60 - the range people actually report - kept polling at full rate.
+  Anything under 60 now polls at half rate. The low-end factors are unchanged on
+  purpose: the poll interval is measured in ticks, so a slow fort already stretches
+  each poll in real time, and raising them further would delay checks more than it
+  saves.
+- The client no longer resolves every received item's name on each poll merely to
+  decide that nothing had changed; the change signature is keyed on item ids and
+  names are resolved only when a recompute actually happens.
+
 ## 2.0.1
 
 Bugfix release. 2.0.0 seeds and worlds remain playable and installing this requires
