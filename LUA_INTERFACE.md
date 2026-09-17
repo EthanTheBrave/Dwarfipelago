@@ -50,6 +50,109 @@ budget, not one per key.
 
 ---
 
+## Connecting to DFHack
+
+DFHack exposes a remote API on **`127.0.0.1:5000`** when the game is running. It is
+a binary protocol, not HTTP, and the client hand-rolls the small subset it needs
+rather than pulling in generated protobuf classes.
+
+### 1. Handshake
+
+```python
+DFHACK_HOST = "127.0.0.1"
+DFHACK_PORT = 5000
+
+_DFHACK_VERSION      = struct.pack("<i", 1)
+DFHACK_MAGIC_REQUEST = b"DFHack?\n" + _DFHACK_VERSION   # 12 bytes
+DFHACK_MAGIC_REPLY   = b"DFHack!\n" + _DFHACK_VERSION   # 12 bytes
+
+sock = socket.create_connection((DFHACK_HOST, DFHACK_PORT), timeout=5)
+sock.sendall(DFHACK_MAGIC_REQUEST)
+# read exactly 12 bytes back and compare against DFHACK_MAGIC_REPLY
+```
+
+**The version int is part of the handshake.** Magic is 8 bytes plus a little-endian
+`int32` version, 12 in total. Send only the 8-byte magic and DFHack waits forever
+for the remaining 4, so the connection hangs until your own `recv()` times out and
+reports the misleading `DFHack not reachable: timed out`.
+
+Read the reply in a loop until you have all 12 bytes; a short `recv()` is legal.
+
+### 2. Widen the timeout after connecting
+
+```python
+sock.settimeout(30)   # the 5s connect timeout is too short for real commands
+```
+
+Commands like `dwarfipelago start` register hooks and take much longer than a
+connect. Leaving the connect timeout in place makes them look like failures.
+
+### 3. Message framing
+
+```
+RPCMessageHeader: int16_t id | 2 bytes padding | int32_t size   = 8 bytes
+```
+
+**Parse by offset, not as two int32s.** The C++ compiler inserts two padding bytes
+after the `int16_t` so the `int32_t` is 4-byte aligned, and DFHack does not
+guarantee those bytes are zero.
+
+Reply ids are negative sentinels rather than method ids:
+
+| id | meaning |
+|----|---------|
+| `0` | BindMethod request (always method id 0) |
+| `-1` | success; body is the reply protobuf |
+| `-2` | failure; body is `CoreErrorInfo` |
+| `-3` | `TextNotification`, console output emitted mid-call |
+| `-4` | graceful disconnect |
+
+A single call can emit **many** `-3` text packets before its `-1` result. Collect
+them; that stream is the command's console output.
+
+### 4. Bind a method before calling it
+
+Method ids are assigned per connection, so you ask for them with `BindMethod`
+(itself always id `0`):
+
+```
+CoreBindRequest { method(1), input_msg(2), output_msg(3), plugin(4)? }
+CoreBindReply   { assigned_id(1) }
+```
+
+Three things that will reject the request:
+
+- `input_msg` and `output_msg` are proto2 **required** fields. Omit them and
+  DFHack answers `could not decode input args`.
+- Use fully-qualified type names: `dfproto.CoreRunCommandRequest`,
+  `dfproto.EmptyMessage`.
+- The method name is the **bare** name, `RunCommand`, not `Core.RunCommand`. Core
+  methods pass an empty plugin string; plugin methods pass the plugin name.
+
+### 5. Serialise calls, and reset on desync
+
+The socket is a single stream with no request ids, so replies are matched purely by
+order. Hold a lock across the whole request/reply exchange or two concurrent calls
+will cross replies and desync the stream permanently.
+
+If a bind or call returns an unexpected reply id, **drop the socket and reconnect**
+rather than trying to carry on. Once the stream is misaligned every subsequent read
+is garbage, and reconnecting is the only clean recovery.
+
+### 6. Everything else is `run_command`
+
+With `RunCommand` bound, the whole interface is:
+
+```python
+conn.run_command("lua", 'print(dfhack.persistent.getWorldDataString("dwarfipelago/seed"))')
+```
+
+which is why the rest of this document is about **what to put in that Lua string**
+rather than about the protocol. Note this path does not go through the in-game
+console tokenizer, so quoting rules differ from what a player would type.
+
+---
+
 ## Persistent Storage Keys
 
 All keys are namespaced under `dwarfipelago/`.
