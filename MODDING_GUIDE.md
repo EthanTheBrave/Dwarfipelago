@@ -1748,6 +1748,13 @@ local function expensive()
 end
 ```
 
+**Never walk the whole map.** `world.map.map_blocks` times 256 tiles per block is
+enough work to freeze DF outright. Because `run_command` and poll callbacks both
+execute on the main thread, a full-map designation scan does not just run slowly,
+it hangs the game until it finishes. If you need a map-wide fact, find a cheaper
+proxy: count the relevant entries in `world.jobs.list` (O(jobs)), check a
+per-block flag instead of per-tile, or cache the answer and recompute rarely.
+
 **Persistent reads are not free.** `getWorldDataString` costs roughly 0.05 ms.
 That is nothing once, and a real cost 120 times per tick. Decode a structure once
 and reuse it rather than re-reading and re-parsing in a loop.
