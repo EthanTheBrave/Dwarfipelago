@@ -536,6 +536,9 @@ The position only takes effect on first load; if DFHack has already saved a posi
 Run these from the DFHack console while a world is loaded:
 
 ```
+# Grant every blueprint, crafting permit and progression unlock (testing/sandbox)
+dwarfipelago test receive-all
+
 # Full state dump
 dwarfipelago status
 

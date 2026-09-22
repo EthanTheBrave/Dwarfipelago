@@ -3336,6 +3336,38 @@ local TEST_LIST = {
                            print(("[worldcheck] %d issue(s) found - see above. Consider rerolling if critical."):format(issues))
                        end
                    end },
+    { "receive-all", "Grant every blueprint, crafting permit and progression unlock",
+                   function()
+                       -- Writes the gate keys directly rather than running each
+                       -- item's handler: the unlock handlers have side effects
+                       -- (coffers summon caravans, immigration waves spawn whole
+                       -- migrant waves, artifact items spawn gear), which is not
+                       -- what "unlock everything so I can build" should do.
+                       local bp, permits, unlocks = 0, 0, 0
+                       for _, name in ipairs(M.BLUEPRINT_NAMES or {}) do
+                           dfhack.persistent.saveWorldDataString(
+                               "dwarfipelago/blueprint/" .. name, "1")
+                           bp = bp + 1
+                       end
+                       for _, item_name in ipairs(M.CRAFTING_LOCK_ITEMS or {}) do
+                           local flag = item_name:lower():gsub(" ", "_")
+                           dfhack.persistent.saveWorldDataString(
+                               "dwarfipelago/craftlock/" .. flag, "1")
+                           permits = permits + 1
+                       end
+                       for _, def in ipairs(M.UNLOCK_DEFS or {}) do
+                           dfhack.persistent.saveWorldDataString(
+                               "dwarfipelago/unlock/" .. def.key, tostring(def.max or 1))
+                           unlocks = unlocks + 1
+                       end
+                       local msg = ("Granted %d blueprint(s), %d crafting permit(s), %d unlock(s).")
+                           :format(bp, permits, unlocks)
+                       print("[test] " .. msg)
+                       print("[test] Progression gates are open; AP checks are unaffected.")
+                       pcall(function()
+                           dfhack.gui.showAnnouncement("[AP] " .. msg, COLOR_GREEN, true)
+                       end)
+                   end },
     { "caravan",   "Force a caravan (arg: dwarf|elf|human|goblin|gorlak; default = parent civ)",
                    function(rest)
                        local token = ({ dwarf = "DWARF", elf = "ELF",

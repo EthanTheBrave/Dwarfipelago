@@ -18,6 +18,12 @@ needs regenerating to install this.
   anyone modding DF themselves. `LUA_INTERFACE.md` gained a recipe for adding a
   storage key and a walkthrough of the DFHack remote API handshake.
 
+- **`dwarfipelago test receive-all`** grants every blueprint, crafting permit and
+  progression unlock at once. It writes the gate keys directly rather than running
+  each item's handler, so it opens the gates without the side effects: no caravans
+  summoned, no migrant waves spawned, no artifact gear created. Useful for sandbox
+  forts and for testing build-gated content.
+
 ### Logic
 
 - **The Legendary Wealth goal now requires the means to produce a treasury.** The
