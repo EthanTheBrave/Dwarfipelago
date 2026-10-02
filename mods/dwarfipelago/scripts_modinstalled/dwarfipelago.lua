@@ -723,11 +723,14 @@ local function poll_ap_caravan()
     -- Name and price this seed's goods in the loaded materials. Cheap and
     -- idempotent (a no-op once applied), and re-applied here because DF reloads
     -- the raws from the save every time a fortress is loaded.
-    apcaravan.apply_shop_materials()
+    -- Each step is pcall'd on its own: naming is cosmetic, injecting and
+    -- detecting are not, and an error in an earlier step must never starve a
+    -- later one (a bad material lookup here used to abort the whole shop).
+    pcall(apcaravan.apply_shop_materials)
     local docked = apcaravan.caravan_docked()
     if docked then
-        apcaravan.inject_ap_goods()      -- AP goods sprinkled among the gorlaks' own wares
-        apcaravan.detect_ap_trades()
+        pcall(apcaravan.inject_ap_goods)  -- AP goods sprinkled among the gorlaks' own wares
+        pcall(apcaravan.detect_ap_trades)
     else
         -- No caravan: retire any AP goods still on the books. Called every tick
         -- rather than on a docked->undocked edge, so a save/reload across the

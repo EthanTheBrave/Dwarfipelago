@@ -41,35 +41,13 @@ end
 -- tools carry VALUE:100 (apraws.TOOL_VALUE).
 local TOOL_VALUE = 100
 
--- slot(string) -> index into world.raws.inorganics, built on first use.
-local _slot_mat = nil
-
-local function build_slot_mat()
-    local map = {}
-    -- world.raws.inorganics is a struct, not a vector: the list is .all. Iterating
-    -- the struct yields nothing AND raises no error, so this scan silently found
-    -- zero matches on every DF build.
-    for i, raw in ipairs(df.global.world.raws.inorganics.all) do
-        local slot = raw.id:match("^AP_SHOP_(%d+)$")
-        if slot then map[slot] = i end
-    end
-    _slot_mat = map
-    return map
-end
-
--- The inorganic raw for a slot, or nil when this world has no such material.
--- Re-checks the cached index against its id so loading a different save (which
--- reloads the raws) rebuilds the map instead of writing to the wrong material.
-local function inorganic_for(slot_str)
-    local want = "AP_SHOP_" .. slot_str
-    local map = _slot_mat or build_slot_mat()
-    local idx = map[slot_str]
-    local raw = idx and df.global.world.raws.inorganics[idx]
-    if raw and raw.id == want then return raw end
-    map = build_slot_mat()
-    idx = map[slot_str]
-    raw = idx and df.global.world.raws.inorganics[idx]
-    return (raw and raw.id == want) and raw or nil
+-- The material struct for a shop slot, or nil when this world's raws predate the
+-- shop materials. matinfo.find is the authoritative lookup (world.raws.inorganics
+-- is a struct whose list is .all, so index arithmetic on it is a trap) and it
+-- caches no index, so reloading a save cannot leave us writing the wrong material.
+local function slot_material(slot_str)
+    local mi = dfhack.matinfo.find("INORGANIC:AP_SHOP_" .. slot_str)
+    return mi and mi.material or nil
 end
 
 -- One warning per session for a world whose raws predate the shop materials.
@@ -92,11 +70,10 @@ function M.apply_shop_materials()
     if not next(shop) then return 0 end
     local changed, missing = 0, 0
     for slot_str, e in pairs(shop) do
-        local raw = inorganic_for(slot_str)
-        if not raw then
+        local mat = slot_material(slot_str)
+        if not mat then
             missing = missing + 1
         else
-            local mat = raw.material
             local name = tostring(e.item or "")
             local player = tostring(e.player or "")
             if name ~= "" and player ~= "" then name = name .. " (" .. player .. ")" end
