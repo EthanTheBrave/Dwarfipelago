@@ -1,15 +1,14 @@
 --@ module = true
 -- Native Archipelago caravan: put the AP shop goods on a docked caravan as real
--- tool items (so DF's own trade screen renders them with the AP-logo sprite and
--- their real names), then detect when the player trades for one and grant the
--- AP purchase. The mod's raws ship SHOP_SLOTS placeholder materials (apraws.py);
--- this module writes each slot's real name and price into the loaded material,
--- spawns instances of the goods, and watches the trade.
+-- tool items, so DF's own trade screen lists them, then grant the AP purchase
+-- when the player trades for one. The raws ship placeholder materials
+-- (apraws.py); this module writes each slot's real name and price into them.
 --
 -- Data it reads/writes (dfhack persistent world data):
 --   dwarfipelago/shop            {slot: {item,player,price,tier,bought}}  (AP client)
 --   (goods are ITEM_TOOL_AP_TIER<tier> of material INORGANIC:AP_SHOP_<slot>)
 --   dwarfipelago/ap_caravan_items {item_id: slot}   injected items, this module
+--   dwarfipelago/ap_thief_items   {item_id: slot}   goods awaiting a thief's corpse
 --   dwarfipelago/shop_buy        [slot,...]         purchase queue (AP client reads)
 --   dwarfipelago/shop_pending    {slot: true}       awaiting AP confirmation
 
@@ -30,21 +29,17 @@ local function decode(raw, default)
 end
 
 -- ── Shop materials ───────────────────────────────────────────────────────────
--- Each shop slot is an ITEM_TOOL_AP_TIER<tier> made of INORGANIC:AP_SHOP_<slot>.
--- The material carries both the good's display name and its price, and the raws
--- only ship placeholders for them, so this module writes the real values into the
--- loaded materials. That is what makes the shop work in *any* world generated
--- with the mod, whether or not the AP client had scouted the shop before
--- world-gen (the client's per-seed raw bake is a fallback for the same values).
+-- Each slot is an ITEM_TOOL_AP_TIER<tier> of INORGANIC:AP_SHOP_<slot>, whose
+-- material carries the good's name and price. Writing those at runtime is what
+-- makes the shop work in any world built with the mod, scouted or not.
 
 -- DF values a tool as (itemdef VALUE) x (material MATERIAL_VALUE); the AP tier
 -- tools carry VALUE:100 (apraws.TOOL_VALUE).
 local TOOL_VALUE = 100
 
--- The material struct for a shop slot, or nil when this world's raws predate the
--- shop materials. matinfo.find is the authoritative lookup (world.raws.inorganics
--- is a struct whose list is .all, so index arithmetic on it is a trap) and it
--- caches no index, so reloading a save cannot leave us writing the wrong material.
+-- A shop slot's material, or nil if this world's raws predate them. matinfo.find
+-- is authoritative and caches no index, so a save reload cannot misaim a write
+-- (world.raws.inorganics is a struct whose list is .all - indexing it is a trap).
 local function slot_material(slot_str)
     local mi = dfhack.matinfo.find("INORGANIC:AP_SHOP_" .. slot_str)
     return mi and mi.material or nil
@@ -60,11 +55,9 @@ local function warn_missing_raws(n)
         .. "Dwarfipelago mod enabled.")
 end
 
--- Write this seed's name and price into every shop slot's material. In-memory
--- only: DF reloads raws from the save on each load, so this re-applies from the
--- poll loop and is never written back. Compare-then-write makes it a no-op after
--- the first tick and self-healing after a reload. Returns the number of fields
--- changed.
+-- Write this seed's names and prices into the slot materials. In-memory only, so
+-- it re-applies from the poll loop after each load; compare-then-write makes it a
+-- no-op once applied. Returns the number of fields changed.
 function M.apply_shop_materials()
     local shop = decode(ps("shop"), {})
     if not next(shop) then return 0 end
@@ -125,24 +118,7 @@ local function tool_subtype(tool_id)
     return nil
 end
 
--- The df tool subtypes of our AP tier tools (ITEM_TOOL_AP_TIER<n>), so we can
--- recognise our own injected goods among the caravan's items.
-local function ap_tool_subtypes()
-    local set = {}
-    for _, td in ipairs(df.global.world.raws.itemdefs.tools) do
-        if td.id:match("^ITEM_TOOL_AP_TIER%d") then set[td.subtype] = true end
-    end
-    return set
-end
-
--- True if an item is one of our injected AP goods. Uses getSubtype() (numeric);
--- item.subtype is the itemdef object, not the subtype index.
-local function is_ap_tool(it, subset)
-    if it:getType() ~= df.item_type.TOOL then return false end
-    subset = subset or ap_tool_subtypes()
-    return subset[it:getSubtype()] == true
-end
-
+-- Any civ's merchant, for "is a caravan here at all".
 local function a_merchant()
     for _, u in ipairs(df.global.world.units.active) do
         local m = false
@@ -152,31 +128,23 @@ local function a_merchant()
     return nil
 end
 
--- The civ that owns this caravan's goods. The docked merchants ARE the caravan,
--- so their civ_id is the owner (a gorlak caravan's civ is the gorlak civ). AP
--- goods need a matching ENTITY_ITEMOWNER ref or DF will not list them as this
--- caravan's merchandise. Prefer the merchant civ over scanning depot items, which
--- may hold leftover goods or our own AP tools carrying a stale owner.
-local function caravan_owner_entity(depot)
-    local m = a_merchant()
-    if m and m.civ_id and m.civ_id >= 0 then return m.civ_id end
-    -- Fallback: read the owner off a real (non-AP) trader good.
-    local subset = ap_tool_subtypes()
-    for _, ci in ipairs(depot.contained_items) do
-        local it = ci.item
-        if not is_ap_tool(it, subset) then
-            for _, r in ipairs(it.general_refs) do
-                if r:getType() == df.general_ref_type.ENTITY_ITEMOWNER then return r.entity_id end
-            end
+-- The gorlak caravan's merchant (nil if absent); its civ_id owns the goods via
+-- ENTITY_ITEMOWNER. Not units.active's first merchant: that pick is arbitrary.
+local function ap_merchant()
+    for _, u in ipairs(df.global.world.units.active) do
+        local ok = false
+        pcall(function() ok = u.flags1.merchant and u.civ_id >= 0 end)
+        if ok and dfhack.units.isAlive(u) then
+            local code
+            pcall(function() code = df.historical_entity.find(u.civ_id).entity_raw.code end)
+            if code == "ARCHIPELAGO" then return u end
         end
     end
     return nil
 end
 
--- Resolve a material token (e.g. "INORGANIC:AP_SHOP_7") to type/index. Each shop
--- slot has its own inorganic whose name is the good; falls back to iron.
--- Third return is false when the fallback was used - this world's raws predate
--- the shop materials, so the good has no name and no price.
+-- Resolve a material token to type/index, falling back to iron. Third return is
+-- false on fallback: this world's raws predate the shop, so the good is nameless.
 local function material_for(mat_token)
     local mi = dfhack.matinfo.find(mat_token)
     if mi then return mi.type, mi.index, true end
@@ -185,25 +153,19 @@ local function material_for(mat_token)
     return 0, 0, false
 end
 
--- A real caravan is docked when merchant units and a depot both exist.
+-- Any civ's caravan at a depot; drives the panel's "[Caravan docked]" status.
 function M.caravan_docked()
     return find_depot() ~= nil and a_merchant() ~= nil
 end
 
--- True when the docked caravan is the Archipelago (gorlak) civ, i.e. the AP shop
--- caravan. AP goods and good-hiding apply only to this caravan; normal dwarf/elf/
--- human caravans are left untouched.
-local function is_ap_caravan()
-    local m = a_merchant()
-    if not m or not m.civ_id or m.civ_id < 0 then return false end
-    local e = df.historical_entity.find(m.civ_id)
-    return e ~= nil and e.entity_raw.code == "ARCHIPELAGO"
+-- The gorlak caravan specifically, even when other civs share the depot. AP
+-- goods go only on it; dwarf/elf/human caravans are left untouched.
+function M.ap_caravan_docked()
+    return find_depot() ~= nil and ap_merchant() ~= nil
 end
 
--- Send the currently docked caravan on its way (Energy-Link dismiss): flip its
--- caravan_state to Leaving so DF retires it normally. Works on whatever caravan
--- is at the depot - the gorlak shop caravan or an Energy-Link-called one.
--- Returns true if a caravan was told to leave.
+-- Energy-Link dismiss: flip the docked caravan's state to Leaving so DF retires
+-- it. Deliberately any caravan, gorlak or Energy-Link-called. True if one left.
 function M.depart_ap_caravan()
     local m = a_merchant()
     local civ = m and m.civ_id
@@ -222,15 +184,11 @@ function M.depart_ap_caravan()
     return n > 0
 end
 
--- Create one AP good as a trader-flagged tool item at the depot.
--- Returns the item, or nil.
--- Item creation and removal are the mod's most memory-touching operations, so
--- they are bracketed in the log. Only ever called when there is real work to do -
--- never per poll tick - so this stays quiet in a healthy fort.
-local function spawn_good(tool_id, mat_token, depot, owner_ent)
+-- Create one AP good as a trader-flagged tool item at the depot; nil on failure.
+-- Only called when there is real work to do, never per poll tick.
+local function spawn_good(tool_id, mat_token, depot, merchant, owner_ent)
     local sub = tool_subtype(tool_id)
     if not sub then return nil end
-    local merchant = a_merchant()
     local mt, mi, named = material_for(mat_token)
     if not named then M.unnamed_goods = (M.unnamed_goods or 0) + 1 end
     local res = dfhack.items.createItem(merchant, df.item_type.TOOL, sub, mt, mi)
@@ -250,11 +208,9 @@ local function spawn_good(tool_id, mat_token, depot, owner_ent)
 end
 
 -- ── Which goods this visit carries ───────────────────────────────────────────
--- The gorlaks trade their own wares; the AP goods are sprinkled in among them, a
--- rotating handful per visit rather than the whole unlocked shop at once. Sized
--- so every unlocked slot is offered within VISITS_TO_CYCLE visits however many
--- coffers you hold, which keeps rules.py's "reachable once you have the coffers"
--- promise honest - a slot can look random without ever being starved out.
+-- A rotating handful per visit, not the whole unlocked shop. Sized so every slot
+-- is offered within VISITS_TO_CYCLE visits, keeping rules.py's "reachable once
+-- you have the coffers" honest - random-looking, but never starved out.
 local MIN_GOODS_PER_VISIT = 3
 local VISITS_TO_CYCLE = 3
 
@@ -281,9 +237,8 @@ local function eligible_slots(shop, pending, coffers)
     return out
 end
 
--- This visit's goods, drawn from a persisted shuffled rotation: the pick looks
--- random, but the queue is only refilled once it empties, so every eligible slot
--- comes up before any repeats.
+-- This visit's goods, from a persisted shuffled rotation. The queue refills only
+-- once empty, so every eligible slot comes up before any repeats.
 local function choose_visit_slots(shop, pending, coffers)
     local elig = eligible_slots(shop, pending, coffers)
     if #elig == 0 then return {} end
@@ -317,19 +272,18 @@ end
 
 -- Inject this visit's AP goods onto the docked caravan, alongside its own wares.
 function M.inject_ap_goods()
-    if not M.caravan_docked() then return 0 end
-    if not is_ap_caravan() then return 0 end   -- AP goods only on the gorlak caravan
     local depot = find_depot()
-    local owner_ent = caravan_owner_entity(depot)
+    local merchant = depot and ap_merchant()
+    if not merchant then return 0 end   -- the gorlak caravan is not here
+    local owner_ent = merchant.civ_id
     M.unnamed_goods = 0
     local shop = decode(ps("shop"), {})
     local pending = decode(ps("shop_pending"), {})
     local injected = decode(ps("ap_caravan_items"), {})   -- item_id(str) -> slot
     local coffers = tonumber(ps("unlock/wealth_coffers")) or 0
 
-    -- Chosen once, when the caravan docks, and held until it leaves
-    -- (clear_ap_goods drops the selection). An empty pick is re-tried each tick,
-    -- so a coffer arriving mid-visit puts goods out straight away.
+    -- Chosen once per visit and held until it leaves. An empty pick retries each
+    -- tick, so a coffer arriving mid-visit puts goods out at once.
     local visit = decode(ps("shop_visit_slots"), {})
     if #visit == 0 then
         visit = choose_visit_slots(shop, pending, coffers)
@@ -350,7 +304,7 @@ function M.inject_ap_goods()
         local mat = "INORGANIC:AP_SHOP_" .. slot_str
         if e and tool_subtype(tool) and (tonumber(e.bought) or 0) == 0
                 and not pending[slot_str] and not live[slot_str] then
-            local it = spawn_good(tool, mat, depot, owner_ent)
+            local it = spawn_good(tool, mat, depot, merchant, owner_ent)
             if it then
                 injected[tostring(it.id)] = tonumber(slot_str)
                 n = n + 1
@@ -362,36 +316,53 @@ function M.inject_ap_goods()
     return n
 end
 
--- True while a merchant is carrying the item, i.e. the caravan is packing it back
--- onto the wagons. Not a purchase. A dwarf hauling a bought good also has a
--- holder, so the holder must specifically be a merchant.
-local function held_by_merchant(it)
+-- Who holds the item, or nil: "merchant" (caravan packing up, not a purchase),
+-- "citizen" (ours, hauling a purchase), or "other" - a thief, e.g. a langur.
+local function holder_of(it)
     local u
     pcall(function() u = dfhack.items.getHolderUnit(it) end)
-    if not u then return false end
+    if not u then return nil, nil end
     local m = false
     pcall(function() m = u.flags1.merchant end)
-    return m == true
+    if m then return "merchant", u end
+    local c = false
+    pcall(function() c = dfhack.units.isCitizen(u) end)
+    return (c and "citizen" or "other"), u
 end
 
--- Detect AP goods the player actually traded for, and queue those purchases for
--- the AP client. Call from the poll loop.
---
--- A good counts as bought ONLY when it is still on the map, its trader flag is
--- cleared, and no merchant is holding it. Every other state means the caravan
--- still owns it.
---
--- In particular a *missing* item is NOT a purchase. Merchants stay in
--- units.active while they pack up and walk off, so caravan_docked() is still true
--- during departure and this runs while DF removes the goods it is taking home.
--- Treating "item gone" as "traded" fired location checks for goods the player
--- never bought (and could not afford), permanently consuming those slots.
+-- Kill wildlife that steals an AP good so it can be recovered; false writes it off.
+local KILL_THIEVES = true
+
+-- Wildlife only: tame animals and non-animal thieves (a kobold) are spared and
+-- written off instead. Pack animals are merchant-flagged, so never reach this.
+local function is_wild_animal(u)
+    local animal, tame = false, true
+    pcall(function() animal = dfhack.units.isAnimal(u) end)
+    pcall(function() tame = dfhack.units.isTame(u) end)
+    return animal and not tame
+end
+
+-- dfhack.units.kill is absent on older builds; zeroing blood bleeds out instead.
+-- The death is async, so reap_thief_goods collects the good once the body drops it.
+local function strike_down(u)
+    local dead = false
+    pcall(function() dead = dfhack.units.isKilled(u) end)
+    if dead then return true end
+    return pcall(function()
+        if dfhack.units.kill then dfhack.units.kill(u) else u.body.blood_count = 0 end
+    end)
+end
+
+-- Queue the purchases the player traded for. Bought means ONLY: still on the map,
+-- trader cleared, no merchant holding it. A *missing* item is not a purchase -
+-- merchants linger in units.active while packing, and counting those fired checks.
 function M.detect_ap_trades()
     local injected = decode(ps("ap_caravan_items"), {})
     if not next(injected) then return 0 end
     local pending = decode(ps("shop_pending"), {})
     local queue = decode(ps("shop_buy"), {})
-    local n, dropped = 0, 0
+    local thieved = decode(ps("ap_thief_items"), {})
+    local n, dropped, stolen, killed = 0, 0, 0, 0
     for id_str, slot in pairs(injected) do
         local it = df.item.find(tonumber(id_str))
         if not it then
@@ -400,19 +371,46 @@ function M.detect_ap_trades()
             injected[id_str] = nil
             dropped = dropped + 1
         else
-            -- Default true so a failed read never reads as a purchase.
-            local tr = true
-            pcall(function() tr = it.flags.trader end)
-            if not tr and not held_by_merchant(it) then
-                pending[tostring(slot)] = true
-                queue[#queue + 1] = slot
+            local kind, holder = holder_of(it)
+            if kind == "other" then
+                -- A thief has it: not a purchase, and untracking it here means no
+                -- later pass can remove it out from under the unit.
                 injected[id_str] = nil
-                n = n + 1
+                if KILL_THIEVES and is_wild_animal(holder) and strike_down(holder) then
+                    -- The reaper removes it once the corpse drops it.
+                    thieved[id_str] = slot
+                    killed = killed + 1
+                else
+                    stolen = stolen + 1
+                end
+            else
+                -- Default true so a failed read never reads as a purchase.
+                local tr = true
+                pcall(function() tr = it.flags.trader end)
+                if not tr and kind ~= "merchant" then
+                    pending[tostring(slot)] = true
+                    queue[#queue + 1] = slot
+                    injected[id_str] = nil
+                    n = n + 1
+                end
             end
         end
     end
-    if n > 0 or dropped > 0 then
+    if n > 0 or dropped > 0 or stolen > 0 or killed > 0 then
         pset("ap_caravan_items", json.encode(injected))
+    end
+    if killed > 0 then
+        pset("ap_thief_items", json.encode(thieved))
+        log.info(("Struck down %d thieving animal(s) carrying AP shop goods."):format(killed))
+        pcall(function()
+            dfhack.gui.showAnnouncement(
+                "[AP] A thieving creature was struck down making off with Archipelago "
+                .. "merchandise.", COLOR_YELLOW, true)
+        end)
+    end
+    if stolen > 0 then
+        log.info(("%d AP shop good(s) were carried off and written off; their slots stay "):format(stolen)
+            .. "unbought and come back around on a later visit.")
     end
     if n > 0 then
         pset("shop_pending", json.encode(pending))
@@ -421,13 +419,36 @@ function M.detect_ap_trades()
     return n
 end
 
--- On caravan departure, remove any AP goods the player did not buy so they never
--- linger in the fort, and clear the injected-item record.
--- Safe to call every tick while no caravan is docked: it returns immediately once
--- there is nothing on the books. Level-triggered on purpose - the old edge-
--- triggered call (a docked->undocked transition held in a Lua local) was skipped
--- whenever the script reloaded across a departure, stranding entries that the
--- NEXT caravan's detect pass then misread as purchases a year later.
+-- Remove a struck-down thief's loot, but only once it is out of the corpse's
+-- inventory: pulling an item out of a unit is what this module must never do.
+function M.reap_thief_goods()
+    local doomed = decode(ps("ap_thief_items"), {})
+    if not next(doomed) then return 0 end
+    local remaining, n = {}, 0
+    for id_str, slot in pairs(doomed) do
+        local it = df.item.find(tonumber(id_str))
+        if it then
+            if holder_of(it) then
+                remaining[id_str] = slot   -- still being carried; retry next tick
+            else
+                pcall(function() dfhack.items.remove(it) end)
+                -- items.remove no-ops while paused; keep it and retry later.
+                local gone = false
+                pcall(function()
+                    local still = df.item.find(tonumber(id_str))
+                    gone = (still == nil) or (still.flags.garbage_collect == true)
+                end)
+                if gone then n = n + 1 else remaining[id_str] = slot end
+            end
+        end
+    end
+    pset("ap_thief_items", json.encode(remaining))
+    return n
+end
+
+-- On departure, remove unbought AP goods so they never linger in the fort. Safe
+-- every tick; level-triggered on purpose, since an edge held in a Lua local was
+-- skipped whenever the script reloaded across a departure, stranding entries.
 function M.clear_ap_goods()
     local injected = decode(ps("ap_caravan_items"), {})
     local visit = decode(ps("shop_visit_slots"), {})
@@ -439,11 +460,14 @@ function M.clear_ap_goods()
         if it then
             local tr = false
             pcall(function() tr = it.flags.trader end)
-            if tr then
+            if tr and holder_of(it) then
+                -- Carried by someone: never remove from an inventory. Dropping the
+                -- trader flag takes it off the trade screen and untracks it.
+                pcall(function() it.flags.trader = false end)
+            elseif tr then
                 pcall(function() dfhack.items.remove(it) end)
-                -- items.remove is a no-op while the game is paused. Keep anything
-                -- that did not actually go on the books so a later tick retries,
-                -- rather than forgetting it and leaving it in the fort forever.
+                -- items.remove no-ops while paused; keep it and retry later rather
+                -- than forgetting it and leaving it in the fort forever.
                 local gone = false
                 pcall(function()
                     local still = df.item.find(tonumber(id_str))
