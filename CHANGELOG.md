@@ -7,11 +7,15 @@ and location tables are untouched, so nothing needs regenerating to install this
 
 ### Fixes
 
-- **Fixed the crash when cancelling a workshop job.** Deferred job and building
-  removals held a raw pointer across a one-tick delay; cancelling the job inside
-  that window left the callback dereferencing freed memory, which `pcall` cannot
-  catch. They now re-find by id. Most visible early in a fort, where a missing
-  crafting permit means almost every queued task scheduled one of these.
+- **Fixed the crash when cancelling a workshop job** (#184). The JOB_COMPLETED
+  event was registered at frequency 1, but DFHack requires 0 to tell a job the
+  player cancelled from one that finished - at 1 both arrive as "completed". The
+  handler then walked the job's item refs, which DF has already freed on a
+  cancel, and dereferencing those crashed the game. The same bug also let a
+  cancelled job increment the craftsanity counts.
+- Deferred job and building removals no longer hold a raw pointer across their
+  one-tick delay; cancelling the job inside that window left the callback
+  dereferencing freed memory, which `pcall` cannot catch. They now re-find by id.
 - **Fixed the empty AP shop.** A material lookup indexed `world.raws.inorganics`
   instead of its `.all` list, which raises rather than returning nil, aborting the
   caravan poll step before any goods were injected. Only worlds whose raws contain

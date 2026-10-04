@@ -2674,7 +2674,14 @@ local function start()
     -- enableEvent initializes the onItemCreated hook table; without this call
     -- the table is nil and the registration below silently does nothing.
     eventful.enableEvent(eventful.eventType.ITEM_CREATED, 1)
-    eventful.enableEvent(eventful.eventType.JOB_COMPLETED, 1)
+    -- JOB_COMPLETED MUST be 0. Per DFHack's docs a frequency of 0 is required to
+    -- distinguish a job the player cancelled from one that finished; at 1 both
+    -- arrive as "completed". That cost us two bugs: cancelling a workshop job
+    -- crashed DF, because the handler walks the job's item refs and DF has
+    -- already freed them on a cancel, and cancelled jobs still incremented the
+    -- craftsanity counts. 0 only means "check every tick" rather than waiting
+    -- one, so it is no more expensive than what it replaces.
+    eventful.enableEvent(eventful.eventType.JOB_COMPLETED, 0)
     eventful.enableEvent(eventful.eventType.JOB_INITIATED, 1)
     eventful.enableEvent(eventful.eventType.UNIT_DEATH, 1)
     eventful.onItemCreated[SCRIPT_NAME] = on_item_created
