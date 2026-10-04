@@ -529,21 +529,23 @@ function CraftsanityOverlay:onRenderBody(dc)
         self.task_rows = {}
         return
     end
-    max = craftsanity_max()
+    -- Both were accidental globals. Persistent values are strings, and the client
+    -- only writes craftsanity_max when threshold and max are both set, so compare
+    -- numbers and skip the row when either side will not convert - "x >= nil"
+    -- raises, and an error in here kills the whole widget's render.
+    local max = tonumber(craftsanity_max())
     self.frames_since_scan = self.frames_since_scan + 1
     if self.frames_since_scan >= RESCAN_FRAMES then
         self.frames_since_scan = 0
         self:scan()
     end
-    local width = dfhack.screen.getWindowSize()
-    for id, row in ipairs(self.task_rows) do
-        amt = craft_count(row.craft, row.mat)
-        if amt and tonumber(amt) >= tonumber(max) then
+    if not max then return end
+    for _, row in ipairs(self.task_rows) do
+        local amt = tonumber(craft_count(row.craft, row.mat))
+        if amt and amt >= max then
             dfhack.screen.paintString(COMPLETED_NOTE_PEN, row.finish + 1, row.y, "(" .. max .. "/" .. max .. ")")
         elseif amt then
             dfhack.screen.paintString(UNLOCKED_NOTE_PEN, row.finish + 1, row.y, "(" .. amt .. "/" .. max .. ")")
-        -- else
-        --     dfhack.screen.paintString(UNLOCKED_NOTE_PEN, row.finish + 1, row.y, "(N/A)")
         end
     end
 end

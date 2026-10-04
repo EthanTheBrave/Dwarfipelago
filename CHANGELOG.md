@@ -1,5 +1,35 @@
 # Changelog
 
+## 2.1.1
+
+A fix-only release. **2.1.0 and 2.0.x seeds and worlds stay playable** - the item
+and location tables are untouched, so nothing needs regenerating to install this.
+
+### Fixes
+
+- **Fixed the crash when cancelling a workshop job** (#184). The JOB_COMPLETED
+  event was registered at frequency 1, but DFHack requires 0 to tell a job the
+  player cancelled from one that finished - at 1 both arrive as "completed". The
+  handler then walked the job's item refs, which DF has already freed on a
+  cancel, and dereferencing those crashed the game. The same bug also let a
+  cancelled job increment the craftsanity counts.
+- Deferred job and building removals no longer hold a raw pointer across their
+  one-tick delay; cancelling the job inside that window left the callback
+  dereferencing freed memory, which `pcall` cannot catch. They now re-find by id.
+- **Fixed the empty AP shop.** A material lookup indexed `world.raws.inorganics`
+  instead of its `.all` list, which raises rather than returning nil, aborting the
+  caravan poll step before any goods were injected. Only worlds whose raws contain
+  the AP_SHOP materials were affected, which is every world generated with 2.1.0.
+- **Fixed the shop being skipped when two caravans share the depot.** Every shop
+  decision keyed off whichever merchant happened to be first in `units.active`, so
+  a dwarf caravan arriving alongside the gorlaks silently cost the whole visit.
+- AP goods are never removed from a unit's inventory, which closes the one way the
+  caravan code could corrupt a live unit, and a stolen good no longer registers as
+  a purchase. Wildlife that steals a good is struck down so the good is recovered.
+- Each caravan poll step is guarded on its own, so a failure in the cosmetic
+  naming pass can no longer stop goods being injected or purchases detected.
+
+
 ## 2.1.0
 
 A feature release: manual send mode, a reworked Status tab, and a round of check
@@ -17,6 +47,12 @@ needs regenerating to install this.
   mod's raws, overlays, panel, sieges and DFHack scripting actually work, aimed at
   anyone modding DF themselves. `LUA_INTERFACE.md` gained a recipe for adding a
   storage key and a walkthrough of the DFHack remote API handshake.
+
+- **`dwarfipelago test receive-all`** grants every blueprint, crafting permit and
+  progression unlock at once. It writes the gate keys directly rather than running
+  each item's handler, so it opens the gates without the side effects: no caravans
+  summoned, no migrant waves spawned, no artifact gear created. Useful for sandbox
+  forts and for testing build-gated content.
 
 ### Logic
 

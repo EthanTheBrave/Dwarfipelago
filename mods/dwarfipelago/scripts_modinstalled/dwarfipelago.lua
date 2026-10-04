@@ -22,9 +22,21 @@ local json   = require('json')
 -- DFHack built-in plugins use the standard require().
 local eventful   = require("plugins.eventful")
 local repeatUtil = require("repeat-util")
+local utils      = require('utils')
+
+-- Re-find a job by id. Jobs live in a linked list with no id index, so this is a
+-- walk rather than a find(). Every deferred callback MUST go through it instead
+-- of capturing the job: the player can cancel the job inside the one-tick delay,
+-- and dereferencing the freed job is a use-after-free that pcall cannot catch.
+local function find_job(id)
+    for _, job in utils.listpairs(df.global.world.jobs.list) do
+        if job.id == id then return job end
+    end
+    return nil
+end
 
 local SCRIPT_NAME = "dwarfipelago"
-local SCRIPT_VERSION = "2.1.0"
+local SCRIPT_VERSION = "2.1.1"
 local POLL_TICKS  = 100  -- poll wealth/trade/goal checks every N ticks
 
 local function fmt_energy(j)
@@ -271,7 +283,11 @@ local function check_mining_depth_gate(job)
         local blk = dfhack.maps.getTileBlock(job.pos.x, job.pos.y, job.pos.z)
         if blk then blk.designation[job.pos.x % 16][job.pos.y % 16].dig = df.tile_dig_designation.No end
     end)
-    dfhack.timeout(1, "ticks", function() pcall(function() dfhack.job.removeJob(job) end) end)
+    local jid = job.id
+    dfhack.timeout(1, "ticks", function()
+        local j = find_job(jid)
+        if j then pcall(function() dfhack.job.removeJob(j) end) end
+    end)
     announce_mining_lock()
 end
 
@@ -715,7 +731,7 @@ end
 
 local function poll_ap_caravan()
     if shop_overridden_off() then
-        if not apcaravan.caravan_docked() then apcaravan.clear_ap_goods() end
+        if not apcaravan.ap_caravan_docked() then apcaravan.clear_ap_goods() end
         dfhack.persistent.saveWorldDataString("dwarfipelago/ap_caravan_active", "0")
         return
     end
@@ -723,18 +739,26 @@ local function poll_ap_caravan()
     -- Name and price this seed's goods in the loaded materials. Cheap and
     -- idempotent (a no-op once applied), and re-applied here because DF reloads
     -- the raws from the save every time a fortress is loaded.
-    apcaravan.apply_shop_materials()
-    local docked = apcaravan.caravan_docked()
-    if docked then
-        apcaravan.inject_ap_goods()      -- AP goods sprinkled among the gorlaks' own wares
-        apcaravan.detect_ap_trades()
+    -- Each step is pcall'd on its own: naming is cosmetic, injecting and
+    -- detecting are not, and an error in an earlier step must never starve a
+    -- later one (a bad material lookup here used to abort the whole shop).
+    pcall(apcaravan.apply_shop_materials)
+    -- Purchases first: a good bought on the visit's last tick must be seen
+    -- before the cleanup below can retire it. No-op when nothing is tracked.
+    pcall(apcaravan.detect_ap_trades)
+    -- Collect goods off thieves we struck down; the body may fall long after
+    -- the gorlaks have gone, so this is not gated on a caravan.
+    pcall(apcaravan.reap_thief_goods)
+    -- Gated on the gorlak caravan, not any caravan: a dwarf caravan sharing the
+    -- depot used to skip injection and defer cleanup until every caravan left.
+    if apcaravan.ap_caravan_docked() then
+        pcall(apcaravan.inject_ap_goods)  -- AP goods sprinkled among the gorlaks' own wares
     else
-        -- No caravan: retire any AP goods still on the books. Called every tick
-        -- rather than on a docked->undocked edge, so a save/reload across the
-        -- departure cannot strand them (it returns at once when there is nothing
-        -- to do).
-        apcaravan.clear_ap_goods()
+        -- Retire any AP goods still on the books. Level-triggered, so a
+        -- save/reload across the departure cannot strand them.
+        pcall(apcaravan.clear_ap_goods)
     end
+    local docked = apcaravan.caravan_docked()
     -- Panel/Energy-Link status: "[Caravan docked]" means any caravan is at the
     -- depot (the gorlak shop caravan, an Energy-Link-called one, or a natural
     -- visit), so the player knows one is present and not to call another.
@@ -1990,8 +2014,10 @@ local function check_craftitem_gate(job)
 
     if dfhack.persistent.getWorldDataString("dwarfipelago/craftlock/" .. base_flag) == "1" then return end
 
+    local jid = job.id
     dfhack.timeout(1, "ticks", function()
-        pcall(function() dfhack.job.removeJob(job) end)
+        local j = find_job(jid)
+        if j then pcall(function() dfhack.job.removeJob(j) end) end
     end)
 
     if not _craftlock_notified[base_flag] then
@@ -2110,9 +2136,12 @@ local function on_job_initiated(job)
             ("[AP] Cannot build: %s not yet received!"):format(blueprint_name),
             COLOR_YELLOW, true)
         -- Defer deconstruction by one tick - removing a job inline during
-        -- onJobInitiated crashes DF because the engine is mid-update.
+        -- onJobInitiated crashes DF because the engine is mid-update. Re-find the
+        -- building by id rather than capturing it: it can be gone by then.
+        local bid = bld.id
         dfhack.timeout(1, "ticks", function()
-            pcall(function() dfhack.buildings.deconstruct(bld) end)
+            local b = df.building.find(bid)
+            if b then pcall(function() dfhack.buildings.deconstruct(b) end) end
         end)
     end
 end
@@ -2645,7 +2674,14 @@ local function start()
     -- enableEvent initializes the onItemCreated hook table; without this call
     -- the table is nil and the registration below silently does nothing.
     eventful.enableEvent(eventful.eventType.ITEM_CREATED, 1)
-    eventful.enableEvent(eventful.eventType.JOB_COMPLETED, 1)
+    -- JOB_COMPLETED MUST be 0. Per DFHack's docs a frequency of 0 is required to
+    -- distinguish a job the player cancelled from one that finished; at 1 both
+    -- arrive as "completed". That cost us two bugs: cancelling a workshop job
+    -- crashed DF, because the handler walks the job's item refs and DF has
+    -- already freed them on a cancel, and cancelled jobs still incremented the
+    -- craftsanity counts. 0 only means "check every tick" rather than waiting
+    -- one, so it is no more expensive than what it replaces.
+    eventful.enableEvent(eventful.eventType.JOB_COMPLETED, 0)
     eventful.enableEvent(eventful.eventType.JOB_INITIATED, 1)
     eventful.enableEvent(eventful.eventType.UNIT_DEATH, 1)
     eventful.onItemCreated[SCRIPT_NAME] = on_item_created
