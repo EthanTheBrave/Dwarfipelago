@@ -128,8 +128,8 @@ local function a_merchant()
     return nil
 end
 
--- The gorlak caravan's merchant (nil if absent); its civ_id owns the goods via
--- ENTITY_ITEMOWNER. Not units.active's first merchant: that pick is arbitrary.
+-- Any gorlak caravan's merchant still on the map (nil if none). Not units.active's
+-- first merchant: that pick is arbitrary.
 local function ap_merchant()
     for _, u in ipairs(df.global.world.units.active) do
         local ok = false
@@ -151,6 +151,53 @@ local function material_for(mat_token)
     mi = dfhack.matinfo.find("INORGANIC:IRON")
     if mi then return mi.type, mi.index, false end
     return 0, 0, false
+end
+
+local function is_ap_civ(civ)
+    local code
+    pcall(function() code = df.historical_entity.find(civ).entity_raw.code end)
+    return code == "ARCHIPELAGO"
+end
+
+-- The gorlak caravan arriving or trading, nil once it packs up. Several can
+-- overlap (a spooked one still leaving as the next arrives).
+local function open_ap_caravan()
+    local S = df.caravan_state.T_trade_state
+    for _, c in ipairs(df.global.plotinfo.caravans) do
+        if (c.trade_state == S.Approaching or c.trade_state == S.AtDepot) and is_ap_civ(c.entity) then
+            return c
+        end
+    end
+    return nil
+end
+
+-- True while a gorlak caravan is at the depot: the only time goods can be bought.
+local function ap_trading()
+    for _, c in ipairs(df.global.plotinfo.caravans) do
+        if c.trade_state == df.caravan_state.T_trade_state.AtDepot and is_ap_civ(c.entity) then
+            return true
+        end
+    end
+    return false
+end
+
+-- A live merchant of this civ on the map, to create its goods with.
+local function merchant_of(civ)
+    for _, u in ipairs(df.global.world.units.active) do
+        local ok = false
+        pcall(function() ok = u.flags1.merchant and u.civ_id == civ end)
+        if ok and dfhack.units.isAlive(u) then return u end
+    end
+    return nil
+end
+
+-- Hand a good an earlier caravan left in the depot to the one here now, so it
+-- lists the good for sale and packs it up when it leaves.
+local function rehome(it, depot, owner_ent)
+    if not it.flags.trader or dfhack.items.getHolderBuilding(it) ~= depot then return end
+    for _, r in ipairs(it.general_refs) do
+        if df.general_ref_entity_itemownerst:is_instance(r) then r.entity_id = owner_ent end
+    end
 end
 
 -- Any civ's caravan at a depot; drives the panel's "[Caravan docked]" status.
@@ -273,9 +320,13 @@ end
 -- Inject this visit's AP goods onto the docked caravan, alongside its own wares.
 function M.inject_ap_goods()
     local depot = find_depot()
-    local merchant = depot and ap_merchant()
-    if not merchant then return 0 end   -- the gorlak caravan is not here
-    local owner_ent = merchant.civ_id
+    -- Only for a caravan arriving or trading, never one leaving: its groups exit
+    -- one at a time, and a good that rode out with the first would be respawned
+    -- in the depot for nobody to collect.
+    local car = depot and open_ap_caravan()
+    local merchant = car and merchant_of(car.entity)
+    if not merchant then return 0 end
+    local owner_ent = car.entity
     M.unnamed_goods = 0
     local shop = decode(ps("shop"), {})
     local pending = decode(ps("shop_pending"), {})
@@ -292,7 +343,11 @@ function M.inject_ap_goods()
 
     -- which slots already have a live injected item?
     local live = {}
-    for _, slot in pairs(injected) do live[tostring(slot)] = true end
+    for id_str, slot in pairs(injected) do
+        live[tostring(slot)] = true
+        local it = df.item.find(tonumber(id_str))
+        if it then pcall(rehome, it, depot, owner_ent) end
+    end
 
     local n = 0
     for _, slot_str in ipairs(visit) do
@@ -316,12 +371,35 @@ function M.inject_ap_goods()
     return n
 end
 
+-- Remove an item; true once it is gone. items.remove refuses anything flagged
+-- in_building (spawn_good sets it on every good) and no-ops while paused.
+local function retire(it)
+    local id, was = it.id, it.flags.in_building
+    pcall(function() it.flags.in_building = false end)
+    pcall(function() dfhack.items.remove(it) end)
+    local still = df.item.find(id)
+    local gone = (still == nil) or (still.flags.garbage_collect == true)
+    if not gone then pcall(function() it.flags.in_building = was end) end
+    return gone
+end
+
+-- Units that walk off the map leave units.active and lose their merchant flag,
+-- but DF keeps them, and everything they carry, around off-map.
+local function on_map(u)
+    for _, a in ipairs(df.global.world.units.active) do
+        if a.id == u.id then return true end
+    end
+    return false
+end
+
 -- Who holds the item, or nil: "merchant" (caravan packing up, not a purchase),
--- "citizen" (ours, hauling a purchase), or "other" - a thief, e.g. a langur.
+-- "citizen" (ours, hauling a purchase), "departed" (carried off the map), or
+-- "other" - a thief, e.g. a langur.
 local function holder_of(it)
     local u
     pcall(function() u = dfhack.items.getHolderUnit(it) end)
     if not u then return nil, nil end
+    if not on_map(u) then return "departed", u end
     local m = false
     pcall(function() m = u.flags1.merchant end)
     if m then return "merchant", u end
@@ -333,13 +411,14 @@ end
 -- Kill wildlife that steals an AP good so it can be recovered; false writes it off.
 local KILL_THIEVES = true
 
--- Wildlife only: tame animals and non-animal thieves (a kobold) are spared and
--- written off instead. Pack animals are merchant-flagged, so never reach this.
+-- Wildlife only: no civ and not tame. Caravan pack animals read as untamed, so the
+-- civ check spares them; non-animal thieves (a kobold) are written off instead.
 local function is_wild_animal(u)
-    local animal, tame = false, true
+    local animal, tame, civ = false, true, 0
     pcall(function() animal = dfhack.units.isAnimal(u) end)
     pcall(function() tame = dfhack.units.isTame(u) end)
-    return animal and not tame
+    pcall(function() civ = u.civ_id end)
+    return animal and not tame and civ == -1
 end
 
 -- dfhack.units.kill is absent on older builds; zeroing blood bleeds out instead.
@@ -357,47 +436,62 @@ end
 -- trader cleared, no merchant holding it. A *missing* item is not a purchase -
 -- merchants linger in units.active while packing, and counting those fired checks.
 function M.detect_ap_trades()
+    -- Goods are only bought from a caravan at the depot. This poll or the last,
+    -- so a trade on a visit's final tick still counts.
+    local trading = ap_trading()
+    local can_buy = trading or M._was_trading
+    M._was_trading = trading
     local injected = decode(ps("ap_caravan_items"), {})
     if not next(injected) then return 0 end
     local pending = decode(ps("shop_pending"), {})
     local queue = decode(ps("shop_buy"), {})
     local thieved = decode(ps("ap_thief_items"), {})
-    local n, dropped, stolen, killed = 0, 0, 0, 0
+    local n, dropped, stolen, killed, abandoned = 0, 0, 0, 0, 0
     for id_str, slot in pairs(injected) do
         local it = df.item.find(tonumber(id_str))
-        if not it then
+        local kind, holder
+        if it then kind, holder = holder_of(it) end
+        if not it or kind == "departed" then
             -- Left with the caravan. Stop tracking it; the slot stays unbought
             -- and comes back around on a later visit via the rotation.
             injected[id_str] = nil
             dropped = dropped + 1
-        else
-            local kind, holder = holder_of(it)
-            if kind == "other" then
-                -- A thief has it: not a purchase, and untracking it here means no
-                -- later pass can remove it out from under the unit.
-                injected[id_str] = nil
-                if KILL_THIEVES and is_wild_animal(holder) and strike_down(holder) then
-                    -- The reaper removes it once the corpse drops it.
-                    thieved[id_str] = slot
-                    killed = killed + 1
-                else
-                    stolen = stolen + 1
-                end
+        elseif kind == "other" then
+            -- A thief has it: not a purchase, and untracking it here means no
+            -- later pass can remove it out from under the unit.
+            injected[id_str] = nil
+            if KILL_THIEVES and is_wild_animal(holder) and strike_down(holder) then
+                -- The reaper removes it once the corpse drops it.
+                thieved[id_str] = slot
+                killed = killed + 1
             else
-                -- Default true so a failed read never reads as a purchase.
-                local tr = true
-                pcall(function() tr = it.flags.trader end)
-                if not tr and kind ~= "merchant" then
-                    pending[tostring(slot)] = true
-                    queue[#queue + 1] = slot
+                stolen = stolen + 1
+            end
+        else
+            -- Default true so a failed read never reads as a purchase.
+            local tr = true
+            pcall(function() tr = it.flags.trader end)
+            if not tr and kind ~= "merchant" and can_buy then
+                pending[tostring(slot)] = true
+                queue[#queue + 1] = slot
+                injected[id_str] = nil
+                n = n + 1
+            elseif not tr and not kind then
+                -- Its caravan left it behind and DF gave it to the fort: not a
+                -- purchase. Retire it; the slot comes back on a later visit.
+                if retire(it) then
                     injected[id_str] = nil
-                    n = n + 1
+                    abandoned = abandoned + 1
                 end
             end
         end
     end
-    if n > 0 or dropped > 0 or stolen > 0 or killed > 0 then
+    if n > 0 or dropped > 0 or stolen > 0 or killed > 0 or abandoned > 0 then
         pset("ap_caravan_items", json.encode(injected))
+    end
+    if abandoned > 0 then
+        log.info(("Retired %d AP shop good(s) a departed caravan left behind; their slots "):format(abandoned)
+            .. "stay unbought and come back around on a later visit.")
     end
     if killed > 0 then
         pset("ap_thief_items", json.encode(thieved))
@@ -428,17 +522,16 @@ function M.reap_thief_goods()
     for id_str, slot in pairs(doomed) do
         local it = df.item.find(tonumber(id_str))
         if it then
-            if holder_of(it) then
+            local kind, holder = holder_of(it)
+            if kind == "departed" and dfhack.units.isAlive(holder) then
+                -- Ran off the map with it (or an older build struck down a
+                -- departed caravan animal): nothing left to reap.
+            elseif kind then
                 remaining[id_str] = slot   -- still being carried; retry next tick
+            elseif retire(it) then
+                n = n + 1
             else
-                pcall(function() dfhack.items.remove(it) end)
-                -- items.remove no-ops while paused; keep it and retry later.
-                local gone = false
-                pcall(function()
-                    local still = df.item.find(tonumber(id_str))
-                    gone = (still == nil) or (still.flags.garbage_collect == true)
-                end)
-                if gone then n = n + 1 else remaining[id_str] = slot end
+                remaining[id_str] = slot   -- paused; retry later
             end
         end
     end
@@ -465,15 +558,9 @@ function M.clear_ap_goods()
                 -- trader flag takes it off the trade screen and untracks it.
                 pcall(function() it.flags.trader = false end)
             elseif tr then
-                pcall(function() dfhack.items.remove(it) end)
-                -- items.remove no-ops while paused; keep it and retry later rather
-                -- than forgetting it and leaving it in the fort forever.
-                local gone = false
-                pcall(function()
-                    local still = df.item.find(tonumber(id_str))
-                    gone = (still == nil) or (still.flags.garbage_collect == true)
-                end)
-                if gone then n = n + 1 else remaining[id_str] = slot end
+                -- Retry later rather than forgetting it and leaving it in the
+                -- fort forever.
+                if retire(it) then n = n + 1 else remaining[id_str] = slot end
             end
         end
     end

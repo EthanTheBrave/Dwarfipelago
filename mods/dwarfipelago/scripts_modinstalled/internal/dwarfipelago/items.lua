@@ -2438,6 +2438,9 @@ local function recv_merchants_coffer()
     -- tier cap. Contact is retried on every coffer until it actually succeeds -
     -- it used to fire on coffer #1 only, so a single failed attempt cost the shop
     -- for the rest of the run with nothing but a console warning to show for it.
+    -- Shop off: the coffer only counts toward the wealth goal, so no summon. An
+    -- unset key reads as on, so a missing write never costs the shop.
+    if dfhack.persistent.getWorldDataString("dwarfipelago/shop_enabled") == "0" then return end
     if dfhack.persistent.getWorldDataString("dwarfipelago/gorlak_contacted") ~= "1" then
         contact_gorlak_caravan()
     end

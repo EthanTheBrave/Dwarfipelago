@@ -156,6 +156,9 @@ class Skillsanity:
                                 remove_skills.append(location)
                                 combat_skill_locations.remove(location)
                 self.world.skill_locations += combat_skill_locations
+            else:
+                # Combat off: drop every combat location, or they stay active with no rules or client tracking.
+                remove_skills += COMBAT_SKILLS
             self.world.remove_skill_locations_names = {n.name for n in remove_skills}
 
             
