@@ -615,7 +615,7 @@ A few smaller knobs that don't have their own section:
 
 ---
 
-## Project Board
+## MISC
 
 <details>
 <summary>Project Board</summary>
@@ -654,4 +654,22 @@ A running list of ideas, planned features, and things that still need doing. No 
 - [ ] **Random Option for Crafting Check** - selects a specified number of random item checks to have included in AP gen
 - [X] **Rival Beast When MegaBeast is Victory** - finds a named beast during world gen and spawns them in when a specific check is sent
 
+</details>
+
+<details> 
+<summary>AI Usage Disclosure</summary>
+
+### AI (Claude) was used for:
+- The initial framework of this project after I worked out the DFhack api endpoint
+- Troubleshooting difficult bugs
+- Spot checking/Unit tests 
+- Documentation formatting/Updating after being made initially
+- Code comments
+
+### Humans were used for:
+- All code (after the initial framework) was written/reviewed by people (largely myself and jjjj12212)
+- Ideas were all brainstormed by the dev group and those given to us by the Dwarf Fortress AP Discord thread
+- ANY and ALL developer interaction was with real humans
+- Documentation writing and major re-writes were all done by myself
+- All research into code implementation
 </details>
