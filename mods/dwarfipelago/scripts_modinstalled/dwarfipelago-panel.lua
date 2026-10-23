@@ -198,11 +198,13 @@ local checks_sort = false
 -- in worlds/dwarf_fortress/__init__.py). Excluded ones are hidden entirely.
 local GOAL_NOBLE_LADDER = {37370301, 37370302, 37370303, 37370304}  -- active: mountainhome (3) only
 local GOAL_SIEGE        = {37370770, 37370771, 37370792, 37370793, 37370794, 37370795, 37370796}  -- active: slay_megabeast (0) only
-local GOAL_BEAST_SLAIN  = {37370782, 37370783, 37370784, 37370785}  -- excluded on slay_megabeast (0)
+local GOAL_BEAST_SLAIN  = {37370782, 37370784, 37370785}  -- excluded on slay_megabeast (0)
+local RETIRED_CHECKS    = {37370783}  -- Titan Slain: never generated, auto-sent for older seeds
 local function goal_excluded_set()
     local goal = tonumber(ps("goal", "-1")) or -1
     local ex = {}
-    if goal < 0 then return ex end   -- goal not synced yet -> exclude nothing
+    for _, id in ipairs(RETIRED_CHECKS) do ex[id] = true end
+    if goal < 0 then return ex end   -- goal not synced yet -> exclude nothing else
     if goal ~= 3 then for _, id in ipairs(GOAL_NOBLE_LADDER) do ex[id] = true end end
     if goal ~= 0 then for _, id in ipairs(GOAL_SIEGE)        do ex[id] = true end end
     if goal == 0 then for _, id in ipairs(GOAL_BEAST_SLAIN)  do ex[id] = true end end

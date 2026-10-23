@@ -194,7 +194,7 @@ COMBAT_LOCATIONS: list[LocationData] = [
     LocationData("First Kill",              BASE_ID + 780, "Fortress"),
     LocationData("First Siege",             BASE_ID + 781, "Fortress"),
     LocationData("Forgotten Beast Slain",   BASE_ID + 782, "Fortress"),
-    LocationData("Titan Slain",             BASE_ID + 783, "Fortress"),
+    LocationData("Titan Slain",             BASE_ID + 783, "Fortress"),  # retired, see RETIRED_LOCATIONS
     LocationData("Semi-megabeast Slain",    BASE_ID + 784, "Fortress"),
     LocationData("Megabeast Slain",         BASE_ID + 785, "Fortress"),
 ]
@@ -1681,5 +1681,9 @@ EXCLUDE_TOP_FORTRESS: set[str] = {
     "Duke Appointed", "Monarch Takes Residence",
 }
 EXCLUDE_COMBAT: set[str] = {
-    "Forgotten Beast Slain", "Titan Slain", "Semi-megabeast Slain", "Megabeast Slain",
+    "Forgotten Beast Slain", "Semi-megabeast Slain", "Megabeast Slain",
 }
+
+# Checks no longer generated. They stay in the tables above so ids and the
+# DataPackage don't change; __init__ drops them from every slot's active set.
+RETIRED_LOCATIONS: set[str] = {"Titan Slain"}

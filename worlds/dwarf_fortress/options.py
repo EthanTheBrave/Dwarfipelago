@@ -289,7 +289,7 @@ class SkillsanitySkillGroup(Choice):
 
     Medium Skills: Easy + Engraver, Stone Carver, Animal Trainer, Diagnostician, Cheese Maker, Dyer, Lye Maker, Milker, Miller,
      Potash Maker, Presser, Shearer, Soaper, Thresher, Fisherdwarf, Fish Cleaner, Fish Dissector, Armorsmith, Metal Crafter,
-     Blacksmith, Weaponsmith, Gem Setter, Siege Operator, Appraiser, Organizer, Record Keeper
+     Blacksmith, Weaponsmith, Gem Setter, Siege Operator, Appraiser, Organizer
 
     All Skills: Easy + Medium + Trapper, Bone Doctor, Surgeon, Suturer, Wound Dresser, Beekeeper, Gelder, Strand Extractor, Wax Worker,
      Bookbinder, Papermaker, Gelder
@@ -302,6 +302,9 @@ class SkillsanitySkillGroup(Choice):
     option_all = 2
     option_choose = 3
     default = 1
+
+# Skills no longer offered. Their locations stay in the tables so ids don't change.
+RETIRED_SKILLS = {"Record Keeper"}
 
 class SkillsanitySkills(OptionList):
     """
@@ -316,11 +319,16 @@ class SkillsanitySkills(OptionList):
      "Mechanic", "Pump Operator", "Siege Engineer", "Engraver", "Stone Carver", "Animal Trainer",
      "Diagnostician", "Cheese Maker", "Dyer", "Lye Maker", "Milker", "Miller", "Potash Maker", "Presser", "Shearer",
      "Soaper", "Thresher", "Fisherdwarf", "Fish Cleaner", "Fish Dissector", "Armorsmith", "Metal Crafter",
-     "Blacksmith", "Weaponsmith", "Gem Setter", "Siege Operator", "Appraiser", "Organizer", "Record Keeper",
+     "Blacksmith", "Weaponsmith", "Gem Setter", "Siege Operator", "Appraiser", "Organizer",
      "Trapper", "Bone Doctor", "Surgeon", "Suturer", "Wound Dresser", "Beekeeper", "Gelder", "Bookbinder",
      "Papermaker", "Strand Extractor", "Wax Worker", "Gelder", "Weaver"
     }
     default = valid_keys.copy() 
+
+    def verify_keys(self) -> None:
+        # Yamls made before a skill was retired still list it; drop it rather than fail.
+        self.value = [k for k in self.value if k not in RETIRED_SKILLS]
+        super().verify_keys()
 
 class SkillsanityEnableCombat(DefaultOnToggle):
     """
@@ -469,7 +477,7 @@ class ExcludeTopFortressChecks(Toggle):
 class ExcludeCombatChecks(Toggle):
     """
     Keep progression out of the difficult combat checks (filler only): the great-beast
-    kills - Forgotten Beast, Titan, Semi-megabeast, and Megabeast Slain. (These are
+    kills - Forgotten Beast, Semi-megabeast, and Megabeast Slain. (These are
     already off on the Slay Megabeast goal.)
     """
     display_name = "Exclude Difficult Combat Checks"

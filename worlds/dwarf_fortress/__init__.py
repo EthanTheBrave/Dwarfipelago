@@ -15,6 +15,7 @@ from .locations import (
     LocationData, LOCATION_TABLE, ALL_LOCATIONS, SHOP_LOCATIONS, SHOP_SLOTS,
     SHOP_PRICE_MIN, SHOP_PRICE_MAX,
     EXCLUDE_DEEP_ENDGAME, EXCLUDE_TOP_ROOMS, EXCLUDE_TOP_FORTRESS, EXCLUDE_COMBAT,
+    RETIRED_LOCATIONS,
 )
 from .craftsanity import (
     generate_location_data,
@@ -168,10 +169,13 @@ class DwarfFortressWorld(World):
         # Great-beast kills overlap the Slay Megabeast goal (that kill IS the goal),
         # so drop them there; First Kill / First Siege stay (they come from waves).
         BEAST_SLAIN_LOCATION_NAMES = {
-            "Forgotten Beast Slain", "Titan Slain", "Semi-megabeast Slain", "Megabeast Slain",
+            "Forgotten Beast Slain", "Semi-megabeast Slain", "Megabeast Slain",
         }
         if self.options.goal == DwarfFortressGoal.option_slay_megabeast:
             active -= BEAST_SLAIN_LOCATION_NAMES
+        # Retired, never generated; kept in LOCATION_TABLE so ids stay stable and
+        # older seeds still resolve. Titan Slain: titans too rarely reach a fort.
+        active -= RETIRED_LOCATIONS
         for skill_names in self.remove_skill_locations_names:
              active.remove(skill_names)
         # The shop's 50 slots are active (and coffer-gated in rules.py) only when

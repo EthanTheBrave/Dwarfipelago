@@ -1,5 +1,61 @@
 # Changelog
 
+## 2.1.2
+
+A fix-only release. **2.1.x and 2.0.x seeds and worlds stay playable** - the item
+and location tables are untouched. The one exception is a skillsanity seed with
+combat skills turned off: those were generated broken (see below) and need
+regenerating.
+
+### Removed checks
+
+Two checks are no longer generated. Their ids stay registered, and an older seed
+that still has them gets them sent automatically, so their items are released.
+
+- **Titan Slain.** Titans too rarely reach a fort for this to be a fair check;
+  Forgotten Beast Slain still covers the first forgotten beast kill.
+- **Record Keeper skillsanity checks.** The skill barely trains in play, so its
+  levels were close to unreachable. It is gone from the Medium and All skill
+  groups and the manual skill list, and a yaml that still lists it is accepted
+  with the skill ignored.
+
+### Fixes
+
+- **Fixed the Mountainhome goal and the Monarch Takes Residence check never
+  firing.** Both looked for a KING or QUEEN noble position, but DF's dwarven
+  monarch is the MONARCH position; king and queen are only its gendered names.
+
+- **Fixed combat skill checks appearing with combat skillsanity turned off.** With
+  skillsanity on and `skillsanity_enable_combat` off, the combat skills were never
+  removed from the location list, so every combat skill was added at all 15 levels,
+  ignoring the max level. Those checks had no logic rules and were missing from the
+  client's skill tracking, so they could never be sent, and anything placed on them,
+  progression included, was lost. Affected seeds are unwinnable and must be
+  regenerated with this version.
+- **Fixed the gorlak caravan leaving AP goods behind.** A caravan's groups leave the
+  map one at a time. Pack animals that had already left were mistaken for wild
+  thieves and struck down, and goods they carried off were respawned in the depot
+  where nobody collected them. When the caravan left, DF handed those goods to the
+  fort, which counted as purchases (free checks) and left the items in the fort.
+  Goods are now only created for a caravan that is arriving or trading, and units
+  that have left the map are no longer treated as thieves.
+- **AP goods a caravan leaves behind, e.g. after being spooked, can be bought
+  again.** The next gorlak caravan takes them over, lists them for sale and packs
+  them up when it leaves. A purchase now only counts while a gorlak caravan is at
+  the depot, so a good DF gives the fort after a caravan leaves is removed instead,
+  and its slot comes back on a later visit.
+- New AP goods belong to the gorlak caravan that is arriving or trading, rather
+  than whichever gorlak merchant was found first, which mattered in worlds with
+  more than one gorlak civ.
+- **AP goods could never be removed.** DFHack refuses to remove items flagged as in
+  a building, which every AP good is, so clearing goods, removing abandoned ones
+  and reaping goods recovered from thieves all failed silently and retried forever.
+- **A Merchant's Coffer no longer summons the gorlaks when the shop is off.** The
+  Legendary Wealth goal keeps coffers in the pool without the shop, and receiving
+  one still forced a gorlak caravan with no AP goods, or, in a world without
+  gorlaks, warned on every coffer that the shop could never work. The coffer now
+  only counts toward the wealth goal.
+
 ## 2.1.1
 
 A fix-only release. **2.1.0 and 2.0.x seeds and worlds stay playable** - the item

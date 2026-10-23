@@ -36,7 +36,7 @@ local function find_job(id)
 end
 
 local SCRIPT_NAME = "dwarfipelago"
-local SCRIPT_VERSION = "2.1.1"
+local SCRIPT_VERSION = "2.1.2"
 local POLL_TICKS  = 100  -- poll wealth/trade/goal checks every N ticks
 
 local function fmt_energy(j)
@@ -345,12 +345,11 @@ local function check_goal_by_poll()
         end
 
     elseif goal == 3 then  -- mountainhome
-        -- Mountainhome is achieved when the monarch (king/queen) takes residence
-        -- and the Monarch's Invitation has been received from the multiworld.
-        local ok_k, has_king  = pcall(dfhack.units.getUnitsByNobleRole, "KING")
-        local ok_q, has_queen = pcall(dfhack.units.getUnitsByNobleRole, "QUEEN")
-        local has_monarch = (ok_k and has_king and #has_king > 0)
-                         or (ok_q and has_queen and #has_queen > 0)
+        -- Mountainhome is achieved when the monarch takes residence and the
+        -- Monarch's Invitation has been received from the multiworld. The position
+        -- code is MONARCH; king and queen are only its gendered display names.
+        local ok_m, monarchs = pcall(dfhack.units.getUnitsByNobleRole, "MONARCH")
+        local has_monarch = ok_m and monarchs ~= nil and #monarchs > 0
         if has_monarch
                 and goal_setting("unlock/monarch_invitation", 0) == 1
                 and goal_setting("unlock/immigration_waves", 0) >= 5
