@@ -7,7 +7,23 @@ and location tables are untouched. The one exception is a skillsanity seed with
 combat skills turned off: those were generated broken (see below) and need
 regenerating.
 
+### Removed checks
+
+Two checks are no longer generated. Their ids stay registered, and an older seed
+that still has them gets them sent automatically, so their items are released.
+
+- **Titan Slain.** Titans too rarely reach a fort for this to be a fair check;
+  Forgotten Beast Slain still covers the first forgotten beast kill.
+- **Record Keeper skillsanity checks.** The skill barely trains in play, so its
+  levels were close to unreachable. It is gone from the Medium and All skill
+  groups and the manual skill list, and a yaml that still lists it is accepted
+  with the skill ignored.
+
 ### Fixes
+
+- **Fixed the Mountainhome goal and the Monarch Takes Residence check never
+  firing.** Both looked for a KING or QUEEN noble position, but DF's dwarven
+  monarch is the MONARCH position; king and queen are only its gendered names.
 
 - **Fixed combat skill checks appearing with combat skillsanity turned off.** With
   skillsanity on and `skillsanity_enable_combat` off, the combat skills were never

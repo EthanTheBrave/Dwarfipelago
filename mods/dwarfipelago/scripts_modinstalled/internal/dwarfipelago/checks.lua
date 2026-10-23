@@ -432,7 +432,7 @@ M.checks = {
     { id = 37370208, name = "First Act of Diplomacy",   fn = function() return M.trade_flag("first_diplomacy")    end },
 
     -- Fortress status / noble appointments
-    -- Position codes match vanilla DF entity_default.txt. KING covers both king
+    -- Position codes match vanilla DF entity_default.txt. MONARCH covers both king
     -- and queen (DF stores a single position code with gendered display names).
     -- Baron/Count/Duke/Monarch checks additionally require the matching charter.
     { id = 37370300, name = "Mayor Elected",           fn = function() return has_noble_role("MAYOR") end },
@@ -441,7 +441,7 @@ M.checks = {
     { id = 37370303, name = "Duke Appointed",          fn = function() return unlock_flag("duke_charter")        and has_noble_role("DUKE")  end },
     { id = 37370304, name = "Monarch Takes Residence", fn = function()
         if not unlock_flag("monarch_invitation") then return false end
-        return has_noble_role("KING") or has_noble_role("QUEEN")
+        return has_noble_role("MONARCH")
     end },
 
     -- Fortress title milestones (population + created OR exported wealth)
@@ -513,7 +513,9 @@ M.checks = {
     { id = 37370780, name = "First Kill",              fn = function() return M.production_flag("first_kill")           end },
     { id = 37370781, name = "First Siege",             fn = function() return M.production_flag("first_siege")          end },
     { id = 37370782, name = "Forgotten Beast Slain",   fn = function() return M.production_flag("slew_forgotten_beast") end },
-    { id = 37370783, name = "Titan Slain",             fn = function() return M.production_flag("slew_titan")           end },
+    -- Retired (titans too rarely reach a fort). Always done, so a seed that still
+    -- has it releases its item; newer seeds lack it and the server ignores it.
+    { id = 37370783, name = "Titan Slain",             fn = function() return true end },
     { id = 37370784, name = "Semi-megabeast Slain",    fn = function() return M.production_flag("slew_semimegabeast")   end },
     { id = 37370785, name = "Megabeast Slain",         fn = function() return M.production_flag("slew_megabeast")       end },
 
@@ -1725,6 +1727,10 @@ local function lower_unit_skill(unit, skill_id, rating)
     end
 end
 
+-- Skills no longer generated. A seed that still tracks one is recorded at max
+-- level, so the client sends all of its checks and releases their items.
+local RETIRED_SKILLS = { recordkeeper = true }
+
 -- Rescan citizens and update each tracked skill's recorded level. Called from the
 -- poll loop. Only runs when skillsanity is enabled, and only touches skills the
 -- client initialised for this slot (their key already exists). Recorded levels
@@ -1736,6 +1742,14 @@ function M.update_skill_levels()
     local max_level = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/skillsanity_max_level")) or 15
     local behaviour = tonumber(dfhack.persistent.getWorldDataString("dwarfipelago/skillsanity_behaviour")) or 0
 
+    for flag in pairs(RETIRED_SKILLS) do
+        local key = SKILL_COUNT_PREFIX .. flag
+        local cur = dfhack.persistent.getWorldDataString(key)
+        if cur ~= nil and cur ~= "" and (tonumber(cur) or 0) < max_level then
+            dfhack.persistent.saveWorldDataString(key, tostring(max_level))
+        end
+    end
+
     -- Decide what actually needs looking at BEFORE touching any unit. A skill
     -- already recorded at max_level can never go higher, so scanning every
     -- citizen for it again each poll is pure waste - and skillsanity tracks ~87
@@ -1743,7 +1757,8 @@ function M.update_skill_levels()
     -- Behaviour 1 is the exception: it actively caps units, so it keeps working.
     local todo = {}
     for _, st in ipairs(SKILL_LIST) do
-        if st.key ~= nil then  -- skip any job_skill name absent in this DF build
+        -- skip retired skills and any job_skill name absent in this DF build
+        if st.key ~= nil and not RETIRED_SKILLS[st.skill] then
             local key = SKILL_COUNT_PREFIX .. st.skill
             local cur = dfhack.persistent.getWorldDataString(key)
             if cur ~= nil and cur ~= "" then  -- only enabled/tracked skills

@@ -44,7 +44,7 @@ class Skillsanity:
      "Engraver", "Stone Carver", "Animal Trainer", "Diagnostician", "Cheese Maker", "Dyer", "Lye Maker", "Milker",
      "Miller", "Potash Maker", "Presser", "Shearer", "Soaper", "Thresher", "Fisherdwarf", "Fish Cleaner", 
      "Armorsmith", "Metal Crafter", "Blacksmith", "Weaponsmith", "Gem Setter", "Siege Operator",
-     "Appraiser", "Organizer", "Record Keeper"
+     "Appraiser", "Organizer"
     ]
 
     SKILLSANITY_HARD: List[str] = SKILLSANITY_MEDIUM + [
