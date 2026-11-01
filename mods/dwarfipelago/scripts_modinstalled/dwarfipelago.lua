@@ -2248,7 +2248,11 @@ local function on_item_created(item_id)
         -- Capped, not blocked - minting/cutting itself always keeps working so the
         -- shop never runs dry, but value past the current coffer tier's ceiling
         -- doesn't count toward wealth progress until the next coffer raises it.
-        if (t == "COIN" or t == "SMALLGEM") and made_by_fort(item) then
+        -- Note: DF cut gems (SMALLGEM) do not have a maker field (item.maker == -1),
+        -- so check non-trader/non-worldgen instead of made_by_fort for gems.
+        local is_wealth_item = (t == "COIN" and made_by_fort(item))
+            or (t == "SMALLGEM" and not (item.flags and (item.flags.trader or item.flags.from_worldgen)))
+        if is_wealth_item then
             local ok_type, itype = pcall(function() return item:getType() end)
             if ok_type then
                 local cap     = treasury_created_cap()

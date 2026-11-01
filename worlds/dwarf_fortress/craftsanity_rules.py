@@ -375,6 +375,9 @@ class DynamicCraftingLocationRules:
     def craftdwarf_and_butchery(self, state:CollectionState) -> bool:
         return self.craftdwarf_workshop(state) and self.butcher_workshop(state)
     
+    def craftdwarf_and_chair(self, state:CollectionState) -> bool:
+        return self.craftdwarf_workshop(state) and self.wood_or_stone_or_metal_or_glass(state)
+    
     def craftdwarf_or_metal_or_glass(self, state:CollectionState) -> bool:
         return self.craftdwarf_workshop(state) or self.job_type(state, "Metal") or self.job_type(state, "Glass")
     
@@ -1009,15 +1012,15 @@ class DynamicCraftingLocationRules:
         return self.metal_cup(state) or self.glass_cup(state)
     
     def wood_or_stone_toy(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Stonecraft") and self.permit(state, "Toy")
+        return self.craftdwarf_workshop(state) and self.permit(state, "Toy") and self.wood_or_stone_or_metal_or_glass_chair(state)
     def metal_toy(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Metal") and self.permit(state, "Toy")
+        return self.job_type(state, "Metal") and self.permit(state, "Toy") and self.wood_or_stone_or_metal_or_glass_chair(state)
     def adamantine_toy(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Toy")
+        return self.job_type(state, "Adamantinemetal") and self.permit(state, "Toy") and self.wood_or_stone_or_metal_or_glass_chair(state)
     def glass_toy(self, state:CollectionState) -> bool:
-        return self.job_type(state, "Glass") and self.permit(state, "Toy")
+        return self.job_type(state, "Glass") and self.permit(state, "Toy") and self.wood_or_stone_or_metal_or_glass_chair(state)
     def craftdwarf_or_metal_or_glass_toy(self, state:CollectionState) -> bool:
-        return self.craftdwarf_or_metal_or_glass(state) and self.permit(state, "Toy")
+        return self.craftdwarf_or_metal_or_glass(state) and self.permit(state, "Toy") and self.wood_or_stone_or_metal_or_glass_chair(state)
     
     def craftdwarf_and_butchery_totem(self, state:CollectionState) -> bool:
         return self.job_type(state, "Bonecraft") and self.permit(state, "Totem")
@@ -2963,7 +2966,7 @@ class DynamicCraftingLocationRules:
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.wood_or_stone_toy)
                     else:
-                        set_rule(loc, self.craftdwarf_workshop)
+                        set_rule(loc, self.craftdwarf_and_chair)
                 elif material_type == "Metal":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.metal_toy)

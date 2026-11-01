@@ -236,7 +236,10 @@ end
 -- 500; a cut gem's base value is 20 × material_value (DF's cut-gem base value
 -- of 20, per https://dwarffortresswiki.org/index.php/Value).
 local function item_wealth_value(item, itype)
-    local ok, mat = pcall(dfhack.matinfo.decode, item.mat_type, item.mat_index)
+    local ok, mat = pcall(dfhack.matinfo.decode, item)
+    if not (ok and mat) then
+        ok, mat = pcall(dfhack.matinfo.decode, item.mat_type, item.mat_index)
+    end
     local mat_value = 1
     if ok and mat and mat.material then
         mat_value = mat.material.material_value or 1
@@ -1754,7 +1757,8 @@ function M.update_skill_levels()
     -- already recorded at max_level can never go higher, so scanning every
     -- citizen for it again each poll is pure waste - and skillsanity tracks ~87
     -- skills, so at a mature fort that was 87 x every citizen per tick forever.
-    -- Behaviour 1 is the exception: it actively caps units, so it keeps working.
+    -- Once a skill is recorded at max_level, its checks are complete, so dampening
+    -- (behaviour == 1) also stops so the player can continue leveling past the cap.
     local todo = {}
     for _, st in ipairs(SKILL_LIST) do
         -- skip retired skills and any job_skill name absent in this DF build
@@ -1763,7 +1767,7 @@ function M.update_skill_levels()
             local cur = dfhack.persistent.getWorldDataString(key)
             if cur ~= nil and cur ~= "" then  -- only enabled/tracked skills
                 local recorded = tonumber(cur) or 0
-                if behaviour == 1 or recorded < max_level then
+                if recorded < max_level then
                     todo[#todo + 1] = { st = st, key = key, recorded = recorded }
                 end
             end
