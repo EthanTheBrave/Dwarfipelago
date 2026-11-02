@@ -36,7 +36,7 @@ local function find_job(id)
 end
 
 local SCRIPT_NAME = "dwarfipelago"
-local SCRIPT_VERSION = "2.1.2"
+local SCRIPT_VERSION = "2.1.3"
 local POLL_TICKS  = 100  -- poll wealth/trade/goal checks every N ticks
 
 local function fmt_energy(j)
