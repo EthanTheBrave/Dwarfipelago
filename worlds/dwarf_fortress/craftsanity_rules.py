@@ -1010,9 +1010,11 @@ class DynamicCraftingLocationRules:
         return self.job_type(state, "Woodcraft") and self.permit(state, "Cup")
     def metal_or_glass_goblet(self, state:CollectionState) -> bool:
         return self.metal_cup(state) or self.glass_cup(state)
-    
-    def wood_or_stone_toy(self, state:CollectionState) -> bool:
-        return self.craftdwarf_workshop(state) and self.permit(state, "Toy") and self.wood_or_stone_or_metal_or_glass_chair(state)
+
+    def wood_toy(self, state:CollectionState) -> bool:
+            return self.craftdwarf_workshop(state) and self.permit(state, "Toy") and self.wood_or_stone_or_metal_or_glass_chair(state)
+    def stone_toy(self, state:CollectionState) -> bool:
+        return self.craftdwarf_workshop(state) and self.permit(state, "Toy")
     def metal_toy(self, state:CollectionState) -> bool:
         return self.job_type(state, "Metal") and self.permit(state, "Toy") and self.wood_or_stone_or_metal_or_glass_chair(state)
     def adamantine_toy(self, state:CollectionState) -> bool:
@@ -2962,11 +2964,16 @@ class DynamicCraftingLocationRules:
                 else:
                     set_rule(loc, self.wood)  
             case "Toy":
-                if material_type in {"Wood", "Stone"}:
+                if material_type == "Wood":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
-                        set_rule(loc, self.wood_or_stone_toy)
+                        set_rule(loc, self.wood_toy)
                     else:
                         set_rule(loc, self.craftdwarf_and_chair)
+                elif material_type == "Stone":
+                    if self.world.options.craftpermits != CraftingPermits.option_off:
+                        set_rule(loc, self.stone_toy)
+                    else:
+                        set_rule(loc, self.craftdwarf_workshop)
                 elif material_type == "Metal":
                     if self.world.options.craftpermits != CraftingPermits.option_off:
                         set_rule(loc, self.metal_toy)
